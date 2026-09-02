@@ -19,7 +19,6 @@ reason: parse the renderer, compare against the Python truth.
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
@@ -70,15 +69,54 @@ EXPECTED_PREFIXES = {
 }
 
 
-def _parse_array(source: str, name: str) -> set[str]:
-    """Read one ``const NAME: readonly string[] = [ ... ]`` as a set.
+_JS_ESCAPES = {
+    "\\": "\\",
+    "'": "'",
+    '"': '"',
+    "n": "\n",
+    "t": "\t",
+    "r": "\r",
+    "0": "\0",
+}
 
-    Parsed rather than executed, and the entries are read as JSON: the file is
-    generated from these very constants, so every entry is a plain
-    double-quoted string with JSON escaping.  A hand-edited entry that uses a
-    template literal or single quotes will not parse — which is the correct
-    failure, since it also means the string is no longer verbatim.
+
+def _unquote_js(literal: str) -> str:
+    """One single- or double-quoted JS string literal, as its value.
+
+    Both quote styles have to be handled: the file is GENERATED with double
+    quotes, and then the repo formatter rewrites each one to single quotes
+    unless the text contains an apostrophe.  Anchoring the test on either style
+    would make ``npm run fix`` break it, which is how a guard test teaches people
+    to delete guard tests.
     """
+    literal = literal.strip().rstrip(",").strip()
+
+    assert literal[:1] in "\"'" and literal[-1:] == literal[:1], (
+        f"not a plain string literal (template literal? concatenation?): {literal!r} — "
+        "these entries must stay verbatim so they can be compared byte-for-byte"
+    )
+
+    body = literal[1:-1]
+    out: list[str] = []
+    index = 0
+
+    while index < len(body):
+        char = body[index]
+
+        if char == "\\" and index + 1 < len(body):
+            nxt = body[index + 1]
+            out.append(_JS_ESCAPES.get(nxt, nxt))
+            index += 2
+            continue
+
+        out.append(char)
+        index += 1
+
+    return "".join(out)
+
+
+def _parse_array(source: str, name: str) -> set[str]:
+    """Read one ``const NAME: readonly string[] = [ ... ]`` as a set."""
     match = re.search(
         rf"const {re.escape(name)}: readonly string\[\] = \[(.*?)\n\]",
         source,
@@ -88,7 +126,7 @@ def _parse_array(source: str, name: str) -> set[str]:
     assert match, f"{REGISTRY.name} has no `{name}` array — did the file move?"
 
     return {
-        json.loads(line.strip().rstrip(","))
+        _unquote_js(line)
         for line in match.group(1).strip().splitlines()
         if line.strip()
     }

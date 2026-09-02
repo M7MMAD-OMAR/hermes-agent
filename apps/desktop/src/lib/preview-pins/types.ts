@@ -31,12 +31,15 @@ export interface PinShot {
 }
 
 export interface PreviewPin {
-  /** What the user wrote. Empty until they finish the bubble. */
   comment: string
   /** When it was placed, for stable ordering in the list. */
   createdAt: number
   id: string
   kind: PinKind
+  /** Reached the chat — composer chip or queue — so the pending list hides it
+   *  and its marker reads done. Never set automatically for anything else:
+   *  resolved/clear stay manual. */
+  delivered?: boolean
   /** Which rung of the ladder found it last, e.g. `selector`, `role+label`.
    *  Surfaced in the list so a weak re-attach is visible rather than silent. */
   matchedBy?: string

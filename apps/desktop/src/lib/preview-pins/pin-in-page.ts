@@ -32,9 +32,12 @@ export type PinVerb =
   | 'remove'
   | 'clear'
   | 'take'
+  | 'deliver'
 
 export interface PinCommand {
   comment?: string
+  /** For `deliver`: did it reach the chat (true) or fail to (false)? */
+  delivered?: boolean
   id?: string
   verb: PinVerb
 }
@@ -110,6 +113,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       'background:#d99a5b;color:#1c1b19;font:600 12px/22px system-ui;text-align:center;',
       'pointer-events:auto;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.4);transform:translate(-4px,-26px)}',
       '.pin.resolved{background:#7fc08e}',
+      '.pin.delivered{background:#5b9dd9;color:#f2f6fa}',
       '.pin.orphan{background:#8a8a8a}',
       '.box{position:fixed;border:2px dashed #d99a5b;background:rgba(217,154,91,.1);pointer-events:none}',
       // The bubble sizes itself to the page it is floating over: comfortable on
@@ -221,9 +225,12 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       marker.className =
         'pin' +
         (pin.resolved ? ' resolved' : '') +
+        // Delivered outranks resolved in the paint: the user already knows it
+        // arrived, so "sent" is the state the marker should describe.
+        (pin.delivered ? ' delivered' : '') +
         (pin.orphaned ? ' orphan' : '') +
         (shots.length ? ' shot' : '')
-      marker.textContent = String(index + 1)
+      marker.textContent = pin.delivered ? '✓' + String(index + 1) : String(index + 1)
       marker.dataset.pin = String(pin.id)
 
       let box: { height: number; left: number; top: number; width: number } | null = null
@@ -917,6 +924,18 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       paint()
 
       break
+    /** Mark one comment as having reached the chat — or undo it when the
+     *  delivery failed and the chip had to come back. The comment itself is
+     *  never touched: delivery is an address, not an edit. */
+    case 'deliver': {
+      const pin = pins.find(entry => entry.id === command.id)
+
+      if (pin) {pin.delivered = command.delivered !== false}
+      paint()
+
+      break
+    }
+
     /**
      * Hand one image's bytes to the app and forget them here.
      *

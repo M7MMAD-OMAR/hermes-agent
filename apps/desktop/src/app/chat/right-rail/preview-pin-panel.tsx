@@ -1,33 +1,47 @@
 /**
- * PIN PANEL — annotation mode's UI: the toggle, the list, and the one button
- * that turns a review into a prompt.
+ * PIN PANEL — annotation mode's UI: the toggle, the list, and the ways a
+ * review becomes a prompt.
  *
  * The pins themselves are drawn IN the page by the engine, because only the
  * page knows where its elements are after a scroll or a reflow. This panel is
  * the durable side: it holds what the engine would lose to a navigation, and it
- * is what replays them back afterwards.
+ * is what replays them back afterwards. The book lives in a persistent store
+ * (`pin-book-store.ts`), not in component memory — a remount, a window close or
+ * an app restart must not cost the user their comments.
  *
- * "Attach to chat" produces a `pins` composer attachment rather than sending a
- * message. Deciding when to send stays the user's — they usually have something
- * to add on top of the comments.
+ * Delivery is per comment: "Send" hands ONE comment to the chat now, "Queue"
+ * parks it in the conversation's prompt queue, "Send all" delivers every
+ * pending comment at once. A delivered comment leaves the pending list on its
+ * own and its marker reads ✓ — nothing else is ever removed automatically.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useStore } from '@nanostores/react'
+import { useCallback, useEffect, useState } from 'react'
 
+import { requestComposerSubmit } from '@/app/chat/composer/focus'
 import { Codicon } from '@/components/ui/codicon'
 import { dataUrlToBlob } from '@/lib/embedded-images'
 import { orderedShots, pinAttachmentLabel } from '@/lib/preview-pins/pin-block'
 import { allPins, mergeReport, otherPages, type PinBook, pinsForPage } from '@/lib/preview-pins/pin-book'
+import { $pinBook, setPinBook } from '@/lib/preview-pins/pin-book-store'
 import type { PreviewPin } from '@/lib/preview-pins/types'
 import { cn } from '@/lib/utils'
-import { addComposerAttachment, createComposerAttachmentOccurrenceId } from '@/store/composer'
+import {
+  addComposerAttachment,
+  type ComposerAttachment,
+  createComposerAttachmentOccurrenceId
+} from '@/store/composer'
+import { enqueueQueuedPrompt } from '@/store/composer-queue'
 import { relayComposerAttachment } from '@/store/composer-relay'
 import { notify } from '@/store/notifications'
+import { $activeSessionId, $sessions, resolveComposerSessionKey, sessionMatchesStoredId } from '@/store/session'
+import { $sessionStates } from '@/store/session-states'
 import { isBrowserWindow } from '@/store/windows'
 
 import {
   armPins,
   clearPins,
+  deliverPin,
   disarmPins,
   hidePins,
   readPins,
@@ -46,18 +60,42 @@ const POLL_MS = 700
 /** How many comments the panel shows before it asks to be expanded. */
 const COLLAPSED_ROWS = 2
 
+/** The conversation the send paths address. The route-driven key the composer
+ *  itself uses is not reachable from the rail, so this resolves the same
+ *  durable key from the active session — the queue panel and this panel then
+ *  agree about which conversation owns an entry. */
+function conversationKey(): null | string {
+  return resolveComposerSessionKey($activeSessionId.get(), $sessions.get())
+}
+
+/** Is that conversation mid-turn? Session states are keyed by RUNTIME id and
+ *  carry the stored id they belong to, so match on that: the send path only
+ *  queues when a real turn is in flight, never when the panel merely guessed. */
+function isSessionBusy(key: string): boolean {
+  return Object.values($sessionStates.get()).some(state => {
+    if (!state.busy || !state.storedSessionId) {
+      return false
+    }
+
+    // The key is a lineage root; the state carries the stored id it belongs
+    // to. Match through the same table the composer scope resolves with, so
+    // the two never disagree about whether a conversation is mid-turn.
+    return state.storedSessionId === key || $sessions.get().some(
+      session => sessionMatchesStoredId(session, state.storedSessionId ?? '') && sessionMatchesStoredId(session, key)
+    )
+  })
+}
+
 export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
+  const book = useStore($pinBook)
   const [pins, setPins] = useState<PreviewPin[]>([])
   const [armed, setArmed] = useState(false)
   const [live, setLive] = useState(true)
-  /** Every page's pins, so a review can walk the site. The engine only ever
-   *  holds the current page's; this is the side that outlives a navigation. */
-  const book = useRef<PinBook>({})
   const [elsewhere, setElsewhere] = useState({ count: 0, pages: 0 })
   const [expanded, setExpanded] = useState(false)
 
   /** Full image bytes, drained out of the page and owned here. */
-  const bytes = useRef<Map<string, string>>(new Map())
+  const bytes = useState(() => new Map<string, string>())[0]
 
   const sync = useCallback(async (report: Awaited<ReturnType<typeof readPins>>) => {
     if (!report) {
@@ -70,10 +108,10 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
     // image pasted and then left alone still has to get out of the page before
     // the next navigation takes the page with it.
     for (const id of report.pendingShots ?? []) {
-      if (bytes.current.has(id)) {continue}
+      if (bytes.has(id)) {continue}
       const answer = await takeShot(id)
 
-      if (answer?.shot) {bytes.current.set(id, answer.shot)}
+      if (answer?.shot) {bytes.set(id, answer.shot)}
     }
 
     setLive(true)
@@ -81,10 +119,11 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
     setPins(report.pins)
     // File under the page's OWN url, not the pane's — the pane's value lags a
     // redirect, and filing under the wrong key is how a page's comments end up
-    // replayed onto a different page.
-    book.current = mergeReport(book.current, report.url, report.pins)
-    setElsewhere(otherPages(book.current, report.url))
-  }, [])
+    // replayed onto a different page. The book is the persistent store: writing
+    // it here is what makes a review survive a remount.
+    setPinBook(mergeReport($pinBook.get(), report.url, report.pins))
+    setElsewhere(otherPages($pinBook.get(), report.url))
+  }, [bytes])
 
   // Poll while the panel is open — not only while armed. A marker stays
   // clickable after disarming, so a comment can be edited or an image pasted
@@ -109,7 +148,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       return
     }
 
-    void showPins(pinsForPage(book.current, url)).then(sync)
+    void showPins(pinsForPage($pinBook.get(), url)).then(sync)
   }, [open, sync, url])
 
   // A pane teardown is a close the effect above never sees.
@@ -119,50 +158,29 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
   // from this page's bucket — and only this page's — then re-run the ladder.
   useEffect(() => {
     if (!open) {return}
-    void reattachPins(pinsForPage(book.current, url)).then(sync)
+    void reattachPins(pinsForPage($pinBook.get(), url)).then(sync)
   }, [open, sync, url])
 
   const toggleArmed = async () => {
-    const report = armed ? await disarmPins() : await armPins(pinsForPage(book.current, url))
+    const report = armed ? await disarmPins() : await armPins(pinsForPage($pinBook.get(), url))
     await sync(report)
   }
 
-  const attach = async () => {
-    // The whole review, not just the page in front of us. Someone who commented
-    // on the home page and then on a product page meant one request.
-    const held = allPins(book.current).filter(pin => !pin.resolved)
-
-    // Drop any image whose bytes never reached us — a page closed before the
-    // drain, say. The block numbers images off this list and the attachments
-    // are built from the same walk, so pruning here keeps "[image 2]" and the
-    // second picture the same picture by construction.
-    const sending = held.map(pin => {
-      const shots = (pin.shots ?? []).filter(shot => bytes.current.has(shot.id))
-
-      return shots.length === (pin.shots?.length ?? 0) ? pin : { ...pin, shots }
-    })
-
-    if (!sending.length) {return}
-
-    /**
-     * Put the chip where the composer actually is.
-     *
-     * The popped-out Browser is the one window with no composer, so adding to
-     * its own store was a click that succeeded into a void. Every other window
-     * — including the secondary session window and the HUD — renders a real
-     * composer, and the chip belongs in THAT one: relaying from there would
-     * hand it to the primary window, which is not the window the user is
-     * looking at.
-     *
-     * Posts immediately and hands back the acknowledgement to await LATER.
-     * Awaiting each one here instead cost a full relay timeout per attachment
-     * — a review with eight pictures spent nearly four seconds deciding it had
-     * failed. Order is unaffected: the posts still leave in call order, and a
-     * BroadcastChannel delivers them in that order.
-     */
+  /**
+   * Stage one comment's payload: the `pins` chip plus its images as ordinary
+   * image attachments. Shared by Send and Send-all so both roads a comment
+   * takes into the chat carry the same things.
+   *
+   * Returns the staged parts (locally added) plus the relay acknowledgements —
+   * a popped-out Browser has no composer of its own, so "did it land?" is only
+   * answerable after the relays answer, and a failed delivery must NOT be
+   * marked delivered.
+   */
+  const stage = async (sending: PreviewPin[]): Promise<{ acks: Promise<boolean>[]; parts: ComposerAttachment[] }> => {
+    const parts: ComposerAttachment[] = []
     const acks: Promise<boolean>[] = []
 
-    const deliver = (attachment: Parameters<typeof addComposerAttachment>[0]) => {
+    const stagePart = (attachment: ComposerAttachment) => {
       if (isBrowserWindow()) {
         acks.push(relayComposerAttachment(attachment))
 
@@ -170,10 +188,10 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       }
 
       addComposerAttachment(attachment)
-      acks.push(Promise.resolve(true))
+      parts.push(attachment)
     }
 
-    deliver({
+    stagePart({
       detail: JSON.stringify(sending),
       // Derived from the pins alone: once a batch spans pages, no single url
       // identifies it.
@@ -183,14 +201,11 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       refText: `${sending.length} preview comment${sending.length === 1 ? '' : 's'}`
     })
 
-    // Then the pictures themselves, as ordinary image attachments — the same
-    // road a dropped screenshot takes, so nothing downstream needs to know
-    // these came from a pin.
     let index = 0
 
     for (const { shot } of orderedShots(sending)) {
       index += 1
-      const data = bytes.current.get(shot.id)
+      const data = bytes.get(shot.id)
       const blob = data ? dataUrlToBlob(data) : null
 
       if (!blob) {continue}
@@ -201,7 +216,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
 
         if (!path) {continue}
 
-        deliver({
+        stagePart({
           detail: path,
           id: `pin-image:${shot.id}`,
           kind: 'image',
@@ -218,11 +233,104 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       }
     }
 
-    const delivered = (await Promise.all(acks)).filter(Boolean).length
+    return { acks, parts }
+  }
 
-    // Say so either way. The chip lands in a composer that may be scrolled out
-    // of sight or in another window entirely, and a button that looks inert is
-    // exactly how this was reported.
+  /** A delivered comment leaves the pending list and its marker reads ✓. */
+  const markDelivered = async (ids: string[], delivered: boolean) => {
+    const next: PinBook = { ...$pinBook.get() }
+    const set = new Set(ids)
+
+    for (const [key, pagePins] of Object.entries(next)) {
+      next[key] = pagePins.map(pin => (set.has(pin.id) ? { ...pin, delivered } : pin))
+    }
+
+    setPinBook(next)
+    setPins(current => current.map(pin => (set.has(pin.id) ? { ...pin, delivered } : pin)))
+
+    for (const id of ids) {
+      await deliverPin(id, delivered)
+    }
+  }
+
+  /** Deliver staged parts into the conversation: queue when the turn is busy
+   *  (the queue drains it next turn), otherwise submit through the composer. */
+  const deliverNow = async (text: string, parts: ComposerAttachment[]): Promise<boolean> => {
+    const key = conversationKey()
+
+    if (key && isSessionBusy(key)) {
+      return Boolean(enqueueQueuedPrompt(key, { attachments: parts, text }))
+    }
+
+    const submitted = requestComposerSubmit(text)
+
+    return submitted || Boolean(key && enqueueQueuedPrompt(key, { attachments: parts, text }))
+  }
+
+  /** One comment, one send. The comment's own words are the prompt; the chip
+   *  and its images ride as attachments. */
+  const sendOne = async (pin: PreviewPin) => {
+    const text = pin.comment.trim() || `Review this: ${pin.target || pin.kind}`
+
+    const { acks, parts } = await stage([pin])
+
+    if (!parts.length && !acks.length) {return}
+
+    if (await deliverNow(text, parts)) {
+      await markDelivered([pin.id], true)
+      notify({ kind: 'success', message: 'Comment sent to the chat.', title: 'Sent' })
+    } else {
+      notify({ kind: 'error', message: 'No conversation is open to receive it.', title: 'Could not send' })
+    }
+  }
+
+  /** Park one comment in the conversation's prompt queue, attachments and all.
+   *  Deliberately NOT a send: it drains when the current turn settles. */
+  const queueOne = async (pin: PreviewPin) => {
+    const key = conversationKey()
+
+    if (!key) {
+      notify({ kind: 'error', message: 'No conversation is open to queue it in.', title: 'Could not queue' })
+
+      return
+    }
+
+    const text = pin.comment.trim() || `Review this: ${pin.target || pin.kind}`
+    const { parts } = await stage([pin])
+
+    if (enqueueQueuedPrompt(key, { attachments: parts, text })) {
+      await markDelivered([pin.id], true)
+      notify({ kind: 'success', message: 'Comment parked in the queue.', title: 'Queued' })
+    } else {
+      notify({ kind: 'error', message: 'The queue rejected the comment.', title: 'Could not queue' })
+    }
+  }
+
+  const attach = async () => {
+    // The whole review, not just the page in front of us — and only what is
+    // still pending: resolved work the user accepted and already-delivered
+    // comments are history, not instructions.
+    const held = allPins($pinBook.get()).filter(pin => !pin.resolved && !pin.delivered)
+
+    if (!held.length) {return}
+
+    // Drop any image whose bytes never reached us — a page closed before the
+    // drain, say. The block numbers images off this list and the attachments
+    // are built from the same walk, so pruning here keeps "[image 2]" and the
+    // second picture the same picture by construction.
+    const sending = held.map(pin => {
+      const shots = (pin.shots ?? []).filter(shot => bytes.has(shot.id))
+
+      return shots.length === (pin.shots?.length ?? 0) ? pin : { ...pin, shots }
+    })
+
+    const { acks } = await stage(sending)
+
+    // Delivered only when something actually landed. A popped-out Browser with
+    // no composer answers false on every relay — marking the batch delivered
+    // there would be exactly the silent loss this panel exists to prevent.
+    const delivered = acks.length === 0 || (await Promise.all(acks)).some(Boolean)
+
     notify(
       delivered
         ? {
@@ -230,29 +338,41 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
             message: `${sending.length} comment${sending.length === 1 ? '' : 's'} ready in the composer`,
             title: 'Added to chat'
           }
-        : {
-            kind: 'error',
-            message: 'No composer window is open to receive them.',
-            title: 'Could not add to chat'
-          }
+        : { kind: 'error', message: 'No composer window is open to receive them.', title: 'Could not add to chat' }
     )
+
+    if (delivered) {
+      // Delivered is delivered: the batch left for the chat, so every one of
+      // these leaves the pending list on its own. Nothing was deleted —
+      // Resolve, Delete and Clear stay the only destructive acts.
+      await markDelivered(sending.map(pin => pin.id), true)
+    }
   }
 
   const clearEverything = async () => {
-    book.current = {}
+    setPinBook({})
     setElsewhere({ count: 0, pages: 0 })
     await clearPins().then(sync)
   }
 
   if (!open) {return null}
 
-  const openCount = pins.filter(pin => !pin.resolved).length
+  // The pending list: what still owes the chat a delivery. Delivered comments
+  // leave this list the moment they arrive — that IS the auto-clear, one
+  // comment at a time. Nothing not delivered is ever removed without the user
+  // pressing Clear, Resolve or Delete.
+  const pending = pins.filter(pin => !pin.delivered)
+  const openCount = pending.filter(pin => !pin.resolved).length
 
   // Newest first, and only a couple of them: the panel sits above the page it
   // is describing, and a comment list that grows without bound eats the very
   // thing being reviewed. The number stays the pin's own, so a row and the
   // marker on the page always agree even when the order does not.
-  const numbered = pins.map((pin, index) => ({ number: index + 1, pin })).reverse()
+  const numbered = pins
+    .map((pin, index) => ({ number: index + 1, pin }))
+    .reverse()
+    .filter(({ pin }) => !pin.delivered)
+
   const listed = expanded ? numbered : numbered.slice(0, COLLAPSED_ROWS)
 
   return (
@@ -291,10 +411,10 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
             className="rounded px-2 py-1 hover:bg-muted disabled:opacity-40"
             disabled={!openCount && !elsewhere.count}
             onClick={() => void attach()}
-            title="Add every open comment, across every page, to the composer"
+            title="Add every pending comment, across every page, to the chat"
             type="button"
           >
-            Attach to chat
+            Send all
           </button>
           <button
             className="rounded px-2 py-1 hover:bg-muted disabled:opacity-40"
@@ -343,6 +463,22 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
               </span>
               <button
                 className="rounded px-1 hover:bg-muted"
+                onClick={() => void sendOne(pin)}
+                title="Send this comment to the chat now"
+                type="button"
+              >
+                <Codicon name="send" size="0.75rem" />
+              </button>
+              <button
+                className="rounded px-1 hover:bg-muted"
+                onClick={() => void queueOne(pin)}
+                title="Add this comment to the conversation's queue"
+                type="button"
+              >
+                <Codicon name="list-ordered" size="0.75rem" />
+              </button>
+              <button
+                className="rounded px-1 hover:bg-muted"
                 onClick={() => void togglePinResolved(pin.id).then(sync)}
                 title={pin.resolved ? 'Reopen' : 'Mark resolved'}
                 type="button"
@@ -362,13 +498,13 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
         </ul>
       )}
 
-      {pins.length > COLLAPSED_ROWS && (
+      {pending.length > COLLAPSED_ROWS && (
         <button
           className="self-start rounded px-1 text-muted-foreground hover:text-foreground"
           onClick={() => setExpanded(open => !open)}
           type="button"
         >
-          {expanded ? 'Show fewer' : `Show all ${pins.length}`}
+          {expanded ? 'Show fewer' : `Show all ${pending.length}`}
         </button>
       )}
     </div>

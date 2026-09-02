@@ -13,24 +13,46 @@ import { $composerAttachments } from '@/store/composer'
 
 import { PreviewPinPanel } from './preview-pin-panel'
 
-const browserWindow = vi.fn(() => false)
-const relay = vi.fn(async (_attachment: unknown) => true)
-const notified: { kind?: string; title?: string }[] = []
+// Mock state lives on `vi.hoisted` refs: vi.mock is hoisted above the consts,
+// so the factories must read through a holder that exists at hoist time.
+const h = vi.hoisted(() => ({
+  browserWindow: vi.fn(() => false),
+  relay: vi.fn(async (_attachment: unknown) => true),
+  notified: [] as { kind?: string; title?: string }[],
+  submitted: vi.fn((_text: string) => true),
+  queued: vi.fn((_key: string, _text: string) => true)
+}))
+
+const { browserWindow, relay, notified, submitted, queued } = h
 
 vi.mock('@/store/windows', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  isBrowserWindow: () => browserWindow()
+  isBrowserWindow: () => h.browserWindow()
 }))
 
-vi.mock('@/store/composer-relay', () => ({ relayComposerAttachment: (a: unknown) => relay(a) }))
+vi.mock('@/store/composer-relay', () => ({ relayComposerAttachment: (a: unknown) => h.relay(a) }))
 
 vi.mock('@/store/notifications', () => ({
   notify: (input: { kind?: string; title?: string }) => {
-    notified.push(input)
+    h.notified.push(input)
 
     return 'id'
   }
 }))
+
+vi.mock('@/app/chat/composer/focus', () => ({
+  requestComposerSubmit: (text: string) => h.submitted(text)
+}))
+
+vi.mock('@/store/composer-queue', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  enqueueQueuedPrompt: (key: string, payload: { text: string }) => h.queued(key, payload.text)
+}))
+
+import { $pinBook, setPinBook } from '@/lib/preview-pins/pin-book-store'
+import { $queuedPromptsBySession } from '@/store/composer-queue'
+import { $activeSessionId, $sessions } from '@/store/session'
+import { $sessionStates } from '@/store/session-states'
 
 const HOME = 'http://localhost:5178/en/index.html'
 const ABOUT = 'http://localhost:5178/en/about.html'
@@ -78,6 +100,7 @@ const armPins = vi.fn(async (seed?: null | PreviewPin[]) => {
 
 vi.mock('./preview-pins', () => ({
   armPins: (seed?: null | PreviewPin[]) => armPins(seed),
+  deliverPin: vi.fn(async () => report()),
   clearPins: vi.fn(async () => {
     page.pins = {}
 
@@ -131,6 +154,15 @@ beforeEach(() => {
   page.pins = {}
   page.url = HOME
   $composerAttachments.set([])
+  $queuedPromptsBySession.set({})
+  setPinBook({})
+  $activeSessionId.set('sess-1')
+  $sessions.set([{ _lineage_root_id: 'root-1', id: 'sess-1' } as never])
+  $sessionStates.set({})
+  submitted.mockClear()
+  submitted.mockReturnValue(true)
+  queued.mockClear()
+  queued.mockReturnValue(true)
   browserWindow.mockReturnValue(false)
   relay.mockResolvedValue(true)
   notified.length = 0
@@ -162,6 +194,88 @@ describe('closing the panel', () => {
   it('renders nothing while closed', () => {
     render(<PreviewPinPanel open={false} url={HOME} />)
     expect(screen.queryByText('Annotate')).toBeNull()
+  })
+})
+
+
+describe('one comment, one send (Sprint 01)', () => {
+  it('the book survives a remount: the review is in the store, not the component', async () => {
+    page.pins[HOME] = [pin(HOME, 'hero')]
+    const view = render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    view.unmount()
+    // A fresh mount (pane reopen, conversation switch back, window reopen)
+    // reads the book from the store — the ref used to die with the component.
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+  })
+
+  it('Send delivers ONE comment as a real submit and leaves the others pending', async () => {
+    page.pins[HOME] = [pin(HOME, 'hero'), pin(HOME, 'nav', 'nav')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    screen
+      .getAllByTitle('Send this comment to the chat now')
+      .find(button => button.closest('li')?.textContent?.includes('hero'))!
+      .click()
+
+    await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+    expect(submitted.mock.calls[0][0]).toContain('hero')
+    // Only the sent comment leaves the list — the other stays exactly as it was.
+    await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
+    expect(screen.getAllByText('nav').length).toBeGreaterThan(0)
+  })
+
+  it('Queue parks ONE comment in the conversation queue, and nothing is deleted', async () => {
+    page.pins[HOME] = [pin(HOME, 'hero'), pin(HOME, 'nav', 'nav')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    screen
+      .getAllByTitle("Add this comment to the conversation's queue")
+      .find(button => button.closest('li')?.textContent?.includes('hero'))!
+      .click()
+
+    await waitFor(() => expect(queued).toHaveBeenCalledTimes(1))
+    expect(queued.mock.calls[0][0]).toBe('root-1')
+    expect(queued.mock.calls[0][1]).toContain('hero')
+    await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
+    // The unsent comment is untouched — auto-deleting anything not delivered
+    // was the reported bug.
+    expect(screen.getAllByText('nav').length).toBeGreaterThan(0)
+  })
+
+  it('Send all empties the pending list only, and only on real delivery', async () => {
+    page.pins[HOME] = [pin(HOME, 'hero'), pin(HOME, 'nav', 'nav')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    screen.getByText('Send all').click()
+
+    await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
+    await waitFor(() => expect(screen.queryAllByText('nav')).toHaveLength(0))
+    // The comments still exist in the book, marked delivered — history, not dust.
+    const book = $pinBook.get()
+    expect(book[HOME]).toHaveLength(2)
+    expect(book[HOME].every(p => p.delivered)).toBe(true)
+  })
+
+  it('a failed delivery is NOT marked delivered — nothing disappears silently', async () => {
+    browserWindow.mockReturnValue(true)
+    relay.mockResolvedValue(false)
+    page.pins[HOME] = [pin(HOME, 'hero')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    screen.getByText('Send all').click()
+
+    await waitFor(() => expect(notified.at(-1)?.kind).toBe('error'))
+    // The comment is still pending: the user's writing is never the price of a
+    // failed send.
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+    expect($pinBook.get()[HOME][0].delivered).toBeUndefined()
   })
 })
 
@@ -205,7 +319,7 @@ describe('a review across pages', () => {
     view.rerender(<PreviewPinPanel open url={ABOUT} />)
     await waitFor(() => expect(screen.getAllByText('team photo').length).toBeGreaterThan(0))
 
-    screen.getByText('Attach to chat').click()
+    screen.getByText('Send all').click()
 
     await waitFor(() => expect($composerAttachments.get()).toHaveLength(1))
     const attachment = $composerAttachments.get()[0]
@@ -225,7 +339,7 @@ describe('a review across pages', () => {
     render(<PreviewPinPanel open url={HOME} />)
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
 
-    screen.getByText('Attach to chat').click()
+    screen.getByText('Send all').click()
 
     await waitFor(() => expect(relay).toHaveBeenCalled())
     expect($composerAttachments.get()).toHaveLength(0)
@@ -242,7 +356,7 @@ describe('a review across pages', () => {
     render(<PreviewPinPanel open url={HOME} />)
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
 
-    screen.getByText('Attach to chat').click()
+    screen.getByText('Send all').click()
 
     await waitFor(() => expect($composerAttachments.get()).toHaveLength(1))
     expect(relay).not.toHaveBeenCalled()
@@ -255,7 +369,7 @@ describe('a review across pages', () => {
     render(<PreviewPinPanel open url={HOME} />)
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
 
-    screen.getByText('Attach to chat').click()
+    screen.getByText('Send all').click()
 
     // Silence is what made the bug invisible; an error is the minimum.
     await waitFor(() => expect(notified.at(-1)?.kind).toBe('error'))
@@ -266,7 +380,7 @@ describe('a review across pages', () => {
     render(<PreviewPinPanel open url={HOME} />)
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
 
-    screen.getByText('Attach to chat').click()
+    screen.getByText('Send all').click()
 
     await waitFor(() => expect($composerAttachments.get()).toHaveLength(1))
     await waitFor(() => expect(notified.at(-1)?.title).toBe('Added to chat'))
@@ -323,7 +437,7 @@ describe('a review across pages', () => {
     view.rerender(<PreviewPinPanel open url={ABOUT} />)
     await waitFor(() => expect(screen.getByText(/1 on 1 other page/)).toBeTruthy())
 
-    const button = screen.getByText('Attach to chat') as HTMLButtonElement
+    const button = screen.getByText('Send all') as HTMLButtonElement
     expect(button.disabled).toBe(false)
     button.click()
     await waitFor(() => expect($composerAttachments.get()).toHaveLength(1))

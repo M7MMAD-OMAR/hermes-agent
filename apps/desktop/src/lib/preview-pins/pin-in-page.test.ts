@@ -43,6 +43,42 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="panel"><button id="save">Save</button><p id="note">A note</p></div>'
 })
 
+
+describe('delivery marking', () => {
+  it('marks one pin delivered and the marker shows it', () => {
+    const placed = placePin('#save', 'make it blue')
+    run({ delivered: true, id: placed.id as string, verb: 'deliver' })
+
+    const pin = run({ verb: 'state' }).pins[0]
+
+    expect(pin.delivered).toBe(true)
+    // The marker lives in the engine's shadow root, not the light DOM.
+    const marker = document.getElementById('hermes-pin-host')?.shadowRoot?.querySelector('.pin')
+
+    expect(marker?.textContent).toContain('✓')
+  })
+
+  it('un-marks on a failed delivery, so the comment stays pending', () => {
+    const placed = placePin('#save', 'make it blue')
+    run({ delivered: true, id: placed.id as string, verb: 'deliver' })
+    run({ delivered: false, id: placed.id as string, verb: 'deliver' })
+
+    const pin = run({ verb: 'state' }).pins[0]
+
+    expect(pin.delivered).toBe(false)
+    const marker = document.getElementById('hermes-pin-host')?.shadowRoot?.querySelector('.pin')
+
+    expect(marker?.textContent ?? '').not.toContain('✓')
+  })
+
+  it('never touches the comment text — delivery is an address, not an edit', () => {
+    const placed = placePin('#save', 'make it blue')
+    run({ delivered: true, id: placed.id as string, verb: 'deliver' })
+
+    expect(run({ verb: 'state' }).pins[0].comment).toBe('make it blue')
+  })
+})
+
 describe('arming', () => {
   it('starts disarmed and reports it', () => {
     expect(run({ verb: 'state' }).armed).toBe(false)

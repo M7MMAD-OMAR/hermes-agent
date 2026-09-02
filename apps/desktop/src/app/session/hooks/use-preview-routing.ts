@@ -6,8 +6,8 @@ import { reachablePreviewUrl } from '@/lib/preview-reach'
 import {
   $previewTabs,
   beginPreviewServerRestart,
-  closePreviewMatching,
-  closeRightRail,
+  closeAgentPreviewTabMatching,
+  closeAgentPreviewTabs,
   completePreviewServerRestart,
   openPreview,
   progressPreviewServerRestart,
@@ -116,6 +116,12 @@ export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestG
         // Agent-driven close via close_preview. Same on-screen gate as open:
         // a session the user can see may tidy the pane it opened; a hidden
         // background turn must not dismiss the user's preview.
+        //
+        // And it may tidy only ITS OWN tabs. An empty url used to close the
+        // whole rail — the user's pages with the agent's — which is the
+        // "عم يحزف لي كل شيء" complaint in its baldest form. A session with
+        // no url given closes its agent tabs; if it owns none, nothing
+        // happens. The user's own tabs never leave this path.
         const { url } = asRecord(event.payload)
         const target = typeof url === 'string' ? url.trim() : ''
 
@@ -124,12 +130,12 @@ export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestG
         }
 
         if (!target) {
-          closeRightRail()
+          closeAgentPreviewTabs(event.session_id || null)
 
           return
         }
 
-        if (closePreviewMatching(target)) {
+        if (closeAgentPreviewTabMatching(event.session_id || null, target)) {
           return
         }
 
@@ -145,7 +151,7 @@ export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestG
               }
             }
 
-            closePreviewMatching(...candidates)
+            closeAgentPreviewTabMatching(event.session_id || null, ...candidates)
           }
         )
 

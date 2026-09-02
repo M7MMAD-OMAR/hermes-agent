@@ -240,22 +240,20 @@ function agentOwns(tab: PreviewTab, sessionId: null | string): boolean {
  *  And not ANY agent tab: `sessionId` is which conversation is asking. Without
  *  it, session A's `read_preview` answers from session B's page.
  *
- *  Falls back to the active tab only when this session has no tab of its own —
- *  "click the button on this page" about the page you are looking at. READS
- *  resolve through here too: `read_preview` answering from a different tab than
- *  `drive_preview` acted on let the agent click one page and report another. */
+ *  NO FALLBACK TO THE ACTIVE TAB. A conversation that never opened a page of
+ *  its own used to fall through to "the page you are looking at" and every
+ *  `drive_preview` verb — reload and navigate included — landed on YOUR tab:
+ *  the reported "يحذف لي كل شيء ويحدث المتصفح". The agent now gets a clear
+ *  error and opens its own tab with `open_preview`; a session's own tab, or
+ *  its newest, still resolves here.
+ *
+ *  Reads resolve through here too: `read_preview` answering from a different
+ *  tab than `drive_preview` acted on let the agent click one page and report
+ *  another. */
 export function agentPreviewTabId(sessionId: null | string): RightRailTabId | null {
   const tabs = $previewTabs.get()
 
-  // The fallback is "the page you are looking at", for a conversation that has
-  // opened nothing of its own — but only among pages it is ALLOWED to look at.
-  // Unfiltered, a session that had never called `open_preview` fell through to
-  // whatever was active, which can be ANOTHER conversation's owned tab: it
-  // would then read, reason about and report a page it never opened, one chat
-  // over. That is the failure `readActivePreview`'s own header forbids.
-  const visible = tabs.filter(tab => previewTabBelongsToSession(tab, sessionId))
-
-  return (agentTab(tabs, sessionId) ?? resolveActiveTab(visible, $rightRailActiveTabId.get()))?.id ?? null
+  return agentTab(tabs, sessionId)?.id ?? null
 }
 
 /** This session's CURRENT tab, or the newest it owns if that one has been
@@ -601,6 +599,7 @@ export function openPreview(
   // owns, so reaching here with a different owner means the user opened it.
   const owner = owned ? (current[index]?.owner ?? sessionId ?? undefined) : undefined
   const ownerKey = owned ? (current[index]?.ownerKey ?? options.ownerKey ?? undefined) : undefined
+
   const tab: PreviewTab = owned
     ? { agent: true, id, owner, ownerKey, target: resolved }
     : { id, target: resolved }
@@ -711,6 +710,37 @@ export function closePreviewMatching(...candidates: string[]): boolean {
   return true
 }
 
+/** The AGENT'S close of a NAMED tab: like `closePreviewMatching`, but the
+ *  request came from a conversation. A named close ("close cnn.com") is the
+ *  user's explicit instruction — it may close any matching tab, theirs
+ *  included. What this path must never do is the BULK cleanup: the no-url
+ *  close is `closeAgentPreviewTabs`, agent-owned tabs only. */
+export function closeAgentPreviewTabMatching(
+  sessionId: null | string,
+  ...candidates: string[]
+): boolean {
+  void sessionId
+  const queries = [...new Set(candidates.map(value => value.trim()).filter(Boolean))]
+
+  if (queries.length === 0) {
+    return false
+  }
+
+  const tab = $previewTabs.get().find(item => {
+    const fields = [item.target.source, item.target.url, item.target.label]
+
+    return queries.some(query => fields.includes(query))
+  })
+
+  if (!tab) {
+    return false
+  }
+
+  closeRightRailTab(tab.id)
+
+  return true
+}
+
 /** Artifact tabs can't outlive the registry they read from, so clearing it
  *  closes them. File and URL tabs re-read from their source and are left alone. */
 export function closeArtifactPreviewTabs() {
@@ -725,6 +755,36 @@ export function closeArtifactPreviewTabs() {
 export function closeRightRail() {
   $previewTabs.set([])
   selectRightRailTab(null)
+}
+
+/** Close ONLY the agent tabs a session owns — the `close_preview` path when no
+ *  url names a specific tab. The user's own pages are untouchable here: an
+ *  agent "tidying up" at the end of a task used to take the whole rail with it.
+ *  A session that owns nothing closes nothing. Returns how many tabs closed. */
+export function closeAgentPreviewTabs(sessionId: null | string): number {
+  const current = $previewTabs.get()
+  const doomed = current.filter(tab => agentOwns(tab, sessionId))
+
+  if (doomed.length === 0) {
+    return 0
+  }
+
+  const doomedIds = new Set(doomed.map(tab => tab.id))
+  const next = current.filter(tab => !doomedIds.has(tab.id))
+
+  $previewTabs.set(next)
+
+  const active = $rightRailActiveTabId.get()
+
+  if (active && doomedIds.has(active)) {
+    selectRightRailTab(next[0]?.id ?? null)
+  }
+
+  for (const id of doomedIds) {
+    agentTabBySession.delete((doomed.find(tab => tab.id === id)?.owner ?? UNSCOPED))
+  }
+
+  return doomed.length
 }
 
 export function requestPreviewReload() {

@@ -3,6 +3,7 @@
 import './preview-mind'
 
 import { useStore } from '@nanostores/react'
+import { computed } from 'nanostores'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -22,6 +23,7 @@ import { notify, notifyError } from '@/store/notifications'
 import {
   $browserPages,
   $previewServerRestart,
+  $previewTabs,
   commitBrowserTabLocation,
   failPreviewServerRestart,
   noteBrowserPage,
@@ -256,6 +258,11 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
   const previewServerRestart = useStore($previewServerRestart)
   const consoleHeight = useStore(consoleState.$height)
   const consoleOpen = useStore(consoleState.$open)
+  // Agent tabs run on their own partition: cookies, storage and Chromium's
+  // per-origin zoom map stay separate from the user's, so the agent's session
+  // state can neither read nor disturb the user's — and the user's zoom on a
+  // site cannot ride into the agent's copy of it.
+  const isAgentTab = useStore(useMemo(() => computed($previewTabs, tabs => Boolean(tabId && tabs.find(t => t.id === tabId)?.agent)), [tabId]))
   // Annotation mode is per-pane and deliberately not persisted: a review
   // session is a thing you start, not a mode you leave on.
   const [pinPanelOpen, setPinPanelOpen] = useState(false)
@@ -917,7 +924,10 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
 
     const webview = document.createElement('webview') as PreviewWebview
     webview.className = 'flex h-full w-full flex-1 bg-transparent'
-    webview.setAttribute('partition', 'persist:hermes-preview')
+    // Agent tabs ride their own partition (see isAgentTab). Set here, at
+    // creation, and never changed for a tab's lifetime: a partition swap
+    // rebuilds the webview and every login it held.
+    webview.setAttribute('partition', isAgentTab ? 'persist:hermes-agent' : 'persist:hermes-preview')
     webview.setAttribute('src', target.url)
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes')
 
@@ -1141,7 +1151,7 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
       webview.removeEventListener('page-title-updated', notePage)
       webview.remove()
     }
-  }, [appendConsoleEntry, consoleState, copy, isRemoteHtml, isWebPreview, tabId, target.kind, target.url])
+  }, [appendConsoleEntry, consoleState, copy, isAgentTab, isRemoteHtml, isWebPreview, tabId, target.kind, target.url])
 
   return (
     <aside

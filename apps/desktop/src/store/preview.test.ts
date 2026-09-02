@@ -6,7 +6,10 @@ import {
   $previewServerRestartStatus,
   $previewTabs,
   $previewTarget,
+  agentPreviewTabId,
   beginPreviewServerRestart,
+  closeAgentPreviewTabMatching,
+  closeAgentPreviewTabs,
   closePreviewForSource,
   closePreviewMatching,
   closeRightRail,
@@ -32,6 +35,73 @@ function artifactTarget(id: string): PreviewTarget {
 }
 
 describe('preview store', () => {
+describe('agent isolation (Sprint 03)', () => {
+  it('the agent NEVER resolves to the active tab: no tab of its own means null', () => {
+    // The user opened a page themselves; no agent tab exists.
+    openPreview(urlTarget('https://cnn.com'), 'manual')
+    selectRightRailTab($previewTabs.get()[0].id)
+
+    // The reported failure: drive_preview reloaded THIS tab because the agent
+    // had none of its own. Now it must resolve to nothing at all.
+    expect(agentPreviewTabId('sess-a')).toBeNull()
+  })
+
+  it('the agent resolves its OWN tab, wherever focus went', () => {
+    openPreview(urlTarget('https://agent.example'), 'tool-result', { sessionId: 'sess-a' })
+    const agentTabId = agentPreviewTabId('sess-a')
+
+    expect(agentTabId).toBeTruthy()
+
+    // The user opens their own page and fronts it.
+    openPreview(urlTarget('https://user.example'), 'manual')
+    selectRightRailTab($previewTabs.get().find(t => t.target.url === 'https://user.example')!.id)
+
+    // The agent still acts on its own page.
+    expect(agentPreviewTabId('sess-a')).toBe(agentTabId)
+  })
+
+  it('close_preview with no url closes only the session agent tabs', () => {
+    openPreview(urlTarget('https://agent.example'), 'tool-result', { sessionId: 'sess-a' })
+    // A manual open JOINS the fronted browser by design, so the user's page
+    // here needs its own physical tab.
+    openPreview(urlTarget('https://user.example'), 'manual', { newTab: true })
+    openPreview(urlTarget('https://other-agent.example'), 'tool-result', { sessionId: 'sess-b' })
+
+    const closed = closeAgentPreviewTabs('sess-a')
+
+    expect(closed).toBe(1)
+    const urls = $previewTabs.get().map(t => t.target.url)
+
+    expect(urls).toContain('https://user.example')
+    expect(urls).toContain('https://other-agent.example')
+    expect(urls).not.toContain('https://agent.example')
+  })
+
+  it('close_preview with no url closes NOTHING when the session owns nothing', () => {
+    openPreview(urlTarget('https://user.example'), 'manual')
+
+    expect(closeAgentPreviewTabs('sess-a')).toBe(0)
+    expect($previewTabs.get()).toHaveLength(1)
+  })
+
+  it("a url'd close matches the named tab wherever it lives; the no-url close never does", () => {
+    openPreview(urlTarget('https://cnn.com'), 'tool-result', { sessionId: 'sess-a' })
+    // A second PHYSICAL tab the user opened themselves (a manual open with no
+    // newTab would have joined the agent's tab — by design).
+    openPreview(urlTarget('https://cnn.com'), 'manual', { newTab: true })
+
+    const cnnTabs = $previewTabs.get().filter(t => t.target.url === 'https://cnn.com')
+
+    expect(cnnTabs).toHaveLength(2)
+
+    // A NAMED close is the user's explicit instruction: it closes the matching
+    // tab, theirs included. (The bulk no-url close is the guarded one.)
+    expect(closeAgentPreviewTabMatching('sess-a', 'https://cnn.com')).toBe(true)
+    expect($previewTabs.get().filter(t => t.target.url === 'https://cnn.com')).toHaveLength(1)
+    expect($previewTabs.get()[0].agent).toBeUndefined()
+  })
+})
+
   beforeEach(() => {
     $previewServerRestart.set(null)
     closeRightRail()

@@ -613,23 +613,40 @@ export function adoptDraftBrowserSession(runtimeId: null | string): void {
     return
   }
 
-  const tabs = $previewTabs.get()
-  const owned = tabs.some(tab => tab.owner === DRAFT_BROWSER_SESSION_ID)
+  // ORDER MATTERS, and getting it wrong destroys the page.
+  //
+  // `$dockedPreviewTabs` drops a tab whose owner is the focused conversation
+  // AND whose conversation is embedded; a tab that leaves that list is answered
+  // by `removeTreePane`, which tears down the pane and the live guest inside
+  // it. Rewriting `$previewTabs` FIRST publishes exactly one intermediate state
+  // — owned by the runtime id, not yet marked embedded — in which the tab is
+  // back in the mirror. The mirror registers a pane for it, the next write
+  // drops it again, and the page the user just loaded is gone.
+  //
+  // So: move the MEMBERSHIP first, rewrite the owners last. Every intermediate
+  // state then has the tab either owned by the draft (invisible to the runtime
+  // session's filter) or already embedded.
+  const wasEmbedded = $embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)
 
-  if (owned) {
-    $previewTabs.set(tabs.map(tab => (tab.owner === DRAFT_BROWSER_SESSION_ID ? { ...tab, owner: runtimeId } : tab)))
-  }
-
-  if ($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)) {
+  if (wasEmbedded) {
     const wasExpanded = $embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)
 
-    setEmbeddedBrowserSession(DRAFT_BROWSER_SESSION_ID, false)
     setEmbeddedBrowserSession(runtimeId, true)
     $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), runtimeId, wasExpanded))
   }
 
   if ($browserSessionId.get() === DRAFT_BROWSER_SESSION_ID) {
     $browserSessionId.set(runtimeId)
+  }
+
+  const tabs = $previewTabs.get()
+
+  if (tabs.some(tab => tab.owner === DRAFT_BROWSER_SESSION_ID)) {
+    $previewTabs.set(tabs.map(tab => (tab.owner === DRAFT_BROWSER_SESSION_ID ? { ...tab, owner: runtimeId } : tab)))
+  }
+
+  if (wasEmbedded) {
+    setEmbeddedBrowserSession(DRAFT_BROWSER_SESSION_ID, false)
   }
 }
 
@@ -672,8 +689,17 @@ export const $dockedPreviewTabs = computed(
   (tabs, popped, embeddedSessions, browserSessionId) => {
     const notPopped = popped.size === 0 ? tabs : tabs.filter(tab => !popped.has(tab.id))
 
+    // A DRAFT conversation's tabs never belong to the strip, whatever else is
+    // true. The draft key exists only for the primary chat column, so its panel
+    // is the only surface that can host these — and making that structural is
+    // what closes the handover window: `$browserSessionId` moves to the real
+    // runtime id (focus sync) a beat before `adoptDraftBrowserSession` rewrites
+    // the owners, and for that beat the tab would otherwise re-enter the strip,
+    // register a pane, and lose it again to `removeTreePane` on the next write.
+    const notDraft = notPopped.filter(tab => tab.owner !== DRAFT_BROWSER_SESSION_ID)
+
     if (embeddedSessions.size === 0) {
-      return notPopped
+      return notDraft
     }
 
     // A conversation with its browser embedded hosts its own browser tabs in
@@ -684,7 +710,7 @@ export const $dockedPreviewTabs = computed(
     // is NOT on screen — its panel is unmounted, so the strip is what keeps
     // its panes alive for the agent still driving them (hidden, not dropped —
     // see syncBrowserSessionPanes).
-    return notPopped.filter(tab => {
+    return notDraft.filter(tab => {
       if (tab.target.kind !== 'url' || !tab.owner || !embeddedSessions.has(tab.owner)) {
         return true
       }

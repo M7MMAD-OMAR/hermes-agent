@@ -94,6 +94,28 @@ describe('embedded browser store', () => {
     expect($embeddedBrowserExpanded.get().has('runtime-9')).toBe(true)
   })
 
+  // The ordering guard for the handover. If `$previewTabs` is rewritten before
+  // the embed membership moves, there is one published state where the tab is
+  // owned by the runtime session but that session is not embedded yet — the tab
+  // re-enters the mirror, a pane is registered, and the next write removes it
+  // again, taking the live guest with it. No intermediate state may show it.
+  it('never lets the adopted tab reappear in the strip mid-handover', () => {
+    withHost(DRAFT_BROWSER_SESSION_ID)
+    toggleEmbeddedBrowser(null)
+
+    const tabId = browserTabs($previewTabs.get())[0].id
+    const seen: string[][] = []
+
+    $browserSessionId.set('runtime-9')
+
+    const stop = $dockedPreviewTabs.subscribe(tabs => seen.push(tabs.map(tab => tab.id)))
+
+    adoptDraftBrowserSession('runtime-9')
+    stop()
+
+    expect(seen.some(ids => ids.includes(tabId))).toBe(false)
+  })
+
   it('carries a PARKED draft browser over as parked, not re-expanded', () => {
     withHost(DRAFT_BROWSER_SESSION_ID)
     toggleEmbeddedBrowser(null)

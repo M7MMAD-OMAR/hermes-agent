@@ -5,7 +5,7 @@ import './preview-mind'
 import { useStore } from '@nanostores/react'
 import { computed } from 'nanostores'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { requestComposerAttachImages, requestComposerFocus, requestComposerInsert } from '@/app/chat/composer/focus'
 import { openGuestContextMenu } from '@/app/context-menu/store'
@@ -364,7 +364,7 @@ function PreviewLoadError({
   )
 }
 
-export function PreviewPane({ embedded = false, onRestartServer, reloadRequest = 0, tabId, target }: PreviewPaneProps) {
+function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0, tabId, target }: PreviewPaneProps) {
   const { t } = useI18n()
   const copy = t.preview.web
   // The console store belongs to the TAB, not this render: the toggles live on
@@ -1700,3 +1700,13 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
     </aside>
   )
 }
+
+/**
+ * Memoized because this component is ~1700 lines and its hosts re-render for
+ * reasons that have nothing to do with the page: the embedded panel re-renders
+ * on any preview-tab write, and while PARKED it keeps rendering for zero
+ * visible pixels. `target` is the prop that churns — `$previewTabs` is
+ * rewritten wholesale on every navigation commit — so the hosts memoize the
+ * object and this boundary makes an identity-only change free.
+ */
+export const PreviewPane = memo(PreviewPaneImpl)

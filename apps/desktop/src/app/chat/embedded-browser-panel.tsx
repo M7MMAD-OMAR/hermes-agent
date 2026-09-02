@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useState } from 'react'
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useState } from 'react'
 
 import { $restartPreviewServer } from '@/app/contrib/panes'
 import { Codicon } from '@/components/ui/codicon'
@@ -67,24 +67,54 @@ const MIN_CHAT_PX = 360
  *  the transcript stays the larger half. */
 const DEFAULT_BROWSER_FRACTION = 0.45
 
+/**
+ * THE GATE — mounted by every chat surface in the app, open or not.
+ *
+ * It subscribes to ONE atom and renders nothing until this conversation
+ * actually has a browser. That split is the point: the body below holds eight
+ * store subscriptions, two of them (`$previewTabs`, `$browserPages`) rewritten
+ * by any tab open/close/navigate/title-tick ANYWHERE in the app. With the
+ * subscriptions above the bail, every chat paid for that churn forever, whether
+ * or not its user had ever opened the browser.
+ */
 export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
-  const { t } = useI18n()
   const embedded = useStore($embeddedBrowserSessions)
+
+  // Announce that this conversation HAS somewhere to put a browser, for as long
+  // as the surface is in the tree — including while it renders nothing, which is
+  // the state every conversation starts in. `toggleEmbeddedBrowser` refuses to
+  // mint a tab for a session with no host, so this registration is what decides
+  // whether the globe embeds or falls back to the strip. It lives in the GATE,
+  // not the body, because it must be true before the first press.
+  useEffect(() => registerEmbeddedBrowserHost(sessionId), [sessionId])
+
+  if (!embedded.has(sessionId)) {
+    return null
+  }
+
+  return <EmbeddedBrowserBody sessionId={sessionId} />
+}
+
+/** The live tab label, isolated so `$browserPages` — rewritten on every
+ *  navigation and title tick of every browser tab in the app — re-renders one
+ *  <span> instead of the whole pane. The layout strip already does exactly this
+ *  (`BrowserTabLabel` in preview-tile.tsx); the embedded panel had regressed to
+ *  a top-level subscription. */
+function EmbeddedTabLabel({ tab }: { tab: PreviewTab }) {
+  const pages = useStore($browserPages)
+
+  return <>{browserTabLabel(tab.target, pages[tab.id])}</>
+}
+
+function EmbeddedBrowserBody({ sessionId }: { sessionId: string }) {
+  const { t } = useI18n()
   const expanded = useStore($embeddedBrowserExpanded)
   const tabs = useStore($previewTabs)
-  const pages = useStore($browserPages)
   const activeTabId = useStore($rightRailActiveTabId)
   const reloadRequest = useStore($previewReloadRequest)
   const restartPreviewServer = useStore($restartPreviewServer)
   const widthOverride = useStore($paneWidthOverride(WIDTH_PANE_ID))
   const [dragging, setDragging] = useState(false)
-
-  // Announce that this conversation HAS somewhere to put a browser, for as long
-  // as the panel is in the tree — including while it renders nothing, which is
-  // the state every conversation starts in. `toggleEmbeddedBrowser` refuses to
-  // mint a tab for a session with no host, so this registration is what decides
-  // whether the globe embeds or falls back to the strip.
-  useEffect(() => registerEmbeddedBrowserHost(sessionId), [sessionId])
 
   // The seam is dragged in SCREEN pixels, so it reads the row's own box rather
   // than assuming which side it is on: `flex-row-reverse` under RTL puts the
@@ -140,11 +170,14 @@ export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
     window.addEventListener('pointerup', onUp, { once: true })
   }
 
-  if (!embedded.has(sessionId)) {
-    return null
-  }
+  // `$previewTabs` is rewritten WHOLESALE on every navigation commit, so without
+  // this the filter reruns and `target` changes identity on each one — and
+  // PreviewPane is memoized on exactly that prop.
+  const mine = useMemo(
+    () => tabs.filter(tab => tab.target.kind === 'url' && previewTabBelongsToSession(tab, sessionId)),
+    [sessionId, tabs]
+  )
 
-  const mine = tabs.filter(tab => tab.target.kind === 'url' && previewTabBelongsToSession(tab, sessionId))
   const active = mine.find(tab => tab.id === activeTabId) ?? mine.at(-1)
   const visible = expanded.has(sessionId)
 
@@ -203,7 +236,7 @@ export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
       >
         {mine.map(tab => (
           <button
-            aria-label={browserTabLabel(tab.target, pages[tab.id])}
+            aria-label={browserTabLabel(tab.target)}
             className={cn(
               'group relative flex min-w-0 items-center rounded px-2 py-0.5 text-xs',
               tab.id === active?.id
@@ -214,7 +247,9 @@ export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
             onClick={() => selectRightRailTab(tab.id)}
             type="button"
           >
-            <span className="max-w-40 truncate">{browserTabLabel(tab.target, pages[tab.id])}</span>
+            <span className="max-w-40 truncate">
+              <EmbeddedTabLabel tab={tab} />
+            </span>
             <span
               aria-label={t.preview.embeddedCloseTab}
               className="ml-1 hidden rounded p-px hover:bg-(--ui-hover) group-hover:inline-block"

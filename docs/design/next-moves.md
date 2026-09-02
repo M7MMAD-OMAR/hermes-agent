@@ -135,6 +135,14 @@ required not to have, and it is already shipping.
 (`ComposerSuggestion.invoke` at `:46`) and pass it explicitly. Fix the three
 existing providers in the same change.
 
+Size check: `scope.target` is already in hand at the render site —
+`const scope = useComposerScope()` (`composer/index.tsx:161`) in the same
+component that renders `<SuggestionPills sessionId={statusSessionId} />`
+(`:1190`). So this is one new prop plus one context field, not a
+prop-threading change through the composer tree. `ActionBadges` (`:1189`) sits
+on the same line with the same exposure and should take the prop in the same
+commit.
+
 ## Contract
 
 Event `next_moves.offer`, emitted through `_emit(type, sid, payload)`
@@ -247,9 +255,29 @@ Fires once per turn, at `tui_gateway/server.py:13760`. Every row is a hard gate.
 | `status != "complete"` | no dispatch. A failed turn is the same `message.complete` distinguished by `payload.status === 'error'` (`message-stream.ts:343`) |
 | Billing wall | `payload.billing` present (`message-stream.ts:355`) |
 | Partial failure (`failure.partial`) | heuristic only, one retry-shaped move, no aux call. It is a **third class** — real output *and* an error; folding it into either bucket is wrong |
-| Agent-continued turn | `/goal` continuation, `/loop` tick and compression-recovery resubmit produce repeated `message.complete` from one user prompt (`tui_gateway/server.py:14095`). Only **user-initiated** turn ends may offer; a continuation must withdraw the standing offer and produce none |
+| Agent-continued turn | see below — needs a provenance field, not just a predicate |
 | Feature disabled | `auxiliary.next_moves.enabled` |
 | Managed local runtime | `skip_managed_local` — a **skip**, not a defer. `agent/review_idle_queue.py:1` documents that a post-turn job monopolizes the GPU the next prompt needs; a suggestion 40s late is worthless, so the deferral constants there are the wrong medicine |
+
+#### The agent-continued gate needs a new field
+
+`/goal` continuation, `/loop` ticks, wakeups and batch drains all resubmit
+through `_run_prompt_submit`, which its own comment calls "the ONE chokepoint
+every fresh turn source must" pass (`tui_gateway/server.py:13090`). One user
+prompt therefore yields N `message.complete` events, and a user who drove none
+of them gets a pack after every internal tick.
+
+The gate cannot be read at dispatch time on the *current* turn: `goal_followup`
+is acted on at `tui_gateway/server.py:14086`, **after** the emit at `:13758`. It
+is the *next* turn that must know it was agent-initiated.
+
+The chokepoint already carries a partial answer — `display_kind="auto_continue"`
+is passed at `tui_gateway/server.py:10336` — but the goal continuation at
+`:14095`, the wakeup at `:12350` and the batch drain at `:12588` pass nothing.
+So: add an explicit `initiator` kwarg to `_run_prompt_submit`, default
+`"user"`, set to `"agent"` at every non-`prompt.submit` caller, and record it on
+the session for the dispatcher to read and clear. This is a real edit, not a
+predicate over existing state — budget it into step 2 of the build order.
 
 ### Renderer-side drops (handler)
 
@@ -280,6 +308,15 @@ An offer must be withdrawn — not merely not-renewed — on each of:
 | Session delete (and *not* on a delete RPC that rolls back) | `use-session-actions/index.ts:2450` |
 | Reclaim | `gateway-event/lifecycle.ts:94` |
 | Wall-clock age | none exists — see below |
+
+Two of those rows have no gateway event behind them: Stop
+(`session-tile-actions.ts:348`) and rewind/edit/regenerate
+(`use-prompt-actions/rewind.ts:646`) are renderer call sites. They must import
+and call the provider's `withdrawNextMoves(sessionId)` directly, which means the
+provider is fed from three places, not one — its handler, those two sites, and
+the age timer. Name that in the provider's docstring; a comment claiming the
+handler is the sole entry point would be the same false-chokepoint mistake this
+codebase has already paid for once.
 
 **Age is not optional.** `clearDraftSuggestions` spares event offerings by
 design (`composer-suggestions.ts:297`), so a conversation the user leaves keeps
@@ -516,7 +553,10 @@ Renderer, all deterministic, no fixture model:
   **its own** composer (blocker #5).
 - Ledger: cap eviction earns no strike (blocker #1); a per-target id quiets that
   target only; per-session eviction empties all six maps (blocker #3).
-- Contract: every `nextmove` `invoke` edits the draft and calls nothing else.
+- Contract: `invoke` edits the draft and nothing else — asserted by spying on
+  `requestComposerSubmit` and the gateway `request` in a test that runs every
+  move kind, plus an eslint `no-restricted-imports` rule on the provider file so
+  a later edit cannot quietly import a submit path.
 - Arity/shape: 0, 1, 3 and 20 moves; unknown `kind`; empty label; a `skill`
   naming a skill that is not installed.
 

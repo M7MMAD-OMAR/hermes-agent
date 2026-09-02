@@ -50,6 +50,7 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
     if (!w && !h) {
       return
     }
+
     onChange(customViewport(w ?? viewport?.width ?? 1280, h ?? viewport?.height ?? 800))
   }
 

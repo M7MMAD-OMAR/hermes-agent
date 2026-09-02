@@ -223,6 +223,11 @@ export function zoomFactorToLevel(factor: number): number {
  * across partitions. Within one partition, the re-assert ladder wins by
  * running last: it only fires on attach/navigate/zoom-change, and a user zoom
  * of the guest lands between ladder runs and stays until the next one.
+ *
+ * UNDER DEVICE EMULATION THE FACTOR IS 1, NOT 1/hostZoom — see
+ * guestPinFactor(). This is the one place the two paths must differ, and the
+ * difference is not cosmetic: it is the whole reason a Desktop preset stopped
+ * meaning 1440px.
  */
 export function pinGuestZoom(webview: PreviewWebview | null | undefined, hostFactor: number): boolean {
   if (!webview || typeof webview.setZoomLevel !== 'function') {
@@ -242,6 +247,50 @@ export function pinGuestZoom(webview: PreviewWebview | null | undefined, hostFac
     // A webview torn down mid-call refuses; the next ladder rung re-pins.
     return false
   }
+}
+
+/**
+ * What to pin the guest's zoom to — and the two cases are NOT the same number.
+ *
+ * NO PRESET: the page is shown at its own size in whatever room the pane has,
+ * and the only job is to undo the host zoom the `<webview>` inherited. Factor
+ * `1/hostZoom`, so the page paints 1:1.
+ *
+ * A PRESET (Phone/Desktop/…): the viewport is not negotiable — the user asked
+ * for 1440px and 1440px is the entire point of asking. `enableDeviceEmulation`
+ * expresses `viewSize` in the guest's PRE-ZOOM pixels, so Chromium divides it
+ * by whatever page zoom the guest carries. Measured in a real webview at host
+ * zoom 134%, emulating 1440x900:
+ *
+ *     guest zoom 1/1.3446 (the old blanket pin) -> innerWidth 1936
+ *     guest zoom 1.3446   (inherited, no pin)   -> innerWidth 1071
+ *     guest zoom 1                              -> innerWidth 1440
+ *
+ * So the emulated size is honest at exactly ONE guest zoom, and it is 1. Both
+ * wrong arms move WITH the app's UI Scale, which is why the symptom was
+ * "changing Hermes' text size re-lays-out the page" — the preset was being
+ * multiplied by the app's own scale in one direction or the other.
+ *
+ * The frame arithmetic in preview-viewport.ts already assumes this: it hands
+ * the element `device x scale / hostZoom` host CSS pixels, which is the same
+ * physical size as `device x scale` guest pixels only when the guest is at 1.
+ * The two halves were derived under different assumptions and never agreed off
+ * 100% zoom.
+ *
+ * The rejected alternative, for anyone who reaches for it: keep the uniform
+ * 1/hostZoom pin and pre-divide `viewSize` instead. It also lands on 1440 —
+ * and it lands there at `devicePixelRatio` 0.99 instead of the control's
+ * 1.3333, so the page picks lower-density images and paints softer, plus the
+ * height rounds to 899. Same width, different page.
+ *
+ * KNOWN, BOUNDED: Chromium's zoom is per ORIGIN, so an emulated pane and a
+ * bare one on the same origin in the same partition now want different pins
+ * and the last ladder run wins. They agreed before only because both were
+ * wrong in the same direction; there is no per-webContents zoom to fix it
+ * with, and the agent's partition is already separate from the user's.
+ */
+export function guestPinFactor(emulating: boolean): number {
+  return emulating ? 1 : hostZoomFactor()
 }
 
 function isRemoteLoopbackUrl(url: string): boolean {
@@ -331,6 +380,7 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
   const previewServerRestart = useStore($previewServerRestart)
   const consoleHeight = useStore(consoleState.$height)
   const consoleOpen = useStore(consoleState.$open)
+
   // Agent tabs run on their own partition: cookies, storage and Chromium's
   // per-origin zoom map stay separate from the user's, so the agent's session
   // state can neither read nor disturb the user's — and the user's zoom on a
@@ -338,6 +388,7 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
   const isAgentTab = useStore(
     useMemo(() => computed($previewTabs, tabs => Boolean(tabId && tabs.find(t => t.id === tabId)?.agent)), [tabId])
   )
+
   // Annotation mode is per-pane and deliberately not persisted: a review
   // session is a thing you start, not a mode you leave on.
   const [pinPanelOpen, setPinPanelOpen] = useState(false)
@@ -435,9 +486,11 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
 
       // FIRST, before anything measures the guest: the webview inherits the
       // host window's zoom, which scales every page and breaks the layout it
-      // tuned to its real viewport. Pin it 1:1 on every rung of this ladder
-      // (attach, navigate, host zoom change).
-      pinGuestZoom(webview, hostZoomFactor())
+      // tuned to its real viewport. Pin it on every rung of this ladder
+      // (attach, navigate, host zoom change) — to 1/hostZoom with no preset, to
+      // a flat 1 under emulation, because `viewSize` is divided by the guest's
+      // page zoom and a preset must mean the width it says.
+      pinGuestZoom(webview, guestPinFactor(Boolean(viewport)))
 
       // The guest attaches after the element does; before that there is no
       // webContents to emulate and the call would be dropped silently.

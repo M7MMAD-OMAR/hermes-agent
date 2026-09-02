@@ -116,6 +116,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (node && node.shadowRoot) {
       return node
     }
+
     node = doc.createElement('div')
     node.id = HOST_ID
     // Fixed and non-interactive by default: the overlay must not eat clicks
@@ -240,6 +241,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (state.hidden) {
       return
     }
+
     const root = shadow()
     pins.forEach((pin, index) => {
       const marker = doc.createElement('div')
@@ -354,6 +356,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (!pin) {
       return
     }
+
     const view = doc.defaultView
     const bubble = doc.createElement('div')
     bubble.className = 'bubble'
@@ -485,10 +488,12 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
           if (!source) {
             return
           }
+
           shrink(source, SHOT_MAX_EDGE, 0.85, (full, w, h) => {
             if (!full) {
               return
             }
+
             shrink(full, THUMB_MAX_EDGE, 0.5, thumb => {
               const id = 'shot-' + now().toString(36) + '-' + Math.round(Math.random() * 1e6).toString(36)
               // The bytes stay here only until the app drains them; the pin
@@ -566,6 +571,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
         for (const shot of shotsOf()) {
           delete shotData[String(shot.id)]
         }
+
         pins.splice(index, 1)
       }
 
@@ -619,6 +625,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       if (!files || !files.length) {
         return
       }
+
       // Otherwise the filename lands in the textarea as text next to the image.
       event.preventDefault()
       ingest(files)
@@ -668,6 +675,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (!node) {
       return false
     }
+
     const path = typeof event.composedPath === 'function' ? event.composedPath() : []
 
     for (const step of path) {
@@ -703,6 +711,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (!state.armed || insideOverlay(event)) {
       return
     }
+
     event.preventDefault()
     event.stopPropagation()
   }
@@ -732,6 +741,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (!el) {
       return
     }
+
     const rect = el.getBoundingClientRect()
     const highlight = doc.createElement('div')
     highlight.className = 'hl'
@@ -746,6 +756,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (!state.armed || insideOverlay(event)) {
       return
     }
+
     state.drag = { x0: event.clientX, y0: event.clientY }
   }
 
@@ -764,6 +775,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (!state.armed || insideOverlay(event)) {
       return
     }
+
     let placedOver: { bottom: number; left: number; top: number } | null = null
     const drag = state.drag as { x0: number; y0: number } | null
     state.drag = null
@@ -803,6 +815,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       if (!el) {
         return
       }
+
       const box = el.getBoundingClientRect()
       placedOver = { bottom: box.bottom, left: box.left, top: box.top }
       const anchor = kit.capture(el)
@@ -837,6 +850,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (!id) {
       return
     }
+
     event.preventDefault()
     event.stopPropagation()
     // Reopening: find the element again so the comment dodges it just as it did
@@ -858,6 +872,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (state.armed) {
       return
     }
+
     state.armed = true
     // Arming is a request to see what you are annotating.
     state.hidden = false
@@ -884,6 +899,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     if (!state.armed) {
       return
     }
+
     state.armed = false
     state.drag = null
     doc.documentElement.style.cursor = ''
@@ -941,6 +957,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       if (pin.kind !== 'element' || !pin.anchor) {
         continue
       }
+
       const match = kit.resolve(pin.anchor as never)
       pin.orphaned = !match.element
       pin.matchedBy = match.how
@@ -1006,6 +1023,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       if (pin) {
         pin.resolved = !pin.resolved
       }
+
       paint()
 
       break
@@ -1033,6 +1051,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       for (const key of Object.keys(shotData)) {
         delete shotData[key]
       }
+
       pending.splice(0, pending.length)
       closeBubble()
       paint()
@@ -1055,6 +1074,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       if (!command.id) {
         deliver.splice(0, deliver.length)
       }
+
       paint()
 
       break

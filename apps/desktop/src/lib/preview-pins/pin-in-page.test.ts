@@ -43,6 +43,7 @@ beforeEach(() => {
   if (holder) {
     pinEngineCore(document, holder, { verb: 'hide' }, anchorKit(document))
   }
+
   holder = {}
   document.body.innerHTML = '<div id="panel"><button id="save">Save</button><p id="note">A note</p></div>'
 })

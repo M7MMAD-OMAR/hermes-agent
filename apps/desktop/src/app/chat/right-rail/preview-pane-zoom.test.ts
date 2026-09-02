@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { pinGuestZoom, zoomFactorToLevel } from './preview-pane'
+import { guestPinFactor, pinGuestZoom, zoomFactorToLevel } from './preview-pane'
 
 describe('guest zoom pinning (Sprint 04)', () => {
   it('factor↔level round trips through Chromium mapping', () => {
@@ -53,6 +53,28 @@ describe('guest zoom pinning (Sprint 04)', () => {
 
     expect(pinGuestZoom(webview, 1.34)).toBe(false)
     expect(pinGuestZoom(null, 1.34)).toBe(false)
+  })
+
+  // Measured in a live webview at host zoom 134% emulating 1440x900: the
+  // inverse pin gave the guest innerWidth 1936 and no pin gave 1071, because
+  // `viewSize` is divided by the guest's page zoom. Only a flat 1 gave 1440.
+  // The blanket pin was therefore correct for a bare page and wrong for every
+  // preset, which is what "the Desktop preset moves with the app's text size"
+  // was.
+  it('under device emulation the guest pins to a FLAT 1, whatever the app zoom', () => {
+    vi.stubGlobal('window', { hermesDesktop: { zoom: { factor: () => 1.3446 } } })
+
+    expect(guestPinFactor(true)).toBe(1)
+
+    vi.unstubAllGlobals()
+  })
+
+  it('with no preset it still pins to the inverse of the host zoom', () => {
+    vi.stubGlobal('window', { hermesDesktop: { zoom: { factor: () => 1.3446 } } })
+
+    expect(guestPinFactor(false)).toBeCloseTo(1.3446, 10)
+
+    vi.unstubAllGlobals()
   })
 
   it('a webview destroyed mid-call surfaces false instead of throwing', () => {

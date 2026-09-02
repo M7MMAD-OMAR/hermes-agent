@@ -147,6 +147,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
         if (bytes.has(id)) {
           continue
         }
+
         const answer = await takeShot(id)
 
         if (answer?.shot) {
@@ -192,6 +193,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
     if (!open) {
       return
     }
+
     const period = bubbleOpen ? POLL_BUBBLE_MS : POLL_MS
     const timer = setInterval(() => void readPins().then(sync), period)
 
@@ -242,6 +244,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
     if (!open) {
       return
     }
+
     void reattachPins(pinsForPage($pinBook.get(), url)).then(sync)
   }, [open, sync, url])
 

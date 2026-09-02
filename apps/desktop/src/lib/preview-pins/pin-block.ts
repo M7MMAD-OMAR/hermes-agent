@@ -31,6 +31,7 @@ function describeTarget(pin: PreviewPin): string {
   if (!anchor) {
     return pin.target || 'unknown target'
   }
+
   const name = anchor.label ? `${anchor.role} "${anchor.label}"` : anchor.role
   // The selector is what the agent will actually grep for, so it goes in when
   // the page offered one. The path is the fallback and is noisier, so it only

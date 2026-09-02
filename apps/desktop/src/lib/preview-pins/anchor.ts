@@ -86,6 +86,7 @@ export function anchorKit(doc: Document): AnchorKit {
     if (explicit) {
       return explicit.trim().toLowerCase()
     }
+
     const tag = el.tagName.toLowerCase()
 
     if (tag === 'a') {
@@ -139,16 +140,19 @@ export function anchorKit(doc: Document): AnchorKit {
     if (aria) {
       return clamp(aria, 120)
     }
+
     const alt = el.getAttribute('alt')
 
     if (alt) {
       return clamp(alt, 120)
     }
+
     const placeholder = el.getAttribute('placeholder')
 
     if (placeholder) {
       return clamp(placeholder, 120)
     }
+
     const title = el.getAttribute('title')
 
     if (title) {
@@ -211,6 +215,7 @@ export function anchorKit(doc: Document): AnchorKit {
     if (el.id) {
       return '#' + cssEscape(el.id)
     }
+
     const testid = el.getAttribute('data-testid')
 
     if (testid) {
@@ -288,12 +293,14 @@ export function anchorKit(doc: Document): AnchorKit {
     if (a === b) {
       return true
     }
+
     const left = a.toLowerCase().split(/\s+/).filter(Boolean)
     const right = new Set(b.toLowerCase().split(/\s+/).filter(Boolean))
 
     if (!left.length) {
       return false
     }
+
     let shared = 0
 
     for (const word of left) {

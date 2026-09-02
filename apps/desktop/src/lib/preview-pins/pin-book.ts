@@ -86,11 +86,13 @@ export function otherPages(book: PinBook, url: string): { count: number; pages: 
     if (key === here) {
       continue
     }
+
     const open = book[key].filter(pin => !pin.resolved).length
 
     if (!open) {
       continue
     }
+
     count += open
     pages += 1
   }

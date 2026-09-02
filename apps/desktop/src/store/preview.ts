@@ -748,6 +748,7 @@ export function openBrowserTab(sessionId: null | string = $browserSessionId.get(
   }
 
   const tabs = $previewTabs.get()
+
   // This conversation's own tab first, then any browser it can see (a page you
   // opened yourself is everyone's). Selected directly rather than routed back
   // through `openPreview`: re-deriving the target's tab there resolved against

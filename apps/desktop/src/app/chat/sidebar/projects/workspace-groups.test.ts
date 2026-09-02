@@ -856,6 +856,44 @@ describe('overlayLiveLanes', () => {
     ])
   })
 
+  it('promotes a live row whose activity is fresher than its snapshot sibling', () => {
+    // The field report: inside the project, a conversation that went active 52
+    // minutes ago stayed buried under a snapshot sibling. The snapshot froze
+    // 'morning' below 'card' the moment it was taken; the overlay must rank
+    // the live (fresher) row first within its lane — the backend's own order
+    // is stale the moment the snapshot is. Rows beyond the flat `$sessions`
+    // page never get this fresh data (that half is the snapshot re-fetch).
+    const buried = makeCwdSession('/www/app', { id: 'morning', last_active: 100, git_branch: 'main' })
+    const staleTop = makeCwdSession('/www/app', { id: 'card', last_active: 200, git_branch: 'main' })
+
+    const project = projectNode({
+      id: '/www/app',
+      repos: [
+        {
+          id: '/www/app',
+          label: 'app',
+          path: '/www/app',
+          sessionCount: 2,
+          groups: [
+            lane({
+              id: '/www/app::branch::main',
+              label: 'main',
+              isMain: true,
+              path: '/www/app',
+              sessions: [staleTop, buried]
+            })
+          ]
+        }
+      ]
+    })
+
+    // `$sessions` knows 'morning' went active since the snapshot was taken;
+    // 'card' is beyond the flat page, so only its stale snapshot row exists.
+    const overlaid = overlayLiveLanes(project, [{ ...buried, last_active: 900 }])
+
+    expect(overlaid.repos[0].groups[0].sessions.map(s => s.id)).toEqual(['morning', 'card'])
+  })
+
   it('adds a new session to an existing worktree lane keyed by a divergent id (matches by path)', () => {
     // Backend keyed the worktree lane off a branch-style id (no live git probe),
     // but the lane PATH is the worktree dir. A new session under that worktree

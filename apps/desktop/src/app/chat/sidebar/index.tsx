@@ -174,6 +174,7 @@ import { SidebarBlankState, SidebarPinnedEmptyState, SidebarSessionSkeletons } f
 import { buildSessionByAnyId, resolvePinnedSessions } from './session-index'
 import { SidebarSessionsSection, VIRTUALIZE_THRESHOLD } from './sessions-section'
 import { CONTEXT_SPLIT_KIT, SplitSubmenu } from './split-submenu'
+import { useEnteredProjectRefresh } from './use-entered-project-refresh'
 
 // Non-session groups (messaging platforms) stay compact: show a few rows up
 // front, reveal more in larger steps on demand. Keeps a busy platform from
@@ -969,7 +970,9 @@ export function ChatSidebar({
     let cancelled = false
 
     void fetchProjectSessions(enteredProjectId).then(project => {
-      if (!cancelled) {
+      // A failed re-hydration (null) keeps the last good snapshot on screen
+      // instead of blanking the entered view back to the structure-only node.
+      if (!cancelled && project) {
         setEnteredProjectTree(project)
       }
     })
@@ -980,6 +983,24 @@ export function ChatSidebar({
     // `projectTree` in deps: re-hydrate after a tree refresh so the entered view
     // stays current with new/ended sessions.
   }, [enteredProjectId, gatewayReady, projectTree])
+
+  // sessions.changed re-hydration: the overlay above only refreshes rows that
+  // are also on the flat `$sessions` page — project rows beyond it live only in
+  // this snapshot, so their activity never reaches the view (a stale lane keeps
+  // ranking above one that just went active) and a delete from another surface
+  // lingers until re-entry. The hook trails a throttled re-fetch behind the
+  // backend's sessions.changed broadcast; the scope check drops a response for
+  // a project the user already left, and a failed refresh keeps the last good
+  // snapshot on screen.
+  const refreshEnteredProject = useCallback((projectId: string) => {
+    void fetchProjectSessions(projectId).then(project => {
+      if (project && $projectScope.get() === projectId) {
+        setEnteredProjectTree(project)
+      }
+    })
+  }, [])
+
+  useEnteredProjectRefresh(enteredProjectId ?? null, gatewayReady, refreshEnteredProject)
 
   // Prefer the hydrated tree; fall back to the overview node (empty lanes) while
   // the drill-in fetch is in flight, so the header/structure render immediately.

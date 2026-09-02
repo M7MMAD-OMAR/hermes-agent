@@ -50,6 +50,7 @@ vi.mock('@/store/composer-queue', async importOriginal => ({
 }))
 
 import { $pinBook, setPinBook } from '@/lib/preview-pins/pin-book-store'
+import { $annotateToggleRequest, $attachPinsRequest, requestAnnotateToggle, requestAttachPins } from './preview-pin-requests'
 import { $queuedPromptsBySession } from '@/store/composer-queue'
 import { $activeSessionId, $sessions } from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
@@ -74,6 +75,8 @@ function report(): PinEngineReport {
     url: page.url
   }
 }
+
+const readPinsMock = vi.fn(async () => report())
 
 const hidePins = vi.fn(async () => {
   page.armed = false
@@ -101,6 +104,7 @@ const armPins = vi.fn(async (seed?: null | PreviewPin[]) => {
 vi.mock('./preview-pins', () => ({
   armPins: (seed?: null | PreviewPin[]) => armPins(seed),
   deliverPin: vi.fn(async () => report()),
+  ackDeliverRequests: vi.fn(async () => report()),
   clearPins: vi.fn(async () => {
     page.pins = {}
 
@@ -112,7 +116,7 @@ vi.mock('./preview-pins', () => ({
     return report()
   }),
   hidePins: () => hidePins(),
-  readPins: vi.fn(async () => report()),
+  readPins: () => readPinsMock(),
   reattachPins: vi.fn(async (seed?: null | PreviewPin[]) => {
     // Mirrors the real seed filter: only pins belonging to this page, and only
     // when there is something to seed — buildScript skips an empty seed, so a
@@ -159,6 +163,10 @@ beforeEach(() => {
   $activeSessionId.set('sess-1')
   $sessions.set([{ _lineage_root_id: 'root-1', id: 'sess-1' } as never])
   $sessionStates.set({})
+  // Request counters are module state: without a reset, a hotkey pressed in
+  // one test fires again inside the next test's fresh panel mount.
+  $annotateToggleRequest.set(0)
+  $attachPinsRequest.set(0)
   submitted.mockClear()
   submitted.mockReturnValue(true)
   queued.mockClear()
@@ -197,6 +205,66 @@ describe('closing the panel', () => {
   })
 })
 
+
+
+describe('bubble requests and keybinds (Sprint 02)', () => {
+  it('executes a bubble NOW request: one submit, delivered, no resend', async () => {
+    page.pins[HOME] = [pin(HOME, 'hero')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    // The bubble wrote its intent; the next state read carries it out.
+    readPinsMock.mockResolvedValueOnce({
+      ...report(),
+      deliver: [{ id: 'hero', mode: 'now' }]
+    })
+    await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+    expect(submitted.mock.calls[0][0]).toContain('hero')
+    // Delivered: gone from the pending list, marked in the book.
+    await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
+    expect($pinBook.get()[HOME][0].delivered).toBe(true)
+
+    // And it must NOT fire again on the next identical poll.
+    await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+  })
+
+  it('executes a bubble QUEUE request through the queue, not the composer', async () => {
+    page.pins[HOME] = [pin(HOME, 'nav', 'nav')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('nav').length).toBeGreaterThan(0))
+
+    readPinsMock.mockResolvedValueOnce({
+      ...report(),
+      deliver: [{ id: 'nav', mode: 'queue' }]
+    })
+
+    await waitFor(() => expect(queued).toHaveBeenCalledTimes(1))
+    expect(queued.mock.calls[0][1]).toContain('nav')
+    await waitFor(() => expect(screen.queryAllByText('nav')).toHaveLength(0))
+    expect(submitted).not.toHaveBeenCalled()
+  })
+
+  it('the annotate keybind request toggles the arm state', async () => {
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getByText('Annotate')).toBeTruthy())
+
+    requestAnnotateToggle()
+
+    await waitFor(() => expect(armPins).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByText('Annotating')).toBeTruthy())
+  })
+
+  it('the attach keybind request delivers every pending comment', async () => {
+    page.pins[HOME] = [pin(HOME, 'hero')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    requestAttachPins()
+
+    await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
+    expect($pinBook.get()[HOME][0].delivered).toBe(true)
+  })
+})
 
 describe('one comment, one send (Sprint 01)', () => {
   it('the book survives a remount: the review is in the store, not the component', async () => {

@@ -16,9 +16,10 @@
  */
 
 import { useStore } from '@nanostores/react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { requestComposerSubmit } from '@/app/chat/composer/focus'
+import { $annotateToggleRequest, $attachPinsRequest } from '@/app/chat/right-rail/preview-pin-requests'
 import { Codicon } from '@/components/ui/codicon'
 import { dataUrlToBlob } from '@/lib/embedded-images'
 import { orderedShots, pinAttachmentLabel } from '@/lib/preview-pins/pin-block'
@@ -39,6 +40,7 @@ import { $sessionStates } from '@/store/session-states'
 import { isBrowserWindow } from '@/store/windows'
 
 import {
+  ackDeliverRequests,
   armPins,
   clearPins,
   deliverPin,
@@ -56,6 +58,11 @@ import {
  *  only learns about a new pin by asking — and a gesture the list does not
  *  reflect within a beat reads as the click having missed. */
 const POLL_MS = 700
+
+/** Poll period while a comment bubble is open in the page. The bubble's send
+ *  shortcuts reach the panel only through a state read, and a 700 ms gap
+ *  between the keypress and the delivery reads as the shortcut having missed. */
+const POLL_BUBBLE_MS = 200
 
 /** How many comments the panel shows before it asks to be expanded. */
 const COLLAPSED_ROWS = 2
@@ -97,6 +104,33 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
   /** Full image bytes, drained out of the page and owned here. */
   const bytes = useState(() => new Map<string, string>())[0]
 
+  /** Execute the bubble's delivery requests: Send → sendOne, Queue → queueOne.
+   *  The pin is sourced from the BOOK, not the report — the report was read
+   *  before the user pressed the shortcut, so it lacks their last keystrokes;
+   *  the live `input` handler kept the book's copy current. */
+  const runDeliverRequests = useCallback(
+    async (requests: { id: string; mode: 'now' | 'queue' }[]) => {
+      for (const { id, mode } of requests) {
+        const pin = allPins($pinBook.get()).find(entry => entry.id === id)
+
+        if (!pin) {continue}
+
+        if (mode === 'queue') {
+          await queueOneRef.current(pin)
+        } else {
+          await sendOneRef.current(pin)
+        }
+      }
+    },
+    []
+  )
+
+  // The handlers below close over page state that changes every render; the
+  // request executor above must not. Refs bridge the two without re-arming
+  // the poll or the sync chain on every keystroke.
+  const sendOneRef = useRef<(pin: PreviewPin) => Promise<void>>(async () => {})
+  const queueOneRef = useRef<(pin: PreviewPin) => Promise<void>>(async () => {})
+
   const sync = useCallback(async (report: Awaited<ReturnType<typeof readPins>>) => {
     if (!report) {
       setLive(false)
@@ -116,6 +150,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
 
     setLive(true)
     setArmed(report.armed === true)
+    setBubbleOpen(report.bubbleOpen === true)
     setPins(report.pins)
     // File under the page's OWN url, not the pane's — the pane's value lags a
     // redirect, and filing under the wrong key is how a page's comments end up
@@ -123,19 +158,35 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
     // it here is what makes a review survive a remount.
     setPinBook(mergeReport($pinBook.get(), report.url, report.pins))
     setElsewhere(otherPages($pinBook.get(), report.url))
-  }, [bytes])
+
+    // The bubble's send shortcuts arrive HERE — the guest page has no bridge
+    // to the composer, so its bubble can only write the intent and let the
+    // next state read carry it out. Each request is executed once and then
+    // acked, so a lost panel tick retries through the next poll, not a resend.
+    const requests = report.deliver ?? []
+
+    if (requests.length) {
+      await ackDeliverRequests()
+      await runDeliverRequests(requests)
+    }
+  }, [bytes, runDeliverRequests])
 
   // Poll while the panel is open — not only while armed. A marker stays
   // clickable after disarming, so a comment can be edited or an image pasted
   // with annotation mode off, and those bytes need draining too. Closed, this
   // stops entirely: a poll against a page nobody is reviewing is a round trip
-  // into the guest document every beat for nothing.
+  // into the guest document every beat for nothing. While a comment bubble is
+  // open in the page the poll tightens: the bubble's send shortcuts reach the
+  // panel only through a state read, and a 700 ms wait between the keypress
+  // and the delivery reads as the shortcut having missed.
+  const [bubbleOpen, setBubbleOpen] = useState(false)
   useEffect(() => {
     if (!open) {return}
-    const timer = setInterval(() => void readPins().then(sync), POLL_MS)
+    const period = bubbleOpen ? POLL_BUBBLE_MS : POLL_MS
+    const timer = setInterval(() => void readPins().then(sync), period)
 
     return () => clearInterval(timer)
-  }, [open, sync])
+  }, [open, bubbleOpen, sync])
 
   // Closing the panel hands the page back. Without this the engine stays armed
   // behind a UI that is no longer on screen: the next click on a link is eaten
@@ -153,6 +204,23 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
 
   // A pane teardown is a close the effect above never sees.
   useEffect(() => () => void hidePins(), [])
+
+  // Keybind requests: mod+shift+a toggles annotation, the attach chord delivers
+  // everything pending. Counters (not flags) so two taps toggle twice. The
+  // panel only acts while it is open — a hotkey pressed over a chat with no
+  // browser pane must not arm a page the user is not looking at.
+  const annotateRequest = useStore($annotateToggleRequest)
+  const attachRequest = useStore($attachPinsRequest)
+
+  useEffect(() => {
+    if (open && annotateRequest > 0) {void toggleArmed()}
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the request counter IS the trigger
+  }, [annotateRequest])
+
+  useEffect(() => {
+    if (open && attachRequest > 0) {void attach()}
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the request counter IS the trigger
+  }, [attachRequest])
 
   // A navigation destroys the engine and every pin with it. Seed the new one
   // from this page's bucket — and only this page's — then re-run the ladder.
@@ -305,6 +373,12 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       notify({ kind: 'error', message: 'The queue rejected the comment.', title: 'Could not queue' })
     }
   }
+
+  // Keep the request executor pointed at the CURRENT handlers. Assigned during
+  // render (idempotent, no effect needed): the bubble's Ctrl+Enter may arrive
+  // on the very next poll tick, and a mount-order effect would miss it.
+  sendOneRef.current = sendOne
+  queueOneRef.current = queueOne
 
   const attach = async () => {
     // The whole review, not just the page in front of us — and only what is

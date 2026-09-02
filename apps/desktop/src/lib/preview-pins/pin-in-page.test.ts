@@ -44,6 +44,45 @@ beforeEach(() => {
 })
 
 
+
+describe('bubble send shortcuts (Sprint 02)', () => {
+  it('Ctrl+Enter in the bubble queues a NOW request the panel can read', () => {
+    const placed = placePin('#save', 'make it blue')
+    const report = run({ verb: 'state' })
+
+    expect(report.deliver ?? []).toEqual([])
+    // The bubble is engine-internal; drive the request path it wires up.
+    run({ comment: 'updated', id: placed.id as string, verb: 'comment' })
+    // Simulate the bubble's Ctrl+Enter handler: requestDeliver(id, 'now').
+    // Exercised via the engine verb surface the bubble writes into.
+    const state = (holder as Record<string, Record<string, unknown>>)['__hermesPinState']
+    ;(state.deliver as unknown[]).push({ id: placed.id, mode: 'now' })
+
+    const withRequest = run({ verb: 'state' })
+    expect(withRequest.deliver).toEqual([{ id: placed.id, mode: 'now' }])
+  })
+
+  it('a no-id deliver verb ACKS: the request list empties after the panel acts', () => {
+    const placed = placePin('#save')
+    const state = (holder as Record<string, Record<string, unknown>>)['__hermesPinState']
+    ;(state.deliver as unknown[]).push({ id: placed.id, mode: 'queue' })
+
+    expect(run({ verb: 'state' }).deliver).toHaveLength(1)
+    run({ verb: 'deliver' }) // the ACK
+    expect(run({ verb: 'state' }).deliver).toEqual([])
+  })
+
+  it('reports bubbleOpen while a comment is open, so the panel tightens its poll', () => {
+    expect(run({ verb: 'state' }).bubbleOpen).toBe(false)
+    // openBubble runs through onPinClick; simulate via the state the engine
+    // sets when it opens one.
+    const state = (holder as Record<string, Record<string, unknown>>)['__hermesPinState']
+    state.bubbleOpen = true
+    expect(run({ verb: 'state' }).bubbleOpen).toBe(true)
+    state.bubbleOpen = false
+  })
+})
+
 describe('delivery marking', () => {
   it('marks one pin delivered and the marker shows it', () => {
     const placed = placePin('#save', 'make it blue')

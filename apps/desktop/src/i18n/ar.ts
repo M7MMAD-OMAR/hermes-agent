@@ -276,6 +276,8 @@ export const ar = defineLocale({
       'view.toggleReview': 'تبديل لوحة المراجعة',
       'view.showFiles': 'إظهار متصفح الملفات',
       'view.showBrowser': 'فتح المتصفح',
+      'view.toggleAnnotate': 'تبديل وضع التعليق على الصفحة',
+      'view.attachPins': 'إرسال كل التعليقات المعلّقة إلى المحادثة',
       'view.showTerminal': 'إظهار الطرفية',
       'view.closeTab': 'إغلاق علامة التبويب',
       'view.reopenTab': 'إعادة فتح علامة التبويب المغلقة',

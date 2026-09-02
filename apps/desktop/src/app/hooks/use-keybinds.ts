@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
 import { closeActiveTab } from '@/app/chat/close-tab'
+import { requestAnnotateToggle, requestAttachPins } from '@/app/chat/right-rail/preview-pin-requests'
 import { hudTargetSessionId } from '@/app/hud/handoff'
 import { setTerminalTakeover } from '@/app/right-sidebar/store'
 import { closeActiveTerminal, createTerminal, cycleTerminal } from '@/app/right-sidebar/terminal/terminals'
@@ -252,6 +253,10 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'view.toggleTabStrip': () => void toggleTargetZoneTabStrip(),
     'view.showFiles': showFiles,
     'view.showBrowser': openBrowserTab,
+    // The pin panel listens for these request counters itself — it owns the
+    // page state (armed, pending pins) that decides what the action means.
+    'view.toggleAnnotate': requestAnnotateToggle,
+    'view.attachPins': requestAttachPins,
     'view.toggleHud': () => toggleHud(hudTargetSessionId()),
     'view.showTerminal': () => togglePaneVisible('terminal'),
     // Create first so the pane's open-effect ensure sees a non-empty set and

@@ -67,6 +67,8 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
   const state = (holder[STATE_KEY] as Record<string, unknown> | undefined) ?? {
     armed: false,
+    bubbleOpen: false,
+    deliver: [],
     drag: null,
     hidden: false,
     pending: [],
@@ -83,9 +85,20 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
   if (!state.pending) {state.pending = []}
 
+  if (!state.deliver) {state.deliver = []}
+
   const pins = state.pins as Record<string, unknown>[]
   const shotData = state.shotData as Record<string, string>
   const pending = state.pending as string[]
+  /** Delivery requests the bubble queued for the panel (see PinDeliverRequest). */
+  const deliver = state.deliver as { id: string; mode: 'now' | 'queue' }[]
+
+  /** The bubble asks the panel to send this comment — now, or as queue. */
+  const requestDeliver = (id: string, mode: 'now' | 'queue') => {
+    if (!deliver.some(entry => entry.id === id && entry.mode === mode)) {
+      deliver.push({ id, mode })
+    }
+  }
 
   // ---- overlay -----------------------------------------------------------
 
@@ -258,7 +271,12 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     })
   }
 
-  const closeBubble = () => clearLayer('.bubble')
+  /** A bubble is showing: reported so the panel's poll tightens while the
+   *  user is mid-comment, and its shortcuts do not sit on a 700 ms wait. */
+  const closeBubble = () => {
+    clearLayer('.bubble')
+    state.bubbleOpen = false
+  }
 
   /**
    * Shrink an image and hand back a data URL.
@@ -487,6 +505,14 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     remove.className = 'icon danger'
     remove.title = 'Delete this comment'
     remove.append(icon('M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13'))
+    /** Send straight to the chat — the panel delivers and marks it done. */
+    const send = doc.createElement('button')
+    send.title = 'Send to chat now (Ctrl+Enter)'
+    send.textContent = 'Send'
+    /** Park it in the conversation's queue — drains after the current turn. */
+    const enqueue = doc.createElement('button')
+    enqueue.title = 'Add to the chat queue (Ctrl+Shift+Enter)'
+    enqueue.textContent = 'Queue'
     const save = doc.createElement('button')
     save.className = 'go'
     save.textContent = 'Done'
@@ -500,6 +526,16 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       pin.comment = area.value
       closeBubble()
       paint()
+    })
+    send.addEventListener('click', event => {
+      event.stopPropagation()
+      pin.comment = area.value
+      requestDeliver(String(pinId), 'now')
+    })
+    enqueue.addEventListener('click', event => {
+      event.stopPropagation()
+      pin.comment = area.value
+      requestDeliver(String(pinId), 'queue')
     })
     remove.addEventListener('click', event => {
       event.stopPropagation()
@@ -529,7 +565,23 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     }
 
     area.addEventListener('keydown', event => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      // `event.code` (physical key), not `event.key`: on the Arabic m17n
+      // layout Enter is still Enter, but every other letter is not — and the
+      // user's standing rule is that shortcuts must work on both layouts.
+      const enter = event.code === 'Enter' || event.key === 'Enter'
+
+      if ((event.metaKey || event.ctrlKey) && enter && event.shiftKey) {
+        // Queue it: the conversation is busy or the user wants ordering.
+        event.preventDefault()
+        pin.comment = area.value
+        requestDeliver(String(pinId), 'queue')
+      } else if ((event.metaKey || event.ctrlKey) && enter) {
+        // Send now: the panel delivers it and closes the bubble.
+        event.preventDefault()
+        pin.comment = area.value
+        requestDeliver(String(pinId), 'now')
+      } else if (event.key === 'Enter' && !event.shiftKey) {
+        // Plain Enter has ALWAYS closed the bubble (the save above); keep it.
         event.preventDefault()
         pin.comment = area.value
         closeBubble()
@@ -563,9 +615,10 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
     // Quiet actions first, the committing one pushed to the end by CSS: the
     // eye lands on Done, and Delete is never a neighbour of it.
-    row.append(add, remove, save)
+    row.append(add, remove, send, enqueue, save)
     bubble.append(head, area, strip, hint, row, picker)
     shadow().append(bubble)
+    state.bubbleOpen = true
     grow()
     drawStrip()
     area.focus()
@@ -931,6 +984,12 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       const pin = pins.find(entry => entry.id === command.id)
 
       if (pin) {pin.delivered = command.delivered !== false}
+
+      // No id: an ACK — the panel took the bubble's requests, so drop them.
+      // Dropping BEFORE the panel acts would lose a request that failed
+      // mid-flight; the panel acks first, then runs, and a request that
+      // arrives again was re-queued by a bubble click, not a lost ack.
+      if (!command.id) {deliver.splice(0, deliver.length)}
       paint()
 
       break
@@ -962,6 +1021,12 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
   return {
     armed: state.armed === true,
+    /** The comment bubble is on screen — the panel tightens its poll while
+     *  this holds, so the bubble's shortcuts land within a beat. */
+    bubbleOpen: state.bubbleOpen === true,
+    // The bubble's delivery requests ride every report; the panel drains them
+    // and asks the engine to clear them (a `deliver` with no id acks the lot).
+    deliver: deliver.slice(),
     hidden: state.hidden === true,
     // Announced on EVERY report, not just while annotating. An image pasted
     // and then left alone — Escape, or the panel closed — still has to reach

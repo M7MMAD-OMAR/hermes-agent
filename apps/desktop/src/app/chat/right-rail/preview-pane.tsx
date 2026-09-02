@@ -476,6 +476,12 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
     // byte-identical payload. Cleared on navigation, which resets the override
     // in the guest and is the one time re-sending the same metrics is the point.
     let emulated: null | string = null
+    // Same reason as `emulated`, for the pin directly below it: `apply` runs on
+    // pane resize, navigation and zoom change, so a sash drag calls it at layout
+    // rate — and `setZoomLevel` on a <webview> goes through the guest-view
+    // manager, i.e. a cross-process message, not a local property write. The
+    // factor almost never changes between those calls.
+    let pinned: null | number = null
 
     const apply = () => {
       const webview = webviewRef.current
@@ -490,7 +496,12 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
       // (attach, navigate, host zoom change) — to 1/hostZoom with no preset, to
       // a flat 1 under emulation, because `viewSize` is divided by the guest's
       // page zoom and a preset must mean the width it says.
-      pinGuestZoom(webview, guestPinFactor(Boolean(viewport)))
+      const pinFactor = guestPinFactor(Boolean(viewport))
+
+      if (pinned !== pinFactor) {
+        pinned = pinFactor
+        pinGuestZoom(webview, pinFactor)
+      }
 
       // The guest attaches after the element does; before that there is no
       // webContents to emulate and the call would be dropped silently.
@@ -544,6 +555,10 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
     // because the guest has forgotten what it was told.
     const reapply = () => {
       emulated = null
+      // Navigation resets the guest's zoom exactly as it resets the emulation
+      // override, so the pin has to be re-asserted with it — clearing one and
+      // not the other would leave a navigated page at the inherited zoom.
+      pinned = null
       apply()
     }
 

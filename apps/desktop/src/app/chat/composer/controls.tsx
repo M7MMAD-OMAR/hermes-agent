@@ -222,6 +222,9 @@ function BrowserButton({ disabled }: { disabled: boolean }) {
         aria-label={label}
         aria-pressed={isEmbedded ? isExpanded : undefined}
         className={cn(GHOST_ICON_BTN, 'p-0', (has || isEmbedded) && ACTIVE_ICON_BTN)}
+        // Stable hook for the perf harness: the label is translated, so
+        // aria-label is not addressable from a scenario script.
+        data-slot="composer-browser-toggle"
         disabled={disabled}
         // Toggle, not open: first press docks this conversation's browser
         // inside its chat column, the next parks it (collapsed, page alive),

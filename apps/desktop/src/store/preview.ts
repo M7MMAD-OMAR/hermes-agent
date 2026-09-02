@@ -1,5 +1,6 @@
 import { atom, computed } from 'nanostores'
 
+import { forgetPreviewConsole } from '@/app/chat/right-rail/preview-console-store'
 import { persistentAtom } from '@/lib/persisted'
 import { readKey } from '@/lib/storage'
 import { normalize } from '@/lib/text'
@@ -505,12 +506,6 @@ export function previewTabBelongsToSession(
 //    they key runtime session ids, and an embed that outlived its conversation
 //    would strand its tabs out of the strip forever.
 
-/** Conversations whose browser lives in their chat column. */
-export const $embeddedBrowserSessions = atom<ReadonlySet<string>>(new Set())
-
-/** The subset whose panel is expanded (visible) rather than parked. */
-export const $embeddedBrowserExpanded = atom<ReadonlySet<string>>(new Set())
-
 const withMembership = (current: ReadonlySet<string>, id: string, member: boolean): ReadonlySet<string> => {
   if (current.has(id) === member) {
     return current
@@ -526,6 +521,36 @@ const withMembership = (current: ReadonlySet<string>, id: string, member: boolea
 
   return next
 }
+
+/** Conversations whose browser lives in their chat column. */
+export const $embeddedBrowserSessions = atom<ReadonlySet<string>>(new Set())
+
+/**
+ * Conversations that currently have a panel RENDERED and able to host a page.
+ *
+ * Not the same question as `$embeddedBrowserSessions`, which says a browser was
+ * asked for. This says there is somewhere to put it. Without the distinction,
+ * asking a surface that has no panel to embed mints a tab, drops it out of
+ * `$dockedPreviewTabs` (the focused conversation's tabs are hidden from the
+ * strip precisely so the panel can own them), and hosts it nowhere — a tab that
+ * exists, is not in the strip, and has no panel. A black hole, not an error.
+ *
+ * Registered by the panel itself for as long as it is in the tree, so the store
+ * never has to guess which surfaces exist.
+ */
+export const $embeddedBrowserHosts = atom<ReadonlySet<string>>(new Set())
+
+/** Called by the panel on mount; the returned function unregisters. */
+export function registerEmbeddedBrowserHost(sessionId: string): () => void {
+  $embeddedBrowserHosts.set(withMembership($embeddedBrowserHosts.get(), sessionId, true))
+
+  return () => {
+    $embeddedBrowserHosts.set(withMembership($embeddedBrowserHosts.get(), sessionId, false))
+  }
+}
+
+/** The subset whose panel is expanded (visible) rather than parked. */
+export const $embeddedBrowserExpanded = atom<ReadonlySet<string>>(new Set())
 
 /** Mount/unmount the embedded panel for a conversation. Unmounting also
  *  collapses it — a panel cannot be visible while it does not exist. */
@@ -550,6 +575,15 @@ export function toggleEmbeddedBrowser(sessionId: null | string = $browserSession
   // A draft conversation is still a conversation. Without this the button did
   // nothing at all on a new chat — see DRAFT_BROWSER_SESSION_ID.
   const key = browserSessionKey(sessionId)
+
+  // No panel to embed into (a surface that renders no chat column, or a
+  // conversation not on screen): open the page in the strip instead of minting
+  // a tab that nothing can host. See $embeddedBrowserHosts.
+  if (!$embeddedBrowserHosts.get().has(key)) {
+    openBrowserTab(sessionId)
+
+    return
+  }
 
   if (!$embeddedBrowserSessions.get().has(key)) {
     openBrowserTab(key)
@@ -844,6 +878,14 @@ export function closeRightRailTab(tabId: string) {
   if (index === -1) {
     return
   }
+
+  // Every close path funnels through here, which is why the console buffer is
+  // dropped HERE and not at one call site. It used to be released only by the
+  // pane mirror's own close, so a tab closed from the embedded strip — or by a
+  // conversation ending — left its state stranded in a module-level Map for the
+  // window's lifetime, pinning up to MAX_LOGS entries of unbounded message
+  // strings each.
+  forgetPreviewConsole(tabId)
 
   const next = current.filter(tab => tab.id !== tabId)
 

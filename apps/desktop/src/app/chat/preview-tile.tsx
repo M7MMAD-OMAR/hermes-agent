@@ -316,6 +316,8 @@ const watchPreviewTileMirror = paneMirror<{ id: string }>({
   render: tabId => <PreviewTilePane tabId={tabId} />,
   close: tabId => {
     forgetBrowserPage(tabId)
+    // (console state is released by closeRightRailTab, which every close
+    //  path funnels through — kept here only for the mirror's own dispose)
     forgetPreviewConsole(tabId)
     closeRightRailTab(tabId)
   }

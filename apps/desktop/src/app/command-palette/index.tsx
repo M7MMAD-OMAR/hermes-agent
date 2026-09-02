@@ -71,7 +71,7 @@ import {
 import { $bindings, bindingsFor } from '@/store/keybinds'
 import { $dismissedAutoProjectIds, filterVisibleProjects } from '@/store/layout'
 import { openPetGenerate } from '@/store/pet-generate'
-import { openBrowserTab } from '@/store/preview'
+import { toggleEmbeddedBrowser } from '@/store/preview'
 import { $projectTree, goToProject, openFolderAsProject, requestStartWorkSession } from '@/store/projects'
 import { $connection } from '@/store/session'
 import { runGatewayRestart } from '@/store/system-actions'
@@ -940,7 +940,7 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
             id: 'cc-open-browser',
             keywords: ['browser', 'web', 'url', 'address', 'open', 'navigate', 'internet', 'site'],
             label: cc.openBrowser,
-            run: () => openBrowserTab()
+            run: () => toggleEmbeddedBrowser()
           }
         ]
       },

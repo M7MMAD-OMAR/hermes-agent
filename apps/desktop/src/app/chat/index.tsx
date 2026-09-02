@@ -412,6 +412,15 @@ const ChatViewContent = memo(function ChatViewContent({
   // Dock anchor for a session drop onto this surface: the workspace pane for the
   // primary, this tile's pane id for a tile. Read by the session-drop bridge.
   const sessionAnchor = isPrimary ? 'workspace' : `session-tile:${storedId ?? ''}`
+
+  // Which conversation this surface's browser belongs to. TILES get one too:
+  // gating the panel on `isPrimary` meant a conversation opened as a tile could
+  // never host its own browser, and pressing the globe there minted a tab that
+  // the strip hides (it belongs to the focused conversation) and no panel shows.
+  // Only the primary can be a DRAFT — a tile is bound to a runtime id before it
+  // renders — so the stand-in key is scoped to it and two surfaces can never
+  // claim it at once.
+  const embeddedBrowserKey = isPrimary ? browserSessionKey(activeSessionId) : activeSessionId
   const awaitingResponse = useStore(view.$awaitingResponse)
   const busy = useStore(view.$busy)
   const activeGatewayProfile = useStore($activeGatewayProfile)
@@ -785,7 +794,7 @@ const ChatViewContent = memo(function ChatViewContent({
             not be opened on an empty conversation at all. The draft key stands
             in and `adoptDraftBrowserSession` swaps the real id underneath once
             the turn mints one — the panel never unmounts across that swap. */}
-        {isPrimary && <EmbeddedBrowserPanel sessionId={browserSessionKey(activeSessionId)} />}
+        {embeddedBrowserKey && <EmbeddedBrowserPanel sessionId={embeddedBrowserKey} />}
       </div>
     </div>
   )

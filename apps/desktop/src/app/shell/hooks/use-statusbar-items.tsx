@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils'
 import { resolveVersionStatus } from '@/lib/version-status'
 import { copyFilePath, revealFile } from '@/store/file-actions'
 import { revealFileInTree } from '@/store/layout'
-import { openBrowserTab } from '@/store/preview'
+import { toggleEmbeddedBrowser } from '@/store/preview'
 import { $activeGatewayProfile } from '@/store/profile'
 import { $projectTree, projectNameForCwd } from '@/store/projects'
 import {
@@ -646,13 +646,15 @@ export function useStatusbarItems({
       // only discoverable way in was to ask the agent to open it. Same door the
       // terminal gets, next to it — and carrying `actionId`, so the tooltip
       // teaches ⌘⇧L rather than hiding it.
+      // Points at the conversation's OWN browser now, the same one the composer
+      // globe toggles; it used to open a separate unowned tab in the strip.
       {
         actionId: 'view.showBrowser',
         className: 'w-7 justify-center px-0',
         hidden: !chatOpen,
         icon: <Globe className="size-3.5" />,
         id: 'browser',
-        onSelect: () => openBrowserTab(),
+        onSelect: () => toggleEmbeddedBrowser(),
         title: copy.showBrowser,
         toggleLabel: copy.toggleBrowser,
         variant: 'action'

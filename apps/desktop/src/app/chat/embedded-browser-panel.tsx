@@ -1,10 +1,11 @@
 import { useStore } from '@nanostores/react'
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, useState } from 'react'
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useState } from 'react'
 
 import { $restartPreviewServer } from '@/app/contrib/panes'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
+import { rafCoalesce } from '@/lib/raf-coalesce'
 import { cn } from '@/lib/utils'
 import { $rightRailActiveTabId, selectRightRailTab } from '@/store/layout'
 import { $paneWidthOverride, setPaneWidthOverride } from '@/store/panes'
@@ -18,7 +19,8 @@ import {
   forgetBrowserPage,
   newBrowserTab,
   type PreviewTab,
-  previewTabBelongsToSession
+  previewTabBelongsToSession,
+  registerEmbeddedBrowserHost
 } from '@/store/preview'
 
 import { browserTabLabel } from './preview-tile'
@@ -77,6 +79,13 @@ export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
   const widthOverride = useStore($paneWidthOverride(WIDTH_PANE_ID))
   const [dragging, setDragging] = useState(false)
 
+  // Announce that this conversation HAS somewhere to put a browser, for as long
+  // as the panel is in the tree — including while it renders nothing, which is
+  // the state every conversation starts in. `toggleEmbeddedBrowser` refuses to
+  // mint a tab for a session with no host, so this registration is what decides
+  // whether the globe embeds or falls back to the strip.
+  useEffect(() => registerEmbeddedBrowserHost(sessionId), [sessionId])
+
   // The seam is dragged in SCREEN pixels, so it reads the row's own box rather
   // than assuming which side it is on: `flex-row-reverse` under RTL puts the
   // browser on the right while the pointer axis still runs left-to-right, and a
@@ -104,14 +113,26 @@ export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
 
     setDragging(true)
 
+    // ONE width write per frame, not one per pointermove. The chain behind a
+    // single write is long and entirely synchronous: `$paneStates.set` →
+    // `JSON.stringify` of the whole pane-state map → `localStorage.setItem` →
+    // this panel re-renders → the inline width changes → layout → PreviewPane's
+    // ResizeObserver → `apply()` → a rect read and a zoom/emulate call into the
+    // guest. A trackpad drag delivers those faster than a frame, so uncoalesced
+    // it runs the chain several times for one painted frame.
+    const commit = rafCoalesce<number>(width => setPaneWidthOverride(WIDTH_PANE_ID, width))
+
     const onMove = (move: globalThis.PointerEvent) => {
       const delta = pinnedRight ? startX - move.clientX : move.clientX - startX
 
-      setPaneWidthOverride(WIDTH_PANE_ID, Math.round(Math.min(max, Math.max(MIN_BROWSER_PX, startWidth + delta))))
+      commit.push(Math.round(Math.min(max, Math.max(MIN_BROWSER_PX, startWidth + delta))))
     }
 
     const onUp = () => {
       window.removeEventListener('pointermove', onMove)
+      // Commit the last position even if it arrived inside the pending frame,
+      // or the pane settles a few pixels off where the pointer was released.
+      commit.finish()
       setDragging(false)
     }
 

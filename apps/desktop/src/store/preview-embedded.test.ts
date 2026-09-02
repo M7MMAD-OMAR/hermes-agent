@@ -5,6 +5,7 @@ import {
   $browserSessionId,
   $dockedPreviewTabs,
   $embeddedBrowserExpanded,
+  $embeddedBrowserHosts,
   $embeddedBrowserSessions,
   $poppedBrowserTabIds,
   $previewTabs,
@@ -18,6 +19,7 @@ import {
   openPreview,
   type PreviewTab,
   type PreviewTarget,
+  registerEmbeddedBrowserHost,
   setEmbeddedBrowserSession,
   toggleEmbeddedBrowser
 } from './preview'
@@ -39,6 +41,7 @@ describe('embedded browser store', () => {
     $embeddedBrowserSessions.set(new Set())
     $embeddedBrowserExpanded.set(new Set())
     $browserSessionId.set(null)
+    $embeddedBrowserHosts.set(new Set())
     closeRightRail()
     window.localStorage.clear()
   })
@@ -49,15 +52,23 @@ describe('embedded browser store', () => {
     $embeddedBrowserSessions.set(new Set())
     $embeddedBrowserExpanded.set(new Set())
     $browserSessionId.set(null)
+    $embeddedBrowserHosts.set(new Set())
     closeRightRail()
     window.localStorage.clear()
   })
+
+  // The panel registers itself as a host for as long as it is in the tree, and
+  // it is in the tree for every chat surface. Toggling a session with NO host
+  // is the black-hole case and has its own test below, so every other case has
+  // to stand one up first.
+  const withHost = (sessionId: string) => registerEmbeddedBrowserHost(sessionId)
 
   // CONTRACT CHANGE (2026-09-02). This used to assert `toggleEmbeddedBrowser(null)`
   // does nothing — which is precisely the reported bug: a NEW chat has no runtime
   // id until its first turn, so the globe was inert on every empty conversation.
   // A draft is a conversation; it just does not have its id yet.
   it('opens the DRAFT conversation browser when there is no runtime id yet', () => {
+    withHost(DRAFT_BROWSER_SESSION_ID)
     toggleEmbeddedBrowser(null)
 
     expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
@@ -67,6 +78,7 @@ describe('embedded browser store', () => {
   })
 
   it('hands the draft browser to the real session without closing the tab', () => {
+    withHost(DRAFT_BROWSER_SESSION_ID)
     toggleEmbeddedBrowser(null)
 
     const before = $previewTabs.get()[0].id
@@ -83,6 +95,7 @@ describe('embedded browser store', () => {
   })
 
   it('carries a PARKED draft browser over as parked, not re-expanded', () => {
+    withHost(DRAFT_BROWSER_SESSION_ID)
     toggleEmbeddedBrowser(null)
     toggleEmbeddedBrowser(null) // park it
 
@@ -94,6 +107,21 @@ describe('embedded browser store', () => {
     expect($embeddedBrowserExpanded.get().has('runtime-9')).toBe(false)
   })
 
+  // The BLACK HOLE this guard exists to prevent: a tab minted for a session
+  // whose surface renders no panel is dropped from the strip (the focused
+  // conversation's tabs are hidden there on purpose) and hosted nowhere — it
+  // exists and is invisible. Falling back to the strip keeps the page reachable.
+  it('falls back to the strip when the conversation has no panel to host a page', () => {
+    toggleEmbeddedBrowser('sess-no-panel')
+
+    expect($embeddedBrowserSessions.get().has('sess-no-panel')).toBe(false)
+
+    const tabs = browserTabs($previewTabs.get())
+
+    expect(tabs).toHaveLength(1)
+    expect($dockedPreviewTabs.get().map(tab => tab.id)).toEqual([tabs[0].id])
+  })
+
   it('adoption is a no-op when the draft never opened a browser', () => {
     adoptDraftBrowserSession('runtime-9')
 
@@ -102,6 +130,7 @@ describe('embedded browser store', () => {
   })
 
   it('first toggle mounts, expands, and mints this conversation a browser tab', () => {
+    withHost('sess-1')
     toggleEmbeddedBrowser('sess-1')
 
     expect($embeddedBrowserSessions.get().has('sess-1')).toBe(true)
@@ -115,6 +144,7 @@ describe('embedded browser store', () => {
   })
 
   it('collapses without unmounting, and re-expands — the tab never moves', () => {
+    withHost('sess-1')
     toggleEmbeddedBrowser('sess-1')
     const tabId = browserTabs($previewTabs.get())[0].id
 

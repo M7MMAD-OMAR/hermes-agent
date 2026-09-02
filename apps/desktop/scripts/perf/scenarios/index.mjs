@@ -1,6 +1,7 @@
 // Scenario registry. Add a scenario module here and it's automatically
 // available to the runner, the default suite (tier 'ci'), and the baseline gate.
 
+import browser from './browser.mjs'
 import coldStart from './cold-start.mjs'
 import firstToken from './first-token.mjs'
 import idleCost from './idle-cost.mjs'
@@ -21,6 +22,7 @@ export const SCENARIOS = {
   [streamHistory.name]: streamHistory,
   [keystroke.name]: keystroke,
   [transcript.name]: transcript,
+  [browser.name]: browser,
   [multitab.name]: multitab,
   [renderChurn.name]: renderChurn,
   [rightPane.name]: rightPane,

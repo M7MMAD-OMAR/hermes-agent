@@ -38,7 +38,7 @@ import {
   togglePanesFlipped,
   toggleSidebarOpen
 } from '@/store/layout'
-import { openBrowserTab } from '@/store/preview'
+import { toggleEmbeddedBrowser } from '@/store/preview'
 import {
   $newChatProfile,
   cycleProfile,
@@ -252,7 +252,12 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'view.toggleStatusbar': toggleStatusbarVisible,
     'view.toggleTabStrip': () => void toggleTargetZoneTabStrip(),
     'view.showFiles': showFiles,
-    'view.showBrowser': openBrowserTab,
+    // The conversation's OWN browser, not a stray tab in the strip. These three
+    // doors (keybind, ⌘K row, statusbar globe) all used to call `openBrowserTab`,
+    // which mints an UNOWNED tab — a second, older browser sitting beside the one
+    // the composer's globe opens. `toggleEmbeddedBrowser` falls back to exactly
+    // that strip route when the surface has no panel to host a page.
+    'view.showBrowser': () => toggleEmbeddedBrowser(),
     // The pin panel listens for these request counters itself — it owns the
     // page state (armed, pending pins) that decides what the action means.
     'view.toggleAnnotate': requestAnnotateToggle,

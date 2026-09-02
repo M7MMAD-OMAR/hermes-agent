@@ -11,11 +11,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useStatusbarItems } from '@/app/shell/hooks/use-statusbar-items'
 import { STATUSBAR_HIDDEN_BY_DEFAULT } from '@/store/statusbar-prefs'
 
-const openBrowserTab = vi.fn()
+const toggleEmbeddedBrowser = vi.fn()
 
 vi.mock('@/store/preview', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  openBrowserTab: () => openBrowserTab()
+  toggleEmbeddedBrowser: () => toggleEmbeddedBrowser()
 }))
 
 function items(chatOpen = true) {
@@ -53,7 +53,7 @@ describe('the Browser button', () => {
     items()
       .find(item => item.id === 'browser')
       ?.onSelect?.({ shiftKey: false })
-    expect(openBrowserTab).toHaveBeenCalled()
+    expect(toggleEmbeddedBrowser).toHaveBeenCalled()
   })
 
   it('carries the action, so the tooltip teaches the shortcut', () => {

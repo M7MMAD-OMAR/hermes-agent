@@ -13,6 +13,7 @@ import { useResizeObserver } from '@/hooks/use-resize-observer'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { StopFilled } from '@/lib/icons'
+import { isProcessNotification, isRuntimeNudge } from '@/lib/runtime-nudges'
 import { cn } from '@/lib/utils'
 import { $gateway } from '@/store/gateway'
 import { notifyThreadEditOpen } from '@/store/thread-scroll'
@@ -77,7 +78,11 @@ export const StopGlyph = <StopFilled aria-hidden className="size-3.5 -translate-
 // a synthetic system row mid-loop). They are NOT something the human typed, so
 // render them as a compact system-style notice instead of a user bubble.
 // Shape: see tools/process_registry.py format_process_notification().
-const PROCESS_NOTIFICATION_RE = /^\[IMPORTANT: Background process [\s\S]*\]$/
+//
+// The SAME is true of every other runtime nudge — the iteration-cap summary
+// request, the continuation stubs, the preserved task list — and they were all
+// rendering as user bubbles. `isRuntimeNudge` is the full list; see
+// lib/runtime-nudges.ts.
 
 // Agent-to-agent deliveries ("Message from 🤖 <sender>: …", the Bot Mode /
 // multi-profile convention; optional "(@<handle>)" carries the sender's
@@ -260,6 +265,24 @@ const ProcessNotificationNote: FC<{ text: string }> = ({ text }) => {
   )
 }
 
+/** One dim line, centred, matching ProcessNotificationNote's voice. The text is
+ *  shown as written rather than paraphrased: these strings are addressed to the
+ *  model, and rewording them here would describe something the model never
+ *  read. Bracketed `[System: …]` wrappers are stripped, they are protocol. */
+const RuntimeNudgeNote: FC<{ text: string }> = ({ text }) => {
+  const body = text
+    .replace(/^\[System:\s*/, '')
+    .replace(/\]$/, '')
+    .trim()
+
+  return (
+    <div className="flex max-w-[min(86%,44rem)] items-start gap-1.5 self-center px-2 py-0.5 text-[0.6875rem] leading-5 text-muted-foreground/60">
+      <Codicon className="mt-1 shrink-0 text-muted-foreground/55" name="info" size="0.75rem" />
+      <span className="wrap-anywhere">{body}</span>
+    </div>
+  )
+}
+
 export const UserMessage: FC<{
   onCancel?: () => Promise<void> | void
   onRequestRestoreConfirm?: (messageId: string, target: RestoreMessageTarget) => void
@@ -371,7 +394,7 @@ export const UserMessage: FC<{
 
   // Injected background-process notification, not a human prompt — render the
   // compact system-style notice (after all hooks above have run).
-  if (PROCESS_NOTIFICATION_RE.test(messageText.trim())) {
+  if (isProcessNotification(messageText)) {
     return (
       <MessagePrimitive.Root
         className="flex w-full min-w-0 flex-col items-stretch"
@@ -380,6 +403,22 @@ export const UserMessage: FC<{
       >
         <ProcessNotificationNote text={messageText.trim()} />
         <MessageTimelineTimestamp className="self-center" />
+      </MessagePrimitive.Root>
+    )
+  }
+
+  // Any other runtime nudge: one quiet line, no bubble, no actions. It has no
+  // detail to expand and nothing to edit or restore to — it is the runtime
+  // talking to the model, shown only so the transcript is not missing a beat.
+  if (isRuntimeNudge(messageText)) {
+    return (
+      <MessagePrimitive.Root
+        className="flex w-full min-w-0 flex-col items-stretch"
+        data-role="user"
+        data-runtime-nudge=""
+        data-slot="aui_user-message-root"
+      >
+        <RuntimeNudgeNote text={messageText.trim()} />
       </MessagePrimitive.Root>
     )
   }

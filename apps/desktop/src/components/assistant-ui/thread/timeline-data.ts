@@ -1,5 +1,7 @@
 // Pure timeline helpers — no React/DOM; tested in thread-timeline-data.test.ts.
 
+import { isRuntimeNudge } from '@/lib/runtime-nudges'
+
 export interface TimelineSourceMessage {
   id: string
   role: string
@@ -12,7 +14,9 @@ export interface TimelineEntry {
 }
 
 // Injected as user messages for alternation; not human prompts (thread.tsx).
-const PROCESS_NOTIFICATION_RE = /^\[IMPORTANT: Background process [\s\S]*\]$/
+// The rail is a list of PLACES YOU ASKED SOMETHING — a runtime nudge is not
+// one, so none of them earn an entry. This used to skip only the
+// background-process family and let the other eleven through.
 
 const PREVIEW_MAX = 120
 
@@ -36,7 +40,7 @@ export function deriveTimelineEntries(messages: readonly TimelineSourceMessage[]
 
     const text = message.text.trim()
 
-    if (!text || PROCESS_NOTIFICATION_RE.test(text)) {
+    if (!text || isRuntimeNudge(text)) {
       continue
     }
 

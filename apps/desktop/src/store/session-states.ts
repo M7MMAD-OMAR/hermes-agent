@@ -1609,6 +1609,16 @@ export function closeSessionTile(storedSessionId: string) {
   if (runtimeId && state && evictable(runtimeId, state)) {
     dropSessionState(runtimeId)
   }
+
+  // The conversation's browser ends with it: close the Browser tabs this
+  // session owns and forget its embedded state. Lazy import on purpose —
+  // preview.ts imports this module (runtimeHasOpenSurface), so a static one
+  // here would close a cycle.
+  if (runtimeId) {
+    void import('@/store/preview').then(({ closeBrowserTabsForSession }) =>
+      closeBrowserTabsForSession(runtimeId, storedSessionId)
+    )
+  }
 }
 
 /** Persist-close every session tile whose pane lives in `paneId`'s group.

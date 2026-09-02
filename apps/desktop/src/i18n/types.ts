@@ -2603,6 +2603,8 @@ export interface Translations {
   preview: {
     tab: string
     closePane: string
+    embeddedNewTab: string
+    embeddedCloseTab: string
     loading: string
     unavailable: string
     opening: string

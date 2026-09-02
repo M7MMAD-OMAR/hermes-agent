@@ -2398,6 +2398,8 @@ export const ar = defineLocale({
     openInExternal: 'فتح في الخارج',
     popIn: 'إدخال',
     popOut: 'إخراج',
+    embeddedNewTab: 'تبويب متصفح جديد',
+    embeddedCloseTab: 'إغلاق تبويب المتصفح',
     linkHint: '⌘/Ctrl-نقر لجزء المعاينة',
     sourceLineTitle: 'انقر للتحديد · shift-نقر للتوسيع · اسحب إلى المُنشئ',
     source: 'المصدر',

@@ -3219,6 +3219,8 @@ export const zh: Translations = {
     openInExternal: '在外部打开',
     popIn: '弹回',
     popOut: '弹出',
+    embeddedNewTab: '新建浏览器标签页',
+    embeddedCloseTab: '关闭浏览器标签页',
     linkHint: '⌘/Ctrl+点击在预览面板打开',
     sourceLineTitle: '点击选择 · shift 点击扩展 · 拖到输入框',
     source: '源码',

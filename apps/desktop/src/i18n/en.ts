@@ -3059,6 +3059,8 @@ export const en: Translations = {
     openInExternal: 'Open in external',
     popIn: 'Pop in',
     popOut: 'Pop out',
+    embeddedNewTab: 'New browser tab',
+    embeddedCloseTab: 'Close browser tab',
     linkHint: '⌘/Ctrl-click for preview pane',
     sourceLineTitle: 'Click to select · shift-click to extend · drag to composer',
     source: 'SOURCE',

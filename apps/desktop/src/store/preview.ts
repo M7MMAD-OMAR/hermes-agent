@@ -468,18 +468,137 @@ export function previewTabBelongsToSession(
   return !sessionId || !tab.owner || tab.owner === sessionId
 }
 
-/** Preview tabs that still belong in the layout tree (not popped out).
+// ── The embedded browser — the conversation's browser docked INSIDE its chat
+//    column (a bordered panel above the transcript) instead of the layout
+//    strip. Same engine, same store, same per-session ownership as the strip's
+//    panes; only the home differs. The panel mounts the tab's PreviewPane, and
+//    `$dockedPreviewTabs` drops the focused conversation's embedded tabs from
+//    the mirror, so a page is never live in two places at once.
+//
+//    Membership (mounted) and expansion (visible vs parked) are separate sets:
+//    collapsing hides the panel without unmounting it, so the page — and the
+//    agent mid-drive — survives the toggle. Both are memory-only on purpose:
+//    they key runtime session ids, and an embed that outlived its conversation
+//    would strand its tabs out of the strip forever.
+
+/** Conversations whose browser lives in their chat column. */
+export const $embeddedBrowserSessions = atom<ReadonlySet<string>>(new Set())
+
+/** The subset whose panel is expanded (visible) rather than parked. */
+export const $embeddedBrowserExpanded = atom<ReadonlySet<string>>(new Set())
+
+const withMembership = (current: ReadonlySet<string>, id: string, member: boolean): ReadonlySet<string> => {
+  if (current.has(id) === member) {
+    return current
+  }
+
+  const next = new Set(current)
+
+  if (member) {
+    next.add(id)
+  } else {
+    next.delete(id)
+  }
+
+  return next
+}
+
+/** Mount/unmount the embedded panel for a conversation. Unmounting also
+ *  collapses it — a panel cannot be visible while it does not exist. */
+export function setEmbeddedBrowserSession(sessionId: string, embedded: boolean): void {
+  $embeddedBrowserSessions.set(withMembership($embeddedBrowserSessions.get(), sessionId, embedded))
+
+  if (!embedded) {
+    $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), sessionId, false))
+  }
+}
+
+/** The globe button in the composer, as a toggle:
  *
- *  NOT scoped to a conversation, deliberately. This is what the pane mirror
- *  registers from, and dropping a tab out of it calls `removeTreePane` — which
- *  destroys the pane and the live page inside it. Scoping HERE would mean that
- *  glancing at another chat tore down the page the first chat's agent was in
- *  the middle of driving, losing its scroll, its form, its login, and then
- *  reloading it on the way back. Every preview tab therefore stays registered;
- *  which ones the STRIP shows is a visibility question, answered by hiding
- *  panes (`syncBrowserSessionPanes`), which keeps them mounted. */
-export const $dockedPreviewTabs = computed([$previewTabs, $poppedBrowserTabIds], (tabs, popped) =>
-  popped.size === 0 ? tabs : tabs.filter(tab => !popped.has(tab.id))
+ *  1. not mounted → mount + expand, and make sure a Browser tab exists and is
+ *     fronted (the same route the old open-only button took);
+ *  2. mounted + expanded → collapse (parked, page stays alive);
+ *  3. mounted + collapsed → expand again.
+ *
+ *  No path here tears the page down: mounting fronts a tab, collapsing only
+ *  hides. Teardown belongs to closing tabs or ending the conversation. */
+export function toggleEmbeddedBrowser(sessionId: null | string = $browserSessionId.get()): void {
+  if (!sessionId) {
+    return
+  }
+
+  if (!$embeddedBrowserSessions.get().has(sessionId)) {
+    openBrowserTab(sessionId)
+    setEmbeddedBrowserSession(sessionId, true)
+    $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), sessionId, true))
+
+    return
+  }
+
+  $embeddedBrowserExpanded.set(
+    withMembership($embeddedBrowserExpanded.get(), sessionId, !$embeddedBrowserExpanded.get().has(sessionId))
+  )
+}
+
+/** The conversation ended — its browser ends with it. Closes every Browser tab
+ *  the session owns (its own vessels; pages opened WITHOUT an owner are
+ *  nobody's conversation and survive) and forgets the embedded state. */
+export function closeBrowserTabsForSession(sessionId: null | string, storedSessionId: null | string = null): void {
+  if (!sessionId && !storedSessionId) {
+    return
+  }
+
+  for (const tab of $previewTabs.get()) {
+    const owned = (sessionId && tab.owner === sessionId) || (storedSessionId && tab.ownerKey === storedSessionId)
+
+    if (tab.target.kind === 'url' && owned) {
+      forgetBrowserPage(tab.id)
+      closeRightRailTab(tab.id)
+    }
+  }
+
+  if (sessionId) {
+    setEmbeddedBrowserSession(sessionId, false)
+  }
+}
+
+/** Preview tabs that still belong in the layout tree (not popped out, and not
+ *  hosted by the focused conversation's embedded panel).
+ *
+ *  NOT scoped to a conversation otherwise, deliberately. This is what the pane
+ *  mirror registers from, and dropping a tab out of it calls `removeTreePane`
+ *  — which destroys the pane and the live page inside it. Scoping it beyond
+ *  the focused-embedded case would mean that glancing at another chat tore
+ *  down the page the first chat's agent was in the middle of driving, losing
+ *  its scroll, its form, its login, and then reloading it on the way back.
+ *  Every other preview tab therefore stays registered; which ones the STRIP
+ *  shows is a visibility question, answered by hiding panes
+ *  (`syncBrowserSessionPanes`), which keeps them mounted. */
+export const $dockedPreviewTabs = computed(
+  [$previewTabs, $poppedBrowserTabIds, $embeddedBrowserSessions, $browserSessionId],
+  (tabs, popped, embeddedSessions, browserSessionId) => {
+    const notPopped = popped.size === 0 ? tabs : tabs.filter(tab => !popped.has(tab.id))
+
+    if (embeddedSessions.size === 0) {
+      return notPopped
+    }
+
+    // A conversation with its browser embedded hosts its own browser tabs in
+    // the chat column, so they leave the strip while it is the conversation
+    // you are looking at (the panel's PreviewPane is the ONE surface showing
+    // them — never two live webviews for one tab). Every other tab stays:
+    // file/artifact peeks, unowned pages, and any embedded conversation that
+    // is NOT on screen — its panel is unmounted, so the strip is what keeps
+    // its panes alive for the agent still driving them (hidden, not dropped —
+    // see syncBrowserSessionPanes).
+    return notPopped.filter(tab => {
+      if (tab.target.kind !== 'url' || !tab.owner || !embeddedSessions.has(tab.owner)) {
+        return true
+      }
+
+      return tab.owner !== browserSessionId
+    })
+  }
 )
 
 export const $previewReloadRequest = atom(0)
@@ -601,6 +720,7 @@ export function openPreview(
   // owns, so reaching here with a different owner means the user opened it.
   const owner = owned ? (current[index]?.owner ?? sessionId ?? undefined) : undefined
   const ownerKey = owned ? (current[index]?.ownerKey ?? options.ownerKey ?? undefined) : undefined
+
   const tab: PreviewTab = owned
     ? { agent: true, id, owner, ownerKey, target: resolved }
     : { id, target: resolved }

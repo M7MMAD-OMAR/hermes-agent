@@ -2657,6 +2657,8 @@ export const ja = defineLocale({
     openInExternal: '外部で開く',
     popIn: 'ポップイン',
     popOut: 'ポップアウト',
+    embeddedNewTab: '新しいブラウザタブ',
+    embeddedCloseTab: 'ブラウザタブを閉じる',
     linkHint: '⌘/Ctrl+クリックでプレビューペイン',
     sourceLineTitle: 'クリックして選択 · Shift クリックで拡張 · コンポーザーにドラッグ',
     source: 'ソース',

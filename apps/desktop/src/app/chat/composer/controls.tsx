@@ -8,7 +8,14 @@ import { triggerHaptic } from '@/lib/haptics'
 import { AudioLines, Ear, EarOff, iconSize, Layers3, Loader2, Square, Volume2, VolumeX } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $hudMode, closeHud, resetHudLayout } from '@/store/hud'
-import { $browserSessionId, $dockedPreviewTabs, openBrowserTab, previewTabBelongsToSession } from '@/store/preview'
+import {
+  $browserSessionId,
+  $embeddedBrowserExpanded,
+  $embeddedBrowserSessions,
+  $previewTabs,
+  previewTabBelongsToSession,
+  toggleEmbeddedBrowser
+} from '@/store/preview'
 import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
 import { ACTIVE_ICON_BTN, GHOST_ICON_BTN, PRIMARY_ICON_BTN } from './control-classes'
@@ -198,16 +205,24 @@ function BrowserButton({ disabled }: { disabled: boolean }) {
   const { t } = useI18n()
   const label = t.shell.statusbar.showBrowser
   const sessionId = useStore($browserSessionId)
-  const tabs = useStore($dockedPreviewTabs)
+  const tabs = useStore($previewTabs)
+  const embedded = useStore($embeddedBrowserSessions)
+  const expanded = useStore($embeddedBrowserExpanded)
   const has = tabs.some(tab => tab.target.kind === 'url' && tab.owner && previewTabBelongsToSession(tab, sessionId))
+  const isEmbedded = Boolean(sessionId && embedded.has(sessionId))
+  const isExpanded = Boolean(sessionId && expanded.has(sessionId))
 
   return (
     <Tip label={<TipKeybindLabel actionId="view.showBrowser" text={label} />}>
       <Button
         aria-label={label}
-        className={cn(GHOST_ICON_BTN, 'p-0', has && ACTIVE_ICON_BTN)}
+        aria-pressed={isEmbedded ? isExpanded : undefined}
+        className={cn(GHOST_ICON_BTN, 'p-0', (has || isEmbedded) && ACTIVE_ICON_BTN)}
         disabled={disabled}
-        onClick={() => openBrowserTab()}
+        // Toggle, not open: first press docks this conversation's browser
+        // inside its chat column, the next parks it (collapsed, page alive),
+        // the third brings it back. See `toggleEmbeddedBrowser`.
+        onClick={() => toggleEmbeddedBrowser()}
         size="icon"
         type="button"
         variant="ghost"

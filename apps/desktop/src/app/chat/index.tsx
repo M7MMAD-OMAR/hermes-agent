@@ -63,6 +63,7 @@ import { requestComposerInsert } from './composer/focus'
 import { droppedFileInlineRefs } from './composer/inline-refs'
 import { ComposerSurfaceProvider, useComposerScope, useComposerSurfaceId } from './composer/scope'
 import type { ChatBarState } from './composer/types'
+import { EmbeddedBrowserPanel } from './embedded-browser-panel'
 import { type DroppedFile, partitionDroppedFiles } from './hooks/use-composer-actions'
 import { type DragKind, useFileDropZone } from './hooks/use-file-drop-zone'
 import { shouldShowIntro } from './intro-visibility'
@@ -635,6 +636,11 @@ const ChatViewContent = memo(function ChatViewContent({
           selectedSessionId={selectedSessionId}
         />
       )}
+
+      {/* This conversation's browser, docked inside the chat column (above the
+          transcript) while it is embedded — the composer's globe toggles it.
+          The panel owns its own mount/unmount off the embedded sets. */}
+      {isPrimary && activeSessionId && <EmbeddedBrowserPanel sessionId={activeSessionId} />}
 
       {/* Mounted for the primary AND every tile, each scoped to its own session
           so a tiled/background session's blocking prompt surfaces instead of

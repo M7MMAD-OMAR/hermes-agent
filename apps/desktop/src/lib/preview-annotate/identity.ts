@@ -68,6 +68,11 @@ export function compactIdentity(snapshot: ElementSnapshot): CompactIdentity {
   return { css, selector, tag, text }
 }
 
+/**
+ * The one-line human label. Short on purpose — it is what a person reads to
+ * recognise their own comment, not what an agent uses to FIND the element.
+ * Everything needed for that is in formatIdentityDetails.
+ */
 export function formatIdentityLine(identity: CompactIdentity): string {
   if (!identity.text) {
     return identity.selector || identity.tag
@@ -76,4 +81,68 @@ export function formatIdentityLine(identity: CompactIdentity): string {
   const label = `"${identity.text}"`
 
   return SEMANTIC_TAGS.has(identity.tag) ? `${identity.tag} ${label}` : label
+}
+
+/**
+ * The address, geometry and look of the commented element — the part that
+ * makes a comment actionable.
+ *
+ * This existed and was thrown away. `identityOf` in the guest reads the CSS
+ * path and a curated computed-style snapshot, `compactIdentity` clips and keeps
+ * them, `AnnotatePin.identity` carries them all the way to the composer — and
+ * the prompt said `Target: "تصميم."` and nothing else, because
+ * formatIdentityLine drops the selector by construction and drops the tag too
+ * for anything outside SEMANTIC_TAGS. So the model got a quoted string with no
+ * page position, no address, and no way to tell an h2 from a div.
+ *
+ * Same failure as the pins payload (a correct, fully-tested pure function that
+ * nothing rendered), which is why the guard for this lives on the flush path
+ * and not only here.
+ *
+ * Deliberately plain lines, not JSON: a comment is a human sentence about a
+ * place on a page, and the surrounding block is prose the model already reads
+ * well. Same call the pin block makes.
+ */
+export function formatIdentityDetails(identity: CompactIdentity, rect?: IdentityRect): string[] {
+  const lines: string[] = []
+
+  // The selector is what an agent will actually grep for, so it is never
+  // folded into the label line — it survives even when the label already
+  // shows the tag.
+  if (identity.selector && identity.selector !== identity.tag) {
+    lines.push(`  Selector: ${identity.selector}`)
+  }
+
+  const box = formatRect(rect)
+
+  if (box) {
+    lines.push(`  Box: ${box}`)
+  }
+
+  const css = Object.entries(identity.css)
+
+  if (css.length) {
+    lines.push(`  Style: ${css.map(([key, value]) => `${key}: ${value}`).join('; ')}`)
+  }
+
+  return lines
+}
+
+export interface IdentityRect {
+  height: number
+  width: number
+  x: number
+  y: number
+}
+
+/** Size and document position, rounded — sub-pixel precision is noise in a
+ *  prompt, and the numbers are here to be compared against a screenshot. */
+export function formatRect(rect?: IdentityRect): string {
+  if (!rect) {
+    return ''
+  }
+
+  const round = (value: number) => (Number.isFinite(value) ? Math.round(value) : 0)
+
+  return `${round(rect.width)}×${round(rect.height)}px at ${round(rect.x)},${round(rect.y)}`
 }

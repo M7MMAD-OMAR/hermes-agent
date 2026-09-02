@@ -28,8 +28,20 @@ function pin(partial: Partial<AnnotatePin> = {}): AnnotatePin {
   }
 }
 
+// CONTRACT CHANGE (2026-09-02). These tests used to assert the opposite — that
+// the selector and the computed style stayed OUT of the prompt. The comment
+// then reached the model as `Target: "تصميم."` and nothing else: no address, no
+// geometry, no way to tell an h2 from a div, on a page the model cannot see.
+// The identity was captured, clipped, and carried the whole way, so "address my
+// comment" was answerable only by guessing. The payload is the point of a
+// comment; brevity is not worth a comment that cannot be acted on.
+//
+// What the old tests were right about, and what these keep: everything is
+// CLIPPED at capture (selector 180, text 80, each CSS value 80) and the CSS is
+// a curated whitelist, so a hostile or enormous page cannot flood the prompt.
+
 describe('packageAnnotatePin', () => {
-  it('describes text in a generic container without exposing DOM and style internals', () => {
+  it('gives a generic container an address, not just its text', () => {
     const text = 'גם בקיבוץ חולית הקטן יש ילד שעושה את הצעד הראשון במערכת החינוך'
 
     const packed = packageAnnotatePin(
@@ -45,14 +57,16 @@ describe('packageAnnotatePin', () => {
       })
     )
 
+    // A div is not named on the label line (the quoted text identifies it to a
+    // human better than "div" does) — but the selector is how the agent finds
+    // it, so it always ships.
     expect(packed.prompt).toContain(`Target: "${text}"`)
     expect(packed.prompt).toContain('Note: תסכם את זה')
-    expect(packed.prompt).not.toContain('div')
-    expect(packed.prompt).not.toContain('DraftEditor')
-    expect(packed.prompt).not.toContain('font-size')
+    expect(packed.prompt).toContain('Selector: div.DraftEditor-editorContainer')
+    expect(packed.prompt).toContain('font-size: 18px')
   })
 
-  it('packs a numbered crop, compact identity, and the note', () => {
+  it('packs a numbered crop, the full identity, and the note', () => {
     const packed = packageAnnotatePin(pin())
 
     expect(packed.number).toBe(1)
@@ -60,36 +74,51 @@ describe('packageAnnotatePin', () => {
     expect(packed.note).toContain('overflows')
     expect(packed.prompt).toContain('Comment 1')
     expect(packed.prompt).toContain('Target: button "Select plan"')
+    expect(packed.prompt).toContain('Selector: button.plan')
+    expect(packed.prompt).toContain('Box: 120×40px at 8,8')
+    expect(packed.prompt).toContain('font-size: 14px')
     expect(packed.prompt).toContain('Image 1 marks the target in blue.')
     expect(packed.prompt).toContain('Note: This button overflows on mobile.')
-    expect(packed.prompt).not.toContain('button.plan')
-    expect(packed.prompt).not.toContain('font-size')
-    expect(packed.prompt).not.toContain('<html')
   })
 
-  it('keeps a selector when an element has no readable text', () => {
+  it('does not repeat the selector when it is already the label', () => {
     const packed = packageAnnotatePin(
       pin({
-        identity: {
-          css: { display: 'block' },
-          selector: '#sales-chart',
-          tag: 'div',
-          text: ''
-        },
+        identity: { css: { display: 'block' }, selector: '#sales-chart', tag: 'div', text: '' },
         note: 'Use the same scale as the chart above.'
       })
     )
 
     expect(packed.prompt).toContain('Target: #sales-chart')
-    expect(packed.prompt).not.toContain('display: block')
+    expect(packed.prompt).toContain('display: block')
+    // The label line already IS the selector; a `Selector:` line under it would
+    // be the same string twice.
+    expect(packed.prompt).toContain('Selector: #sales-chart')
   })
 
   it('packages an area pin without pretending it has a selector', () => {
     const packed = packageAnnotatePin(pin({ identity: undefined, kind: 'area', note: 'too tight' }))
 
     expect(packed.prompt).toContain('area')
-    expect(packed.prompt).toContain('120×40px')
+    expect(packed.prompt).toContain('120×40px at 8,8')
     expect(packed.prompt).toContain('too tight')
+    expect(packed.prompt).not.toContain('Selector:')
+  })
+
+  it('names the page per comment only when the review walked across pages', () => {
+    const oneP = packageAnnotateStack([pin(), pin({ id: 'annotate-2', number: 2 })])
+
+    expect(oneP.every(item => !item.prompt.includes('Page:'))).toBe(true)
+
+    const twoP = packageAnnotateStack([
+      pin(),
+      pin({ id: 'annotate-2', number: 2, pageUrl: 'http://127.0.0.1:4173/about' })
+    ])
+
+    expect(twoP[0].prompt).toContain('Page: http://127.0.0.1:4173/')
+    expect(twoP[1].prompt).toContain('Page: http://127.0.0.1:4173/about')
+    // …and the header must not then claim one page for both.
+    expect(annotateFlushPrompt(twoP, 'http://127.0.0.1:4173/about')).not.toContain('comments on http')
   })
 })
 
@@ -150,6 +179,12 @@ describe('flushAnnotateStack', () => {
     expect(insertText.mock.calls[0]?.[0]).toContain('I left 2 comments')
     expect(insertText.mock.calls[0]?.[0]).toContain('Comment 1')
     expect(insertText.mock.calls[0]?.[0]).toContain('Comment 2')
+    // The WIRE, not the helper. `packageAnnotatePin` was correct and tested
+    // while the text that actually reached the composer said `Target: "…"` and
+    // nothing more — assert the identity on the port that carries it, or this
+    // whole file can go green over an unusable comment again.
+    expect(insertText.mock.calls[0]?.[0]).toContain('Selector: button.plan')
+    expect(insertText.mock.calls[0]?.[0]).toContain('Box: 120×40px at 8,8')
   })
 
   it('a pin save is stacking, not flushing', () => {

@@ -100,6 +100,7 @@ from hermes_state_common import (  # noqa: F401  (re-exported for back-compat)
     _clear_lock_holder_record,
     _describe_lock_holder,
     _read_lock_holder_record,
+    is_advisory_lock_contention,
 )
 from hermes_state_portability import SessionPortabilityMixin
 from hermes_state_schema import SessionSchemaMixin
@@ -1776,13 +1777,14 @@ def _log_wal_reset_bug_once(
     # for git/pip/system Python installs (#75153).
     repair_hint = _wal_reset_repair_hint()
     logger.warning(
-        "%s: linked SQLite %s is vulnerable to the WAL-reset corruption "
-        "bug (https://sqlite.org/wal.html#walresetbug) — %s. "
+        "%s: linked SQLite %s (interpreter %s) is vulnerable to the WAL-reset "
+        "corruption bug (https://sqlite.org/wal.html#walresetbug) — %s. "
         "Upgrade to SQLite 3.51.3+ (or backports 3.50.7 / 3.44.6); "
         "%s. See `hermes doctor`. This warning fires once per "
         "process per database.",
         db_label,
         sqlite3.sqlite_version,
+        sys.executable,
         action,
         repair_hint,
     )
@@ -2388,7 +2390,15 @@ def _cross_process_repair_lock(db_path: Path):
                     msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
                     acquired = True
                     break
-                except (BlockingIOError, OSError):
+                except (BlockingIOError, OSError) as exc:
+                    if not is_advisory_lock_contention(exc):
+                        logger.warning(
+                            "Could not acquire state.db repair lock %s (%s) — "
+                            "skipping schema surgery on a non-contention error.",
+                            lock_path, exc,
+                        )
+                        acquired = None
+                        break
                     if time.monotonic() >= deadline:
                         break
                     time.sleep(_REPAIR_LOCK_POLL_SECONDS)
@@ -2400,7 +2410,10 @@ def _cross_process_repair_lock(db_path: Path):
                 _REPAIR_LOCK_POLL_SECONDS,
                 "state.db repair lock",
             )
-        if not acquired:
+        if acquired is None:
+            # Non-contention failure already logged with its errno.
+            acquired = False
+        elif not acquired:
             record = None if _IS_WINDOWS else _read_lock_holder_record(handle)
             logger.warning(
                 "state.db repair lock %s held by another process for more "
@@ -8742,6 +8755,54 @@ class SessionDB(SessionSearchMixin, SessionSchemaMixin, SessionPortabilityMixin)
             conn.execute(
                 "UPDATE sessions SET compression_ineffective_count = ? WHERE id = ?",
                 (normalized, session_id),
+            )
+
+        self._execute_write(_do)
+
+    def get_compression_recovery_deadline(self, session_id: str) -> float:
+        """Return the persisted anti-thrash recovery deadline (wall-clock epoch).
+
+        ``0.0`` means "not armed". The deadline is the durable half of the
+        #14694 recovery clock: the gateway rebuilds the compressor on every
+        turn / cache eviction, so a process-local deadline restarted the
+        wait on each rebuild and a tripped session never earned its probe
+        (#100185).
+        """
+        if not session_id:
+            return 0.0
+        with self._read_ctx() as conn:
+            if conn is None:
+                return 0.0
+            row = conn.execute(
+                "SELECT compression_recovery_deadline FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+        if row is None:
+            return 0.0
+        value = (
+            row["compression_recovery_deadline"]
+            if isinstance(row, sqlite3.Row)
+            else row[0]
+        )
+        try:
+            return max(0.0, float(value or 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+
+    def set_compression_recovery_deadline(self, session_id: str, deadline: float) -> None:
+        """Persist the anti-thrash recovery deadline; ``0`` / ``None`` disarms it."""
+        if not session_id:
+            return
+        try:
+            normalized = max(0.0, float(deadline or 0.0))
+        except (TypeError, ValueError):
+            normalized = 0.0
+        stored = normalized if normalized > 0.0 else None
+
+        def _do(conn):
+            conn.execute(
+                "UPDATE sessions SET compression_recovery_deadline = ? WHERE id = ?",
+                (stored, session_id),
             )
 
         self._execute_write(_do)

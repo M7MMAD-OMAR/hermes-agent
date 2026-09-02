@@ -1572,7 +1572,8 @@ export function focusOpenSession(
  *  falls through to its authoritative open. No probe = the old behavior. */
 export function focusWorkspaceOwnerSessionTile(
   workspaceOwnerKey: string,
-  isStaleTile?: (tile: SessionTile) => boolean
+  isStaleTile?: (tile: SessionTile) => boolean,
+  onlyStoredIds?: readonly string[]
 ): null | string {
   const allOwned = $sessionTiles
     .get()
@@ -1595,6 +1596,13 @@ export function focusWorkspaceOwnerSessionTile(
     }
 
     owned = allOwned.filter(tile => !stale.includes(tile))
+  }
+
+  // `onlyStoredIds`: the sessions this call may front (Bot Mode passes the
+  // canonical chat's registry id + lineage tip). Other tabs in the owner's
+  // zone stay open; they are simply not what the caller asked for.
+  if (onlyStoredIds) {
+    owned = owned.filter(tile => onlyStoredIds.includes(tile.storedSessionId))
   }
 
   if (owned.length === 0) {

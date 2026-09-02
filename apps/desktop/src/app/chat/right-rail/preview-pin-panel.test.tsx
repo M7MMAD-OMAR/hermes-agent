@@ -50,10 +50,11 @@ vi.mock('@/store/composer-queue', async importOriginal => ({
 }))
 
 import { $pinBook, setPinBook } from '@/lib/preview-pins/pin-book-store'
-import { $annotateToggleRequest, $attachPinsRequest, requestAnnotateToggle, requestAttachPins } from './preview-pin-requests'
 import { $queuedPromptsBySession } from '@/store/composer-queue'
 import { $activeSessionId, $sessions } from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
+
+import { $annotateToggleRequest, $attachPinsRequest, requestAnnotateToggle, requestAttachPins } from './preview-pin-requests'
 
 const HOME = 'http://localhost:5178/en/index.html'
 const ABOUT = 'http://localhost:5178/en/about.html'

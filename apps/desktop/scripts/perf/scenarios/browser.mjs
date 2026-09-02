@@ -6,15 +6,23 @@
 // second renderer process. Both costs are paid on a click the user makes
 // constantly, and neither showed up in `stream`/`keystroke`/`transcript`.
 //
-// Three metrics, because they have three different causes and three different
-// fixes:
-//   open_paint_ms    click → the panel has a real box on screen (React mount +
-//                    layout). This is the one the user calls "did it open?".
-//   open_attach_ms   click → the guest has a webContents id (Chromium spun up
-//                    the child renderer). Bounded by Electron, not by us.
-//   reopen_paint_ms  park → unpark → painted. The panel stays MOUNTED while
-//                    parked, so this SHOULD be near-free; if it is not, the
-//                    collapse path is unmounting something it claims to keep.
+// TWO operations, not three, and the difference is the whole reason this file
+// reports what it does:
+//
+//   COLD OPEN   the very first globe press — React mounts the panel and
+//               Chromium spins up the guest process. Happens ONCE per app
+//               launch, so there is exactly one honest sample of it.
+//   UN-PARK     every press after that. The globe never unmounts: parking only
+//               collapses the panel, and the page (and the agent driving it)
+//               stay alive by design. So a second "open" is an un-park, and it
+//               SHOULD be near-free — if it is not, the collapse path is
+//               tearing down something it claims to keep.
+//
+// An earlier version of this scenario looped open/park/reopen/park and reported
+// every iteration's first click as a warm OPEN. Those clicks never mounted
+// anything, so the warm-open number was the un-park number under another name,
+// and the p95 mixed one real mount into four un-parks. Both are collected here,
+// under the names of what they actually measure.
 //
 // Also reports the React commit cost attributed during the open, so a
 // regression can be told apart from "the machine was busy".
@@ -109,9 +117,11 @@ export default {
       throw new Error(`globe button not found (${TOGGLE}); is a chat view open?`)
     }
 
+    // `unpark` pools both un-park samples an iteration produces: its opening
+    // click (a mount only on iteration 0) and its explicit reopen.
     const open = []
     const attach = []
-    const reopen = []
+    const unpark = []
     const errors = []
 
     await cdp.eval('window.__PERF_PROBE__ && (window.__PERF_PROBE__.clear(), window.__PERF_PROBE__.enabled = true)')
@@ -124,19 +134,26 @@ export default {
         continue
       }
 
-      open.push(row.open_paint_ms)
+      // Only iteration 0 mounts. Every later opening click lands on a panel
+      // that is already in the tree and merely collapsed, so it is an un-park
+      // and is pooled as one — averaging it into the cold number would hide
+      // exactly the cost the cold number exists to watch.
+      if (i === 0) {
+        open.push(row.open_paint_ms)
 
-      if (row.open_attach_ms !== null) {
-        attach.push(row.open_attach_ms)
+        // Same reason: the guest attaches once. Later iterations read a
+        // webContents id that has existed for seconds, which is not an attach.
+        if (row.open_attach_ms !== null) {
+          attach.push(row.open_attach_ms)
+        }
+      } else {
+        unpark.push(row.open_paint_ms)
       }
 
       if (row.reopen_paint_ms !== null) {
-        reopen.push(row.reopen_paint_ms)
+        unpark.push(row.reopen_paint_ms)
       }
 
-      // The FIRST open pays for the guest process and the pane's lazy chunks;
-      // later ones do not. Both numbers matter, so the run keeps them apart
-      // rather than averaging a cold open into four warm ones.
       await sleep(200)
     }
 
@@ -152,13 +169,13 @@ export default {
 
     return {
       metrics: {
+        // One sample by construction — the panel only mounts once per launch.
         browser_open_cold_ms: round(open[0]),
-        browser_open_warm_p50_ms: round(percentile(open.slice(1), 0.5)),
-        browser_open_p95_ms: round(percentile(open, 0.95)),
-        browser_attach_p50_ms: round(percentile(attach, 0.5)),
-        browser_reopen_p50_ms: round(percentile(reopen, 0.5))
+        browser_attach_cold_ms: round(attach[0]),
+        browser_unpark_p50_ms: round(percentile(unpark, 0.5)),
+        browser_unpark_p95_ms: round(percentile(unpark, 0.95))
       },
-      detail: { iterations, opens: open.map(round), reopens: reopen.map(round), errors, commits }
+      detail: { iterations, cold: round(open[0]), unparks: unpark.map(round), errors, commits }
     }
   }
 }

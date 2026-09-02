@@ -428,6 +428,15 @@ describe('PreviewPane console state', () => {
       hermesDesktop: { zoom: { factor: () => zoomFactor, onChanged: () => () => {} } }
     })
 
+    // jsdom has no layout, so every element measures 0x0 — and `apply()` treats
+    // an empty box as "this pane is parked" and keeps the guest's last size
+    // rather than emulating into nothing. Give the host a box big enough that
+    // the preset still fits at 1:1, so the fit stays out of the arithmetic and
+    // the whole of the frame is the zoom division this test is about.
+    const rect = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ bottom: 2000, height: 2000, left: 0, right: 2000, top: 0, width: 2000, x: 0, y: 0 } as DOMRect)
+
     const target = {
       kind: 'url' as const,
       label: 'example',
@@ -449,11 +458,13 @@ describe('PreviewPane console state', () => {
 
     const webview = rendered.container.querySelector('webview') as HTMLElement
 
-    // jsdom measures the host at 0x0, so the fit is 1:1 and the whole of the
-    // frame is the zoom division: 430/1.3446 = 320, 932/1.3446 = 693. Without
-    // the zoom it would be a flat 430x932 — which is exactly the bug.
+    // The preset fits at 1:1, so the whole of the frame is the zoom division:
+    // 430/1.3446 = 320, 932/1.3446 = 693. Without the zoom it would be a flat
+    // 430x932 — which is exactly the bug.
     expect(webview.style.width).toBe('320px')
     expect(webview.style.height).toBe('693px')
+
+    rect.mockRestore()
   })
 
   // Two units in one gesture: the MENU is placed in host CSS pixels (params

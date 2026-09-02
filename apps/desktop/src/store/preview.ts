@@ -413,21 +413,7 @@ export function popOutBrowserTab(tabId: string) {
 export const $poppedBrowserTabIds = atom<ReadonlySet<string>>(new Set())
 
 export function markBrowserTabPopped(tabId: string, popped: boolean) {
-  const current = $poppedBrowserTabIds.get()
-
-  if (current.has(tabId) === popped) {
-    return
-  }
-
-  const next = new Set(current)
-
-  if (popped) {
-    next.add(tabId)
-  } else {
-    next.delete(tabId)
-  }
-
-  $poppedBrowserTabIds.set(next)
+  setMembership($poppedBrowserTabIds, tabId, popped)
 }
 
 /** WHOSE browser the rail is showing — the conversation the tabs belong to.
@@ -545,13 +531,48 @@ export const $embeddedBrowserSessions = atom<ReadonlySet<string>>(new Set())
  */
 export const $embeddedBrowserHosts = atom<ReadonlySet<string>>(new Set())
 
-/** Called by the panel on mount; the returned function unregisters. */
+/** How many mounted surfaces claim each session, because membership alone
+ *  cannot answer "is there still one left". Two surfaces can resolve to the
+ *  same key (a conversation shown as a tile and as the primary, a remount that
+ *  overlaps its own unmount), and with a bare Set the FIRST to leave cleared
+ *  the flag while a live panel was still rendering — after which the globe
+ *  believed there was nowhere to embed and opened a strip tab instead. */
+const hostClaims = new Map<string, number>()
+
+/** Called by the panel on mount; the returned function unregisters. Idempotent
+ *  per registration: calling the returned function twice releases one claim. */
 export function registerEmbeddedBrowserHost(sessionId: string): () => void {
+  hostClaims.set(sessionId, (hostClaims.get(sessionId) ?? 0) + 1)
   setMembership($embeddedBrowserHosts, sessionId, true)
 
+  let released = false
+
   return () => {
+    if (released) {
+      return
+    }
+
+    released = true
+
+    const left = (hostClaims.get(sessionId) ?? 1) - 1
+
+    if (left > 0) {
+      hostClaims.set(sessionId, left)
+
+      return
+    }
+
+    hostClaims.delete(sessionId)
     setMembership($embeddedBrowserHosts, sessionId, false)
   }
+}
+
+/** Tests only: drop every claim, so a case starts with no surfaces mounted.
+ *  Clearing the atom alone would leave the counts behind and the next
+ *  registration would believe a surface it cannot see is still there. */
+export function resetEmbeddedBrowserHosts(): void {
+  hostClaims.clear()
+  $embeddedBrowserHosts.set(new Set())
 }
 
 /** The subset whose panel is expanded (visible) rather than parked. */
@@ -577,21 +598,24 @@ export function setEmbeddedBrowserSession(sessionId: string, embedded: boolean):
  *  No path here tears the page down: mounting fronts a tab, collapsing only
  *  hides. Teardown belongs to closing tabs or ending the conversation. */
 export function toggleEmbeddedBrowser(sessionId: null | string = $browserSessionId.get()): void {
-  // A draft conversation is still a conversation. Without this the button did
-  // nothing at all on a new chat — see DRAFT_BROWSER_SESSION_ID.
-  const key = browserSessionKey(sessionId)
+  // A draft conversation is still a conversation, and it arrives here already
+  // carrying DRAFT_BROWSER_SESSION_ID — the focus sync decides that, because it
+  // is the only place that can tell a draft from a conversation whose runtime
+  // has not resolved yet. Null here is the second case, and it has no browser
+  // of its own to toggle: the strip is the honest answer, not the draft's panel.
+  const key = sessionId
 
   // No panel to embed into (a surface that renders no chat column, or a
   // conversation not on screen): open the page in the strip instead of minting
   // a tab that nothing can host. See $embeddedBrowserHosts.
-  if (!$embeddedBrowserHosts.get().has(key)) {
+  if (!key || !$embeddedBrowserHosts.get().has(key)) {
     openBrowserTab(sessionId)
 
     return
   }
 
   if (!$embeddedBrowserSessions.get().has(key)) {
-    openBrowserTab(key)
+    openBrowserTab(key, { ownedOnly: true })
     setEmbeddedBrowserSession(key, true)
     setMembership($embeddedBrowserExpanded, key, true)
 
@@ -700,10 +724,11 @@ export const $dockedPreviewTabs = computed(
     // unfiltered here would re-enter the strip for that beat, register a pane,
     // and lose it again to `removeTreePane` on the next write — taking the live
     // guest with it. Excluded by ownership, there is no such beat to get right.
-    // Same identity short-circuit as the line above: this computed feeds
-    // `paneMirror.sync()`, and nanostores skips notifying when the value is
-    // reference-equal. A fresh array on every unrelated recompute (a session
-    // switch, a pop-out) would re-run that whole sync for no change.
+    //
+    // The `.some()` first is the identity short-circuit `notPopped` uses one
+    // line up: this computed feeds `paneMirror.sync()`, and nanostores skips
+    // notifying when the value is reference-equal, so a fresh array on every
+    // unrelated recompute would re-run that whole sync for no change.
     const notDraft = notPopped.some(tab => tab.owner === DRAFT_BROWSER_SESSION_ID)
       ? notPopped.filter(tab => tab.owner !== DRAFT_BROWSER_SESSION_ID)
       : notPopped
@@ -713,13 +738,19 @@ export const $dockedPreviewTabs = computed(
     }
 
     // A conversation with its browser embedded hosts its own browser tabs in
-    // the chat column, so they leave the strip while it is the conversation
-    // you are looking at (the panel's PreviewPane is the ONE surface showing
-    // them — never two live webviews for one tab). Every other tab stays:
-    // file/artifact peeks, unowned pages, and any embedded conversation that
-    // is NOT on screen — its panel is unmounted, so the strip is what keeps
-    // its panes alive for the agent still driving them (hidden, not dropped —
-    // see syncBrowserSessionPanes).
+    // the chat column, so they leave the strip while it is the conversation you
+    // are looking at (the panel's PreviewPane is the ONE surface showing them —
+    // never two live webviews for one tab). Every other tab stays: file/artifact
+    // peeks, unowned pages, and any embedded conversation that is NOT on screen
+    // — no panel renders it, so the strip is what keeps its panes alive for the
+    // agent still driving them (hidden, not dropped — see
+    // syncBrowserSessionPanes).
+    //
+    // Keyed on the FOCUSED conversation, and exactly one panel may answer to
+    // that key — see the `isPrimary` gate in app/chat/index.tsx. A surface
+    // hosting a panel for some OTHER conversation would go on rendering the tab
+    // this filter has just handed back to the strip, and the page would run in
+    // two guests at once.
     return notDraft.filter(tab => {
       if (tab.target.kind !== 'url' || !tab.owner || !embeddedSessions.has(tab.owner)) {
         return true
@@ -871,7 +902,10 @@ const blankPage = (): PreviewTarget => ({ kind: 'url', label: 'Browser', source:
  *  showing so the hotkey re-fronts your page instead of wiping it; with no
  *  browser open it lands on `about:blank`, where the pane's empty state
  *  invites an address. */
-export function openBrowserTab(sessionId: null | string = $browserSessionId.get()) {
+export function openBrowserTab(
+  sessionId: null | string = $browserSessionId.get(),
+  options: { ownedOnly?: boolean } = {}
+) {
   // Point the rail at this conversation's browser BEFORE choosing a tab, or the
   // tab we front is one the strip is about to filter away.
   if (sessionId) {
@@ -885,8 +919,16 @@ export function openBrowserTab(sessionId: null | string = $browserSessionId.get(
   // through `openPreview`: re-deriving the target's tab there resolved against
   // the WHOLE list, so asking for an empty conversation's browser navigated
   // whichever tab happened to be active — another chat's page — to about:blank.
-  const current =
-    agentTab(tabs, sessionId) ?? tabs.filter(tab => previewTabBelongsToSession(tab, sessionId)).findLast(isBrowserTab)
+  //
+  // `ownedOnly` turns the second half off, and the EMBEDDED path needs it: an
+  // unowned page belongs to the strip and stays there, so adopting one into a
+  // conversation's panel would put the same tab on screen twice, in two live
+  // guests. The panel mints its own tab instead.
+  const shared = options.ownedOnly
+    ? undefined
+    : tabs.filter(tab => previewTabBelongsToSession(tab, sessionId)).findLast(isBrowserTab)
+
+  const current = agentTab(tabs, sessionId) ?? shared
 
   if (current) {
     selectRightRailTab(current.id)

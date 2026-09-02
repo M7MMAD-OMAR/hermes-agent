@@ -413,14 +413,25 @@ const ChatViewContent = memo(function ChatViewContent({
   // primary, this tile's pane id for a tile. Read by the session-drop bridge.
   const sessionAnchor = isPrimary ? 'workspace' : `session-tile:${storedId ?? ''}`
 
-  // Which conversation this surface's browser belongs to. TILES get one too:
-  // gating the panel on `isPrimary` meant a conversation opened as a tile could
-  // never host its own browser, and pressing the globe there minted a tab that
-  // the strip hides (it belongs to the focused conversation) and no panel shows.
+  // Which conversation this surface's browser belongs to.
+  //
+  // THE PRIMARY COLUMN ONLY, and that is an invariant rather than a limitation.
+  // `$dockedPreviewTabs` takes a conversation's tabs out of the layout strip
+  // while it is the FOCUSED one, on the understanding that its panel is then the
+  // single surface rendering them. Mounting a panel on session tiles broke that:
+  // a tile's panel stays mounted and expanded while you look at another chat, so
+  // its tab was back in the strip AND still rendered by the tile — one tab, two
+  // live guests, the page loaded twice and an agent driving the copy the user
+  // could not see.
+  //
+  // A tile's globe is not inert as a result: with no panel registered for it,
+  // `toggleEmbeddedBrowser` falls back to opening the page in the strip, which
+  // is what $embeddedBrowserHosts exists to decide.
+  //
   // Only the primary can be a DRAFT — a tile is bound to a runtime id before it
   // renders — so the stand-in key is scoped to it and two surfaces can never
   // claim it at once.
-  const embeddedBrowserKey = isPrimary ? browserSessionKey(activeSessionId) : activeSessionId
+  const embeddedBrowserKey = isPrimary ? browserSessionKey(activeSessionId) : null
   const awaitingResponse = useStore(view.$awaitingResponse)
   const busy = useStore(view.$busy)
   const activeGatewayProfile = useStore($activeGatewayProfile)

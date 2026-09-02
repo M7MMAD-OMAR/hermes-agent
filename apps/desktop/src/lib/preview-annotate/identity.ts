@@ -119,7 +119,11 @@ export function formatIdentityDetails(identity: CompactIdentity, rect?: Identity
     lines.push(`  Box: ${box}`)
   }
 
-  const css = Object.entries(identity.css)
+  // Guarded, not asserted: identity crosses the guest bridge as plain JSON and
+  // nothing validates it on arrival, so a partial snapshot would throw here —
+  // on the flush path, taking every comment in the batch down with it. Same
+  // tolerance formatRect already has for a missing rect.
+  const css = identity.css ? Object.entries(identity.css) : []
 
   if (css.length) {
     lines.push(`  Style: ${css.map(([key, value]) => `${key}: ${value}`).join('; ')}`)

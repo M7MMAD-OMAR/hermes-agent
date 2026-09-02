@@ -19,7 +19,6 @@ import {
   closeRightRailTab,
   newBrowserTab,
   type PreviewTab,
-  previewTabBelongsToSession,
   registerEmbeddedBrowserHost
 } from '@/store/preview'
 
@@ -282,11 +281,18 @@ function EmbeddedBrowserBody({ sessionId }: { sessionId: string }) {
     handle.addEventListener('lostpointercapture', cleanup)
   }
 
+  // OWNED, not merely visible-to. `previewTabBelongsToSession` also answers true
+  // for a tab with no owner — a page opened from a tool result or a link, which
+  // belongs to nobody and therefore stays in the layout strip. Every expanded
+  // panel would list it, and the strip would go on showing it too: one tab, two
+  // live guests, the page loaded twice and an agent driving the copy the user
+  // cannot see.
+  //
   // `$previewTabs` is rewritten WHOLESALE on every navigation commit, so without
-  // this the filter reruns and `target` changes identity on each one — and
+  // the memo the filter reruns and `target` changes identity on each one — and
   // PreviewPane is memoized on exactly that prop.
   const mine = useMemo(
-    () => tabs.filter(tab => tab.target.kind === 'url' && previewTabBelongsToSession(tab, sessionId)),
+    () => tabs.filter(tab => tab.target.kind === 'url' && tab.owner === sessionId),
     [sessionId, tabs]
   )
 

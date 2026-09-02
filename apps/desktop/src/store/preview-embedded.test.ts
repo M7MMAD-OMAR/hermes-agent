@@ -20,6 +20,7 @@ import {
   type PreviewTab,
   type PreviewTarget,
   registerEmbeddedBrowserHost,
+  resetEmbeddedBrowserHosts,
   setEmbeddedBrowserSession,
   toggleEmbeddedBrowser
 } from './preview'
@@ -41,7 +42,7 @@ describe('embedded browser store', () => {
     $embeddedBrowserSessions.set(new Set())
     $embeddedBrowserExpanded.set(new Set())
     $browserSessionId.set(null)
-    $embeddedBrowserHosts.set(new Set())
+    resetEmbeddedBrowserHosts()
     closeRightRail()
     window.localStorage.clear()
   })
@@ -52,7 +53,7 @@ describe('embedded browser store', () => {
     $embeddedBrowserSessions.set(new Set())
     $embeddedBrowserExpanded.set(new Set())
     $browserSessionId.set(null)
-    $embeddedBrowserHosts.set(new Set())
+    resetEmbeddedBrowserHosts()
     closeRightRail()
     window.localStorage.clear()
   })
@@ -63,13 +64,18 @@ describe('embedded browser store', () => {
   // to stand one up first.
   const withHost = (sessionId: string) => registerEmbeddedBrowserHost(sessionId)
 
-  // CONTRACT CHANGE (2026-09-02). This used to assert `toggleEmbeddedBrowser(null)`
-  // does nothing — which is precisely the reported bug: a NEW chat has no runtime
-  // id until its first turn, so the globe was inert on every empty conversation.
-  // A draft is a conversation; it just does not have its id yet.
+  // CONTRACT CHANGE (2026-09-02). This used to assert the globe does nothing
+  // without a runtime id — which is precisely the reported bug: a NEW chat has
+  // no runtime id until its first turn, so the globe was inert on every empty
+  // conversation. A draft is a conversation; it just does not have its id yet.
+  //
+  // The DRAFT KEY is passed explicitly, not synthesised from null. Null reaches
+  // this function from a second, unrelated state — a conversation whose runtime
+  // has not resolved yet — and the two must not collapse into one identity; the
+  // focus sync is what decides which is which. See the null case below.
   it('opens the DRAFT conversation browser when there is no runtime id yet', () => {
     withHost(DRAFT_BROWSER_SESSION_ID)
-    toggleEmbeddedBrowser(null)
+    toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID)
 
     expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
     expect($embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
@@ -79,7 +85,7 @@ describe('embedded browser store', () => {
 
   it('hands the draft browser to the real session without closing the tab', () => {
     withHost(DRAFT_BROWSER_SESSION_ID)
-    toggleEmbeddedBrowser(null)
+    toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID)
 
     const before = $previewTabs.get()[0].id
 
@@ -101,7 +107,7 @@ describe('embedded browser store', () => {
   // again, taking the live guest with it. No intermediate state may show it.
   it('never lets the adopted tab reappear in the strip mid-handover', () => {
     withHost(DRAFT_BROWSER_SESSION_ID)
-    toggleEmbeddedBrowser(null)
+    toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID)
 
     const tabId = browserTabs($previewTabs.get())[0].id
     const seen: string[][] = []
@@ -118,8 +124,8 @@ describe('embedded browser store', () => {
 
   it('carries a PARKED draft browser over as parked, not re-expanded', () => {
     withHost(DRAFT_BROWSER_SESSION_ID)
-    toggleEmbeddedBrowser(null)
-    toggleEmbeddedBrowser(null) // park it
+    toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID)
+    toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID) // park it
 
     expect($embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)
 
@@ -210,10 +216,41 @@ describe('embedded browser store', () => {
     expect(docked.some(tab => tab.target.url === 'https://example.com/shared')).toBe(true)
     expect(docked.some(tab => tab.owner === 'sess-2')).toBe(true)
 
-    // Glancing at sess-2 returns sess-1's tabs to the strip (its panel is
-    // unmounted there — the strip is what keeps them alive).
+    // Glancing at sess-2 returns sess-1's tabs to the strip. This is only safe
+    // because exactly ONE panel can answer to the focused key — the primary
+    // column (see the isPrimary gate in app/chat/index.tsx). A second surface
+    // hosting sess-1 would still be rendering the tab the strip has just taken
+    // back, and the page would run in two guests.
     $browserSessionId.set('sess-2')
     expect($dockedPreviewTabs.get().some(tab => tab.owner === 'sess-1')).toBe(true)
+  })
+
+  // A second registration for the same conversation must not be able to un-host
+  // it on the way out — an overlapping remount claims the key before the old
+  // panel releases it, and the survivor is still rendering the page.
+  it('keeps a conversation hosted until the LAST panel for it unmounts', () => {
+    const releaseA = withHost('sess-1')
+    const releaseB = withHost('sess-1')
+
+    releaseA()
+
+    expect($embeddedBrowserHosts.get().has('sess-1')).toBe(true)
+
+    releaseB()
+
+    expect($embeddedBrowserHosts.get().has('sess-1')).toBe(false)
+  })
+
+  // Null is NOT the draft: it is a conversation whose runtime has not resolved,
+  // and it has no browser of its own to toggle. Handing it the draft sentinel
+  // pointed a tile's globe at the primary new chat's panel.
+  it('falls back to the strip when the conversation has no id yet', () => {
+    withHost(DRAFT_BROWSER_SESSION_ID)
+
+    toggleEmbeddedBrowser(null)
+
+    expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)
+    expect(browserTabs($previewTabs.get())[0]?.owner).toBeUndefined()
   })
 
   it('keeps excluding a popped-out tab even while embedded', () => {

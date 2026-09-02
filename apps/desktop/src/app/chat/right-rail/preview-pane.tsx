@@ -498,9 +498,13 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       // page zoom and a preset must mean the width it says.
       const pinFactor = guestPinFactor(Boolean(viewport))
 
-      if (pinned !== pinFactor) {
+      // Cached only on SUCCESS. pinGuestZoom returns false for a guest that has
+      // not attached yet and for one torn down mid-call; recording those as
+      // applied would skip every later rung — the resize and zoom ones — and
+      // leave the page at the inherited host zoom until a navigation cleared
+      // the cache. Its own comment promises the next rung re-pins, so let it.
+      if (pinned !== pinFactor && pinGuestZoom(webview, pinFactor)) {
         pinned = pinFactor
-        pinGuestZoom(webview, pinFactor)
       }
 
       // The guest attaches after the element does; before that there is no
@@ -528,6 +532,16 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       }
 
       const box = host.getBoundingClientRect()
+
+      // PARKED: the panel stays mounted under `display: none` so the page and
+      // the agent driving it survive, and the ResizeObserver duly reports 0x0.
+      // Emulating that would send the guest a scale-1 override for a pane
+      // nobody can see, then send the real one back on unpark — two guest
+      // re-composites per press of a button built to be pressed repeatedly.
+      // Keep the last honest size instead.
+      if (box.width <= 0 || box.height <= 0) {
+        return
+      }
 
       // The pane measures in host CSS pixels; the guest paints in its own. App
       // zoom is the ratio, so a zoomed window needs it divided back out or the

@@ -35,7 +35,7 @@ import { stableArray } from '@/lib/stable-array'
 import { readJson, writeJson } from '@/lib/storage'
 import type { SessionInfo } from '@/types/hermes'
 
-import { $browserSessionId, browserSessionKey } from './preview'
+import { $browserSessionId, DRAFT_BROWSER_SESSION_ID } from './preview'
 import { $activeGatewayProfile, normalizeProfileKey } from './profile'
 import { clearAllProviderWaits, clearSessionProviderWait } from './provider-wait'
 import {
@@ -1968,7 +1968,15 @@ function syncBrowserSession(): void {
   // panel mounted under a session that is no longer on screen, so the click
   // looked like it did nothing at all. The draft key is that conversation's
   // stand-in until `adoptDraftBrowserSession` swaps the real id in.
-  const next = browserSessionKey($focusedRuntimeId.get())
+  //
+  // But null means TWO things here, and only one of them is a draft. A session
+  // tile whose runtime has not bound yet is also null, and it has a stored id —
+  // handing it the draft sentinel pointed its globe at the PRIMARY's new chat,
+  // so pressing it opened the page in a column the user was not looking at.
+  // A stored id present with no runtime is "not resolved yet", which is a null
+  // browser, not a draft one.
+  const runtimeId = $focusedRuntimeId.get()
+  const next = runtimeId ?? ($focusedStoredSessionId.get() ? null : DRAFT_BROWSER_SESSION_ID)
 
   if (next !== $browserSessionId.get()) {
     $browserSessionId.set(next)
@@ -1977,6 +1985,10 @@ function syncBrowserSession(): void {
 
 $focusedRuntimeId.subscribe(syncBrowserSession)
 $activeTreeGroup.listen(syncBrowserSession)
+// The stored id moves on its own when a tile is focused before its runtime
+// binds — `$focusedRuntimeId` stays null across that, so nothing above would
+// fire and the browser key would keep whatever it had.
+$focusedStoredSessionId.listen(syncBrowserSession)
 
 /** The focused session's state slice (undefined while unresolved/unbound). */
 export const $focusedSessionState = computed([$focusedRuntimeId, $sessionStates], (runtimeId, states) =>

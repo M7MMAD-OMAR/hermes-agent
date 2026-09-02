@@ -13,7 +13,6 @@ import {
   $embeddedBrowserExpanded,
   $embeddedBrowserSessions,
   $previewTabs,
-  browserSessionKey,
   previewTabBelongsToSession,
   toggleEmbeddedBrowser
 } from '@/store/preview'
@@ -205,14 +204,23 @@ export function ComposerControls({
 function BrowserButton({ disabled }: { disabled: boolean }) {
   const { t } = useI18n()
   const label = t.shell.statusbar.showBrowser
-  // Falls back to the draft key for the same reason the panel does: on a new
-  // chat there is no runtime id yet, and reading a bare null here made the
-  // button render as "no browser" even once one was open.
-  const sessionId = browserSessionKey(useStore($browserSessionId))
+  // The atom as it stands, NOT null-coalesced to the draft key: a new chat is
+  // already published here as DRAFT_BROWSER_SESSION_ID by the focus sync, so a
+  // null at this point means the focused conversation has not resolved a
+  // runtime yet. Inventing the draft key from it made this button read (and
+  // toggle) the PRIMARY new chat's browser from a tile that is not it.
+  const sessionId = useStore($browserSessionId)
   const tabs = useStore($previewTabs)
   const embedded = useStore($embeddedBrowserSessions)
   const expanded = useStore($embeddedBrowserExpanded)
-  const has = tabs.some(tab => tab.target.kind === 'url' && tab.owner && previewTabBelongsToSession(tab, sessionId))
+
+  // Unresolved means "no browser to speak of" in all three: with a null session
+  // `previewTabBelongsToSession` answers true for every tab, which would light
+  // the button up for somebody else's pages.
+  const has = Boolean(
+    sessionId && tabs.some(tab => tab.target.kind === 'url' && tab.owner && previewTabBelongsToSession(tab, sessionId))
+  )
+
   const isEmbedded = Boolean(sessionId && embedded.has(sessionId))
   const isExpanded = Boolean(sessionId && expanded.has(sessionId))
 

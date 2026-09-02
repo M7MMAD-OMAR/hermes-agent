@@ -270,10 +270,11 @@ const ProcessNotificationNote: FC<{ text: string }> = ({ text }) => {
  *  model, and rewording them here would describe something the model never
  *  read. Bracketed `[System: …]` wrappers are stripped, they are protocol. */
 const RuntimeNudgeNote: FC<{ text: string }> = ({ text }) => {
-  const body = text
-    .replace(/^\[System:\s*/, '')
-    .replace(/\]$/, '')
-    .trim()
+  // One anchored pattern, not two independent replaces: unbracketing has to be
+  // all-or-nothing. The preserved-task-list nudge opens with '[' and ends with
+  // ']' without being a `[System: …]` wrapper, so stripping the terminator on
+  // its own left the transcript showing an unbalanced opening bracket.
+  const body = text.replace(/^\[System:\s*([\s\S]*)\]$/, '$1').trim()
 
   return (
     <div className="flex max-w-[min(86%,44rem)] items-start gap-1.5 self-center px-2 py-0.5 text-[0.6875rem] leading-5 text-muted-foreground/60">

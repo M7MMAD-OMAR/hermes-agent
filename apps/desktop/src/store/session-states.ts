@@ -35,7 +35,7 @@ import { stableArray } from '@/lib/stable-array'
 import { readJson, writeJson } from '@/lib/storage'
 import type { SessionInfo } from '@/types/hermes'
 
-import { $browserSessionId } from './preview'
+import { $browserSessionId, adoptDraftBrowserSession, browserSessionKey } from './preview'
 import { $activeGatewayProfile, normalizeProfileKey } from './profile'
 import { clearAllProviderWaits, clearSessionProviderWait } from './provider-wait'
 import {
@@ -1962,15 +1962,25 @@ function syncBrowserSession(): void {
     return
   }
 
-  const next = $focusedRuntimeId.get()
+  // A NULL focused runtime is a real answer, not a missing one: a brand-new
+  // chat has no runtime id until its first turn. Leaving the old id in place
+  // pointed the globe at the PREVIOUS conversation's browser — it toggled a
+  // panel mounted under a session that is no longer on screen, so the click
+  // looked like it did nothing at all. The draft key is that conversation's
+  // stand-in until `adoptDraftBrowserSession` swaps the real id in.
+  const next = browserSessionKey($focusedRuntimeId.get())
 
-  if (next && next !== $browserSessionId.get()) {
+  if (next !== $browserSessionId.get()) {
     $browserSessionId.set(next)
   }
 }
 
 $focusedRuntimeId.subscribe(syncBrowserSession)
 $activeTreeGroup.listen(syncBrowserSession)
+
+/** The draft chat just became a real session — hand its browser over before
+ *  anything else re-reads ownership. */
+$activeSessionId.subscribe(runtimeId => adoptDraftBrowserSession(runtimeId))
 
 /** The focused session's state slice (undefined while unresolved/unbound). */
 export const $focusedSessionState = computed([$focusedRuntimeId, $sessionStates], (runtimeId, states) =>

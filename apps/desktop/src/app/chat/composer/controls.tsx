@@ -13,6 +13,7 @@ import {
   $embeddedBrowserExpanded,
   $embeddedBrowserSessions,
   $previewTabs,
+  browserSessionKey,
   previewTabBelongsToSession,
   toggleEmbeddedBrowser
 } from '@/store/preview'
@@ -204,7 +205,10 @@ export function ComposerControls({
 function BrowserButton({ disabled }: { disabled: boolean }) {
   const { t } = useI18n()
   const label = t.shell.statusbar.showBrowser
-  const sessionId = useStore($browserSessionId)
+  // Falls back to the draft key for the same reason the panel does: on a new
+  // chat there is no runtime id yet, and reading a bare null here made the
+  // button render as "no browser" even once one was open.
+  const sessionId = browserSessionKey(useStore($browserSessionId))
   const tabs = useStore($previewTabs)
   const embedded = useStore($embeddedBrowserSessions)
   const expanded = useStore($embeddedBrowserExpanded)

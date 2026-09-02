@@ -437,6 +437,32 @@ export function markBrowserTabPopped(tabId: string, popped: boolean) {
  *  sessions, which is what lets it be mocked and tested on its own. */
 export const $browserSessionId = atom<null | string>(null)
 
+/**
+ * The conversation that does not have a runtime id yet.
+ *
+ * A new chat has no runtime session until its first turn creates one — the
+ * chat view says so itself ("The global atoms stay the DRAFT surface"). Every
+ * door into the browser was keyed on that id: `toggleEmbeddedBrowser` returns
+ * early on a null session, and the panel is mounted only when one exists. So
+ * on an empty conversation the globe was a no-op, which is the whole of "ما
+ * بقدر افتح المتصفح إذا كانت المحادثة فارغة".
+ *
+ * This is a STAND-IN for the runtime id, not a second identity: one tab list,
+ * one `owner` field, and `adoptDraftBrowserSession` rewrites it in place the
+ * moment the real id lands. Rewriting an owner never removes a tab, so no pane
+ * is torn down and no live page is lost — the failure mode that killed the
+ * session-keyed registry in `96999b116`.
+ *
+ * Only the PRIMARY surface can be a draft (tiles are bound to a runtime id
+ * before they render), so one sentinel per renderer is enough.
+ */
+export const DRAFT_BROWSER_SESSION_ID = 'draft:new-chat'
+
+/** The browser key for a surface that may still be a draft. */
+export function browserSessionKey(runtimeId: null | string): string {
+  return runtimeId || DRAFT_BROWSER_SESSION_ID
+}
+
 /** Is this tab part of the browser the conversation `sessionId` is showing?
  *
  *  UNOWNED TABS ALWAYS ARE, and that arm is not a nicety — it is the whole
@@ -521,21 +547,56 @@ export function setEmbeddedBrowserSession(sessionId: string, embedded: boolean):
  *  No path here tears the page down: mounting fronts a tab, collapsing only
  *  hides. Teardown belongs to closing tabs or ending the conversation. */
 export function toggleEmbeddedBrowser(sessionId: null | string = $browserSessionId.get()): void {
-  if (!sessionId) {
-    return
-  }
+  // A draft conversation is still a conversation. Without this the button did
+  // nothing at all on a new chat — see DRAFT_BROWSER_SESSION_ID.
+  const key = browserSessionKey(sessionId)
 
-  if (!$embeddedBrowserSessions.get().has(sessionId)) {
-    openBrowserTab(sessionId)
-    setEmbeddedBrowserSession(sessionId, true)
-    $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), sessionId, true))
+  if (!$embeddedBrowserSessions.get().has(key)) {
+    openBrowserTab(key)
+    setEmbeddedBrowserSession(key, true)
+    $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), key, true))
 
     return
   }
 
   $embeddedBrowserExpanded.set(
-    withMembership($embeddedBrowserExpanded.get(), sessionId, !$embeddedBrowserExpanded.get().has(sessionId))
+    withMembership($embeddedBrowserExpanded.get(), key, !$embeddedBrowserExpanded.get().has(key))
   )
+}
+
+/**
+ * The draft's browser becomes the real session's browser.
+ *
+ * Called when a new chat's first turn mints a runtime id. Everything the user
+ * already opened — tabs, the mounted panel, whether it was expanded — moves to
+ * the real id by REWRITING the owner, never by closing and reopening: a tab
+ * that leaves `$previewTabs` takes its pane and its live page with it.
+ *
+ * A no-op when the draft opened no browser, which is the common case.
+ */
+export function adoptDraftBrowserSession(runtimeId: null | string): void {
+  if (!runtimeId || runtimeId === DRAFT_BROWSER_SESSION_ID) {
+    return
+  }
+
+  const tabs = $previewTabs.get()
+  const owned = tabs.some(tab => tab.owner === DRAFT_BROWSER_SESSION_ID)
+
+  if (owned) {
+    $previewTabs.set(tabs.map(tab => (tab.owner === DRAFT_BROWSER_SESSION_ID ? { ...tab, owner: runtimeId } : tab)))
+  }
+
+  if ($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)) {
+    const wasExpanded = $embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)
+
+    setEmbeddedBrowserSession(DRAFT_BROWSER_SESSION_ID, false)
+    setEmbeddedBrowserSession(runtimeId, true)
+    $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), runtimeId, wasExpanded))
+  }
+
+  if ($browserSessionId.get() === DRAFT_BROWSER_SESSION_ID) {
+    $browserSessionId.set(runtimeId)
+  }
 }
 
 /** The conversation ended — its browser ends with it. Closes every Browser tab

@@ -8,9 +8,11 @@ import {
   $embeddedBrowserSessions,
   $poppedBrowserTabIds,
   $previewTabs,
+  adoptDraftBrowserSession,
   closeBrowserTabsForSession,
   closeRightRail,
   closeRightRailTab,
+  DRAFT_BROWSER_SESSION_ID,
   markBrowserTabPopped,
   newBrowserTab,
   openPreview,
@@ -51,8 +53,49 @@ describe('embedded browser store', () => {
     window.localStorage.clear()
   })
 
-  it('does nothing without a conversation to embed into', () => {
+  // CONTRACT CHANGE (2026-09-02). This used to assert `toggleEmbeddedBrowser(null)`
+  // does nothing — which is precisely the reported bug: a NEW chat has no runtime
+  // id until its first turn, so the globe was inert on every empty conversation.
+  // A draft is a conversation; it just does not have its id yet.
+  it('opens the DRAFT conversation browser when there is no runtime id yet', () => {
     toggleEmbeddedBrowser(null)
+
+    expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
+    expect($embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
+    expect(browserTabs($previewTabs.get())).toHaveLength(1)
+    expect($previewTabs.get()[0].owner).toBe(DRAFT_BROWSER_SESSION_ID)
+  })
+
+  it('hands the draft browser to the real session without closing the tab', () => {
+    toggleEmbeddedBrowser(null)
+
+    const before = $previewTabs.get()[0].id
+
+    adoptDraftBrowserSession('runtime-9')
+
+    // Same tab id: the pane and the live page inside it survive the handover.
+    // Closing and reopening here would destroy the page the user just loaded.
+    expect($previewTabs.get()[0].id).toBe(before)
+    expect($previewTabs.get()[0].owner).toBe('runtime-9')
+    expect($embeddedBrowserSessions.get().has('runtime-9')).toBe(true)
+    expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)
+    expect($embeddedBrowserExpanded.get().has('runtime-9')).toBe(true)
+  })
+
+  it('carries a PARKED draft browser over as parked, not re-expanded', () => {
+    toggleEmbeddedBrowser(null)
+    toggleEmbeddedBrowser(null) // park it
+
+    expect($embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)
+
+    adoptDraftBrowserSession('runtime-9')
+
+    expect($embeddedBrowserSessions.get().has('runtime-9')).toBe(true)
+    expect($embeddedBrowserExpanded.get().has('runtime-9')).toBe(false)
+  })
+
+  it('adoption is a no-op when the draft never opened a browser', () => {
+    adoptDraftBrowserSession('runtime-9')
 
     expect($embeddedBrowserSessions.get().size).toBe(0)
     expect($previewTabs.get()).toHaveLength(0)

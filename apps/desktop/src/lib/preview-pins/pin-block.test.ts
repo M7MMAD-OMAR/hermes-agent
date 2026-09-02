@@ -43,10 +43,9 @@ describe('pinCommentBlock', () => {
   })
 
   it('drops resolved pins — "address my comments" means the open ones', () => {
-    const block = pinCommentBlock(JSON.stringify([
-      pin({ comment: 'still open' }),
-      pin({ comment: 'already done', id: 'pin-2', resolved: true })
-    ]))
+    const block = pinCommentBlock(
+      JSON.stringify([pin({ comment: 'still open' }), pin({ comment: 'already done', id: 'pin-2', resolved: true })])
+    )
 
     expect(block).toContain('still open')
     expect(block).not.toContain('already done')
@@ -57,10 +56,12 @@ describe('pinCommentBlock', () => {
   })
 
   it('numbers pins in the order they were placed, not array order', () => {
-    const block = pinCommentBlock(JSON.stringify([
-      pin({ comment: 'second', createdAt: 20, id: 'b' }),
-      pin({ comment: 'first', createdAt: 10, id: 'a' })
-    ]))
+    const block = pinCommentBlock(
+      JSON.stringify([
+        pin({ comment: 'second', createdAt: 20, id: 'b' }),
+        pin({ comment: 'first', createdAt: 10, id: 'a' })
+      ])
+    )
 
     expect(block!.indexOf('first')).toBeLessThan(block!.indexOf('second'))
   })
@@ -72,14 +73,16 @@ describe('pinCommentBlock', () => {
   })
 
   it('describes a region pin by where it is, since it names no element', () => {
-    const block = pinCommentBlock(JSON.stringify([
-      pin({
-        anchor: undefined,
-        comment: 'this chart axis is unreadable',
-        kind: 'region',
-        region: { h: 0.2, w: 0.4, x: 0.1, y: 0.5 }
-      })
-    ]))
+    const block = pinCommentBlock(
+      JSON.stringify([
+        pin({
+          anchor: undefined,
+          comment: 'this chart axis is unreadable',
+          kind: 'region',
+          region: { h: 0.2, w: 0.4, x: 0.1, y: 0.5 }
+        })
+      ])
+    )
 
     expect(block).toContain('region at 10%,50% sized 40%×20%')
     expect(block).toContain('this chart axis is unreadable')
@@ -114,10 +117,12 @@ describe('pinCommentBlock across pages', () => {
   const ABOUT = 'http://localhost:5178/en/about.html'
 
   it('grows a heading per page once the review left the first one', () => {
-    const block = pinCommentBlock(JSON.stringify([
-      pin({ comment: 'hero is cramped', createdAt: 1, id: 'a', pageUrl: HOME }),
-      pin({ comment: 'team photos are stretched', createdAt: 2, id: 'b', pageUrl: ABOUT })
-    ]))
+    const block = pinCommentBlock(
+      JSON.stringify([
+        pin({ comment: 'hero is cramped', createdAt: 1, id: 'a', pageUrl: HOME }),
+        pin({ comment: 'team photos are stretched', createdAt: 2, id: 'b', pageUrl: ABOUT })
+      ])
+    )
 
     expect(block).toContain(HOME)
     expect(block).toContain(ABOUT)
@@ -131,23 +136,27 @@ describe('pinCommentBlock across pages', () => {
   })
 
   it('numbers straight through the pages, because those are the image numbers', () => {
-    const block = pinCommentBlock(JSON.stringify([
-      pin({ comment: 'one', createdAt: 1, id: 'a', pageUrl: HOME }),
-      pin({ comment: 'two', createdAt: 2, id: 'b', pageUrl: ABOUT }),
-      pin({ comment: 'three', createdAt: 3, id: 'c', pageUrl: ABOUT })
-    ]))
+    const block = pinCommentBlock(
+      JSON.stringify([
+        pin({ comment: 'one', createdAt: 1, id: 'a', pageUrl: HOME }),
+        pin({ comment: 'two', createdAt: 2, id: 'b', pageUrl: ABOUT }),
+        pin({ comment: 'three', createdAt: 3, id: 'c', pageUrl: ABOUT })
+      ])
+    )
 
     expect(block).toContain('1.')
     expect(block).toContain('2.')
     expect(block).toContain('3.')
   })
 
-  it('keeps each page\'s pins together even when interleaved in time', () => {
-    const block = pinCommentBlock(JSON.stringify([
-      pin({ comment: 'home first', createdAt: 1, id: 'a', pageUrl: HOME }),
-      pin({ comment: 'about', createdAt: 2, id: 'b', pageUrl: ABOUT }),
-      pin({ comment: 'home again', createdAt: 3, id: 'c', pageUrl: HOME })
-    ]))
+  it("keeps each page's pins together even when interleaved in time", () => {
+    const block = pinCommentBlock(
+      JSON.stringify([
+        pin({ comment: 'home first', createdAt: 1, id: 'a', pageUrl: HOME }),
+        pin({ comment: 'about', createdAt: 2, id: 'b', pageUrl: ABOUT }),
+        pin({ comment: 'home again', createdAt: 3, id: 'c', pageUrl: HOME })
+      ])
+    )
 
     // Going back to a page mid-review must not split it into two sections.
     expect(block!.indexOf('home first')).toBeLessThan(block!.indexOf('home again'))
@@ -159,9 +168,7 @@ describe('pinCommentBlock with images', () => {
   const shot = (id: string) => ({ h: 40, id, thumb: 'data:image/jpeg;base64,x', w: 60 })
 
   it('names the image on the line that owns it', () => {
-    const block = pinCommentBlock(JSON.stringify([
-      pin({ comment: 'should look like this', shots: [shot('s1')] })
-    ]))
+    const block = pinCommentBlock(JSON.stringify([pin({ comment: 'should look like this', shots: [shot('s1')] })]))
 
     // Attachments arrive as bare pictures; without the marker the model cannot
     // tell which comment each one illustrates.
@@ -169,10 +176,12 @@ describe('pinCommentBlock with images', () => {
   })
 
   it('numbers images across pins in the order they will be attached', () => {
-    const block = pinCommentBlock(JSON.stringify([
-      pin({ comment: 'first', createdAt: 1, id: 'a', shots: [shot('s1')] }),
-      pin({ comment: 'second', createdAt: 2, id: 'b', shots: [shot('s2'), shot('s3')] })
-    ]))
+    const block = pinCommentBlock(
+      JSON.stringify([
+        pin({ comment: 'first', createdAt: 1, id: 'a', shots: [shot('s1')] }),
+        pin({ comment: 'second', createdAt: 2, id: 'b', shots: [shot('s2'), shot('s3')] })
+      ])
+    )
 
     expect(block).toContain('[image 1]')
     expect(block).toContain('[image 2] [image 3]')
@@ -188,10 +197,12 @@ describe('orderedShots', () => {
   const shot = (id: string) => ({ h: 40, id, thumb: 'data:image/jpeg;base64,x', w: 60 })
 
   it('walks pins in block order so image N is the same N in both', () => {
-    const pins = openPins(JSON.stringify([
-      pin({ createdAt: 2, id: 'b', shots: [shot('s2')] }),
-      pin({ createdAt: 1, id: 'a', shots: [shot('s1')] })
-    ]))
+    const pins = openPins(
+      JSON.stringify([
+        pin({ createdAt: 2, id: 'b', shots: [shot('s2')] }),
+        pin({ createdAt: 1, id: 'a', shots: [shot('s1')] })
+      ])
+    )
 
     expect(orderedShots(pins).map(entry => entry.shot.id)).toEqual(['s1', 's2'])
   })

@@ -93,10 +93,9 @@ describe('useEnteredProjectRefresh', () => {
   it('follows the entered project: a tick after a switch fetches the new id', () => {
     const refresh = vi.fn()
 
-    const { rerender } = renderHook(
-      ({ projectId }) => useEnteredProjectRefresh(projectId, true, refresh),
-      { initialProps: { projectId: 'p_zero' as null | string } }
-    )
+    const { rerender } = renderHook(({ projectId }) => useEnteredProjectRefresh(projectId, true, refresh), {
+      initialProps: { projectId: 'p_zero' as null | string }
+    })
 
     act(() => {
       notifySessionsChanged()
@@ -116,10 +115,9 @@ describe('useEnteredProjectRefresh', () => {
   it('does nothing while disabled, and picks up once enabled', () => {
     const refresh = vi.fn()
 
-    const { rerender } = renderHook(
-      ({ enabled }) => useEnteredProjectRefresh('p_zero', enabled, refresh),
-      { initialProps: { enabled: false } }
-    )
+    const { rerender } = renderHook(({ enabled }) => useEnteredProjectRefresh('p_zero', enabled, refresh), {
+      initialProps: { enabled: false }
+    })
 
     act(() => {
       notifySessionsChanged()

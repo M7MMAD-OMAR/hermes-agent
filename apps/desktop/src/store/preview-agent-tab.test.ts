@@ -37,7 +37,6 @@ const url = (host: string) => ({
   url: `https://${host}`
 })
 
-
 /** The runtime session ids of two conversations browsing at once. Every agent
  *  open below carries one: ownership is per RUNTIME session, so a tool-result
  *  open with no session belongs to nobody and can be taken by nobody. */
@@ -378,7 +377,7 @@ describe('agent browser tabs across sessions', () => {
   // of its own falls back to "the page you are looking at" — but another chat's
   // owned tab is not a page it is looking at. Unfiltered, an agent's very first
   // `read_preview` answered from whichever tab was active.
-  it('gives a conversation that has opened nothing no claim on another\'s tab', () => {
+  it("gives a conversation that has opened nothing no claim on another's tab", () => {
     agentOpen(url('a-side.com'))
 
     const tabA = $previewTabs.get()[0]

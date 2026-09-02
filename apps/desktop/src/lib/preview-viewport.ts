@@ -69,7 +69,9 @@ export const MIN_EDGE = 200
 export const MAX_EDGE = 5120
 
 export function clampEdge(value: number): number {
-  if (!Number.isFinite(value)) {return MIN_EDGE}
+  if (!Number.isFinite(value)) {
+    return MIN_EDGE
+  }
 
   return Math.min(MAX_EDGE, Math.max(MIN_EDGE, Math.round(value)))
 }
@@ -79,7 +81,9 @@ export function clampEdge(value: number): number {
 export function parseEdge(text: string): null | number {
   const digits = String(text ?? '').trim()
 
-  if (!/^\d+$/.test(digits)) {return null}
+  if (!/^\d+$/.test(digits)) {
+    return null
+  }
 
   return clampEdge(Number(digits))
 }
@@ -111,14 +115,19 @@ export function rotateViewport(viewport: Viewport): Viewport {
  * centred, not stretched to fill. Blowing it up would misrepresent every
  * dimension the user is there to judge.
  */
-export function fitScale(viewport: { height: number; width: number }, available: { height: number; width: number }): number {
+export function fitScale(
+  viewport: { height: number; width: number },
+  available: { height: number; width: number }
+): number {
   // Floored, not used raw: a ResizeObserver on a fractionally-scaled display
   // reports widths like 500.4 that drift by hundredths between frames, and
   // every drift would re-emulate the guest. Whole pixels are the real signal.
   const width = Number.isFinite(available.width) ? Math.floor(available.width) : 0
   const height = Number.isFinite(available.height) ? Math.floor(available.height) : 0
 
-  if (width <= 0 || height <= 0) {return 1}
+  if (width <= 0 || height <= 0) {
+    return 1
+  }
 
   const scale = Math.min(1, width / Math.max(1, viewport.width), height / Math.max(1, viewport.height))
 
@@ -175,7 +184,9 @@ export function viewportLabel(viewport: Viewport, scale: number): string {
  * page entirely at desktop-in-a-narrow-rail scales.
  */
 export function toWidgetPoint(point: { x: number; y: number }, scale: number): { x: number; y: number } {
-  if (!Number.isFinite(scale) || scale <= 0 || scale === 1) {return point}
+  if (!Number.isFinite(scale) || scale <= 0 || scale === 1) {
+    return point
+  }
 
   return { x: point.x * scale, y: point.y * scale }
 }

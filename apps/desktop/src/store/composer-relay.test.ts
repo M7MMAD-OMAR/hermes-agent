@@ -17,7 +17,9 @@ const otherWindow = () => new BroadcastChannel('hermes:composer-attachment')
 
 describe('composer relay', () => {
   it('says the hand-off failed when no window took delivery', async () => {
-    if (typeof BroadcastChannel === 'undefined') {return}
+    if (typeof BroadcastChannel === 'undefined') {
+      return
+    }
 
     // The bug this exists to stop: posting into an empty room succeeds just as
     // happily as posting into a full one, so "we posted it" is not an answer.
@@ -26,13 +28,17 @@ describe('composer relay', () => {
   })
 
   it('says it succeeded once the composer window acknowledges', async () => {
-    if (typeof BroadcastChannel === 'undefined') {return}
+    if (typeof BroadcastChannel === 'undefined') {
+      return
+    }
 
     const other = otherWindow()
     other.addEventListener('message', event => {
       const data = event.data as { requestId?: string }
 
-      if (typeof data?.requestId === 'string') {other.postMessage({ ack: data.requestId })}
+      if (typeof data?.requestId === 'string') {
+        other.postMessage({ ack: data.requestId })
+      }
     })
 
     await expect(relayComposerAttachment(chip)).resolves.toBe(true)
@@ -40,7 +46,9 @@ describe('composer relay', () => {
   })
 
   it('carries an attachment to a listener in another window', async () => {
-    if (typeof BroadcastChannel === 'undefined') {return}
+    if (typeof BroadcastChannel === 'undefined') {
+      return
+    }
 
     const received: ComposerAttachment[] = []
     const stop = onRelayedComposerAttachment(attachment => received.push(attachment))
@@ -55,8 +63,10 @@ describe('composer relay', () => {
     stop()
   })
 
-  it('acknowledges what it took, by the sender\'s own id', async () => {
-    if (typeof BroadcastChannel === 'undefined') {return}
+  it("acknowledges what it took, by the sender's own id", async () => {
+    if (typeof BroadcastChannel === 'undefined') {
+      return
+    }
 
     const acks: unknown[] = []
     const stop = onRelayedComposerAttachment(() => {})
@@ -64,7 +74,9 @@ describe('composer relay', () => {
     other.addEventListener('message', event => {
       const data = event.data as { ack?: string }
 
-      if (typeof data?.ack === 'string') {acks.push(data.ack)}
+      if (typeof data?.ack === 'string') {
+        acks.push(data.ack)
+      }
     })
     other.postMessage({ attachment: chip, requestId: 'r2' })
 
@@ -75,7 +87,9 @@ describe('composer relay', () => {
   })
 
   it('ignores anything that is not a relayed attachment', async () => {
-    if (typeof BroadcastChannel === 'undefined') {return}
+    if (typeof BroadcastChannel === 'undefined') {
+      return
+    }
 
     const received: unknown[] = []
     const stop = onRelayedComposerAttachment(attachment => received.push(attachment))
@@ -95,7 +109,9 @@ describe('composer relay', () => {
   })
 
   it('unsubscribes', async () => {
-    if (typeof BroadcastChannel === 'undefined') {return}
+    if (typeof BroadcastChannel === 'undefined') {
+      return
+    }
 
     const received: unknown[] = []
     onRelayedComposerAttachment(attachment => received.push(attachment))()

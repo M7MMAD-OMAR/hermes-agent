@@ -66,7 +66,10 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
     !isUploading
 
   const detail =
-    attachment.kind !== 'review' && attachment.kind !== 'pins' && attachment.detail && attachment.detail !== attachment.label
+    attachment.kind !== 'review' &&
+    attachment.kind !== 'pins' &&
+    attachment.detail &&
+    attachment.detail !== attachment.label
       ? attachment.detail
       : undefined
 

@@ -12,7 +12,6 @@ beforeAll(async () => {
   await loadTranslations('zh')
 })
 
-
 describe('CopyButton i18n', () => {
   afterEach(() => {
     cleanup()

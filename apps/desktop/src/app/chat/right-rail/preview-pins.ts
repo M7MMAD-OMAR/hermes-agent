@@ -74,7 +74,9 @@ async function withTimeout<T>(work: Promise<T>, label: string): Promise<T> {
       })
     ])
   } finally {
-    if (timer) {clearTimeout(timer)}
+    if (timer) {
+      clearTimeout(timer)
+    }
   }
 }
 
@@ -88,15 +90,17 @@ async function withTimeout<T>(work: Promise<T>, label: string): Promise<T> {
 export async function pinVerb(command: PinCommand, seed: PreviewPin[] | null = null): Promise<PinEngineReport | null> {
   const run = activePreviewScriptRunner()
 
-  if (!run) {return null}
+  if (!run) {
+    return null
+  }
 
   try {
-    const report = (await withTimeout(
-      run(buildScript(command, seed)) as Promise<PinEngineReport>,
-      command.verb
-    )) as PinEngineReport | undefined
+    const report = (await withTimeout(run(buildScript(command, seed)) as Promise<PinEngineReport>, command.verb)) as
+      PinEngineReport | undefined
 
-    if (!report || !Array.isArray(report.pins)) {return null}
+    if (!report || !Array.isArray(report.pins)) {
+      return null
+    }
 
     return report
   } catch {

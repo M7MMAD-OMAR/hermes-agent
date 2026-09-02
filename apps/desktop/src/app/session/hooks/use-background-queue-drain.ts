@@ -132,8 +132,7 @@ export function useBackgroundQueueDrain({
         // "this chat does not exist" read would condemn perfectly live queues.
         const sessions = $sessions.get()
 
-        const orphaned =
-          sessions.length > 0 && !sessions.some(session => sessionMatchesStoredId(session, sessionKey))
+        const orphaned = sessions.length > 0 && !sessions.some(session => sessionMatchesStoredId(session, sessionKey))
 
         const pending = getQueuedPrompts(sessionKey)
 

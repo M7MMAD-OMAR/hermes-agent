@@ -652,9 +652,7 @@ function browserTabId(
     // Opening a page one of its own tabs already shows means "go back to that
     // one" — the only way the agent can re-target a tab, and the reason
     // `new_tab` is no longer a one-way door.
-    const holding = url
-      ? tabs.find(tab => agentOwns(tab, sessionId ?? null) && tab.target.url === url)
-      : undefined
+    const holding = url ? tabs.find(tab => agentOwns(tab, sessionId ?? null) && tab.target.url === url) : undefined
 
     return (holding ?? agentTab(tabs, sessionId ?? null))?.id ?? mintBrowserTabId()
   }
@@ -719,9 +717,7 @@ export function openPreview(
   const owner = owned ? (current[index]?.owner ?? sessionId ?? undefined) : undefined
   const ownerKey = owned ? (current[index]?.ownerKey ?? options.ownerKey ?? undefined) : undefined
 
-  const tab: PreviewTab = owned
-    ? { agent: true, id, owner, ownerKey, target: resolved }
-    : { id, target: resolved }
+  const tab: PreviewTab = owned ? { agent: true, id, owner, ownerKey, target: resolved } : { id, target: resolved }
 
   if (owned) {
     agentTabBySession.set(owner ?? UNSCOPED, id)
@@ -757,7 +753,8 @@ export function openBrowserTab(sessionId: null | string = $browserSessionId.get(
   // through `openPreview`: re-deriving the target's tab there resolved against
   // the WHOLE list, so asking for an empty conversation's browser navigated
   // whichever tab happened to be active — another chat's page — to about:blank.
-  const current = agentTab(tabs, sessionId) ?? tabs.filter(tab => previewTabBelongsToSession(tab, sessionId)).findLast(isBrowserTab)
+  const current =
+    agentTab(tabs, sessionId) ?? tabs.filter(tab => previewTabBelongsToSession(tab, sessionId)).findLast(isBrowserTab)
 
   if (current) {
     selectRightRailTab(current.id)
@@ -834,10 +831,7 @@ export function closePreviewMatching(...candidates: string[]): boolean {
  *  user's explicit instruction — it may close any matching tab, theirs
  *  included. What this path must never do is the BULK cleanup: the no-url
  *  close is `closeAgentPreviewTabs`, agent-owned tabs only. */
-export function closeAgentPreviewTabMatching(
-  sessionId: null | string,
-  ...candidates: string[]
-): boolean {
+export function closeAgentPreviewTabMatching(sessionId: null | string, ...candidates: string[]): boolean {
   void sessionId
   const queries = [...new Set(candidates.map(value => value.trim()).filter(Boolean))]
 
@@ -900,7 +894,7 @@ export function closeAgentPreviewTabs(sessionId: null | string): number {
   }
 
   for (const id of doomedIds) {
-    agentTabBySession.delete((doomed.find(tab => tab.id === id)?.owner ?? UNSCOPED))
+    agentTabBySession.delete(doomed.find(tab => tab.id === id)?.owner ?? UNSCOPED)
   }
 
   return doomed.length

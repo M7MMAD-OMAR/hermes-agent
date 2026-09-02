@@ -110,9 +110,7 @@ describe('preview.act.request gate', () => {
     // tile to the primary — the user clicking the page the agent is driving
     // would revoke the agent's permission to drive it.
     $sessionTiles.set([{ runtimeId: TILE, storedSessionId: 'stored-tile' }] as never)
-    $layoutTree.set(
-      group(['workspace', 'session-tile:stored-tile', 'preview'], { active: 'preview', id: 'grp-main' })
-    )
+    $layoutTree.set(group(['workspace', 'session-tile:stored-tile', 'preview'], { active: 'preview', id: 'grp-main' }))
     noteActiveTreeGroup('grp-main')
 
     handleDesktopBridgeEvent(actEvent(TILE, { action: 'navigate', url: 'https://example.com' }))

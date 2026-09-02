@@ -2585,7 +2585,8 @@ export const en: Translations = {
         ? 'One message was queued in a chat that no longer exists, so it can never be sent. Recover it into the composer?'
         : `${count} messages were queued in a chat that no longer exists, so they can never be sent. Recover them into the composer?`,
     queueLostAction: 'Recover the text',
-    queueRecovered: count => (count === 1 ? 'Message recovered into the composer.' : `${count} messages recovered into the composer.`),
+    queueRecovered: count =>
+      count === 1 ? 'Message recovered into the composer.' : `${count} messages recovered into the composer.`,
     queueRecoveredNothing: 'Nothing left to recover.',
     previewUnavailable: 'Preview unavailable',
     previewLabel: label => `Preview ${label}`,

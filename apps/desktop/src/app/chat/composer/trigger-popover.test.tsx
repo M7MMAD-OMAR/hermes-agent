@@ -12,7 +12,6 @@ beforeAll(async () => {
   await loadTranslations('zh')
 })
 
-
 function renderPopover(kind: '@' | '/', loading = false) {
   const onHover = vi.fn()
   const onPick = vi.fn()

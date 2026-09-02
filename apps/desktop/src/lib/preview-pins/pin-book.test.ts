@@ -34,7 +34,7 @@ describe('normalizePageUrl', () => {
 })
 
 describe('mergeReport', () => {
-  it('files a page\'s pins under that page', () => {
+  it("files a page's pins under that page", () => {
     const book = mergeReport({}, HOME, [pin(HOME)])
     expect(pinsForPage(book, HOME)).toHaveLength(1)
     expect(pinsForPage(book, ABOUT)).toHaveLength(0)
@@ -50,7 +50,7 @@ describe('mergeReport', () => {
     expect(pinsForPage(book, ABOUT)[0].comment).toBe('about note')
   })
 
-  it('replaces a page\'s bucket rather than appending to it', () => {
+  it("replaces a page's bucket rather than appending to it", () => {
     let book = mergeReport({}, HOME, [pin(HOME), pin(HOME, { comment: 'b', id: 'b' })])
     book = mergeReport(book, HOME, [pin(HOME)])
     expect(pinsForPage(book, HOME)).toHaveLength(1)
@@ -90,7 +90,7 @@ describe('otherPages', () => {
 })
 
 describe('allPins', () => {
-  it('returns every page\'s pins, oldest first within a page', () => {
+  it("returns every page's pins, oldest first within a page", () => {
     let book = mergeReport({}, ABOUT, [
       pin(ABOUT, { comment: 'second', createdAt: 20, id: 'x' }),
       pin(ABOUT, { comment: 'first', createdAt: 10, id: 'y' })

@@ -37,9 +37,11 @@ describe('refreshContextBreakdown', () => {
   })
 
   it('keeps sessions apart', async () => {
-    const request = vi.fn().mockImplementation((_method, params) =>
-      Promise.resolve({ ...breakdown, context_used: params.session_id === 's1' ? 1 : 2 })
-    )
+    const request = vi
+      .fn()
+      .mockImplementation((_method, params) =>
+        Promise.resolve({ ...breakdown, context_used: params.session_id === 's1' ? 1 : 2 })
+      )
 
     await Promise.all([refreshContextBreakdown('s1', request), refreshContextBreakdown('s2', request)])
 

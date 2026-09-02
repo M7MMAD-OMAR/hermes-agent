@@ -38,14 +38,20 @@ export function normalizePageUrl(url: string): string {
 export function mergeReport(book: PinBook, url: string, pins: PreviewPin[]): PinBook {
   const key = normalizePageUrl(url)
 
-  if (!key) {return book}
+  if (!key) {
+    return book
+  }
 
   const next = { ...book }
 
-  if (pins.length) {next[key] = pins}
+  if (pins.length) {
+    next[key] = pins
+  }
   // An empty page is dropped rather than kept as an empty bucket, so "pins on
   // 2 other pages" never counts a page with nothing on it.
-  else {delete next[key]}
+  else {
+    delete next[key]
+  }
 
   return next
 }
@@ -77,10 +83,14 @@ export function otherPages(book: PinBook, url: string): { count: number; pages: 
   let pages = 0
 
   for (const key of Object.keys(book)) {
-    if (key === here) {continue}
+    if (key === here) {
+      continue
+    }
     const open = book[key].filter(pin => !pin.resolved).length
 
-    if (!open) {continue}
+    if (!open) {
+      continue
+    }
     count += open
     pages += 1
   }

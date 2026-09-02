@@ -2238,7 +2238,8 @@ export const ja = defineLocale({
     queueStuckTitle: 'キュー内のメッセージを送信できません',
     queueStuckBody:
       'キューに入れたターンの送信が繰り返し失敗しました。まだキューに残っています。もう一度送信してください。',
-    queueStuckBodyIn: title => `「${title}」のキューに入れたターンの送信が繰り返し失敗しました。まだキューに残っています。`,
+    queueStuckBodyIn: title =>
+      `「${title}」のキューに入れたターンの送信が繰り返し失敗しました。まだキューに残っています。`,
     queueStuckAction: 'もう一度送信',
     queueLostTitle: '存在しないチャットのキュー済みメッセージ',
     queueLostBody: count =>

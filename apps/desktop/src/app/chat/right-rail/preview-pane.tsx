@@ -335,7 +335,9 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
   // per-origin zoom map stay separate from the user's, so the agent's session
   // state can neither read nor disturb the user's — and the user's zoom on a
   // site cannot ride into the agent's copy of it.
-  const isAgentTab = useStore(useMemo(() => computed($previewTabs, tabs => Boolean(tabId && tabs.find(t => t.id === tabId)?.agent)), [tabId]))
+  const isAgentTab = useStore(
+    useMemo(() => computed($previewTabs, tabs => Boolean(tabId && tabs.find(t => t.id === tabId)?.agent)), [tabId])
+  )
   // Annotation mode is per-pane and deliberately not persisted: a review
   // session is a thing you start, not a mode you leave on.
   const [pinPanelOpen, setPinPanelOpen] = useState(false)
@@ -466,11 +468,7 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
       // The pane measures in host CSS pixels; the guest paints in its own. App
       // zoom is the ratio, so a zoomed window needs it divided back out or the
       // frame is bigger than the page painted into it — see preview-viewport.ts.
-      const { frame, scale } = viewportFit(
-        viewport,
-        { height: box.height, width: box.width },
-        hostZoomFactor()
-      )
+      const { frame, scale } = viewportFit(viewport, { height: box.height, width: box.width }, hostZoomFactor())
 
       webview.className = 'bg-transparent'
       webview.style.width = `${frame.width}px`
@@ -1550,17 +1548,10 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
         )}
 
         {isWebPreview && !isRemoteHtml && (
-          <PreviewViewportBar
-            onChange={setViewport}
-            open={viewportOpen}
-            scale={viewportScale}
-            viewport={viewport}
-          />
+          <PreviewViewportBar onChange={setViewport} open={viewportOpen} scale={viewportScale} viewport={viewport} />
         )}
 
-        {isWebPreview && !isRemoteHtml && (
-          <PreviewPinPanel open={pinPanelOpen} url={currentUrl} />
-        )}
+        {isWebPreview && !isRemoteHtml && <PreviewPinPanel open={pinPanelOpen} url={currentUrl} />}
 
         {/* First-open real-profile consent offer — Browser tabs only (URL
             vessels the user browses with), never file/HTML previews. */}

@@ -15,8 +15,7 @@ import SvgRenderer from './svg-embed'
 
 afterEach(cleanup)
 
-const wrap = (inner: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">${inner}</svg>`
+const wrap = (inner: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">${inner}</svg>`
 
 describe('SvgRenderer with non-Latin content', () => {
   it('keeps Arabic, Chinese and mixed bidi text', () => {
@@ -39,9 +38,7 @@ describe('SvgRenderer with non-Latin content', () => {
   })
 
   it('preserves an explicit rtl direction rather than stripping it', () => {
-    const view = render(
-      <SvgRenderer code={wrap('<text x="4" y="20" direction="rtl">نص من اليمين</text>')} />
-    )
+    const view = render(<SvgRenderer code={wrap('<text x="4" y="20" direction="rtl">نص من اليمين</text>')} />)
 
     expect(view.container.querySelector('text')?.getAttribute('direction')).toBe('rtl')
   })

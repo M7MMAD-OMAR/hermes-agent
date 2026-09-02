@@ -16,7 +16,6 @@ beforeAll(async () => {
   await loadTranslations('ja')
 })
 
-
 beforeAll(() => {
   stubResizeObserver()
   stubMenuDomApis()

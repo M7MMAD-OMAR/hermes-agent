@@ -29,7 +29,9 @@ function placePin(selector: string, comment = '') {
   const state = run({ verb: 'state' })
   const pin = state.pins[state.pins.length - 1]
 
-  if (comment) {run({ comment, id: pin.id as string, verb: 'comment' })}
+  if (comment) {
+    run({ comment, id: pin.id as string, verb: 'comment' })
+  }
 
   return run({ verb: 'state' }).pins[state.pins.length - 1]
 }
@@ -38,12 +40,12 @@ beforeEach(() => {
   // jsdom hands every test the same `document`, so an engine left armed by the
   // previous one is still on the capture listeners and still swallowing
   // gestures. Retire it before dropping the holder that owns its handlers.
-  if (holder) {pinEngineCore(document, holder, { verb: 'hide' }, anchorKit(document))}
+  if (holder) {
+    pinEngineCore(document, holder, { verb: 'hide' }, anchorKit(document))
+  }
   holder = {}
   document.body.innerHTML = '<div id="panel"><button id="save">Save</button><p id="note">A note</p></div>'
 })
-
-
 
 describe('bubble send shortcuts (Sprint 02)', () => {
   it('Ctrl+Enter in the bubble queues a NOW request the panel can read', () => {
@@ -53,9 +55,11 @@ describe('bubble send shortcuts (Sprint 02)', () => {
     expect(report.deliver ?? []).toEqual([])
     // The bubble is engine-internal; drive the request path it wires up.
     run({ comment: 'updated', id: placed.id as string, verb: 'comment' })
+
     // Simulate the bubble's Ctrl+Enter handler: requestDeliver(id, 'now').
     // Exercised via the engine verb surface the bubble writes into.
     const state = (holder as Record<string, Record<string, unknown>>)['__hermesPinState']
+
     ;(state.deliver as unknown[]).push({ id: placed.id, mode: 'now' })
 
     const withRequest = run({ verb: 'state' })
@@ -64,7 +68,9 @@ describe('bubble send shortcuts (Sprint 02)', () => {
 
   it('a no-id deliver verb ACKS: the request list empties after the panel acts', () => {
     const placed = placePin('#save')
+
     const state = (holder as Record<string, Record<string, unknown>>)['__hermesPinState']
+
     ;(state.deliver as unknown[]).push({ id: placed.id, mode: 'queue' })
 
     expect(run({ verb: 'state' }).deliver).toHaveLength(1)
@@ -147,14 +153,16 @@ describe('arming', () => {
 })
 
 describe('hiding — closing the panel gives the page back', () => {
-  it('disarms, so the next click on a link is the page\'s again', () => {
+  it("disarms, so the next click on a link is the page's again", () => {
     placePin('#save', 'note')
     run({ verb: 'arm' })
     expect(run({ verb: 'hide' }).armed).toBe(false)
 
     const target = document.querySelector('#save')!
     let pageSawClick = false
-    target.addEventListener('click', () => { pageSawClick = true })
+    target.addEventListener('click', () => {
+      pageSawClick = true
+    })
     document.elementFromPoint = () => target
     document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }))
     const up = new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: 1, clientY: 1 })
@@ -227,7 +235,9 @@ describe('placing pins', () => {
     const target = document.querySelector('#save')!
     document.elementFromPoint = () => target
     let pageSawClick = false
-    target.addEventListener('click', () => { pageSawClick = true })
+    target.addEventListener('click', () => {
+      pageSawClick = true
+    })
 
     run({ verb: 'arm' })
     document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }))
@@ -496,7 +506,7 @@ describe('injectable source', () => {
   it('assembles into one evaluable expression', () => {
     const source = pinEngineSource()
     expect(source.startsWith('(function (doc, holder, command)')).toBe(true)
-     
+
     const engine = eval(source)
     const state = engine(document, {}, { verb: 'state' })
     expect(state.armed).toBe(false)
@@ -504,7 +514,6 @@ describe('injectable source', () => {
   })
 
   it('works end to end once round-tripped through a string', () => {
-     
     const engine = eval(pinEngineSource())
     const box: Record<string, unknown> = {}
     document.elementFromPoint = () => document.querySelector('#save')

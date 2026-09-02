@@ -653,79 +653,89 @@ const ChatViewContent = memo(function ChatViewContent({
         />
       )}
 
-      {/* This conversation's browser, docked inside the chat column (above the
-          transcript) while it is embedded — the composer's globe toggles it.
-          The panel owns its own mount/unmount off the embedded sets. */}
-      {isPrimary && activeSessionId && <EmbeddedBrowserPanel sessionId={activeSessionId} />}
-
       {/* Mounted for the primary AND every tile, each scoped to its own session
           so a tiled/background session's blocking prompt surfaces instead of
           stalling to timeout. */}
       <PromptOverlays sessionId={activeSessionId} />
 
-      <ChatRuntimeBoundary
-        busy={busy}
-        onCancel={haltRun}
-        onEdit={onEdit}
-        onReload={onReload}
-        onThreadMessagesChange={onThreadMessagesChange}
-        suppressMessages={routeSessionMismatch}
-      >
-        <div
-          className="relative min-h-0 max-w-full flex-1 overflow-hidden bg-(--ui-chat-surface-background) contain-[layout_paint]"
-          data-slot="composer-bounds"
-          {...dropHandlers}
-        >
-          <Thread
-            clampToComposer={showChatBar}
-            cwd={currentCwd}
-            gateway={gateway}
-            intro={showIntro ? { personality: introPersonality, seed: introSeed } : undefined}
-            loading={threadLoading}
-            onBranchInNewChat={onBranchInNewChat}
+      {/* Conversation and its browser sit SIDE BY SIDE, not stacked: a page is
+          something you read against the transcript, and a band across the top
+          gave both of them half the height they needed. `rtl:flex-row-reverse`
+          keeps the browser on the physical right in an RTL app too — the row is
+          laid out by direction, and this pane is anchored to the screen, not to
+          the reading order.
+
+          The composer lives INSIDE the conversation column (it is a child of
+          ChatRuntimeBoundary), so the column carries `relative`: docked, the
+          composer is absolute and must resolve against the transcript it writes
+          into rather than the whole surface, or it would stretch under the
+          browser. `relative` is safe for the popped-out (fixed) composer —
+          only `contain`/`transform` would capture it. */}
+      <div className="flex min-h-0 flex-1 flex-row overflow-hidden rtl:flex-row-reverse">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <ChatRuntimeBoundary
+            busy={busy}
             onCancel={haltRun}
-            onDismissError={onDismissError}
-            onRestoreToMessage={onRestoreToMessage}
-            sessionId={activeSessionId}
-            sessionKey={threadKey}
-          />
-          {resumeExhausted && routedSessionId && (
-            <div className="absolute inset-0 z-10 grid place-items-center bg-(--ui-chat-surface-background) px-8 py-10">
-              <ErrorState
-                className="max-w-sm"
-                description={t.desktop.resumeStrandedBody}
-                title={t.desktop.resumeStrandedTitle}
-              >
-                <div className="grid justify-items-center">
-                  <Button onClick={() => onRetryResume(routedSessionId)} size="sm" variant="outline">
-                    {t.desktop.resumeRetry}
-                  </Button>
+            onEdit={onEdit}
+            onReload={onReload}
+            onThreadMessagesChange={onThreadMessagesChange}
+            suppressMessages={routeSessionMismatch}
+          >
+            <div
+              className="relative min-h-0 max-w-full flex-1 overflow-hidden bg-(--ui-chat-surface-background) contain-[layout_paint]"
+              data-slot="composer-bounds"
+              {...dropHandlers}
+            >
+              <Thread
+                clampToComposer={showChatBar}
+                cwd={currentCwd}
+                gateway={gateway}
+                intro={showIntro ? { personality: introPersonality, seed: introSeed } : undefined}
+                loading={threadLoading}
+                onBranchInNewChat={onBranchInNewChat}
+                onCancel={haltRun}
+                onDismissError={onDismissError}
+                onRestoreToMessage={onRestoreToMessage}
+                sessionId={activeSessionId}
+                sessionKey={threadKey}
+              />
+              {resumeExhausted && routedSessionId && (
+                <div className="absolute inset-0 z-10 grid place-items-center bg-(--ui-chat-surface-background) px-8 py-10">
+                  <ErrorState
+                    className="max-w-sm"
+                    description={t.desktop.resumeStrandedBody}
+                    title={t.desktop.resumeStrandedTitle}
+                  >
+                    <div className="grid justify-items-center">
+                      <Button onClick={() => onRetryResume(routedSessionId)} size="sm" variant="outline">
+                        {t.desktop.resumeRetry}
+                      </Button>
+                    </div>
+                  </ErrorState>
                 </div>
-              </ErrorState>
-            </div>
-          )}
-          {showChatBar && <ScrollToBottomButton sessionId={activeSessionId} />}
-          {/* Vibe hearts rise from the composer only when no pet is out (else
+              )}
+              {showChatBar && <ScrollToBottomButton sessionId={activeSessionId} />}
+              {/* Vibe hearts rise from the composer only when no pet is out (else
               they play on the pet). Fired by the core `reaction` event. */}
-          {!petPresent && (
-            <HeartField
-              className="absolute inset-x-0 z-30"
-              config={COMPOSER_HEART_CONFIG}
-              style={{
-                top: 0,
-                bottom: 'calc(var(--composer-measured-height) + 0.25rem)'
-              }}
-            />
-          )}
-          {/* A session drag hovering an EDGE hands the visual to the zone
+              {!petPresent && (
+                <HeartField
+                  className="absolute inset-x-0 z-30"
+                  config={COMPOSER_HEART_CONFIG}
+                  style={{
+                    top: 0,
+                    bottom: 'calc(var(--composer-measured-height) + 0.25rem)'
+                  }}
+                />
+              )}
+              {/* A session drag hovering an EDGE hands the visual to the zone
               target; the link overlay shows only for the center region. */}
-          <ChatDropOverlay kind={overlayKind} />
-          <ChatSwapOverlay profile={gatewaySwapTarget} />
-          {/* Paint-first wake (#89843): transcript is live, profile gate still
+              <ChatDropOverlay kind={overlayKind} />
+              <ChatSwapOverlay profile={gatewaySwapTarget} />
+              {/* Paint-first wake (#89843): transcript is live, profile gate still
               settling in the background — subtle badge, not an overlay. */}
-          {isPrimary && !gatewaySwapTarget && <ChatSyncBadge profile={hydrationSyncProfile} />}
-        </div>
-        {/* Composer renders OUTSIDE the contain:[layout paint] wrapper above:
+              {isPrimary && !gatewaySwapTarget && <ChatSyncBadge profile={hydrationSyncProfile} />}
+            </div>
+            {/* Composer renders OUTSIDE the contain:[layout paint] wrapper above:
             that wrapper is a containing block for — and clips — position:fixed
             descendants, so the popped-out (fixed) composer would anchor to the
             chat column (which shifts/resizes with the sidebars) and get clipped
@@ -733,36 +743,43 @@ const ChatViewContent = memo(function ChatViewContent({
             anchors to the outer relative container instead: docked is absolute
             (identical placement), floating resolves against the viewport. Both
             states stay mounted here, so dock⇄float never remounts the editor. */}
-        {showChatBar && (
-          <Suspense fallback={<ChatBarFallback />}>
-            <ChatBar
-              busy={busy}
-              cwd={currentCwd}
-              disabled={!gatewayOpen}
-              focusKey={activeSessionId}
-              gateway={gateway}
-              maxRecordingSeconds={maxVoiceRecordingSeconds}
-              onAddContextRef={onAddContextRef}
-              onAddUrl={onAddUrl}
-              onAttachDroppedItems={onAttachDroppedItems}
-              onAttachImageBlob={onAttachImageBlob}
-              onAttachPrCommentUrl={onAttachPrCommentUrl}
-              onCancel={onCancel}
-              onPasteClipboardImage={onPasteClipboardImage}
-              onPickFiles={onPickFiles}
-              onPickFolders={onPickFolders}
-              onPickImages={onPickImages}
-              onRemoveAttachment={onRemoveAttachment}
-              onSteer={onSteer}
-              onSubmit={onSubmit}
-              onTranscribeAudio={onTranscribeAudio}
-              queueSessionKey={queueSessionKey}
-              sessionId={activeSessionId}
-              state={chatBarState}
-            />
-          </Suspense>
-        )}
-      </ChatRuntimeBoundary>
+            {showChatBar && (
+              <Suspense fallback={<ChatBarFallback />}>
+                <ChatBar
+                  busy={busy}
+                  cwd={currentCwd}
+                  disabled={!gatewayOpen}
+                  focusKey={activeSessionId}
+                  gateway={gateway}
+                  maxRecordingSeconds={maxVoiceRecordingSeconds}
+                  onAddContextRef={onAddContextRef}
+                  onAddUrl={onAddUrl}
+                  onAttachDroppedItems={onAttachDroppedItems}
+                  onAttachImageBlob={onAttachImageBlob}
+                  onAttachPrCommentUrl={onAttachPrCommentUrl}
+                  onCancel={onCancel}
+                  onPasteClipboardImage={onPasteClipboardImage}
+                  onPickFiles={onPickFiles}
+                  onPickFolders={onPickFolders}
+                  onPickImages={onPickImages}
+                  onRemoveAttachment={onRemoveAttachment}
+                  onSteer={onSteer}
+                  onSubmit={onSubmit}
+                  onTranscribeAudio={onTranscribeAudio}
+                  queueSessionKey={queueSessionKey}
+                  sessionId={activeSessionId}
+                  state={chatBarState}
+                />
+              </Suspense>
+            )}
+          </ChatRuntimeBoundary>
+        </div>
+
+        {/* This conversation's browser, docked beside the transcript while it is
+            embedded — the composer's globe toggles it. The panel owns its own
+            mount/unmount off the embedded sets. */}
+        {isPrimary && activeSessionId && <EmbeddedBrowserPanel sessionId={activeSessionId} />}
+      </div>
     </div>
   )
 })

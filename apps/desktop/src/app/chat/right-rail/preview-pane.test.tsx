@@ -1,8 +1,8 @@
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { $contextMenu, closeContextMenu } from '@/app/context-menu/store'
 import { onComposerAttachImagesRequest } from '@/app/chat/composer/focus'
+import { $contextMenu, closeContextMenu } from '@/app/context-menu/store'
 import { $connection, $selectedStoredSessionId } from '@/store/session'
 
 import { forgetPreviewConsole, previewConsoleState } from './preview-console-store'

@@ -45,11 +45,7 @@ function Harness() {
   return null
 }
 
-async function emitPreviewOpen(
-  url = '/tmp/artifact-test.html',
-  sessionId = RUNTIME_SESSION_ID,
-  newTab = false
-) {
+async function emitPreviewOpen(url = '/tmp/artifact-test.html', sessionId = RUNTIME_SESSION_ID, newTab = false) {
   await act(async () => {
     handleEvent({
       payload: { label: 'hi bestie', url, ...(newTab ? { new_tab: true } : {}) },

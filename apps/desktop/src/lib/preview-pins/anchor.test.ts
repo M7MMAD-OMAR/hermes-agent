@@ -24,7 +24,7 @@ beforeEach(() => {
 })
 
 describe('capture', () => {
-  it('prefers the page\'s own identity when it offers one', () => {
+  it("prefers the page's own identity when it offers one", () => {
     const kit = render('<button id="save">Save</button>')
     const anchor = kit.capture(document.querySelector('#save')!)
     expect(anchor.selector).toBe('#save')
@@ -204,7 +204,7 @@ describe('self-containment', () => {
 
   it('is a live function once round-tripped through a string', () => {
     render('<button id="save">Save</button>')
-     
+
     const rebuilt = eval(`(${anchorKit.toString()})`)(document)
     const anchor = rebuilt.capture(document.querySelector('#save'))
     expect(rebuilt.resolve(anchor).confidence).toBe(1)

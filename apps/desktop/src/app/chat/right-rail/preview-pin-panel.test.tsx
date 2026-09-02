@@ -54,7 +54,12 @@ import { $queuedPromptsBySession } from '@/store/composer-queue'
 import { $activeSessionId, $sessions } from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
 
-import { $annotateToggleRequest, $attachPinsRequest, requestAnnotateToggle, requestAttachPins } from './preview-pin-requests'
+import {
+  $annotateToggleRequest,
+  $attachPinsRequest,
+  requestAnnotateToggle,
+  requestAttachPins
+} from './preview-pin-requests'
 
 const HOME = 'http://localhost:5178/en/index.html'
 const ABOUT = 'http://localhost:5178/en/about.html'
@@ -89,7 +94,9 @@ const hidePins = vi.fn(async () => {
 const showPins = vi.fn(async (seed?: null | PreviewPin[]) => {
   page.hidden = false
 
-  if (seed?.length) {page.pins[page.url] = seed}
+  if (seed?.length) {
+    page.pins[page.url] = seed
+  }
 
   return report()
 })
@@ -97,7 +104,9 @@ const showPins = vi.fn(async (seed?: null | PreviewPin[]) => {
 const armPins = vi.fn(async (seed?: null | PreviewPin[]) => {
   page.armed = true
 
-  if (seed?.length) {page.pins[page.url] = seed}
+  if (seed?.length) {
+    page.pins[page.url] = seed
+  }
 
   return report()
 })
@@ -122,7 +131,9 @@ vi.mock('./preview-pins', () => ({
     // Mirrors the real seed filter: only pins belonging to this page, and only
     // when there is something to seed — buildScript skips an empty seed, so a
     // mock that honours `[]` would wipe the page the panel just opened.
-    if (seed?.length) {page.pins[page.url] = seed.filter(pin => pin.pageUrl === page.url)}
+    if (seed?.length) {
+      page.pins[page.url] = seed.filter(pin => pin.pageUrl === page.url)
+    }
 
     return report()
   }),
@@ -205,8 +216,6 @@ describe('closing the panel', () => {
     expect(screen.queryByText('Annotate')).toBeNull()
   })
 })
-
-
 
 describe('bubble requests and keybinds (Sprint 02)', () => {
   it('executes a bubble NOW request: one submit, delivered, no resend', async () => {
@@ -349,7 +358,7 @@ describe('one comment, one send (Sprint 01)', () => {
 })
 
 describe('a review across pages', () => {
-  it('keeps each page\'s comments and does not carry them over', async () => {
+  it("keeps each page's comments and does not carry them over", async () => {
     page.pins[HOME] = [pin(HOME, 'hero')]
     const view = render(<PreviewPinPanel open url={HOME} />)
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))

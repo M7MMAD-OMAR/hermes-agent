@@ -11,7 +11,12 @@ describe('desktop i18n runtime translator', () => {
   // below are about translation content, so warm every locale first; the
   // not-yet-loaded path gets its own test at the bottom.
   beforeAll(async () => {
-    await Promise.all([loadTranslations('ar'), loadTranslations('ja'), loadTranslations('zh'), loadTranslations('zh-hant')])
+    await Promise.all([
+      loadTranslations('ar'),
+      loadTranslations('ja'),
+      loadTranslations('zh'),
+      loadTranslations('zh-hant')
+    ])
   })
 
   beforeEach(() => {

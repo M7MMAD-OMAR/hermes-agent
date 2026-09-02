@@ -68,7 +68,9 @@ const isAck = (data: unknown): data is AckMessage => typeof (data as null | Part
  * and the caller is free to say so.
  */
 export function relayComposerAttachment(attachment: ComposerAttachment): Promise<boolean> {
-  if (!channel) {return Promise.resolve(false)}
+  if (!channel) {
+    return Promise.resolve(false)
+  }
 
   counter += 1
   const requestId = `relay-${counter}-${attachment.id}`
@@ -77,7 +79,9 @@ export function relayComposerAttachment(attachment: ComposerAttachment): Promise
     let settled = false
 
     const finish = (delivered: boolean) => {
-      if (settled) {return}
+      if (settled) {
+        return
+      }
 
       settled = true
       channel.removeEventListener('message', onMessage)
@@ -86,7 +90,9 @@ export function relayComposerAttachment(attachment: ComposerAttachment): Promise
     }
 
     const onMessage = (event: MessageEvent) => {
-      if (isAck(event.data) && event.data.ack === requestId) {finish(true)}
+      if (isAck(event.data) && event.data.ack === requestId) {
+        finish(true)
+      }
     }
 
     const timer = setTimeout(() => finish(false), ACK_TIMEOUT_MS)
@@ -111,7 +117,9 @@ export function onRelayedComposerAttachment(handler: (attachment: ComposerAttach
   }
 
   const listener = (event: MessageEvent) => {
-    if (!isRelay(event.data)) {return}
+    if (!isRelay(event.data)) {
+      return
+    }
 
     handler(event.data.attachment)
 

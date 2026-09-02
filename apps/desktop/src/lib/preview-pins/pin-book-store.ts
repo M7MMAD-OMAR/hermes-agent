@@ -28,7 +28,9 @@ function sanitizeBook(value: unknown): PinBook {
   const book: PinBook = {}
 
   for (const [url, pins] of Object.entries(value as Record<string, unknown>)) {
-    if (!Array.isArray(pins)) {continue}
+    if (!Array.isArray(pins)) {
+      continue
+    }
 
     book[normalizePageUrl(url)] = pins.filter(
       pin => Boolean(pin) && typeof pin === 'object' && typeof (pin as { id?: unknown }).id === 'string'
@@ -49,4 +51,3 @@ export const $pinBook = persistentAtom<PinBook>(PIN_BOOK_STORAGE_KEY, {}, Codecs
 export const setPinBook = (book: PinBook) => {
   $pinBook.set(sanitizeBook(book))
 }
-

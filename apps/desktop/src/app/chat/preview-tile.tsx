@@ -229,10 +229,7 @@ export function syncBrowserSessionPanes(): void {
     // all, because a tab scoped to a dead id is reachable from nowhere.
     const owned = Boolean(tab.ownerKey) || (Boolean(tab.owner) && runtimeHasOpenSurface(tab.owner ?? null))
 
-    setTreePaneHidden(
-      previewPaneId(tab.id),
-      owned && !previewTabBelongsToSession(tab, sessionId, storedSessionId)
-    )
+    setTreePaneHidden(previewPaneId(tab.id), owned && !previewTabBelongsToSession(tab, sessionId, storedSessionId))
   }
 }
 

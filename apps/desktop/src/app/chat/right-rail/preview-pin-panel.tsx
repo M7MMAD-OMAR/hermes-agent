@@ -27,11 +27,7 @@ import { allPins, mergeReport, otherPages, type PinBook, pinsForPage } from '@/l
 import { $pinBook, setPinBook } from '@/lib/preview-pins/pin-book-store'
 import type { PreviewPin } from '@/lib/preview-pins/types'
 import { cn } from '@/lib/utils'
-import {
-  addComposerAttachment,
-  type ComposerAttachment,
-  createComposerAttachmentOccurrenceId
-} from '@/store/composer'
+import { addComposerAttachment, type ComposerAttachment, createComposerAttachmentOccurrenceId } from '@/store/composer'
 import { enqueueQueuedPrompt } from '@/store/composer-queue'
 import { relayComposerAttachment } from '@/store/composer-relay'
 import { notify } from '@/store/notifications'
@@ -87,8 +83,14 @@ function isSessionBusy(key: string): boolean {
     // The key is a lineage root; the state carries the stored id it belongs
     // to. Match through the same table the composer scope resolves with, so
     // the two never disagree about whether a conversation is mid-turn.
-    return state.storedSessionId === key || $sessions.get().some(
-      session => sessionMatchesStoredId(session, state.storedSessionId ?? '') && sessionMatchesStoredId(session, key)
+    return (
+      state.storedSessionId === key ||
+      $sessions
+        .get()
+        .some(
+          session =>
+            sessionMatchesStoredId(session, state.storedSessionId ?? '') && sessionMatchesStoredId(session, key)
+        )
     )
   })
 }
@@ -108,22 +110,21 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
    *  The pin is sourced from the BOOK, not the report — the report was read
    *  before the user pressed the shortcut, so it lacks their last keystrokes;
    *  the live `input` handler kept the book's copy current. */
-  const runDeliverRequests = useCallback(
-    async (requests: { id: string; mode: 'now' | 'queue' }[]) => {
-      for (const { id, mode } of requests) {
-        const pin = allPins($pinBook.get()).find(entry => entry.id === id)
+  const runDeliverRequests = useCallback(async (requests: { id: string; mode: 'now' | 'queue' }[]) => {
+    for (const { id, mode } of requests) {
+      const pin = allPins($pinBook.get()).find(entry => entry.id === id)
 
-        if (!pin) {continue}
-
-        if (mode === 'queue') {
-          await queueOneRef.current(pin)
-        } else {
-          await sendOneRef.current(pin)
-        }
+      if (!pin) {
+        continue
       }
-    },
-    []
-  )
+
+      if (mode === 'queue') {
+        await queueOneRef.current(pin)
+      } else {
+        await sendOneRef.current(pin)
+      }
+    }
+  }, [])
 
   // The handlers below close over page state that changes every render; the
   // request executor above must not. Refs bridge the two without re-arming
@@ -131,45 +132,52 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
   const sendOneRef = useRef<(pin: PreviewPin) => Promise<void>>(async () => {})
   const queueOneRef = useRef<(pin: PreviewPin) => Promise<void>>(async () => {})
 
-  const sync = useCallback(async (report: Awaited<ReturnType<typeof readPins>>) => {
-    if (!report) {
-      setLive(false)
+  const sync = useCallback(
+    async (report: Awaited<ReturnType<typeof readPins>>) => {
+      if (!report) {
+        setLive(false)
 
-      return
-    }
+        return
+      }
 
-    // Drain first, and after every verb rather than only while annotating: an
-    // image pasted and then left alone still has to get out of the page before
-    // the next navigation takes the page with it.
-    for (const id of report.pendingShots ?? []) {
-      if (bytes.has(id)) {continue}
-      const answer = await takeShot(id)
+      // Drain first, and after every verb rather than only while annotating: an
+      // image pasted and then left alone still has to get out of the page before
+      // the next navigation takes the page with it.
+      for (const id of report.pendingShots ?? []) {
+        if (bytes.has(id)) {
+          continue
+        }
+        const answer = await takeShot(id)
 
-      if (answer?.shot) {bytes.set(id, answer.shot)}
-    }
+        if (answer?.shot) {
+          bytes.set(id, answer.shot)
+        }
+      }
 
-    setLive(true)
-    setArmed(report.armed === true)
-    setBubbleOpen(report.bubbleOpen === true)
-    setPins(report.pins)
-    // File under the page's OWN url, not the pane's — the pane's value lags a
-    // redirect, and filing under the wrong key is how a page's comments end up
-    // replayed onto a different page. The book is the persistent store: writing
-    // it here is what makes a review survive a remount.
-    setPinBook(mergeReport($pinBook.get(), report.url, report.pins))
-    setElsewhere(otherPages($pinBook.get(), report.url))
+      setLive(true)
+      setArmed(report.armed === true)
+      setBubbleOpen(report.bubbleOpen === true)
+      setPins(report.pins)
+      // File under the page's OWN url, not the pane's — the pane's value lags a
+      // redirect, and filing under the wrong key is how a page's comments end up
+      // replayed onto a different page. The book is the persistent store: writing
+      // it here is what makes a review survive a remount.
+      setPinBook(mergeReport($pinBook.get(), report.url, report.pins))
+      setElsewhere(otherPages($pinBook.get(), report.url))
 
-    // The bubble's send shortcuts arrive HERE — the guest page has no bridge
-    // to the composer, so its bubble can only write the intent and let the
-    // next state read carry it out. Each request is executed once and then
-    // acked, so a lost panel tick retries through the next poll, not a resend.
-    const requests = report.deliver ?? []
+      // The bubble's send shortcuts arrive HERE — the guest page has no bridge
+      // to the composer, so its bubble can only write the intent and let the
+      // next state read carry it out. Each request is executed once and then
+      // acked, so a lost panel tick retries through the next poll, not a resend.
+      const requests = report.deliver ?? []
 
-    if (requests.length) {
-      await ackDeliverRequests()
-      await runDeliverRequests(requests)
-    }
-  }, [bytes, runDeliverRequests])
+      if (requests.length) {
+        await ackDeliverRequests()
+        await runDeliverRequests(requests)
+      }
+    },
+    [bytes, runDeliverRequests]
+  )
 
   // Poll while the panel is open — not only while armed. A marker stays
   // clickable after disarming, so a comment can be edited or an image pasted
@@ -181,7 +189,9 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
   // and the delivery reads as the shortcut having missed.
   const [bubbleOpen, setBubbleOpen] = useState(false)
   useEffect(() => {
-    if (!open) {return}
+    if (!open) {
+      return
+    }
     const period = bubbleOpen ? POLL_BUBBLE_MS : POLL_MS
     const timer = setInterval(() => void readPins().then(sync), period)
 
@@ -213,19 +223,25 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
   const attachRequest = useStore($attachPinsRequest)
 
   useEffect(() => {
-    if (open && annotateRequest > 0) {void toggleArmed()}
+    if (open && annotateRequest > 0) {
+      void toggleArmed()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the request counter IS the trigger
   }, [annotateRequest])
 
   useEffect(() => {
-    if (open && attachRequest > 0) {void attach()}
+    if (open && attachRequest > 0) {
+      void attach()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the request counter IS the trigger
   }, [attachRequest])
 
   // A navigation destroys the engine and every pin with it. Seed the new one
   // from this page's bucket — and only this page's — then re-run the ladder.
   useEffect(() => {
-    if (!open) {return}
+    if (!open) {
+      return
+    }
     void reattachPins(pinsForPage($pinBook.get(), url)).then(sync)
   }, [open, sync, url])
 
@@ -276,13 +292,17 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       const data = bytes.get(shot.id)
       const blob = data ? dataUrlToBlob(data) : null
 
-      if (!blob) {continue}
+      if (!blob) {
+        continue
+      }
 
       try {
         const buffer = new Uint8Array(await blob.arrayBuffer())
         const path = await window.hermesDesktop?.saveImageBuffer(buffer, blob.type === 'image/png' ? '.png' : '.jpg')
 
-        if (!path) {continue}
+        if (!path) {
+          continue
+        }
 
         stagePart({
           detail: path,
@@ -342,7 +362,9 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
 
     const { acks, parts } = await stage([pin])
 
-    if (!parts.length && !acks.length) {return}
+    if (!parts.length && !acks.length) {
+      return
+    }
 
     if (await deliverNow(text, parts)) {
       await markDelivered([pin.id], true)
@@ -386,7 +408,9 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
     // comments are history, not instructions.
     const held = allPins($pinBook.get()).filter(pin => !pin.resolved && !pin.delivered)
 
-    if (!held.length) {return}
+    if (!held.length) {
+      return
+    }
 
     // Drop any image whose bytes never reached us — a page closed before the
     // drain, say. The block numbers images off this list and the attachments
@@ -419,7 +443,10 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       // Delivered is delivered: the batch left for the chat, so every one of
       // these leaves the pending list on its own. Nothing was deleted —
       // Resolve, Delete and Clear stay the only destructive acts.
-      await markDelivered(sending.map(pin => pin.id), true)
+      await markDelivered(
+        sending.map(pin => pin.id),
+        true
+      )
     }
   }
 
@@ -429,7 +456,9 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
     await clearPins().then(sync)
   }
 
-  if (!open) {return null}
+  if (!open) {
+    return null
+  }
 
   // The pending list: what still owes the chat a delivery. Delivered comments
   // leave this list the moment they arrive — that IS the auto-clear, one
@@ -465,11 +494,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
         </button>
 
         <span className="truncate text-muted-foreground">
-          {!live
-            ? 'no live page'
-            : armed
-              ? 'click an element, or drag a region · Esc to stop'
-              : `${openCount} open`}
+          {!live ? 'no live page' : armed ? 'click an element, or drag a region · Esc to stop' : `${openCount} open`}
           {/* Comments left on pages the user has since navigated away from.
               Without this the panel looks empty on a fresh page and the review
               they already wrote appears to have been lost. */}

@@ -28,7 +28,9 @@ function describeTarget(pin: PreviewPin): string {
 
   const anchor = pin.anchor
 
-  if (!anchor) {return pin.target || 'unknown target'}
+  if (!anchor) {
+    return pin.target || 'unknown target'
+  }
   const name = anchor.label ? `${anchor.role} "${anchor.label}"` : anchor.role
   // The selector is what the agent will actually grep for, so it goes in when
   // the page offered one. The path is the fallback and is noisier, so it only
@@ -47,7 +49,9 @@ export function openPins(detail: string): PreviewPin[] {
     const parsed = JSON.parse(detail)
     pins = Array.isArray(parsed) ? parsed : parsed?.pins
 
-    if (!Array.isArray(pins)) {return []}
+    if (!Array.isArray(pins)) {
+      return []
+    }
   } catch {
     return []
   }
@@ -75,8 +79,11 @@ function byPage(pins: PreviewPin[]): { pins: PreviewPin[]; url: string }[] {
     const url = pin.pageUrl || ''
     const existing = groups.find(group => group.url === url)
 
-    if (existing) {existing.pins.push(pin)}
-    else {groups.push({ pins: [pin], url })}
+    if (existing) {
+      existing.pins.push(pin)
+    } else {
+      groups.push({ pins: [pin], url })
+    }
   }
 
   return groups
@@ -101,7 +108,9 @@ function byPage(pins: PreviewPin[]): { pins: PreviewPin[]; url: string }[] {
 export function pinCommentBlock(detail: string): null | string {
   const open = openPins(detail)
 
-  if (!open.length) {return null}
+  if (!open.length) {
+    return null
+  }
 
   let counter = 0
   let image = 0
@@ -130,9 +139,7 @@ export function pinCommentBlock(detail: string): null | string {
     return `\`\`\`preview-comments${url ? ` ${url}` : ''}\n${open.map(render).join('\n\n')}\n\`\`\``
   }
 
-  const sections = groups.map(
-    group => `${group.url || '(unknown page)'}\n${group.pins.map(render).join('\n\n')}`
-  )
+  const sections = groups.map(group => `${group.url || '(unknown page)'}\n${group.pins.map(render).join('\n\n')}`)
 
   return `\`\`\`preview-comments\n${sections.join('\n\n')}\n\`\`\``
 }

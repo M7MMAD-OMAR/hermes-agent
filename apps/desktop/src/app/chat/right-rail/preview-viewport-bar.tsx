@@ -38,14 +38,18 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
     setHeight(viewport ? String(viewport.height) : '')
   }, [viewport])
 
-  if (!open) {return null}
+  if (!open) {
+    return null
+  }
 
   const applyCustom = () => {
     const w = parseEdge(width)
     const h = parseEdge(height)
 
     // One edge on its own is still meaningful — keep the other.
-    if (!w && !h) {return}
+    if (!w && !h) {
+      return
+    }
     onChange(customViewport(w ?? viewport?.width ?? 1280, h ?? viewport?.height ?? 800))
   }
 
@@ -89,7 +93,9 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
           onBlur={applyCustom}
           onChange={event => setWidth(event.target.value)}
           onKeyDown={event => {
-            if (event.key === 'Enter') {applyCustom()}
+            if (event.key === 'Enter') {
+              applyCustom()
+            }
           }}
           placeholder="w"
           value={width}
@@ -102,7 +108,9 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
           onBlur={applyCustom}
           onChange={event => setHeight(event.target.value)}
           onKeyDown={event => {
-            if (event.key === 'Enter') {applyCustom()}
+            if (event.key === 'Enter') {
+              applyCustom()
+            }
           }}
           placeholder="h"
           value={height}

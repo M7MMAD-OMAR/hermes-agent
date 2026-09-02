@@ -81,11 +81,17 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
   // A seeded state predates these fields. Nothing else re-checks them, so this
   // is the one place they are guaranteed to exist.
-  if (!state.shotData) {state.shotData = {}}
+  if (!state.shotData) {
+    state.shotData = {}
+  }
 
-  if (!state.pending) {state.pending = []}
+  if (!state.pending) {
+    state.pending = []
+  }
 
-  if (!state.deliver) {state.deliver = []}
+  if (!state.deliver) {
+    state.deliver = []
+  }
 
   const pins = state.pins as Record<string, unknown>[]
   const shotData = state.shotData as Record<string, string>
@@ -107,16 +113,15 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   const host = () => {
     let node = doc.getElementById(HOST_ID) as HTMLElement | null
 
-    if (node && node.shadowRoot) {return node}
+    if (node && node.shadowRoot) {
+      return node
+    }
     node = doc.createElement('div')
     node.id = HOST_ID
     // Fixed and non-interactive by default: the overlay must not eat clicks
     // when annotation mode is off, or the page becomes unusable the moment the
     // engine has been injected once.
-    node.setAttribute(
-      'style',
-      'position:fixed;inset:0;z-index:2147483646;pointer-events:none;'
-    )
+    node.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;')
     const root = node.attachShadow({ mode: 'open' })
     const style = doc.createElement('style')
     style.textContent = [
@@ -208,7 +213,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   const shadow = () => host().shadowRoot as ShadowRoot
 
   const clearLayer = (selector: string) => {
-    for (const node of Array.from(shadow().querySelectorAll(selector))) {node.remove()}
+    for (const node of Array.from(shadow().querySelectorAll(selector))) {
+      node.remove()
+    }
   }
 
   const fractionToBox = (rect: { h: number; w: number; x: number; y: number }) => {
@@ -230,7 +237,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
     // Hidden means hidden. The user closed the panel to get their page back,
     // and leaving markers floating over it is the same complaint again.
-    if (state.hidden) {return}
+    if (state.hidden) {
+      return
+    }
     const root = shadow()
     pins.forEach((pin, index) => {
       const marker = doc.createElement('div')
@@ -342,7 +351,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     closeBubble()
     const pin = pins.find(entry => entry.id === pinId)
 
-    if (!pin) {return}
+    if (!pin) {
+      return
+    }
     const view = doc.defaultView
     const bubble = doc.createElement('div')
     bubble.className = 'bubble'
@@ -368,7 +379,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
         y = avoid.bottom + 10
 
         // No room underneath: sit above it instead of hanging off the fold.
-        if (y + height + 8 > vh) {y = avoid.top - height - 10}
+        if (y + height + 8 > vh) {
+          y = avoid.top - height - 10
+        }
       }
 
       bubble.style.left = Math.max(8, Math.min(x, vw - width - 8)) + 'px'
@@ -447,12 +460,16 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
     /** Take a File list from a paste, a drop or the picker. */
     const ingest = (files: ArrayLike<File> | null) => {
-      if (!files) {return}
+      if (!files) {
+        return
+      }
 
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index]
 
-        if (!file || !String(file.type || '').startsWith('image/')) {continue}
+        if (!file || !String(file.type || '').startsWith('image/')) {
+          continue
+        }
 
         if (shotsOf().length >= MAX_SHOTS) {
           hint.textContent = 'Up to ' + MAX_SHOTS + ' images per comment'
@@ -465,9 +482,13 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
         reader.onload = () => {
           const source = String(reader.result || '')
 
-          if (!source) {return}
+          if (!source) {
+            return
+          }
           shrink(source, SHOT_MAX_EDGE, 0.85, (full, w, h) => {
-            if (!full) {return}
+            if (!full) {
+              return
+            }
             shrink(full, THUMB_MAX_EDGE, 0.5, thumb => {
               const id = 'shot-' + now().toString(36) + '-' + Math.round(Math.random() * 1e6).toString(36)
               // The bytes stay here only until the app drains them; the pin
@@ -542,7 +563,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       const index = pins.findIndex(entry => entry.id === pinId)
 
       if (index !== -1) {
-        for (const shot of shotsOf()) {delete shotData[String(shot.id)]}
+        for (const shot of shotsOf()) {
+          delete shotData[String(shot.id)]
+        }
         pins.splice(index, 1)
       }
 
@@ -593,7 +616,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       const data = (event as ClipboardEvent).clipboardData
       const files = data ? data.files : null
 
-      if (!files || !files.length) {return}
+      if (!files || !files.length) {
+        return
+      }
       // Otherwise the filename lands in the textarea as text next to the image.
       event.preventDefault()
       ingest(files)
@@ -640,10 +665,16 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   const insideOverlay = (event: Event) => {
     const node = doc.getElementById(HOST_ID)
 
-    if (!node) {return false}
+    if (!node) {
+      return false
+    }
     const path = typeof event.composedPath === 'function' ? event.composedPath() : []
 
-    for (const step of path) {if (step === node) {return true}}
+    for (const step of path) {
+      if (step === node) {
+        return true
+      }
+    }
 
     return false
   }
@@ -653,7 +684,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     // not, so ask the page what is under the cursor with the host discounted.
     const found = doc.elementFromPoint(x, y)
 
-    if (!found || found.id === HOST_ID) {return null}
+    if (!found || found.id === HOST_ID) {
+      return null
+    }
 
     return found
   }
@@ -667,13 +700,17 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
    * suppresses the default action of the press itself.
    */
   const onClick = (event: MouseEvent) => {
-    if (!state.armed || insideOverlay(event)) {return}
+    if (!state.armed || insideOverlay(event)) {
+      return
+    }
     event.preventDefault()
     event.stopPropagation()
   }
 
   const onMove = (event: MouseEvent) => {
-    if (!state.armed) {return}
+    if (!state.armed) {
+      return
+    }
 
     if (state.drag) {
       const drag = state.drag as { x0: number; y0: number }
@@ -692,7 +729,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     clearLayer('.hl')
     const el = targetAt(event.clientX, event.clientY)
 
-    if (!el) {return}
+    if (!el) {
+      return
+    }
     const rect = el.getBoundingClientRect()
     const highlight = doc.createElement('div')
     highlight.className = 'hl'
@@ -704,7 +743,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   }
 
   const onDown = (event: MouseEvent) => {
-    if (!state.armed || insideOverlay(event)) {return}
+    if (!state.armed || insideOverlay(event)) {
+      return
+    }
     state.drag = { x0: event.clientX, y0: event.clientY }
   }
 
@@ -720,13 +761,17 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   }
 
   const onUp = (event: MouseEvent) => {
-    if (!state.armed || insideOverlay(event)) {return}
+    if (!state.armed || insideOverlay(event)) {
+      return
+    }
     let placedOver: { bottom: number; left: number; top: number } | null = null
     const drag = state.drag as { x0: number; y0: number } | null
     state.drag = null
     clearLayer('.box')
 
-    if (!drag) {return}
+    if (!drag) {
+      return
+    }
 
     // Suppress the page's own click. Annotation mode is a review overlay, not a
     // way to accidentally submit the form you are commenting on.
@@ -755,7 +800,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     } else {
       const el = targetAt(event.clientX, event.clientY)
 
-      if (!el) {return}
+      if (!el) {
+        return
+      }
       const box = el.getBoundingClientRect()
       placedOver = { bottom: box.bottom, left: box.left, top: box.top }
       const anchor = kit.capture(el)
@@ -775,8 +822,11 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && state.armed) {
-      if (shadow().querySelector('.bubble')) {closeBubble()}
-      else {disarm()}
+      if (shadow().querySelector('.bubble')) {
+        closeBubble()
+      } else {
+        disarm()
+      }
     }
   }
 
@@ -784,7 +834,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     const target = event.target as HTMLElement | null
     const id = target && target.dataset ? target.dataset.pin : null
 
-    if (!id) {return}
+    if (!id) {
+      return
+    }
     event.preventDefault()
     event.stopPropagation()
     // Reopening: find the element again so the comment dodges it just as it did
@@ -803,14 +855,13 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   const onScroll = () => paint()
 
   const arm = () => {
-    if (state.armed) {return}
+    if (state.armed) {
+      return
+    }
     state.armed = true
     // Arming is a request to see what you are annotating.
     state.hidden = false
-    host().setAttribute(
-      'style',
-      'position:fixed;inset:0;z-index:2147483646;pointer-events:none;cursor:crosshair;'
-    )
+    host().setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;cursor:crosshair;')
     doc.documentElement.style.cursor = 'crosshair'
     // Capture phase, so the page cannot swallow the gesture before we see it.
     doc.addEventListener('mousemove', onMove, true)
@@ -830,7 +881,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   }
 
   const disarm = () => {
-    if (!state.armed) {return}
+    if (!state.armed) {
+      return
+    }
     state.armed = false
     state.drag = null
     doc.documentElement.style.cursor = ''
@@ -885,7 +938,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
    */
   const reattach = () => {
     for (const pin of pins) {
-      if (pin.kind !== 'element' || !pin.anchor) {continue}
+      if (pin.kind !== 'element' || !pin.anchor) {
+        continue
+      }
       const match = kit.resolve(pin.anchor as never)
       pin.orphaned = !match.element
       pin.matchedBy = match.how
@@ -938,7 +993,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     case 'comment': {
       const pin = pins.find(entry => entry.id === command.id)
 
-      if (pin) {pin.comment = String(command.comment ?? '')}
+      if (pin) {
+        pin.comment = String(command.comment ?? '')
+      }
 
       break
     }
@@ -946,7 +1003,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     case 'resolve': {
       const pin = pins.find(entry => entry.id === command.id)
 
-      if (pin) {pin.resolved = !pin.resolved}
+      if (pin) {
+        pin.resolved = !pin.resolved
+      }
       paint()
 
       break
@@ -971,7 +1030,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     case 'clear':
       pins.splice(0, pins.length)
 
-      for (const key of Object.keys(shotData)) {delete shotData[key]}
+      for (const key of Object.keys(shotData)) {
+        delete shotData[key]
+      }
       pending.splice(0, pending.length)
       closeBubble()
       paint()
@@ -983,13 +1044,17 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     case 'deliver': {
       const pin = pins.find(entry => entry.id === command.id)
 
-      if (pin) {pin.delivered = command.delivered !== false}
+      if (pin) {
+        pin.delivered = command.delivered !== false
+      }
 
       // No id: an ACK — the panel took the bubble's requests, so drop them.
       // Dropping BEFORE the panel acts would lose a request that failed
       // mid-flight; the panel acks first, then runs, and a request that
       // arrives again was re-queued by a bubble click, not a lost ack.
-      if (!command.id) {deliver.splice(0, deliver.length)}
+      if (!command.id) {
+        deliver.splice(0, deliver.length)
+      }
       paint()
 
       break
@@ -1008,7 +1073,9 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       delete shotData[id]
       const slot = pending.indexOf(id)
 
-      if (slot !== -1) {pending.splice(slot, 1)}
+      if (slot !== -1) {
+        pending.splice(slot, 1)
+      }
 
       break
     }

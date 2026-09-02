@@ -204,10 +204,7 @@ describe('a whole browsing turn', () => {
   // which. A file peek registers no pane at all; a remote HTML preview
   // registers one that has history but no address to go to.
   it('distinguishes nothing-open from a pane with no address', async () => {
-    openPreview(
-      { kind: 'file', label: 'notes.md', source: '/notes.md', url: 'file:///notes.md' },
-      'tool-result'
-    )
+    openPreview({ kind: 'file', label: 'notes.md', source: '/notes.md', url: 'file:///notes.md' }, 'tool-result')
 
     const { actOnActivePreview } = await import('./preview-act')
     const nothing = await actOnActivePreview({ kind: 'navigate', url: 'https://example.com' })

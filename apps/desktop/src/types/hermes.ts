@@ -805,13 +805,7 @@ export type UsageUnit = 'count' | 'currency' | 'percent' | 'tokens'
 /** Typed reason a provider has no numbers. `no_usage_endpoint` is not an
  *  error — it is the normal answer for most of the provider registry. */
 export type ProviderUsageState =
-  | 'network_error'
-  | 'no_usage_endpoint'
-  | 'not_authenticated'
-  | 'ok'
-  | 'parse_error'
-  | 'rate_limited'
-  | 'unauthorized'
+  'network_error' | 'no_usage_endpoint' | 'not_authenticated' | 'ok' | 'parse_error' | 'rate_limited' | 'unauthorized'
 
 export interface ProviderUsageWindow {
   currency?: null | string

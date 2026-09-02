@@ -1,4 +1,4 @@
-import { atom, computed } from 'nanostores'
+import { atom, computed, type WritableAtom } from 'nanostores'
 
 import { forgetPreviewConsole } from '@/app/chat/right-rail/preview-console-store'
 import { persistentAtom } from '@/lib/persisted'
@@ -506,9 +506,14 @@ export function previewTabBelongsToSession(
 //    they key runtime session ids, and an embed that outlived its conversation
 //    would strand its tabs out of the strip forever.
 
-const withMembership = (current: ReadonlySet<string>, id: string, member: boolean): ReadonlySet<string> => {
+/** Add/remove one id in a set atom, in place of the `set(get(), …)` triple at
+ *  every call site. Returns the SAME set when nothing changed, so a no-op write
+ *  notifies nobody. */
+const setMembership = (store: WritableAtom<ReadonlySet<string>>, id: string, member: boolean): void => {
+  const current = store.get()
+
   if (current.has(id) === member) {
-    return current
+    return
   }
 
   const next = new Set(current)
@@ -519,7 +524,7 @@ const withMembership = (current: ReadonlySet<string>, id: string, member: boolea
     next.delete(id)
   }
 
-  return next
+  store.set(next)
 }
 
 /** Conversations whose browser lives in their chat column. */
@@ -542,10 +547,10 @@ export const $embeddedBrowserHosts = atom<ReadonlySet<string>>(new Set())
 
 /** Called by the panel on mount; the returned function unregisters. */
 export function registerEmbeddedBrowserHost(sessionId: string): () => void {
-  $embeddedBrowserHosts.set(withMembership($embeddedBrowserHosts.get(), sessionId, true))
+  setMembership($embeddedBrowserHosts, sessionId, true)
 
   return () => {
-    $embeddedBrowserHosts.set(withMembership($embeddedBrowserHosts.get(), sessionId, false))
+    setMembership($embeddedBrowserHosts, sessionId, false)
   }
 }
 
@@ -555,10 +560,10 @@ export const $embeddedBrowserExpanded = atom<ReadonlySet<string>>(new Set())
 /** Mount/unmount the embedded panel for a conversation. Unmounting also
  *  collapses it — a panel cannot be visible while it does not exist. */
 export function setEmbeddedBrowserSession(sessionId: string, embedded: boolean): void {
-  $embeddedBrowserSessions.set(withMembership($embeddedBrowserSessions.get(), sessionId, embedded))
+  setMembership($embeddedBrowserSessions, sessionId, embedded)
 
   if (!embedded) {
-    $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), sessionId, false))
+    setMembership($embeddedBrowserExpanded, sessionId, false)
   }
 }
 
@@ -588,14 +593,12 @@ export function toggleEmbeddedBrowser(sessionId: null | string = $browserSession
   if (!$embeddedBrowserSessions.get().has(key)) {
     openBrowserTab(key)
     setEmbeddedBrowserSession(key, true)
-    $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), key, true))
+    setMembership($embeddedBrowserExpanded, key, true)
 
     return
   }
 
-  $embeddedBrowserExpanded.set(
-    withMembership($embeddedBrowserExpanded.get(), key, !$embeddedBrowserExpanded.get().has(key))
-  )
+  setMembership($embeddedBrowserExpanded, key, !$embeddedBrowserExpanded.get().has(key))
 }
 
 /**
@@ -632,7 +635,7 @@ export function adoptDraftBrowserSession(runtimeId: null | string): void {
     const wasExpanded = $embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)
 
     setEmbeddedBrowserSession(runtimeId, true)
-    $embeddedBrowserExpanded.set(withMembership($embeddedBrowserExpanded.get(), runtimeId, wasExpanded))
+    setMembership($embeddedBrowserExpanded, runtimeId, wasExpanded)
   }
 
   if ($browserSessionId.get() === DRAFT_BROWSER_SESSION_ID) {
@@ -662,7 +665,6 @@ export function closeBrowserTabsForSession(sessionId: null | string, storedSessi
     const owned = (sessionId && tab.owner === sessionId) || (storedSessionId && tab.ownerKey === storedSessionId)
 
     if (tab.target.kind === 'url' && owned) {
-      forgetBrowserPage(tab.id)
       closeRightRailTab(tab.id)
     }
   }
@@ -692,11 +694,19 @@ export const $dockedPreviewTabs = computed(
     // A DRAFT conversation's tabs never belong to the strip, whatever else is
     // true. The draft key exists only for the primary chat column, so its panel
     // is the only surface that can host these — and making that structural is
-    // what closes the handover window: `$browserSessionId` moves to the real
-    // runtime id (focus sync) a beat before `adoptDraftBrowserSession` rewrites
-    // the owners, and for that beat the tab would otherwise re-enter the strip,
-    // register a pane, and lose it again to `removeTreePane` on the next write.
-    const notDraft = notPopped.filter(tab => tab.owner !== DRAFT_BROWSER_SESSION_ID)
+    // what makes the handover safe in ANY order. Adoption and the focus sync
+    // that moves `$browserSessionId` onto the real runtime id are separate
+    // writes; whichever lands first, a draft-owned tab that were merely
+    // unfiltered here would re-enter the strip for that beat, register a pane,
+    // and lose it again to `removeTreePane` on the next write — taking the live
+    // guest with it. Excluded by ownership, there is no such beat to get right.
+    // Same identity short-circuit as the line above: this computed feeds
+    // `paneMirror.sync()`, and nanostores skips notifying when the value is
+    // reference-equal. A fresh array on every unrelated recompute (a session
+    // switch, a pop-out) would re-run that whole sync for no change.
+    const notDraft = notPopped.some(tab => tab.owner === DRAFT_BROWSER_SESSION_ID)
+      ? notPopped.filter(tab => tab.owner !== DRAFT_BROWSER_SESSION_ID)
+      : notPopped
 
     if (embeddedSessions.size === 0) {
       return notDraft
@@ -897,21 +907,37 @@ export function newBrowserTab(sessionId: null | string = $browserSessionId.get()
   selectRightRailTab(id)
 }
 
+/**
+ * Everything a preview tab owns OUTSIDE `$previewTabs`, released together.
+ *
+ * Two module-level stores are keyed by tab id — the console buffer (up to
+ * MAX_LOGS unbounded message strings) and the live page title — and neither is
+ * reachable from the tab list, so a removal path that forgets either strands it
+ * for the window's lifetime. This is a named primitive rather than a step
+ * inside `closeRightRailTab` because the bulk closers below rewrite
+ * `$previewTabs` wholesale and never call it: closing the rail, and the agent's
+ * own `close_preview` tidy-up, are exactly the paths most likely to run
+ * unattended and least likely to be noticed leaking.
+ */
+function forgetPreviewTab(tabId: string): void {
+  forgetPreviewConsole(tabId)
+  forgetBrowserPage(tabId)
+}
+
 export function closeRightRailTab(tabId: string) {
+  // BEFORE the membership check, not after: both stores are keyed deletes, so
+  // forgetting a tab that has already left the list is free — and callers that
+  // reach here on a tab the list no longer holds (the pane mirror's closer,
+  // which fires on teardown) are exactly the ones whose state would otherwise
+  // be stranded with nobody left to release it.
+  forgetPreviewTab(tabId)
+
   const current = $previewTabs.get()
   const index = current.findIndex(tab => tab.id === tabId)
 
   if (index === -1) {
     return
   }
-
-  // Every close path funnels through here, which is why the console buffer is
-  // dropped HERE and not at one call site. It used to be released only by the
-  // pane mirror's own close, so a tab closed from the embedded strip — or by a
-  // conversation ending — left its state stranded in a module-level Map for the
-  // window's lifetime, pinning up to MAX_LOGS entries of unbounded message
-  // strings each.
-  forgetPreviewConsole(tabId)
 
   const next = current.filter(tab => tab.id !== tabId)
 
@@ -996,6 +1022,10 @@ export function closeArtifactPreviewTabs() {
 
 /** Close every tab so the rail's panes leave the tree. */
 export function closeRightRail() {
+  for (const tab of $previewTabs.get()) {
+    forgetPreviewTab(tab.id)
+  }
+
   $previewTabs.set([])
   selectRightRailTab(null)
 }
@@ -1014,6 +1044,10 @@ export function closeAgentPreviewTabs(sessionId: null | string): number {
 
   const doomedIds = new Set(doomed.map(tab => tab.id))
   const next = current.filter(tab => !doomedIds.has(tab.id))
+
+  for (const id of doomedIds) {
+    forgetPreviewTab(id)
+  }
 
   $previewTabs.set(next)
 

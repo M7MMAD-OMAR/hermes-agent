@@ -115,6 +115,29 @@ def _unquote_js(literal: str) -> str:
     return "".join(out)
 
 
+def _resolve_entry(entry: str, source: str) -> str:
+    """One array entry, as its value — a literal, or a const naming one.
+
+    An entry may be a bare identifier when the same string is also needed by a
+    predicate in the file, which is the only way to keep ONE copy of it there.
+    Resolving it here preserves what matters: the comparison below is still
+    byte-for-byte against the backend's own constant.
+    """
+    entry = entry.strip().rstrip(",").strip()
+
+    if entry[:1] not in "\"'":
+        declaration = re.search(
+            rf"^const {re.escape(entry)} = (.+)$", source, re.M
+        )
+        assert declaration, (
+            f"array entry {entry!r} is neither a string literal nor a `const "
+            f"{entry} = '...'` in the same file"
+        )
+        entry = declaration.group(1)
+
+    return _unquote_js(entry)
+
+
 def _parse_array(source: str, name: str) -> set[str]:
     """Read one ``const NAME: readonly string[] = [ ... ]`` as a set."""
     match = re.search(
@@ -126,7 +149,7 @@ def _parse_array(source: str, name: str) -> set[str]:
     assert match, f"{REGISTRY.name} has no `{name}` array — did the file move?"
 
     return {
-        _unquote_js(line)
+        _resolve_entry(line, source)
         for line in match.group(1).strip().splitlines()
         if line.strip()
     }

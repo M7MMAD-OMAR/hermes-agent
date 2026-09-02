@@ -34,10 +34,16 @@ const EXACT: readonly string[] = [
   '[System: Your previous response was truncated by the output length limit. Continue exactly where you left off. Do not restart or repeat prior text. Finish the answer directly.]'
 ]
 
+/** Hoisted because `isProcessNotification` needs the same text: this family has
+ *  its own richer rendering, so the string is read twice, and two copies of it
+ *  is the one drift the guard test below cannot see (it compares the arrays, not
+ *  the predicates). */
+const BACKGROUND_PROCESS_PREFIX = '[IMPORTANT: Background process '
+
 /** Matched at the start — these carry a variable tail (a process id, a tool
  *  name, the preserved task list). */
 const PREFIXES: readonly string[] = [
-  '[IMPORTANT: Background process ',
+  BACKGROUND_PROCESS_PREFIX,
   '[Your active task list was preserved across context compression]\n',
   '[System: Your previous tool call '
 ]
@@ -59,8 +65,16 @@ export function isRuntimeNudge(text: string): boolean {
   return EXACT.includes(trimmed) || PREFIXES.some(prefix => trimmed.startsWith(prefix))
 }
 
-/** The background-process family, which has its own richer rendering (a
- *  headline plus collapsible output) rather than the one-line notice. */
+/**
+ * The background-process family, which has its own richer rendering (a headline
+ * plus collapsible output) rather than the one-line notice.
+ *
+ * The closing bracket is required on purpose, and callers depend on it: a
+ * notification truncated mid-flight has no `]`, falls through to the plain
+ * notice, and is still not drawn as something the human typed.
+ */
 export function isProcessNotification(text: string): boolean {
-  return /^\[IMPORTANT: Background process [\s\S]*\]$/.test(text.trim())
+  const trimmed = text.trim()
+
+  return trimmed.startsWith(BACKGROUND_PROCESS_PREFIX) && trimmed.endsWith(']')
 }

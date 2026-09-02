@@ -19,12 +19,10 @@
 // Also reports the React commit cost attributed during the open, so a
 // regression can be told apart from "the machine was busy".
 
-import { sleep } from '../lib/cdp.mjs'
+import { SELECTORS, sleep } from '../lib/cdp.mjs'
 import { percentile } from '../lib/stats.mjs'
 
-const TOGGLE = '[data-slot="composer-browser-toggle"]'
-const PANEL = '[data-embedded-browser]'
-const VISIBLE = '[data-embedded-browser-visible]'
+const { browserPanel: PANEL, browserPanelVisible: VISIBLE, browserToggle: TOGGLE } = SELECTORS
 
 /**
  * One open/close cycle, timed inside the page.

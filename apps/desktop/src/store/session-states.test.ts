@@ -10,6 +10,12 @@ import {
   setWorkspaceScope,
   workspaceScopeKey
 } from '@/components/pane-shell/workspace-scope'
+import {
+  $embeddedBrowserSessions,
+  $previewTabs,
+  DRAFT_BROWSER_SESSION_ID,
+  setEmbeddedBrowserSession
+} from '@/store/preview'
 import { $activeGatewayProfile } from '@/store/profile'
 import { $activeSessionId, $connection, $selectedStoredSessionId, setSessions } from '@/store/session'
 import type { SessionProfileRoute } from '@/store/session-request-router'
@@ -1274,5 +1280,44 @@ describe('isSessionRemote (#94640)', () => {
     setSessions([{ id: 'stored-2', profile: 'loki' } as never])
 
     expect(isSessionRemote('stored-2')).toBe(true)
+  })
+})
+
+describe('the draft browser is not handed over by session focus', () => {
+  beforeEach(() => {
+    $previewTabs.set([])
+    $embeddedBrowserSessions.set(new Set())
+    $activeSessionId.set(null)
+  })
+
+  afterEach(() => {
+    $previewTabs.set([])
+    $embeddedBrowserSessions.set(new Set())
+    $activeSessionId.set(null)
+  })
+
+  // `adoptDraftBrowserSession` moves everything the draft opened onto a real
+  // runtime id, so WHEN it runs is the whole safety property. It used to run
+  // from `$activeSessionId.subscribe` here, which cannot tell "this draft just
+  // minted its session" from "you clicked another chat" — both hand it an id
+  // where there was none. Opening the browser on a new chat and then clicking
+  // any existing conversation dragged the browser along into a chat that never
+  // opened it. The trigger now lives at the one call site that means what it
+  // says (use-session-actions, right after the session is created).
+  it('leaves the draft owning its tabs when an existing session is focused', () => {
+    setEmbeddedBrowserSession(DRAFT_BROWSER_SESSION_ID, true)
+    $previewTabs.set([
+      {
+        id: 'url:draft-page',
+        owner: DRAFT_BROWSER_SESSION_ID,
+        target: { kind: 'url', label: 'draft', source: 'https://a.test', url: 'https://a.test' }
+      }
+    ])
+
+    $activeSessionId.set('runtime-someone-else')
+
+    expect($previewTabs.get()[0].owner).toBe(DRAFT_BROWSER_SESSION_ID)
+    expect($embeddedBrowserSessions.get().has('runtime-someone-else')).toBe(false)
+    expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
   })
 })

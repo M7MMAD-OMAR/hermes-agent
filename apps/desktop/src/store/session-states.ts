@@ -35,7 +35,7 @@ import { stableArray } from '@/lib/stable-array'
 import { readJson, writeJson } from '@/lib/storage'
 import type { SessionInfo } from '@/types/hermes'
 
-import { $browserSessionId, adoptDraftBrowserSession, browserSessionKey } from './preview'
+import { $browserSessionId, browserSessionKey } from './preview'
 import { $activeGatewayProfile, normalizeProfileKey } from './profile'
 import { clearAllProviderWaits, clearSessionProviderWait } from './provider-wait'
 import {
@@ -1977,10 +1977,6 @@ function syncBrowserSession(): void {
 
 $focusedRuntimeId.subscribe(syncBrowserSession)
 $activeTreeGroup.listen(syncBrowserSession)
-
-/** The draft chat just became a real session — hand its browser over before
- *  anything else re-reads ownership. */
-$activeSessionId.subscribe(runtimeId => adoptDraftBrowserSession(runtimeId))
 
 /** The focused session's state slice (undefined while unresolved/unbound). */
 export const $focusedSessionState = computed([$focusedRuntimeId, $sessionStates], (runtimeId, states) =>

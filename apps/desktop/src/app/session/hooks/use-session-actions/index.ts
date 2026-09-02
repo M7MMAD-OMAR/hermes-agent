@@ -37,6 +37,7 @@ import {
 import { $gatewaySwitching } from '@/store/gateway-switch'
 import { $pinnedSessionIds } from '@/store/layout'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
+import { adoptDraftBrowserSession } from '@/store/preview'
 import {
   $activeGatewayProfile,
   $gatewaySwapTarget,
@@ -665,6 +666,13 @@ export function useSessionActions({
 
         setFreshDraftReady(false)
         setNewChatWorkspaceTarget(undefined)
+        // THIS is the moment the draft became a session, and the only one. A
+        // store-level `$activeSessionId` listener cannot tell it apart from you
+        // clicking an existing chat — both hand it a runtime id where there was
+        // none — and adopting on the wrong one drags the draft's browser into a
+        // conversation that never opened it. Hand the browser over before
+        // anything downstream re-reads ownership.
+        adoptDraftBrowserSession(created.session_id)
         setActiveSessionId(created.session_id)
         setSelectedStoredSessionId(stored)
         setSessionStartedAt(Date.now())

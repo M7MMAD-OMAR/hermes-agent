@@ -16,7 +16,10 @@ export const SELECTORS = {
   assistantMessage: '[data-slot="aui_assistant-message-root"]',
   turnPair: '[data-slot="aui_turn-pair"]',
   profileRail: '[data-slot="profile-rail"]',
-  rowButton: '[data-slot="row-button"]'
+  rowButton: '[data-slot="row-button"]',
+  browserToggle: '[data-slot="composer-browser-toggle"]',
+  browserPanel: '[data-embedded-browser]',
+  browserPanelVisible: '[data-embedded-browser-visible]'
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))

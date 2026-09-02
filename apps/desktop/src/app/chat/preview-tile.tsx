@@ -34,7 +34,6 @@ import {
   adoptPersistedBrowserTab,
   type BrowserPage,
   closeRightRailTab,
-  forgetBrowserPage,
   markBrowserTabPopped,
   newBrowserTab,
   popOutBrowserTab,
@@ -46,7 +45,6 @@ import { canOpenBrowserWindow } from '@/store/windows'
 
 import { paneMirror } from './pane-mirror'
 import { PreviewTilePane } from './right-rail/preview'
-import { forgetPreviewConsole } from './right-rail/preview-console-store'
 
 /** The target behind a tile id, or null once its tab is gone. */
 function targetFor(tabId: string): PreviewTarget | null {
@@ -150,8 +148,13 @@ export function browserTabLabel(target: PreviewTarget, page?: BrowserPage): stri
 }
 
 /** Live tab label for a Browser: it renames itself as the page navigates,
- *  without the contribution re-registering (see PaneChrome.tabTitle). */
-function BrowserTabLabel({ tabId }: { tabId: string }) {
+ *  without the contribution re-registering (see PaneChrome.tabTitle).
+ *
+ *  Exported for the embedded panel's own strip, which shows the same tabs by
+ *  the same rule — and, being its own component, isolates `$browserPages` (a
+ *  store rewritten on every navigation and title tick of every browser tab in
+ *  the app) to one <span> instead of re-rendering the pane around it. */
+export function BrowserTabLabel({ tabId }: { tabId: string }) {
   const pages = useStore($browserPages)
   const target = targetFor(tabId)
 
@@ -314,11 +317,5 @@ const watchPreviewTileMirror = paneMirror<{ id: string }>({
   newTab: tabId => (targetFor(tabId)?.kind === 'url' ? newBrowserTab : undefined),
   tabMenuPrefix: browserTabMenuPrefix,
   render: tabId => <PreviewTilePane tabId={tabId} />,
-  close: tabId => {
-    forgetBrowserPage(tabId)
-    // (console state is released by closeRightRailTab, which every close
-    //  path funnels through — kept here only for the mirror's own dispose)
-    forgetPreviewConsole(tabId)
-    closeRightRailTab(tabId)
-  }
+  close: tabId => closeRightRailTab(tabId)
 })

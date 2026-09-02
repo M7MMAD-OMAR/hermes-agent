@@ -5,25 +5,25 @@ import { $restartPreviewServer } from '@/app/contrib/panes'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
+import { guardGuestPointers } from '@/lib/guest-pointer-guard'
+import { isMetaClose, middleClickHandlers } from '@/lib/middle-click'
 import { rafCoalesce } from '@/lib/raf-coalesce'
 import { cn } from '@/lib/utils'
 import { $rightRailActiveTabId, selectRightRailTab } from '@/store/layout'
 import { $paneWidthOverride, setPaneWidthOverride } from '@/store/panes'
 import {
-  $browserPages,
   $embeddedBrowserExpanded,
   $embeddedBrowserSessions,
   $previewReloadRequest,
   $previewTabs,
   closeRightRailTab,
-  forgetBrowserPage,
   newBrowserTab,
   type PreviewTab,
   previewTabBelongsToSession,
   registerEmbeddedBrowserHost
 } from '@/store/preview'
 
-import { browserTabLabel } from './preview-tile'
+import { BrowserTabLabel, browserTabLabel } from './preview-tile'
 import { PreviewPane } from './right-rail/preview-pane'
 
 /**
@@ -95,15 +95,70 @@ export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
   return <EmbeddedBrowserBody sessionId={sessionId} />
 }
 
-/** The live tab label, isolated so `$browserPages` — rewritten on every
- *  navigation and title tick of every browser tab in the app — re-renders one
- *  <span> instead of the whole pane. The layout strip already does exactly this
- *  (`BrowserTabLabel` in preview-tile.tsx); the embedded panel had regressed to
- *  a top-level subscription. */
-function EmbeddedTabLabel({ tab }: { tab: PreviewTab }) {
-  const pages = useStore($browserPages)
+/**
+ * One tab in the mini strip.
+ *
+ * A DIV wrapping two buttons, not a button containing a second one: interactive
+ * content cannot nest, and the ✕ was a `role="button"` span inside the tab's own
+ * `<button>` — invalid markup that only worked because the inner click stopped
+ * propagating. `PaneTab` has the same shape for the same reason.
+ *
+ * Close gestures come from the shared `middleClickHandlers` so this strip
+ * answers a middle-click and a ⌘-click like every other tab strip in the app.
+ * They are not a nicety here: the ✕ only appears on hover, so on a narrow pane
+ * they are often the fastest way to shed a page.
+ */
+function EmbeddedTab({
+  active,
+  closeLabel,
+  onClose,
+  tab
+}: {
+  active: boolean
+  closeLabel: string
+  onClose: () => void
+  tab: PreviewTab
+}) {
+  const middle = middleClickHandlers(onClose)
 
-  return <>{browserTabLabel(tab.target, pages[tab.id])}</>
+  return (
+    <div
+      className={cn(
+        'group relative flex min-w-0 shrink-0 items-center rounded text-xs',
+        active ? 'bg-(--ui-accent)/10 text-(--ui-text)' : 'text-(--ui-text-tertiary) hover:bg-(--ui-hover)'
+      )}
+      {...middle}
+    >
+      <button
+        aria-label={browserTabLabel(tab.target)}
+        className="min-w-0 max-w-40 truncate px-2 py-0.5 text-left"
+        onClick={event => {
+          // ⌘-click closes, matching PaneTab — claimed before the activate so a
+          // closing click can't also select the tab it just removed.
+          if (isMetaClose(event)) {
+            event.preventDefault()
+            onClose()
+
+            return
+          }
+
+          selectRightRailTab(tab.id)
+        }}
+        type="button"
+      >
+        <BrowserTabLabel tabId={tab.id} />
+      </button>
+      <button
+        aria-label={closeLabel}
+        className="mr-1 hidden rounded p-px hover:bg-(--ui-hover) group-hover:block"
+        onClick={onClose}
+        tabIndex={-1}
+        type="button"
+      >
+        <Codicon name="close" size="0.6875rem" />
+      </button>
+    </div>
+  )
 }
 
 function EmbeddedBrowserBody({ sessionId }: { sessionId: string }) {
@@ -123,7 +178,8 @@ function EmbeddedBrowserBody({ sessionId }: { sessionId: string }) {
   // re-homed for. Widening means "the seam moved away from the browser's outer
   // edge", whichever edge that is.
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const panel = event.currentTarget.parentElement
+    const handle = event.currentTarget
+    const panel = handle.parentElement
     const row = panel?.parentElement
 
     if (!panel || !row || event.button !== 0) {
@@ -137,37 +193,93 @@ function EmbeddedBrowserBody({ sessionId }: { sessionId: string }) {
     // Which physical edge of the row this pane is pinned to. The seam is the
     // other one, and the pointer moves toward the pinned edge to widen.
     const pinnedRight = panelBox.right >= rowBox.right - 1
+    const pointerId = event.pointerId
     const startX = event.clientX
     const startWidth = panelBox.width
     const max = Math.max(MIN_BROWSER_PX, rowBox.width - MIN_CHAT_PX)
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+    let width = startWidth
+    let active = true
 
-    setDragging(true)
+    try {
+      handle.setPointerCapture?.(pointerId)
+    } catch {
+      // Synthetic events.
+    }
 
-    // ONE width write per frame, not one per pointermove. The chain behind a
-    // single write is long and entirely synchronous: `$paneStates.set` →
-    // `JSON.stringify` of the whole pane-state map → `localStorage.setItem` →
-    // this panel re-renders → the inline width changes → layout → PreviewPane's
-    // ResizeObserver → `apply()` → a rect read and a zoom/emulate call into the
-    // guest. A trackpad drag delivers those faster than a frame, so uncoalesced
-    // it runs the chain several times for one painted frame.
-    const commit = rafCoalesce<number>(width => setPaneWidthOverride(WIDTH_PANE_ID, width))
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    // NOT optional on this sash: it faces the transcript, so narrowing the
+    // browser drags the pointer straight across the guest — and a <webview>
+    // hit-tests in its own process, which swallows the rest of the gesture AND
+    // the pointerup that would end it. Without this the drag freezes a few
+    // pixels in and the move listener outlives the release, so ordinary mouse
+    // movement keeps resizing the pane. Every sash in the app opens with it.
+    const releaseGuests = guardGuestPointers()
+
+    // Preview with an inline write; commit the store ONCE on release — the same
+    // rule the layout tree's sash documents. `setPaneWidthOverride` persists:
+    // one call is `JSON.stringify` of the whole pane-state map plus a
+    // synchronous `localStorage.setItem`, then a re-render of this panel, then
+    // PreviewPane's ResizeObserver and a zoom/emulate hop into the guest. Per
+    // frame of a drag that is the entire frame budget.
+    const preview = rafCoalesce<number>(next => {
+      panel.style.width = `${next}px`
+    })
 
     const onMove = (move: globalThis.PointerEvent) => {
+      if (!active) {
+        return
+      }
+
       const delta = pinnedRight ? startX - move.clientX : move.clientX - startX
 
-      commit.push(Math.round(Math.min(max, Math.max(MIN_BROWSER_PX, startWidth + delta))))
+      width = Math.round(Math.min(max, Math.max(MIN_BROWSER_PX, startWidth + delta)))
+      preview.push(width)
     }
 
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove)
-      // Commit the last position even if it arrived inside the pending frame,
-      // or the pane settles a few pixels off where the pointer was released.
-      commit.finish()
+    // Idempotent, and reached from every way a drag can end — a release over
+    // the guest, a cancelled pointer, the window losing focus.
+    const cleanup = () => {
+      if (!active) {
+        return
+      }
+
+      active = false
+      preview.finish()
+      releaseGuests()
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+
+      try {
+        handle.releasePointerCapture?.(pointerId)
+      } catch {
+        // Never captured.
+      }
+
+      window.removeEventListener('pointermove', onMove, true)
+      window.removeEventListener('pointerup', cleanup, true)
+      window.removeEventListener('pointercancel', cleanup, true)
+      window.removeEventListener('blur', cleanup)
+      handle.removeEventListener('lostpointercapture', cleanup)
       setDragging(false)
+
+      // A press that never moved is not a resize. Committing it would freeze
+      // the default fraction into a hard pixel width on a stray click — and
+      // take the double-click reset with it, since that arrives as two of them.
+      if (width !== startWidth) {
+        setPaneWidthOverride(WIDTH_PANE_ID, width)
+      }
     }
 
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp, { once: true })
+    setDragging(true)
+    window.addEventListener('pointermove', onMove, true)
+    window.addEventListener('pointerup', cleanup, true)
+    window.addEventListener('pointercancel', cleanup, true)
+    window.addEventListener('blur', cleanup)
+    handle.addEventListener('lostpointercapture', cleanup)
   }
 
   // `$previewTabs` is rewritten WHOLESALE on every navigation commit, so without
@@ -180,11 +292,6 @@ function EmbeddedBrowserBody({ sessionId }: { sessionId: string }) {
 
   const active = mine.find(tab => tab.id === activeTabId) ?? mine.at(-1)
   const visible = expanded.has(sessionId)
-
-  const closeTab = (tab: PreviewTab) => {
-    forgetBrowserPage(tab.id)
-    closeRightRailTab(tab.id)
-  }
 
   return (
     <div
@@ -230,39 +337,22 @@ function EmbeddedBrowserBody({ sessionId }: { sessionId: string }) {
           )}
         />
       </div>
+      {/* Scrolls rather than squashing: the pane is the narrow half of the
+          column, so a handful of tabs is enough to run out of room. Same
+          treatment as `PaneTabStrip` — hidden scrollbar, contained overscroll
+          so a trackpad flick here can't page the chat behind it. */}
       <div
-        className="flex items-center gap-0.5 border-b border-(--ui-border) px-1.5 py-1"
+        className="flex items-center gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-(--ui-border) px-1.5 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         data-embedded-browser-strip=""
       >
         {mine.map(tab => (
-          <button
-            aria-label={browserTabLabel(tab.target)}
-            className={cn(
-              'group relative flex min-w-0 items-center rounded px-2 py-0.5 text-xs',
-              tab.id === active?.id
-                ? 'bg-(--ui-accent)/10 text-(--ui-text)'
-                : 'text-(--ui-text-tertiary) hover:bg-(--ui-hover)'
-            )}
+          <EmbeddedTab
+            active={tab.id === active?.id}
+            closeLabel={t.preview.embeddedCloseTab}
             key={tab.id}
-            onClick={() => selectRightRailTab(tab.id)}
-            type="button"
-          >
-            <span className="max-w-40 truncate">
-              <EmbeddedTabLabel tab={tab} />
-            </span>
-            <span
-              aria-label={t.preview.embeddedCloseTab}
-              className="ml-1 hidden rounded p-px hover:bg-(--ui-hover) group-hover:inline-block"
-              onClick={event => {
-                event.stopPropagation()
-                closeTab(tab)
-              }}
-              role="button"
-              tabIndex={-1}
-            >
-              <Codicon name="close" size="0.6875rem" />
-            </span>
-          </button>
+            onClose={() => closeRightRailTab(tab.id)}
+            tab={tab}
+          />
         ))}
         <Tip label={t.preview.embeddedNewTab}>
           <button

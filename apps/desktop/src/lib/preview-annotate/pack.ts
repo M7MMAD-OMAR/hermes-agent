@@ -22,7 +22,7 @@ function identityBlock(pin: AnnotatePin): string {
   if (!pin.identity) {
     // An area pin has no element to name, but it still has a place — and the
     // place is the entire content of the comment, so it says where.
-    return `area on the page (${formatRect(pin.rect) || `${Math.round(pin.rect.width)}×${Math.round(pin.rect.height)}px`})`
+    return `area on the page (${formatRect(pin.rect)})`
   }
 
   return formatIdentityLine(pin.identity)

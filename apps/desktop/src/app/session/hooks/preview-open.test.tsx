@@ -19,6 +19,16 @@ function fileTarget(path: string): PreviewTarget {
   return { kind: 'file', label: path, path, previewKind: 'html', source: path, url: `file://${path}` }
 }
 
+/** A real http(s) address normalizes to a URL target — and URL tabs opened by
+ *  the tool are agent-owned, which is exactly what the bulk-close guard reads. */
+function urlTarget(url: string): PreviewTarget {
+  return { kind: 'url', label: url, source: url, url }
+}
+
+function normalize(target: string): PreviewTarget {
+  return /^https:\/\//.test(target) ? urlTarget(target) : fileTarget(target)
+}
+
 let handleEvent: (event: RpcEvent) => void = () => undefined
 
 function Harness() {
@@ -35,10 +45,14 @@ function Harness() {
   return null
 }
 
-async function emitPreviewOpen(url = '/tmp/artifact-test.html', sessionId = RUNTIME_SESSION_ID) {
+async function emitPreviewOpen(
+  url = '/tmp/artifact-test.html',
+  sessionId = RUNTIME_SESSION_ID,
+  newTab = false
+) {
   await act(async () => {
     handleEvent({
-      payload: { label: 'hi bestie', url },
+      payload: { label: 'hi bestie', url, ...(newTab ? { new_tab: true } : {}) },
       session_id: sessionId,
       type: 'preview.open'
     } as unknown as RpcEvent)
@@ -66,7 +80,7 @@ describe('preview routing', () => {
 
     Object.defineProperty(window, 'hermesDesktop', {
       configurable: true,
-      value: { normalizePreviewTarget: vi.fn(async (target: string) => fileTarget(target)) }
+      value: { normalizePreviewTarget: vi.fn(async (target: string) => normalize(target)) }
     })
   })
 
@@ -207,17 +221,40 @@ describe('preview routing', () => {
   })
 
   describe('close_preview', () => {
-    it('closes the whole pane when no url is given', async () => {
+    it('closes only the requesting session agent tabs when no url is given', async () => {
+      // The old contract closed the whole rail, the user's pages with the
+      // agent's: the "يحزف لي كل شي" complaint, verbatim. A no-url close is
+      // now scoped to the tabs the requesting session's agent owns — the
+      // http pages the agent opened through preview.open are exactly that.
       render(<Harness />)
 
-      await emitPreviewOpen('/tmp/one.html')
-      await emitPreviewOpen('/tmp/two.html')
+      await emitPreviewOpen('https://agent-one.example')
+      // A tool open without new_tab re-fronts the session's own tab (the
+      // no-one-way-door rule), so the second page needs new_tab to be a
+      // second physical tab the bulk close can count.
+      await emitPreviewOpen('https://agent-two.example', RUNTIME_SESSION_ID, true)
       await waitFor(() => expect($previewTabs.get()).toHaveLength(2))
 
       await emitPreviewClose('')
 
-      expect($previewTabs.get()).toHaveLength(0)
-      expect($previewTarget.get()).toBeNull()
+      await waitFor(() => expect($previewTabs.get()).toHaveLength(0))
+    })
+
+    it('the no-url bulk close leaves tabs the agent does not own', async () => {
+      render(<Harness />)
+
+      await emitPreviewOpen('/tmp/agent-file.html')
+      await waitFor(() => expect($previewTabs.get()).toHaveLength(1))
+
+      // A file tab opened through the tool carries no ownership claim, so the
+      // bulk close refuses it: bulk cleanup is exactly what was reported as
+      // data loss. A named close can still take it down on request.
+      await emitPreviewClose('')
+
+      expect($previewTabs.get()).toHaveLength(1)
+
+      await emitPreviewClose('/tmp/agent-file.html')
+      await waitFor(() => expect($previewTabs.get()).toHaveLength(0))
     })
 
     it('closes only the matching tab when a url is given', async () => {

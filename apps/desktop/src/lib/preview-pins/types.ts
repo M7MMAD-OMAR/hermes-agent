@@ -31,12 +31,15 @@ export interface PinShot {
 }
 
 export interface PreviewPin {
-  /** What the user wrote. Empty until they finish the bubble. */
   comment: string
   /** When it was placed, for stable ordering in the list. */
   createdAt: number
   id: string
   kind: PinKind
+  /** Reached the chat — composer chip or queue — so the pending list hides it
+   *  and its marker reads done. Never set automatically for anything else:
+   *  resolved/clear stay manual. */
+  delivered?: boolean
   /** Which rung of the ladder found it last, e.g. `selector`, `role+label`.
    *  Surfaced in the list so a weak re-attach is visible rather than silent. */
   matchedBy?: string
@@ -63,6 +66,14 @@ export interface PinEngineReport {
    *  navigation resets it, and the panel would otherwise show a toggle that no
    *  longer reflects the page. */
   armed: boolean
+  /** The comment bubble is on screen. The panel tightens its poll while this
+   *  holds, so the bubble's shortcuts land within a beat. */
+  bubbleOpen?: boolean
+  /** Delivery requests the bubble queued for the panel: the bubble lives in
+   *  the guest page with no bridge to the composer, so a Ctrl+Enter there can
+   *  only WRITE its intent; the next state read carries it out and the panel
+   *  executes it. Cleared once the panel acts on them. */
+  deliver?: PinDeliverRequest[]
   /** Markers are painted out and the page is fully released. Set while the
    *  panel is closed, so a reopen knows to repaint rather than re-place. */
   hidden: boolean
@@ -74,4 +85,11 @@ export interface PinEngineReport {
   /** Full bytes, only in the answer to a `take`. */
   shot?: null | string
   url: string
+}
+
+/** The bubble asked for one comment to reach the chat: now, or as a queue
+ *  entry. `mode` mirrors the panel's two send buttons. */
+export interface PinDeliverRequest {
+  id: string
+  mode: 'queue' | 'now'
 }

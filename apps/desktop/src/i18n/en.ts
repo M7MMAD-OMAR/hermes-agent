@@ -313,6 +313,8 @@ export const en: Translations = {
       'view.toggleTabStrip': 'Toggle tabs',
       'view.showFiles': 'Show file browser',
       'view.showBrowser': 'Open browser',
+      'view.toggleAnnotate': 'Toggle page annotation mode',
+      'view.attachPins': 'Send every pending page comment to the chat',
       'view.toggleHud': 'Toggle HUD mode',
       'hud.snapToPointer': 'Move HUD to pointer (global, while HUD is open)',
       'view.showTerminal': 'Toggle terminal',

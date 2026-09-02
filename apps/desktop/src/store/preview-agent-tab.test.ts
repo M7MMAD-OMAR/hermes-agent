@@ -388,12 +388,17 @@ describe('agent browser tabs across sessions', () => {
     expect(agentPreviewTabId(B)).toBeNull()
   })
 
-  // But a page the PERSON opened is still everyone's, which is the whole point
-  // of the fallback and must survive the fix above.
-  it('still falls back to a page you opened yourself', () => {
+  // The fallback to "a page you opened yourself" is GONE, on the user's
+  // explicit instruction: the agent must never act on the user's tab, not even
+  // a page the person opened with their own hands — every drive_preview verb
+  // includes reload and navigate, and one reload of "the page you are looking
+  // at" is exactly the reported data-loss complaint. A conversation with no
+  // tab of its own gets an error and opens one with open_preview.
+  it('never falls back to a page the user opened themselves', () => {
     openPreview(url('mine.com'))
 
-    expect(agentPreviewTabId(B)).toBe($previewTabs.get()[0]?.id)
+    expect(agentPreviewTabId(B)).toBeNull()
+    expect($previewTabs.get()).toHaveLength(1) // the user's page is untouched
   })
 
   // The strip's "+" joins the browser you are LOOKING at, which belongs to a

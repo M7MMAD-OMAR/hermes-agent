@@ -3,6 +3,7 @@
 import './preview-mind'
 
 import { useStore } from '@nanostores/react'
+import { computed } from 'nanostores'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -22,6 +23,7 @@ import { notify, notifyError } from '@/store/notifications'
 import {
   $browserPages,
   $previewServerRestart,
+  $previewTabs,
   commitBrowserTabLocation,
   failPreviewServerRestart,
   noteBrowserPage,
@@ -71,6 +73,11 @@ type PreviewWebview = HTMLElement & {
   replaceMisspelling?: (word: string) => void
   selectAll?: () => void
   sendInputEvent?: (event: PreviewInputEvent) => void
+  /** Chromium's zoom level for THIS guest. The webview inherits the host
+   *  window's zoom, which breaks every layout the page tuned itself to — the
+   *  guest is pinned back to 1:1 with this (see pinGuestZoom). */
+  setZoomLevel?: (level: number) => void
+  setZoomFactor?: (factor: number) => void
 }
 
 /** Electron throws if getURL/getTitle run before attach + dom-ready, or after
@@ -169,6 +176,49 @@ function hostZoomFactor(): number {
   return Number.isFinite(zoom) && (zoom ?? 0) > 0 ? (zoom as number) : 1
 }
 
+/** Inverse of Chromium's level↔factor mapping (factor = 1.2 ^ level). */
+export function zoomFactorToLevel(factor: number): number {
+  return Math.log(factor) / Math.log(1.2)
+}
+
+/**
+ * Pin the guest back to 1:1 whatever the app window's zoom is doing.
+ *
+ * The `<webview>` inherits the host window's zoom, so zooming Hermes to 134%
+ * scaled every page's text and broke every layout the page had tuned to its
+ * real viewport — the complaint, "عم يخرب التخطيط". The guest paints at
+ * hostZoom × guestZoom, so compensating the guest by 1/hostZoom pins the
+ * page at exactly 1:1.
+ *
+ * Pure and exported so the arithmetic is unit-testable; the LADDER below
+ * decides when it runs. Per-origin zoom still exists inside the guest's own
+ * partition — the user's own Ctrl+plus inside the browser bar keeps working,
+ * and the agent partition no longer shares origins with the user's
+ * (persist:hermes-agent), so pinning one pane cannot fight another's zoom
+ * across partitions. Within one partition, the re-assert ladder wins by
+ * running last: it only fires on attach/navigate/zoom-change, and a user zoom
+ * of the guest lands between ladder runs and stays until the next one.
+ */
+export function pinGuestZoom(webview: PreviewWebview | null | undefined, hostFactor: number): boolean {
+  if (!webview || typeof webview.setZoomLevel !== 'function') {
+    return false
+  }
+
+  const factor = Number.isFinite(hostFactor) && hostFactor > 0 ? hostFactor : 1
+  // `+ 0` normalizes the factor===1 case from -0 to 0: same value to Chromium,
+  // but a clean number for tests, logs and anyone reading the call.
+  const level = -zoomFactorToLevel(factor) + 0
+
+  try {
+    webview.setZoomLevel(level)
+
+    return true
+  } catch {
+    // A webview torn down mid-call refuses; the next ladder rung re-pins.
+    return false
+  }
+}
+
 function isRemoteLoopbackUrl(url: string): boolean {
   if (!isRemoteGateway()) {
     return false
@@ -256,6 +306,11 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
   const previewServerRestart = useStore($previewServerRestart)
   const consoleHeight = useStore(consoleState.$height)
   const consoleOpen = useStore(consoleState.$open)
+  // Agent tabs run on their own partition: cookies, storage and Chromium's
+  // per-origin zoom map stay separate from the user's, so the agent's session
+  // state can neither read nor disturb the user's — and the user's zoom on a
+  // site cannot ride into the agent's copy of it.
+  const isAgentTab = useStore(useMemo(() => computed($previewTabs, tabs => Boolean(tabId && tabs.find(t => t.id === tabId)?.agent)), [tabId]))
   // Annotation mode is per-pane and deliberately not persisted: a review
   // session is a thing you start, not a mode you leave on.
   const [pinPanelOpen, setPinPanelOpen] = useState(false)
@@ -343,6 +398,12 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
       if (!webview) {
         return
       }
+
+      // FIRST, before anything measures the guest: the webview inherits the
+      // host window's zoom, which scales every page and breaks the layout it
+      // tuned to its real viewport. Pin it 1:1 on every rung of this ladder
+      // (attach, navigate, host zoom change).
+      pinGuestZoom(webview, hostZoomFactor())
 
       // The guest attaches after the element does; before that there is no
       // webContents to emulate and the call would be dropped silently.
@@ -917,7 +978,10 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
 
     const webview = document.createElement('webview') as PreviewWebview
     webview.className = 'flex h-full w-full flex-1 bg-transparent'
-    webview.setAttribute('partition', 'persist:hermes-preview')
+    // Agent tabs ride their own partition (see isAgentTab). Set here, at
+    // creation, and never changed for a tab's lifetime: a partition swap
+    // rebuilds the webview and every login it held.
+    webview.setAttribute('partition', isAgentTab ? 'persist:hermes-agent' : 'persist:hermes-preview')
     webview.setAttribute('src', target.url)
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes')
 
@@ -1141,7 +1205,7 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
       webview.removeEventListener('page-title-updated', notePage)
       webview.remove()
     }
-  }, [appendConsoleEntry, consoleState, copy, isRemoteHtml, isWebPreview, tabId, target.kind, target.url])
+  }, [appendConsoleEntry, consoleState, copy, isAgentTab, isRemoteHtml, isWebPreview, tabId, target.kind, target.url])
 
   return (
     <aside

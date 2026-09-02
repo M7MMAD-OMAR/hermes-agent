@@ -174,6 +174,13 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   { id: 'view.findNext', category: 'view', defaults: [] },
   { id: 'view.findPrevious', category: 'view', defaults: [] },
   { id: 'appearance.toggleMode', category: 'view', defaults: ['shift+x'] },
+  // Annotation mode for the embedded browser's pin panel. Both chords are
+  // layout-neutral in effect: `mod` derives from event.code (combo.ts), so the
+  // Arabic m17n layout never remaps them. A ships bound; the attach-all
+  // sibling ships unbound so the default set never conflicts with mod+alt
+  // symbol emission on some layouts.
+  { id: 'view.toggleAnnotate', category: 'view', defaults: ['mod+shift+a'] },
+  { id: 'view.attachPins', category: 'view', defaults: [] },
   { id: 'keybinds.openPanel', category: 'view', defaults: ['mod+/'] }
 ]
 

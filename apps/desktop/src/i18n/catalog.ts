@@ -33,6 +33,7 @@ type LocaleLoader = () => Promise<{ default?: Translations } & Record<string, un
 const LOADERS: Record<Exclude<Locale, 'en'>, LocaleLoader> = {
   ar: () => import('./ar'),
   ja: () => import('./ja'),
+  ru: () => import('./ru'),
   zh: () => import('./zh'),
   'zh-hant': () => import('./zh-hant')
 }
@@ -42,6 +43,7 @@ const LOADERS: Record<Exclude<Locale, 'en'>, LocaleLoader> = {
 const EXPORT_NAMES: Record<Exclude<Locale, 'en'>, string> = {
   ar: 'ar',
   ja: 'ja',
+  ru: 'ru',
   zh: 'zh',
   'zh-hant': 'zhHant'
 }

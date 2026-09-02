@@ -34,7 +34,7 @@ const request = vi.fn(async () => undefined)
 vi.mock('@/store/gateway', () => ({
   // `subscribe` is unused here but other store modules pulled in by the import
   // graph attach listeners at module scope.
-  $gateway: { get: () => ({ request }), subscribe: () => () => undefined }
+  $gateway: { get: () => ({ request }), listen: () => () => undefined, subscribe: () => () => undefined }
 }))
 
 const { handleDesktopBridgeEvent, previewActionFromPayload } = await import('./desktop-bridge')

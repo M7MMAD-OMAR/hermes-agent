@@ -67,18 +67,6 @@ describe('bubble send shortcuts (Sprint 02)', () => {
     expect(withRequest.deliver).toEqual([{ id: placed.id, mode: 'now' }])
   })
 
-  it('a no-id deliver verb ACKS: the request list empties after the panel acts', () => {
-    const placed = placePin('#save')
-
-    const state = (holder as Record<string, Record<string, unknown>>)['__hermesPinState']
-
-    ;(state.deliver as unknown[]).push({ id: placed.id, mode: 'queue' })
-
-    expect(run({ verb: 'state' }).deliver).toHaveLength(1)
-    run({ verb: 'deliver' }) // the ACK
-    expect(run({ verb: 'state' }).deliver).toEqual([])
-  })
-
   it('reports bubbleOpen while a comment is open, so the panel tightens its poll', () => {
     expect(run({ verb: 'state' }).bubbleOpen).toBe(false)
     // openBubble runs through onPinClick; simulate via the state the engine
@@ -90,38 +78,130 @@ describe('bubble send shortcuts (Sprint 02)', () => {
   })
 })
 
-describe('delivery marking', () => {
-  it('marks one pin delivered and the marker shows it', () => {
+describe('delivery — the end of a pin life on the page', () => {
+  it('a delivered pin LEAVES the page: marker, pending state and all', () => {
     const placed = placePin('#save', 'make it blue')
     run({ delivered: true, id: placed.id as string, verb: 'deliver' })
 
-    const pin = run({ verb: 'state' }).pins[0]
-
-    expect(pin.delivered).toBe(true)
-    // The marker lives in the engine's shadow root, not the light DOM.
-    const marker = document.getElementById('hermes-pin-host')?.shadowRoot?.querySelector('.pin')
-
-    expect(marker?.textContent).toContain('✓')
+    // Delivery is the auto-clear: a comment that left for the chat must not
+    // stay active on the page until it is deleted by hand.
+    expect(run({ verb: 'state' }).pins).toHaveLength(0)
+    expect(document.getElementById('hermes-pin-host')!.shadowRoot!.querySelectorAll('.pin')).toHaveLength(0)
   })
 
-  it('un-marks on a failed delivery, so the comment stays pending', () => {
+  it('clears a whole batch in one call, and only that batch', () => {
+    const first = placePin('#save', 'one')
+    const second = placePin('#note', 'two')
+    run({ delivered: true, ids: [first.id as string, second.id as string], verb: 'deliver' })
+
+    expect(run({ verb: 'state' }).pins).toHaveLength(0)
+  })
+
+  it('a failed delivery (false) leaves the comment pending', () => {
     const placed = placePin('#save', 'make it blue')
-    run({ delivered: true, id: placed.id as string, verb: 'deliver' })
     run({ delivered: false, id: placed.id as string, verb: 'deliver' })
 
     const pin = run({ verb: 'state' }).pins[0]
 
-    expect(pin.delivered).toBe(false)
-    const marker = document.getElementById('hermes-pin-host')?.shadowRoot?.querySelector('.pin')
-
-    expect(marker?.textContent ?? '').not.toContain('✓')
+    expect(pin.delivered).toBeFalsy()
+    expect(document.getElementById('hermes-pin-host')!.shadowRoot!.querySelectorAll('.pin')).toHaveLength(1)
   })
 
-  it('never touches the comment text — delivery is an address, not an edit', () => {
-    const placed = placePin('#save', 'make it blue')
-    run({ delivered: true, id: placed.id as string, verb: 'deliver' })
+  it('a no-id deliver verb still ACKS: the request list empties after the panel acts', () => {
+    const placed = placePin('#save')
 
-    expect(run({ verb: 'state' }).pins[0].comment).toBe('make it blue')
+    const state = (holder as Record<string, Record<string, unknown>>)['__hermesPinState']
+
+    ;(state.deliver as unknown[]).push({ id: placed.id, mode: 'queue' })
+
+    expect(run({ verb: 'state' }).deliver).toHaveLength(1)
+    run({ verb: 'deliver' }) // the ACK
+    expect(run({ verb: 'state' }).deliver).toEqual([])
+    // The ACK is not a delivery: with no ids it only clears the requests.
+    expect(run({ verb: 'state' }).pins).toHaveLength(1)
+  })
+
+  it('bumps the report rev on every mutation and holds it while idle', () => {
+    const before = run({ verb: 'state' }).rev
+    const placed = placePin('#save', 'note')
+
+    const after = run({ verb: 'state' }).rev
+
+    expect(typeof before).toBe('number')
+    expect(after).toBeGreaterThan(before as number)
+    // An idle page is a no-change read: the panel keys its skip on this.
+    expect(run({ verb: 'state' }).rev).toBe(after)
+
+    run({ delivered: true, id: placed.id as string, verb: 'deliver' })
+    expect(run({ verb: 'state' }).rev).toBeGreaterThan(after)
+  })
+})
+
+describe('the bubble closes on its committing buttons', () => {
+  /** Place a pin and reopen its bubble through the marker, like a user would. */
+  const openBubbleFor = (selector: string, comment: string) => {
+    const placed = placePin(selector)
+    run({ comment, id: placed.id as string, verb: 'comment' })
+
+    const marker = document.getElementById('hermes-pin-host')!.shadowRoot!.querySelector('.pin') as HTMLElement
+
+    marker.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+    return placed
+  }
+
+  it('Send writes the comment, queues the NOW request, and closes', () => {
+    const placed = openBubbleFor('#save', 'make it blue')
+    const shadow = document.getElementById('hermes-pin-host')!.shadowRoot!
+
+    expect(shadow.querySelector('.bubble')).not.toBeNull()
+
+    const area = shadow.querySelector('textarea') as HTMLTextAreaElement
+
+    area.value = 'make it blue, not green'
+    area.dispatchEvent(new Event('input', { bubbles: true }))
+
+    const send = [...shadow.querySelectorAll('button')].find(button => button.textContent === 'Send')!
+
+    send.click()
+
+    const report = run({ verb: 'state' })
+
+    expect(report.bubbleOpen).toBe(false)
+    expect(shadow.querySelector('.bubble')).toBeNull()
+    expect(report.deliver).toEqual([{ id: placed.id, mode: 'now' }])
+    // The last keystrokes rode with the request — the panel sends the book's
+    // copy, which the live input handler kept current.
+    expect(report.pins[0].comment).toBe('make it blue, not green')
+  })
+
+  it('Queue queues the request and closes the same way', () => {
+    const placed = openBubbleFor('#save', 'park this')
+    const shadow = document.getElementById('hermes-pin-host')!.shadowRoot!
+
+    const queue = [...shadow.querySelectorAll('button')].find(button => button.textContent === 'Queue')!
+
+    queue.click()
+
+    const report = run({ verb: 'state' })
+
+    expect(report.bubbleOpen).toBe(false)
+    expect(report.deliver).toEqual([{ id: placed.id, mode: 'queue' }])
+  })
+
+  it('Done keeps its old behaviour: close, no delivery request', () => {
+    const placed = openBubbleFor('#save', 'just saving')
+    const shadow = document.getElementById('hermes-pin-host')!.shadowRoot!
+
+    const done = [...shadow.querySelectorAll('button')].find(button => button.textContent === 'Done')!
+
+    done.click()
+
+    const report = run({ verb: 'state' })
+
+    expect(report.bubbleOpen).toBe(false)
+    expect(report.deliver ?? []).toEqual([])
+    expect(report.pins[0].comment).toBe('just saving')
   })
 })
 

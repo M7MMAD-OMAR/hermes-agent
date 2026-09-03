@@ -7,7 +7,7 @@ import { resolveDeepLinkAction } from '@/lib/deeplink-routes'
 import { pathFromHermesDeepLink, resolveHermesOpenPath } from '@/lib/hermes-open-target'
 import { storedSessionIdForNotification } from '@/lib/session-ids'
 import { addComposerAttachment } from '@/store/composer'
-import { onRelayedComposerAttachment } from '@/store/composer-relay'
+import { onRelayedComposerAttachment, onRelayedPromptDelivery } from '@/store/composer-relay'
 import { requestMcpInstallFromDeepLink } from '@/store/mcp-deeplink-install'
 import { startMcpHealthChecker, stopMcpHealthChecker } from '@/store/mcp-health'
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/store/native-notifications'
 import { openPluginInstallRequest } from '@/store/plugin-install-request'
 import { openFolderAsProject } from '@/store/projects'
+import { deliverPromptLocally } from '@/store/prompt-delivery'
 import {
   getRememberedRoute,
   getRememberedSessionId,
@@ -353,6 +354,15 @@ export function useDesktopIntegrations({
       return
     }
 
-    return onRelayedComposerAttachment(attachment => addComposerAttachment(attachment))
+    const stopAttachments = onRelayedComposerAttachment(attachment => addComposerAttachment(attachment))
+    // Same window, the prompt-delivery half: a Browser's pin panel Send/Queue
+    // is executed HERE, where the conversation, the busy state and the queue
+    // actually live, and the outcome rides back as the relay's ack.
+    const stopDeliveries = onRelayedPromptDelivery(payload => deliverPromptLocally(payload))
+
+    return () => {
+      stopAttachments()
+      stopDeliveries()
+    }
   }, [])
 }

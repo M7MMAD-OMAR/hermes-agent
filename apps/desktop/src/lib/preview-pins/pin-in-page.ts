@@ -39,6 +39,9 @@ export interface PinCommand {
   /** For `deliver`: did it reach the chat (true) or fail to (false)? */
   delivered?: boolean
   id?: string
+  /** For `deliver` in batch — every pin the panel delivered in one act, so a
+   *  Send-all costs one round trip instead of one per comment. */
+  ids?: string[]
   verb: PinVerb
 }
 
@@ -73,6 +76,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     hidden: false,
     pending: [],
     pins: [],
+    rev: 0,
     seq: 0,
     shotData: {}
   }
@@ -93,6 +97,18 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     state.deliver = []
   }
 
+  if (typeof state.rev !== 'number') {
+    state.rev = 0
+  }
+
+  /** Every mutation the panel could care about bumps this. The panel compares
+   *  it across polls so an idle page costs no re-render, no book merge and no
+   *  localStorage write — with several review windows open at once, that idle
+   *  saving is most of the feature's footprint. */
+  const bump = () => {
+    state.rev = (state.rev as number) + 1
+  }
+
   const pins = state.pins as Record<string, unknown>[]
   const shotData = state.shotData as Record<string, string>
   const pending = state.pending as string[]
@@ -103,6 +119,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   const requestDeliver = (id: string, mode: 'now' | 'queue') => {
     if (!deliver.some(entry => entry.id === id && entry.mode === mode)) {
       deliver.push({ id, mode })
+      bump()
     }
   }
 
@@ -285,8 +302,12 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   /** A bubble is showing: reported so the panel's poll tightens while the
    *  user is mid-comment, and its shortcuts do not sit on a 700 ms wait. */
   const closeBubble = () => {
+    if (state.bubbleOpen) {
+      state.bubbleOpen = false
+      bump()
+    }
+
     clearLayer('.bubble')
-    state.bubbleOpen = false
   }
 
   /**
@@ -451,6 +472,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
           const list = shotsOf().filter(entry => entry.id !== shot.id)
           pin.shots = list
           delete shotData[String(shot.id)]
+          bump()
           drawStrip()
           paint()
         })
@@ -501,6 +523,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
               shotData[id] = full
               pending.push(id)
               pin.shots = shotsOf().concat([{ h, id, thumb: thumb || full, w }])
+              bump()
               drawStrip()
               paint()
             })
@@ -553,15 +576,27 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       closeBubble()
       paint()
     })
+
+    // Sending and queueing are COMMITTING acts: the bubble closes the moment
+    // the request is written, the same way Done closes it. The panel picks the
+    // request up on its next read and reports success or failure in a toast —
+    // an open bubble with no comment left in it after a Send read as "did that
+    // even go?" and made the comment look still-active until it was deleted
+    // by hand, which is exactly what delivery is supposed to replace.
+    const requestAndClose = (mode: 'now' | 'queue') => {
+      pin.comment = area.value
+      requestDeliver(String(pinId), mode)
+      closeBubble()
+      paint()
+    }
+
     send.addEventListener('click', event => {
       event.stopPropagation()
-      pin.comment = area.value
-      requestDeliver(String(pinId), 'now')
+      requestAndClose('now')
     })
     enqueue.addEventListener('click', event => {
       event.stopPropagation()
-      pin.comment = area.value
-      requestDeliver(String(pinId), 'queue')
+      requestAndClose('queue')
     })
     remove.addEventListener('click', event => {
       event.stopPropagation()
@@ -583,6 +618,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     // out of habit is not a trade worth making for a tidier save path.
     area.addEventListener('input', () => {
       pin.comment = area.value
+      bump()
       grow()
       place()
     })
@@ -602,13 +638,11 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       if ((event.metaKey || event.ctrlKey) && enter && event.shiftKey) {
         // Queue it: the conversation is busy or the user wants ordering.
         event.preventDefault()
-        pin.comment = area.value
-        requestDeliver(String(pinId), 'queue')
+        requestAndClose('queue')
       } else if ((event.metaKey || event.ctrlKey) && enter) {
         // Send now: the panel delivers it and closes the bubble.
         event.preventDefault()
-        pin.comment = area.value
-        requestDeliver(String(pinId), 'now')
+        requestAndClose('now')
       } else if (event.key === 'Enter' && !event.shiftKey) {
         // Plain Enter has ALWAYS closed the bubble (the save above); keep it.
         event.preventDefault()
@@ -651,6 +685,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     bubble.append(head, area, strip, hint, row, picker)
     shadow().append(bubble)
     state.bubbleOpen = true
+    bump()
     grow()
     drawStrip()
     area.focus()
@@ -767,6 +802,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     entry.resolved = false
     entry.pageUrl = doc.location ? doc.location.href : ''
     pins.push(entry)
+    bump()
 
     return entry.id as string
   }
@@ -892,6 +928,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     }
 
     state.handlers = { onClick, onDown, onKey, onMove, onScroll, onUp }
+    bump()
     paint()
   }
 
@@ -922,6 +959,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     clearLayer('.hl')
     clearLayer('.box')
     closeBubble()
+    bump()
     paint()
   }
 
@@ -938,10 +976,12 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     state.hidden = true
     clearLayer('.pin')
     closeBubble()
+    bump()
   }
 
   const show = () => {
     state.hidden = false
+    bump()
     paint()
   }
 
@@ -969,6 +1009,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       }
     }
 
+    bump()
     paint()
   }
 
@@ -1012,6 +1053,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
       if (pin) {
         pin.comment = String(command.comment ?? '')
+        bump()
       }
 
       break
@@ -1022,6 +1064,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
       if (pin) {
         pin.resolved = !pin.resolved
+        bump()
       }
 
       paint()
@@ -1038,6 +1081,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
         }
 
         pins.splice(index, 1)
+        bump()
       }
 
       paint()
@@ -1054,25 +1098,58 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
       pending.splice(0, pending.length)
       closeBubble()
+      bump()
       paint()
 
       break
-    /** Mark one comment as having reached the chat — or undo it when the
-     *  delivery failed and the chip had to come back. The comment itself is
-     *  never touched: delivery is an address, not an edit. */
+    /**
+     * Delivery is the END of a pin's life in the page: the comment left for
+     * the chat (sent or queued), so the marker and the pending list must not
+     * keep it around — that leftover was the "still active, delete it by
+     * hand" report. A failed delivery (false) rolls the flag back instead, so
+     * the comment stays pending. `ids` delivers a whole batch in one call.
+     * No id and no ids: an ACK — the panel took the bubble's requests, so
+     * drop them. Dropping BEFORE the panel acts would lose a request that
+     * failed mid-flight; the panel acks first, then runs, and a request that
+     * arrives again was re-queued by a bubble click, not a lost ack.
+     */
     case 'deliver': {
-      const pin = pins.find(entry => entry.id === command.id)
+      const ids = command.ids ?? (command.id !== undefined ? [command.id] : [])
 
-      if (pin) {
-        pin.delivered = command.delivered !== false
+      for (const id of ids) {
+        const index = pins.findIndex(entry => entry.id === id)
+
+        if (index === -1) {
+          continue
+        }
+
+        if (command.delivered === false) {
+          // Rollback: the send failed, the comment goes back to pending.
+          pins[index].delivered = false
+        } else {
+          const shots = (pins[index].shots as Record<string, unknown>[] | undefined) ?? []
+
+          for (const shot of shots) {
+            const shotId = String(shot.id)
+            delete shotData[shotId]
+            const slot = pending.indexOf(shotId)
+
+            if (slot !== -1) {
+              pending.splice(slot, 1)
+            }
+          }
+
+          pins.splice(index, 1)
+        }
       }
 
-      // No id: an ACK — the panel took the bubble's requests, so drop them.
-      // Dropping BEFORE the panel acts would lose a request that failed
-      // mid-flight; the panel acks first, then runs, and a request that
-      // arrives again was re-queued by a bubble click, not a lost ack.
-      if (!command.id) {
+      if (ids.length) {
+        bump()
+      }
+
+      if (!command.id && !command.ids) {
         deliver.splice(0, deliver.length)
+        bump()
       }
 
       paint()
@@ -1097,6 +1174,8 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
         pending.splice(slot, 1)
       }
 
+      bump()
+
       break
     }
 
@@ -1120,6 +1199,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     // the app before the next navigation drops the page holding it.
     pendingShots: pending.slice(),
     pins: JSON.parse(JSON.stringify(pins)),
+    rev: state.rev as number,
     shot: taken,
     url: doc.location ? doc.location.href : ''
   }

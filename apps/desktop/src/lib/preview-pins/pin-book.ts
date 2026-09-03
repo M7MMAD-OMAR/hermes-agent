@@ -76,7 +76,9 @@ export function allPins(book: PinBook): PreviewPin[] {
     .flatMap(key => book[key].slice().sort((a, b) => a.createdAt - b.createdAt))
 }
 
-/** Open comments waiting on pages other than this one. */
+/** Open comments waiting on pages other than this one. A delivered comment no
+ *  longer counts as open anywhere: it left for the chat, and counting it here
+ *  would resurrect the very "still active" ghost its delivery just cleared. */
 export function otherPages(book: PinBook, url: string): { count: number; pages: number } {
   const here = normalizePageUrl(url)
   let count = 0
@@ -87,7 +89,7 @@ export function otherPages(book: PinBook, url: string): { count: number; pages: 
       continue
     }
 
-    const open = book[key].filter(pin => !pin.resolved).length
+    const open = book[key].filter(pin => !pin.resolved && !pin.delivered).length
 
     if (!open) {
       continue

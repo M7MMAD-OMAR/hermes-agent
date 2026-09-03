@@ -74,6 +74,12 @@ export interface PinEngineReport {
    *  only WRITE its intent; the next state read carries it out and the panel
    *  executes it. Cleared once the panel acts on them. */
   deliver?: PinDeliverRequest[]
+  /** The engine's mutation counter. The panel compares it against the last
+   *  report it acted on: equal means nothing in the page moved since, so the
+   *  panel skips its own state writes (a re-render, a book merge, a
+   *  localStorage write) instead of paying for them on every poll. Absent
+   *  from older engines — treated as always-changed. */
+  rev?: number
   /** Markers are painted out and the page is fully released. Set while the
    *  panel is closed, so a reopen knows to repaint rather than re-place. */
   hidden: boolean

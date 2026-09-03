@@ -12,6 +12,7 @@
 
 import { isElementInHiddenPane, queryAllVisible, queryVisible } from '@/components/pane-shell/pane-visibility'
 import { $hoveredTreeGroup } from '@/components/pane-shell/tree/store'
+import type { ComposerAttachment } from '@/store/composer'
 
 import type { InlineRefInput } from './inline-refs'
 import { RICH_INPUT_SLOT } from './rich-editor'
@@ -71,6 +72,10 @@ interface SubmitDetail {
   surfaceId: string
   target: ComposerTarget
   text: string
+  /** Attachments that ride this submit as if the user had attached them —
+   *  the preview-pins chip and its images, for one. Without them an external
+   *  submit ships bare text and the structured payload stays behind. */
+  attachments?: ComposerAttachment[]
   /** `hidden` types the persisted user row so no bubble renders — the
    *  off-screen path for widget intents. Omit for normal visible sends. */
   displayKind?: 'hidden'
@@ -295,14 +300,22 @@ export const onComposerInsertRefsRequest = (handler: (detail: InsertRefsDetail) 
 
 /** Submit a prompt through a composer as if the user typed + sent it. Lets
  * external panels (e.g. the review pane's "let the agent ship it" button) hand
- * the agent a task without the user round-tripping through the input. */
+ * the agent a task without the user round-tripping through the input.
+ * `attachments` ride the submit exactly like chips the user attached — the
+ * composer's own set is neither read nor modified. */
 export const requestComposerSubmit = (
   text: string,
   {
+    attachments,
     displayKind,
     surfaceId: requestedSurfaceId,
     target = 'active'
-  }: { displayKind?: 'hidden'; surfaceId?: null | string; target?: ComposerTarget | 'active' } = {}
+  }: {
+    attachments?: ComposerAttachment[]
+    displayKind?: 'hidden'
+    surfaceId?: null | string
+    target?: ComposerTarget | 'active'
+  } = {}
 ): boolean => {
   const trimmed = text.trim()
 
@@ -324,6 +337,7 @@ export const requestComposerSubmit = (
     surfaceId,
     target: resolvedTarget,
     text: trimmed,
+    ...(attachments?.length ? { attachments } : {}),
     ...(displayKind ? { displayKind } : {})
   })
 

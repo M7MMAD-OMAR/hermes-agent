@@ -87,6 +87,11 @@ describe('otherPages', () => {
     const book = mergeReport({}, ABOUT, [pin(ABOUT, { resolved: true })])
     expect(otherPages(book, HOME)).toEqual({ count: 0, pages: 0 })
   })
+
+  it('ignores delivered ones — they already left for the chat', () => {
+    const book = mergeReport({}, ABOUT, [pin(ABOUT, { delivered: true })])
+    expect(otherPages(book, HOME)).toEqual({ count: 0, pages: 0 })
+  })
 })
 
 describe('allPins', () => {

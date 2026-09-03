@@ -18,19 +18,25 @@ import { PreviewPinPanel } from './preview-pin-panel'
 const h = vi.hoisted(() => ({
   browserWindow: vi.fn(() => false),
   relay: vi.fn(async (_attachment: unknown) => true),
+  relayDelivery: vi.fn(async (_payload: unknown) => true),
   notified: [] as { kind?: string; title?: string }[],
-  submitted: vi.fn((_text: string) => true),
+  submitted: vi.fn((_text: string, _options?: unknown) => true),
   queued: vi.fn((_key: string, _text: string) => true)
 }))
 
-const { browserWindow, relay, notified, submitted, queued } = h
+const { browserWindow, relay, relayDelivery, notified, submitted, queued } = h
 
 vi.mock('@/store/windows', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   isBrowserWindow: () => h.browserWindow()
 }))
 
-vi.mock('@/store/composer-relay', () => ({ relayComposerAttachment: (a: unknown) => h.relay(a) }))
+vi.mock('@/store/composer-relay', () => ({
+  onRelayedComposerAttachment: () => () => {},
+  onRelayedPromptDelivery: () => () => {},
+  relayComposerAttachment: (a: unknown) => h.relay(a),
+  relayPromptDelivery: (payload: unknown) => h.relayDelivery(payload)
+}))
 
 vi.mock('@/store/notifications', () => ({
   notify: (input: { kind?: string; title?: string }) => {
@@ -41,7 +47,7 @@ vi.mock('@/store/notifications', () => ({
 }))
 
 vi.mock('@/app/chat/composer/focus', () => ({
-  requestComposerSubmit: (text: string) => h.submitted(text)
+  requestComposerSubmit: (text: string, options?: unknown) => h.submitted(text, options)
 }))
 
 vi.mock('@/store/composer-queue', async importOriginal => ({
@@ -113,7 +119,15 @@ const armPins = vi.fn(async (seed?: null | PreviewPin[]) => {
 
 vi.mock('./preview-pins', () => ({
   armPins: (seed?: null | PreviewPin[]) => armPins(seed),
-  deliverPin: vi.fn(async () => report()),
+  // Mirrors the real engine: delivered pins LEAVE the page, so the next state
+  // read merges a page without them and the book auto-clears.
+  deliverPins: vi.fn(async (ids: string[]) => {
+    for (const key of Object.keys(page.pins)) {
+      page.pins[key] = page.pins[key].filter(entry => !ids.includes(entry.id))
+    }
+
+    return report()
+  }),
   ackDeliverRequests: vi.fn(async () => report()),
   clearPins: vi.fn(async () => {
     page.pins = {}
@@ -185,6 +199,7 @@ beforeEach(() => {
   queued.mockReturnValue(true)
   browserWindow.mockReturnValue(false)
   relay.mockResolvedValue(true)
+  relayDelivery.mockResolvedValue(true)
   notified.length = 0
 })
 
@@ -230,9 +245,13 @@ describe('bubble requests and keybinds (Sprint 02)', () => {
     })
     await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
     expect(submitted.mock.calls[0][0]).toContain('hero')
-    // Delivered: gone from the pending list, marked in the book.
+    // Delivered: gone from the pending list, and the submit carried the pins
+    // chip — the rich block with url, selector and target — as an attachment.
     await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
-    expect($pinBook.get()[HOME][0].delivered).toBe(true)
+
+    const submitOptions = submitted.mock.calls[0][1] as { attachments?: { kind: string }[] }
+
+    expect(submitOptions.attachments?.[0]?.kind).toBe('pins')
 
     // And it must NOT fire again on the next identical poll.
     await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
@@ -252,6 +271,8 @@ describe('bubble requests and keybinds (Sprint 02)', () => {
     expect(queued.mock.calls[0][1]).toContain('nav')
     await waitFor(() => expect(screen.queryAllByText('nav')).toHaveLength(0))
     expect(submitted).not.toHaveBeenCalled()
+    // Queue is not Send: the composer's own input never sees the chip.
+    expect($composerAttachments.get()).toHaveLength(0)
   })
 
   it('the annotate keybind request toggles the arm state', async () => {
@@ -272,7 +293,9 @@ describe('bubble requests and keybinds (Sprint 02)', () => {
     requestAttachPins()
 
     await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
-    expect($pinBook.get()[HOME][0].delivered).toBe(true)
+    // Delivered comments auto-clear: the engine drops them, and the next state
+    // read merges a page without them — the book bucket goes with it.
+    await waitFor(() => expect($pinBook.get()[HOME]).toBeUndefined())
   })
 })
 
@@ -323,6 +346,8 @@ describe('one comment, one send (Sprint 01)', () => {
     // The unsent comment is untouched — auto-deleting anything not delivered
     // was the reported bug.
     expect(screen.getAllByText('nav').length).toBeGreaterThan(0)
+    // And Queue never spills into the composer's own input field.
+    expect($composerAttachments.get()).toHaveLength(0)
   })
 
   it('Send all empties the pending list only, and only on real delivery', async () => {
@@ -334,10 +359,58 @@ describe('one comment, one send (Sprint 01)', () => {
 
     await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
     await waitFor(() => expect(screen.queryAllByText('nav')).toHaveLength(0))
-    // The comments still exist in the book, marked delivered — history, not dust.
-    const book = $pinBook.get()
-    expect(book[HOME]).toHaveLength(2)
-    expect(book[HOME].every(p => p.delivered)).toBe(true)
+    // Delivered is delivered: the engine dropped both, and the next state read
+    // merges a page without them — the book bucket clears with it. The
+    // comments' durable record is the sent message in the chat.
+    await waitFor(() => expect($pinBook.get()[HOME]).toBeUndefined())
+  })
+
+  it('a popped-out Browser relays Send to the window that owns the composer', async () => {
+    // The Browser window has no composer and no queue of its own: both used to
+    // strand the prompt (or strand it minus its attachments) in this window's
+    // own localStorage. Now the whole delivery relays, ack included.
+    browserWindow.mockReturnValue(true)
+    page.pins[HOME] = [pin(HOME, 'hero')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    screen
+      .getAllByTitle('Send this comment to the chat now')
+      .find(button => button.closest('li')?.textContent?.includes('hero'))!
+      .click()
+
+    await waitFor(() => expect(relayDelivery).toHaveBeenCalledTimes(1))
+
+    const payload = relayDelivery.mock.calls[0][0] as {
+      attachments: { kind: string }[]
+      mode: string
+      text: string
+    }
+
+    expect(payload.mode).toBe('now')
+    expect(payload.text).toContain('hero')
+    expect(payload.attachments[0].kind).toBe('pins')
+    expect($composerAttachments.get()).toHaveLength(0)
+    await waitFor(() => expect(screen.queryAllByText('hero')).toHaveLength(0))
+  })
+
+  it('a popped-out Browser relays Queue, and a refused delivery stays pending', async () => {
+    browserWindow.mockReturnValue(true)
+    relayDelivery.mockResolvedValue(false)
+    page.pins[HOME] = [pin(HOME, 'hero')]
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+
+    screen
+      .getAllByTitle("Add this comment to the conversation's queue")
+      .find(button => button.closest('li')?.textContent?.includes('hero'))!
+      .click()
+
+    await waitFor(() => expect(relayDelivery).toHaveBeenCalledTimes(1))
+    expect((relayDelivery.mock.calls[0][0] as { mode: string }).mode).toBe('queue')
+    // No window answered — the comment stays pending, not silently "queued".
+    await waitFor(() => expect(notified.at(-1)?.kind).toBe('error'))
+    expect(screen.getAllByText('hero').length).toBeGreaterThan(0)
   })
 
   it('a failed delivery is NOT marked delivered — nothing disappears silently', async () => {

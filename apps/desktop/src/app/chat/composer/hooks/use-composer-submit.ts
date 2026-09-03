@@ -114,7 +114,7 @@ export function useComposerSubmit({
 
   useLayoutEffect(
     () =>
-      onComposerSubmitRequest(({ surfaceId: requestedSurfaceId, target, text, displayKind }) => {
+      onComposerSubmitRequest(({ attachments, surfaceId: requestedSurfaceId, target, text, displayKind }) => {
         if (
           target === scope.target &&
           surfaceId !== null &&
@@ -122,7 +122,11 @@ export function useComposerSubmit({
           paneVisible &&
           !inputDisabled
         ) {
-          dispatchSubmitRef.current(text, undefined, displayKind)
+          // Attachments the requester brought ride the send exactly like chips
+          // the user had attached — dropping them would ship bare text and
+          // strand the structured payload (the pins chip and its images) that
+          // the request was made WITH.
+          dispatchSubmitRef.current(text, attachments, displayKind)
         }
       }),
     [inputDisabled, paneVisible, scope.target, surfaceId]

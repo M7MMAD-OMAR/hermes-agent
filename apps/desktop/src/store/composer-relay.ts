@@ -35,8 +35,23 @@ interface RelayMessage {
   requestId: string
 }
 
+/** A prompt (words + whatever rides with them) that a window without a
+ *  composer wants delivered — the popped-out Browser's pin panel Send/Queue. */
+export interface PromptDeliveryPayload {
+  attachments: ComposerAttachment[]
+  mode: 'now' | 'queue'
+  text: string
+}
+
+interface DeliveryMessage extends PromptDeliveryPayload {
+  requestId: string
+}
+
 interface AckMessage {
   ack: string
+  /** Only the delivery relay reports an outcome; a bare ack (attachment taken)
+   *  means success the same way `true` does. */
+  delivered?: boolean
 }
 
 const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL)
@@ -52,6 +67,17 @@ const isRelay = (data: unknown): data is RelayMessage => {
     Boolean(attachment) &&
     typeof attachment?.id === 'string' &&
     typeof attachment.kind === 'string'
+  )
+}
+
+const isDelivery = (data: unknown): data is DeliveryMessage => {
+  const message = data as null | Partial<DeliveryMessage>
+
+  return (
+    typeof message?.requestId === 'string' &&
+    typeof message.text === 'string' &&
+    (message.mode === 'now' || message.mode === 'queue') &&
+    Array.isArray(message.attachments)
   )
 }
 
@@ -129,6 +155,95 @@ export function onRelayedComposerAttachment(handler: (attachment: ComposerAttach
       // The chip is already in the composer; a lost acknowledgement costs the
       // sender a wrong toast, not the user's attachment.
     }
+  }
+
+  channel.addEventListener('message', listener)
+
+  return () => channel.removeEventListener('message', listener)
+}
+
+/**
+ * Hand one prompt to whichever window owns the composer and the queue, and
+ * report whether it actually landed there — the same acknowledgement contract
+ * as {@link relayComposerAttachment}, because a popped-out Browser has no way
+ * to check on its own. A `false` answer is the caller's cue to say "could not
+ * send" and keep the comment pending rather than lose it.
+ */
+export function relayPromptDelivery(payload: PromptDeliveryPayload): Promise<boolean> {
+  if (!channel) {
+    return Promise.resolve(false)
+  }
+
+  counter += 1
+  const requestId = `delivery-${counter}-${payload.mode}`
+
+  return new Promise<boolean>(resolve => {
+    let settled = false
+
+    const finish = (delivered: boolean) => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      channel!.removeEventListener('message', onMessage)
+      clearTimeout(timer)
+      resolve(delivered)
+    }
+
+    const onMessage = (event: MessageEvent) => {
+      if (isAck(event.data) && event.data.ack === requestId) {
+        finish(event.data.delivered !== false)
+      }
+    }
+
+    const timer = setTimeout(() => finish(false), ACK_TIMEOUT_MS)
+
+    channel.addEventListener('message', onMessage)
+
+    try {
+      channel.postMessage({ ...payload, requestId } satisfies DeliveryMessage)
+    } catch {
+      finish(false)
+    }
+  })
+}
+
+/** Subscribe the window that owns the composer and the queue. Runs the
+ *  delivery and answers with its outcome, so the sending window can tell a
+ *  delivered prompt from one that landed in an empty room. */
+export function onRelayedPromptDelivery(handler: (payload: PromptDeliveryPayload) => Promise<boolean>): () => void {
+  if (!channel) {
+    return () => {}
+  }
+
+  const listener = (event: MessageEvent) => {
+    if (!isDelivery(event.data)) {
+      return
+    }
+
+    const { requestId, delivery } = { requestId: event.data.requestId, delivery: event.data }
+
+    void (async () => {
+      let delivered = false
+
+      try {
+        delivered = await handler({
+          attachments: delivery.attachments,
+          mode: delivery.mode,
+          text: delivery.text
+        })
+      } catch {
+        delivered = false
+      }
+
+      try {
+        channel!.postMessage({ ack: requestId, delivered } satisfies AckMessage)
+      } catch {
+        // The prompt is already delivered or not; the ack only carries the
+        // toast. Nothing to recover here.
+      }
+    })()
   }
 
   channel.addEventListener('message', listener)

@@ -120,9 +120,10 @@ export const reattachPins = (seed: PreviewPin[] | null = null) => pinVerb({ verb
 export const commentPin = (id: string, comment: string) => pinVerb({ comment, id, verb: 'comment' })
 export const togglePinResolved = (id: string) => pinVerb({ id, verb: 'resolve' })
 export const removePin = (id: string) => pinVerb({ id, verb: 'remove' })
-/** Mark one comment delivered (or un-deliver it on a failed send) so its marker
- *  on the page shows the state and the pending list can hide it. */
-export const deliverPin = (id: string, delivered = true) => pinVerb({ delivered, id, verb: 'deliver' })
+/** Tell the page what delivery did to a batch of comments: each one leaves the
+ *  page (its marker and pending state with it) on success, or rolls back to
+ *  pending on a failed send. One round trip for the whole batch. */
+export const deliverPins = (ids: string[], delivered = true) => pinVerb({ delivered, ids, verb: 'deliver' })
 /** The panel took the bubble's delivery requests — clear them from the page. */
 export const ackDeliverRequests = () => pinVerb({ verb: 'deliver' })
 export const clearPins = () => pinVerb({ verb: 'clear' })

@@ -74,6 +74,17 @@ const keyFor = (sessionId: string | null | undefined): string => sessionId ?? ''
 // stale `invoke` closure. Comparing the rendered copy keeps the cheap bail-out
 // for the common case (same draft, same match) while letting a genuinely
 // changed offer through.
+//
+// `invoke` is excluded for the same reason `run` is excluded from the
+// micro-action comparison (`composer-actions.ts`): it is a fresh closure on
+// every resolve, so including it would make every comparison false and defeat
+// the bail-out entirely.
+//
+// THE INVARIANT THAT BUYS, and it binds every provider: a re-offer under the
+// same key must not change what `invoke` DOES without also changing something
+// the pill paints. An offer whose action tracks a moving target must fold that
+// target into its `id` — `action:<slug(payload)>`, not a bare `action` — so a
+// changed action is a changed key and the bail-out cannot reach it.
 const RENDERED: readonly (keyof ComposerSuggestion)[] = [
   'brand',
   'doneLabel',

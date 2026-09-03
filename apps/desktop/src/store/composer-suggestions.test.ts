@@ -151,6 +151,27 @@ describe('composer suggestion bus', () => {
     offerSuggestions('s8', 'test', [])
   })
 
+  it('keeps the previous invoke when nothing the pill paints changed', async () => {
+    // The other half of the reference bail-out, pinned so nobody reads
+    // "swaps in the fresh closure" above as unconditional. A provider whose
+    // action moves must move a rendered field or its id with it.
+    const calls: string[] = []
+
+    const offer = (tag: string) =>
+      offerSuggestions('s8b', 'test', [
+        { ...suggestion('linear'), invoke: async () => void calls.push(tag) }
+      ])
+
+    offer('first')
+    offer('second')
+
+    await ($composerSuggestionsBySession.get().s8b ?? [])[0]!.invoke({ cancelled: () => false, sessionId: 's8b' })
+
+    expect(calls).toEqual(['first'])
+
+    offerSuggestions('s8b', 'test', [])
+  })
+
   it('keeps the array reference when nothing the pill paints changed', () => {
     offerSuggestions('s9', 'test', [suggestion('linear')])
 

@@ -72,7 +72,7 @@ import { type PreviewInputEvent, registerPreviewInput } from './preview-input'
 import { PREVIEW_BROWSER_ATTR, registerPreviewNav } from './preview-nav'
 import { PreviewPinPanel } from './preview-pin-panel'
 import { registerPreviewPageReader } from './preview-reader'
-import { registerPreviewScriptRunner } from './preview-script-runner'
+import { registerPreviewCapture, registerPreviewScriptRunner } from './preview-script-runner'
 import { PreviewViewportBar } from './preview-viewport-bar'
 import { RealProfileConsentDialog } from './real-profile-consent-dialog'
 
@@ -1144,6 +1144,38 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       }
 
       return webview.executeJavaScript(code)
+    })
+  }, [isWebPreview, tabId])
+
+  // And the CAPTURE half, on the same tab key: comments photograph what they
+  // point at, and only the host can ask Chromium for a crop.
+  useEffect(() => {
+    if (!isWebPreview || !tabId) {
+      return
+    }
+
+    return registerPreviewCapture(tabId, async rect => {
+      const webview = webviewRef.current
+      const webContentsId = webview?.getWebContentsId?.()
+
+      if (!webview || typeof webContentsId !== 'number') {
+        throw new Error('preview guest has no webContents')
+      }
+
+      // The crop rect is in the guest's own CSS px, so the host has to be told
+      // the guest's viewport to place it — the pane's size is the wrong number
+      // whenever a device preset is emulating a different one.
+      const viewport = (await bindPreviewExecuteJavaScript(webview)(
+        '({ width: window.innerWidth, height: window.innerHeight })'
+      )) as { height: number; width: number }
+
+      const dataUrl = await window.hermesDesktop.capturePreview?.({ rect, viewport, webContentsId })
+
+      if (!dataUrl) {
+        throw new Error('preview capture is unavailable')
+      }
+
+      return dataUrl
     })
   }, [isWebPreview, tabId])
 

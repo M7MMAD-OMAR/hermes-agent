@@ -17,7 +17,7 @@
 import { type PinCommand, pinEngineSource } from '@/lib/preview-pins/pin-in-page'
 import type { PinEngineReport, PreviewPin } from '@/lib/preview-pins/types'
 
-import { activePreviewScriptRunner } from './preview-script-runner'
+import { activePreviewCapture, activePreviewScriptRunner } from './preview-script-runner'
 
 /** Where the engine and its pins live in the guest page. */
 const HOLDER = '__hermesPinHolder'
@@ -129,3 +129,60 @@ export const ackDeliverRequests = () => pinVerb({ verb: 'deliver' })
 export const clearPins = () => pinVerb({ verb: 'clear' })
 /** Take one attached image's bytes out of the page and leave nothing behind. */
 export const takeShot = (id: string) => pinVerb({ id, verb: 'take' })
+
+/** Where to point the camera for one pin — and the overlay steps aside. */
+export const aimPin = (id: string) => pinVerb({ id, verb: 'aim' })
+/** Hand the crop back and put the overlay on screen again. */
+export const shootPin = (id: string, data: string) => pinVerb({ data, id, verb: 'shoot' })
+
+/** How much page to keep around the target, in CSS px. A crop cut exactly to
+ *  the element reads as a floating fragment; a little of what surrounds it is
+ *  what makes the picture legible as a place on a page. */
+const CROP_PAD = 12
+
+/**
+ * Photograph one pin's target and attach the result to that pin.
+ *
+ * The two halves are deliberately split across the process boundary: only the
+ * host can reach Chromium's capture, and only the page knows where the target
+ * currently is or how to get the overlay out of the way. So the page aims,
+ * the host shoots, and the page adopts.
+ *
+ * `shoot` runs in a finally on purpose. `aim` hides the whole overlay host,
+ * and a capture that throws — a torn-down webview, a guest mid-navigation —
+ * would otherwise leave the user's pins invisible with no way back short of a
+ * reload.
+ */
+export async function capturePinShot(id: string): Promise<boolean> {
+  const capture = activePreviewCapture()
+
+  if (!capture) {
+    return false
+  }
+
+  const aimed = await aimPin(id)
+  const box = aimed?.aim
+
+  if (!box) {
+    return false
+  }
+
+  let data = ''
+
+  try {
+    data = await capture({
+      height: box.height + CROP_PAD * 2,
+      width: box.width + CROP_PAD * 2,
+      x: box.left - CROP_PAD,
+      y: box.top - CROP_PAD
+    })
+  } catch {
+    // Not worth surfacing: the comment itself is intact and the user can
+    // still attach an image by hand. Losing the overlay would be the real bug,
+    // and the finally below is what prevents it.
+  } finally {
+    await shootPin(id, data)
+  }
+
+  return Boolean(data)
+}

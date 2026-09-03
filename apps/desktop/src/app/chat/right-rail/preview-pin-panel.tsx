@@ -37,6 +37,7 @@ import { isBrowserWindow } from '@/store/windows'
 import {
   ackDeliverRequests,
   armPins,
+  capturePinShot,
   clearPins,
   deliverPins,
   disarmPins,
@@ -114,6 +115,9 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
    *  not) must reach the book regardless. */
   const lastSyncRef = useRef<{ rev: null | number; url: string }>({ rev: null, url: '' })
 
+  /** Pins this panel has already pointed the camera at. */
+  const shotRef = useRef(new Set<string>())
+
   const sync = useCallback(
     async (report: Awaited<ReturnType<typeof readPins>>) => {
       if (!report) {
@@ -143,6 +147,27 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       setLive(true)
       setArmed(report.armed === true)
       setBubbleOpen(report.bubbleOpen === true)
+
+      // Photograph what a new comment points at, once, the first time this
+      // panel sees it. A comment about a page is half about how it LOOKS, and
+      // asking the user to go and screenshot the thing they just clicked is
+      // the step that makes them not bother.
+      //
+      // Attempted-set rather than a shots check: a capture that legitimately
+      // yields nothing (a torn-down guest, a pin scrolled to nowhere) must not
+      // be retried on every poll, and a user who deletes the auto shot has
+      // said no — re-adding it next beat would be the panel arguing.
+      for (const pin of report.pins) {
+        if (shotRef.current.has(pin.id)) {
+          continue
+        }
+
+        shotRef.current.add(pin.id)
+
+        if (!(pin.shots ?? []).length && !pin.orphaned) {
+          await capturePinShot(pin.id)
+        }
+      }
 
       const changed =
         typeof report.rev !== 'number' ||

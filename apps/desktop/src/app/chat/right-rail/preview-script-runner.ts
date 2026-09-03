@@ -38,8 +38,40 @@ export function agentPreviewScriptRunner(sessionId: null | string): PreviewScrip
 
 /** The ACTIVE preview tab's script runner. Null = no live page behind it. */
 export function activePreviewScriptRunner(): PreviewScriptRunner | null {
+  return activeFor(runners)
+}
+
+/**
+ * Photographs a rectangle of the guest page, resolving a data URL.
+ *
+ * Registered beside the script runner rather than derived from it: a crop
+ * needs Chromium's capture on the host side, which no amount of guest-page
+ * JavaScript can reach. Comments use it to attach a picture of what they
+ * point at, so the model reads the same thing the user was looking at.
+ */
+export type PreviewCapture = (rect: { height: number; width: number; x: number; y: number }) => Promise<string>
+
+const captures = new Map<string, PreviewCapture>()
+
+function activeFor<T>(book: Map<string, T>): null | T {
   const tabs = $previewTabs.get()
   const tab = tabs.find(t => t.id === $rightRailActiveTabId.get()) ?? tabs[0]
 
-  return (tab && runners.get(tab.id)) || null
+  return (tab && book.get(tab.id)) || null
+}
+
+/** Register a live preview's capture; returns an idempotent unregister. */
+export function registerPreviewCapture(tabId: string, capture: PreviewCapture): () => void {
+  captures.set(tabId, capture)
+
+  return () => {
+    if (captures.get(tabId) === capture) {
+      captures.delete(tabId)
+    }
+  }
+}
+
+/** The ACTIVE preview tab's capture. Null = nothing to photograph. */
+export function activePreviewCapture(): null | PreviewCapture {
+  return activeFor(captures)
 }

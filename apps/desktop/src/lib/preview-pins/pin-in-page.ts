@@ -33,9 +33,13 @@ export type PinVerb =
   | 'clear'
   | 'take'
   | 'deliver'
+  | 'aim'
+  | 'shoot'
 
 export interface PinCommand {
   comment?: string
+  /** For `shoot`: the captured crop, as a data URL. */
+  data?: string
   /** For `deliver`: did it reach the chat (true) or fail to (false)? */
   delivered?: boolean
   id?: string
@@ -266,6 +270,30 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     }
   }
 
+  /**
+   * Where a pin sits in the viewport right now, or null if it sits nowhere.
+   *
+   * Shared by the marker paint and by `aim`, so the crop the user gets back
+   * frames exactly the box their marker is sitting on. Two independent
+   * answers here would show up as a screenshot that misses the thing it is
+   * supposed to be a screenshot of.
+   */
+  const boxOf = (pin: Record<string, unknown>): null | { height: number; left: number; top: number; width: number } => {
+    if (pin.kind === 'element' && pin.anchor) {
+      const match = kit.resolve(pin.anchor as never)
+
+      if (!match.element) {
+        return null
+      }
+
+      const live = match.element.getBoundingClientRect()
+
+      return { height: live.height, left: live.left, top: live.top, width: live.width }
+    }
+
+    return pin.region ? fractionToBox(pin.region as never) : null
+  }
+
   /** Redraw every pin marker where its element currently is. */
   const paint = () => {
     clearLayer('.pin')
@@ -291,18 +319,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       marker.textContent = pin.delivered ? '✓' + String(index + 1) : String(index + 1)
       marker.dataset.pin = String(pin.id)
 
-      let box: { height: number; left: number; top: number; width: number } | null = null
-
-      if (pin.kind === 'element' && pin.anchor) {
-        const match = kit.resolve(pin.anchor as never)
-
-        if (match.element) {
-          const live = match.element.getBoundingClientRect()
-          box = { height: live.height, left: live.left, top: live.top, width: live.width }
-        }
-      } else if (pin.region) {
-        box = fractionToBox(pin.region as never)
-      }
+      const box = boxOf(pin)
 
       if (!box) {
         // An orphan has nowhere to sit. Keeping it off-screen rather than at
@@ -1049,6 +1066,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
   /** Full image bytes, for the one verb that asks for them. */
   let taken: null | string = null
+  let aimed: null | { height: number; left: number; top: number; width: number } = null
 
   switch (command.verb) {
     case 'arm':
@@ -1206,6 +1224,67 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       break
     }
 
+    /**
+     * Line up a crop of one pin's target, and get out of the frame.
+     *
+     * The app owns the camera — only the host can reach Chromium's capture —
+     * so the page's job is to say WHERE and to make sure nothing of ours is
+     * in the shot. Hiding the whole overlay host, rather than the markers
+     * one by one, is what guarantees that: the bubble, the layer and every
+     * marker live inside it, so one `display:none` clears all of them and
+     * there is no new element that can be forgotten here later.
+     *
+     * `shoot` is the other half and MUST run even if the capture failed, or
+     * the page is left invisible-overlay. The host brackets it in a finally.
+     */
+    case 'aim': {
+      const pin = pins.find(entry => entry.id === command.id)
+      aimed = pin ? boxOf(pin) : null
+
+      if (aimed) {
+        host().style.display = 'none'
+      }
+
+      break
+    }
+
+    /**
+     * Adopt a captured crop as the pin's own image and show the overlay again.
+     *
+     * The shrink is asynchronous (an Image has to decode first), so the shot
+     * lands on a later poll rather than in this report. That is the same
+     * path a pasted image takes, deliberately: one way for bytes to become a
+     * shot means one place where the cap, the thumbnail and the pending list
+     * can be got wrong.
+     */
+    case 'shoot': {
+      host().style.display = ''
+      const pin = pins.find(entry => entry.id === command.id)
+      const source = String(command.data ?? '')
+
+      if (pin && source) {
+        shrink(source, SHOT_MAX_EDGE, 0.85, (full, w, h) => {
+          if (!full) {
+            return
+          }
+
+          shrink(full, THUMB_MAX_EDGE, 0.5, thumb => {
+            const shotId = 'shot-' + now().toString(36) + '-' + Math.round(Math.random() * 1e6).toString(36)
+            shotData[shotId] = full
+            pending.push(shotId)
+            const held = (pin.shots as Record<string, unknown>[] | undefined) ?? []
+            pin.shots = held.concat([{ h, id: shotId, thumb: thumb || full, w }])
+            bump()
+            paint()
+          })
+        })
+      }
+
+      paint()
+
+      break
+    }
+
     case 'state':
 
     default:
@@ -1213,6 +1292,8 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
   }
 
   return {
+    /** Viewport box the host should capture, in answer to `aim`. */
+    aim: aimed,
     armed: state.armed === true,
     /** The comment bubble is on screen — the panel tightens its poll while
      *  this holds, so the bubble's shortcuts land within a beat. */

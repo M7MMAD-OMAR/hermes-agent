@@ -62,6 +62,10 @@ export interface PreviewPin {
 
 /** What the in-page engine reports back after a placement or a re-attach. */
 export interface PinEngineReport {
+  /** Answer to `aim`: the viewport box the host should crop, with the pin
+   *  overlay already hidden so nothing of ours lands in the picture. Null
+   *  when the pin no longer resolves to anywhere on the page. */
+  aim?: null | { height: number; left: number; top: number; width: number }
   /** Whether annotation mode is on. The engine owns this, not the panel: a
    *  navigation resets it, and the panel would otherwise show a toggle that no
    *  longer reflects the page. */

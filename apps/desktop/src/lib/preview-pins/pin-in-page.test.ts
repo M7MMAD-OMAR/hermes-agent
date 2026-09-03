@@ -641,3 +641,43 @@ describe('injectable source', () => {
     expect(engine(document, box, { verb: 'state' }).pins).toHaveLength(1)
   })
 })
+
+describe('aim and shoot: photographing what a comment points at', () => {
+  it('aim reports the target box and takes the overlay out of the frame', () => {
+    const placed = placePin('#save')
+    const target = document.querySelector('#save')!
+    target.getBoundingClientRect = () => ({ height: 30, left: 40, top: 60, width: 100 }) as DOMRect
+
+    const report = run({ id: placed.id as string, verb: 'aim' })
+
+    expect(report.aim).toEqual({ height: 30, left: 40, top: 60, width: 100 })
+    // Everything of ours — markers, bubble, layer — is inside this one host,
+    // so hiding it is what keeps the app out of the user's screenshot.
+    expect(document.getElementById('hermes-pin-host')!.style.display).toBe('none')
+  })
+
+  it('shoot puts the overlay back — even with no bytes to show for it', () => {
+    const placed = placePin('#save')
+    run({ id: placed.id as string, verb: 'aim' })
+
+    // The capture failed: a torn-down guest, a navigation mid-shot. The page
+    // must not be left with an invisible overlay, which would read as every
+    // pin having vanished.
+    run({ data: '', id: placed.id as string, verb: 'shoot' })
+
+    expect(document.getElementById('hermes-pin-host')!.style.display).toBe('')
+    expect(run({ verb: 'state' }).pins[0].shots ?? []).toEqual([])
+  })
+
+  it('aim on a pin that resolves nowhere leaves the overlay alone', () => {
+    const placed = placePin('#save')
+    document.querySelector('#save')!.remove()
+
+    const report = run({ id: placed.id as string, verb: 'aim' })
+
+    // Nothing to photograph, so nothing was hidden — there is no shoot coming
+    // to undo it.
+    expect(report.aim).toBeNull()
+    expect(document.getElementById('hermes-pin-host')!.style.display).toBe('')
+  })
+})

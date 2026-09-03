@@ -157,6 +157,10 @@ export type GatewayEventPayload = {
   row_id?: number
   reactions?: MessageReaction[]
   role?: string
+  // next_moves.offer — post-turn suggestion pack for THIS session's last turn.
+  moves?: unknown
+  turn_id?: string
+  source?: string
   // session.title (live auto-title push) — stored session id + generated title
   session_id?: string
   title?: string

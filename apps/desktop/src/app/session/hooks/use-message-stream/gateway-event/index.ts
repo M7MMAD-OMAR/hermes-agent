@@ -20,6 +20,7 @@ import { handleDesktopBridgeEvent } from './desktop-bridge'
 import { handleInputRequestEvent } from './input-requests'
 import { handleLifecycleEvent } from './lifecycle'
 import { handleMessageStreamEvent } from './message-stream'
+import { handleNextMovesEvent } from './next-moves'
 import { handleSessionInfoEvent } from './session-info'
 import { handleStatusEvent } from './status'
 import { handleToolEvent } from './tools'
@@ -88,6 +89,7 @@ const HANDLERS: GatewayEventHandler[] = [
   handleToolEvent,
   handleInputRequestEvent,
   handleDesktopBridgeEvent,
+  handleNextMovesEvent,
   handleStatusEvent
 ]
 

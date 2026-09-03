@@ -15,6 +15,7 @@ import { clearAllPrompts } from '@/store/prompts'
 import { providerWaitText, setSessionProviderWait } from '@/store/provider-wait'
 import { setCurrentUsage, setTurnStartedAt } from '@/store/session'
 import { pruneFinishedSessionSubagents } from '@/store/subagents'
+import { noteTurnCompleted, noteTurnStarted, withdrawNextMoves } from '@/store/suggestion-providers/next-move'
 import { clearActiveSessionTodos } from '@/store/todos'
 
 import type { GatewayEventContext } from './types'
@@ -85,6 +86,10 @@ export function handleMessageStreamEvent(ctx: GatewayEventContext): boolean {
       return true
     }
 
+    // Withdraws the standing next-moves offer AND moves the session off the
+    // completion any in-flight offer was generated for, so a pack that loses
+    // the race to this turn can never land under it.
+    noteTurnStarted(sessionId)
     flushQueuedDeltas(sessionId)
     pruneFinishedSessionSubagents(sessionId)
     setSessionCompacting(sessionId, false)
@@ -347,6 +352,15 @@ export function handleMessageStreamEvent(ctx: GatewayEventContext): boolean {
             surface: parseErrorSurface(payload.error_surface)
           }
         : undefined
+
+    // Only a clean finish arms the next-moves offer. A partial failure is real
+    // output AND an error, and the backend answers it with a retry-shaped move
+    // at most — but it is still an ended turn, so it arms like any other.
+    if (payload?.status === 'error' && !payload?.partial) {
+      withdrawNextMoves(sessionId)
+    } else {
+      noteTurnCompleted(sessionId)
+    }
 
     completeAssistantMessage(sessionId, finalText, payload?.response_previewed, failure, occurredAt)
 

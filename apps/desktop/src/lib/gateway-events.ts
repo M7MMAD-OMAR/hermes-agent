@@ -58,8 +58,18 @@ const UNSCOPED_STREAM_END_EVENT_TYPES = new Set(['error', 'message.complete'])
  * focused turn". #42178 dropped those too, which silently swallowed the live
  * answer; it then reappeared only after a transcript refetch (manual refresh).
  */
+/** Events that must be DROPPED when they arrive unscoped, rather than
+ *  attributed to the focused chat by the fallback below. */
+const SESSION_SCOPED_EVENT_TYPES = new Set([
+  // A suggestion pack describes one conversation's turn. Landing it on
+  // whichever chat happens to be focused is exactly the cross-conversation
+  // bleed the feature is required not to have, and an unscoped frame here can
+  // only mean the emitter lost its session id.
+  'next_moves.offer'
+])
+
 export function gatewayEventRequiresSessionId(eventType: string | undefined): boolean {
-  return eventType?.startsWith('subagent.') ?? false
+  return (eventType?.startsWith('subagent.') ?? false) || SESSION_SCOPED_EVENT_TYPES.has(eventType ?? '')
 }
 
 export interface GatewayEventSessionRouteInput {

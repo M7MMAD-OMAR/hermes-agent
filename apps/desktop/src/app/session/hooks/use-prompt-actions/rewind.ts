@@ -20,6 +20,7 @@ import {
   completeOpenTimelineParts,
   textPart
 } from '@/lib/chat-messages'
+import { withdrawNextMoves } from '@/store/suggestion-providers/next-move'
 
 import {
   appendText,
@@ -275,6 +276,10 @@ export async function runRewindSubmit(
   sourceText?: string,
   rebindRowIds?: readonly number[]
 ): Promise<SurvivorUserRowIds | undefined> {
+  // The transcript this offer was derived from is about to be truncated, so
+  // whatever it points at is about to stop existing.
+  withdrawNextMoves(sessionId)
+
   // Recovery may rebind the live id mid-flight; interrupt/submit must both
   // follow it rather than pinning the dead one.
   let liveSessionId = sessionId

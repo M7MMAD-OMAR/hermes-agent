@@ -37,6 +37,7 @@ import {
 } from '@/store/session-states'
 import { broadcastSessionsChanged } from '@/store/session-sync'
 import { clearSessionSubagents } from '@/store/subagents'
+import { withdrawNextMoves } from '@/store/suggestion-providers/next-move'
 import { clearSessionTodos } from '@/store/todos'
 import { setSessionDraftingTool } from '@/store/tool-drafting'
 import type { SessionInfo } from '@/types/hermes'
@@ -347,6 +348,10 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
     setSessionDraftingTool(sessionId, '')
     clearAllPrompts(sessionId)
     clearClarifyRequest(undefined, sessionId)
+    // Stop ends the turn on a path message.complete never reaches (the late
+    // completion takes the interrupted early return), so the offer standing
+    // from BEFORE the stop would otherwise survive it.
+    withdrawNextMoves(sessionId)
 
     try {
       await withSessionNotFoundResume(

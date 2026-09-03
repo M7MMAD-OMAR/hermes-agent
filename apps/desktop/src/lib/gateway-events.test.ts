@@ -26,6 +26,13 @@ describe('gateway event routing', () => {
     expect(gatewayEventRequiresSessionId('subagent.start')).toBe(true)
   })
 
+  it('drops an unscoped next-moves offer instead of giving it to the focused chat', () => {
+    // A suggestion pack describes ONE conversation's turn. The unscoped
+    // fallback would hand it to whichever chat is focused, which is the
+    // cross-conversation bleed the feature must not have.
+    expect(gatewayEventRequiresSessionId('next_moves.offer')).toBe(true)
+  })
+
   it('attributes unscoped foreground turn events to the active chat', () => {
     // These must NOT be dropped when unscoped — they are the focused turn's own
     // output, and dropping them loses the live response until a refetch (#42178).

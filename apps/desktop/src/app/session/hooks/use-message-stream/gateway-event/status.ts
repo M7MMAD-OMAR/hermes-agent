@@ -13,6 +13,7 @@ import { requestDesktopOnboarding } from '@/store/onboarding'
 import { flashPetActivity, setPetActivity } from '@/store/pet'
 import { clearAllPrompts } from '@/store/prompts'
 import { setTurnStartedAt } from '@/store/session'
+import { withdrawNextMoves } from '@/store/suggestion-providers/next-move'
 import { clearActiveSessionTodos } from '@/store/todos'
 
 import type { GatewayEventContext } from './types'
@@ -39,6 +40,9 @@ export function handleStatusEvent(ctx: GatewayEventContext): boolean {
     } else if (sessionId && payload?.kind === 'compacted') {
       reconcileSessionCompacting(sessionId, 'terminal')
       compactedTurnRef.current.delete(sessionId)
+      // Compaction rewrites the transcript a standing offer was derived from,
+      // so the offer's text can now describe bubbles that are gone.
+      withdrawNextMoves(sessionId)
 
       // A compress that finished with no live turn (manual /compress whose
       // RPC answered `pending` because the compute host outlived the wait,
@@ -179,6 +183,10 @@ export function handleStatusEvent(ctx: GatewayEventContext): boolean {
       clearActiveSessionTodos(sessionId)
       reconcileSessionCompacting(sessionId, 'terminal')
       compactedTurnRef.current.delete(sessionId)
+      // A turn can end entirely through this path, which never emits
+      // message.complete. Without an explicit withdrawal the PREVIOUS turn's
+      // offer sits under a failed one.
+      withdrawNextMoves(sessionId)
     }
 
     if (isActiveEvent) {

@@ -120,8 +120,15 @@ on Stop (`session-tile-actions.ts:348`), or on profile switch — where
 `clearAllSessionStates` (`session-states.ts:555`) drops everything *else*.
 
 **Fix:** add `forgetSessionSuggestions(sessionId)` clearing all six, and call it
-from delete, reclaim, runtime-gone (`runtime-gone.ts:108`) and the profile
-switch. Same shape as `forgetPreviewTab`.
+from delete, runtime-gone (`runtime-gone.ts:108`) and the profile switch. Same
+shape as `forgetPreviewTab`.
+
+A runtime id dies through **three** channels, not two. `markRuntimeGone` covers
+the 4001 pull verdict and the `session.reclaimed` push. The third is
+`resetTileRuntimeBindings` (`session-states.ts:1213`), which drops every tile's
+binding on reconnect without going through either — and a respawned backend
+re-mints ids, so those sessions strand. Evict there too, for the tiles actually
+dropped.
 
 ### 4. Model-authored text needs bidi isolation
 

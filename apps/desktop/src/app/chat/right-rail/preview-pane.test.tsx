@@ -202,6 +202,39 @@ describe('PreviewPane console state', () => {
     expect(webview.getAttribute('src')).toBe('http://localhost:5174')
   })
 
+  it('the cache-clear button drops every cached copy for the site, then reloads fresh', async () => {
+    let rendered!: ReturnType<typeof render>
+    await act(async () => {
+      rendered = render(
+        <PreviewPane
+          target={{ kind: 'url', label: 'Preview', source: 'http://localhost:5174', url: 'http://localhost:5174' }}
+        />
+      )
+    })
+
+    const webview = rendered.container.querySelector('webview') as HTMLElement & Record<string, unknown>
+    const executeJavaScript = vi.fn(async (_code: string) => true)
+    const clearCache = vi.fn()
+    const reloadIgnoringCache = vi.fn()
+
+    Object.assign(webview, { clearCache, executeJavaScript, reloadIgnoringCache })
+
+    fireEvent.click(rendered.getByRole('button', { name: 'Clear cache & reload' }))
+
+    await waitFor(() => expect(executeJavaScript).toHaveBeenCalledOnce())
+    // The guest page clears its own per-origin stores: Cache API + service
+    // workers, neither of which the session-level wipe can reach.
+    const guestScript = String(executeJavaScript.mock.calls[0][0])
+
+    expect(guestScript).toContain('caches.delete')
+    expect(guestScript).toContain('serviceWorker')
+    // The session's HTTP cache and the render cache of the document follow,
+    // and a reloadIgnoringCache — not a plain reload, which would trust the
+    // very cache the user is escaping.
+    expect(clearCache).toHaveBeenCalledOnce()
+    expect(reloadIgnoringCache).toHaveBeenCalledOnce()
+  })
+
   it('continues comment numbering in one conversation and resets it when the conversation changes', async () => {
     $selectedStoredSessionId.set('session-one')
     const selectedCrop = 'data:image/png;base64,c2VsZWN0ZWQ='

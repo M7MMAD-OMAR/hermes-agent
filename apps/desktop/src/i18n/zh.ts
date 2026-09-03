@@ -3434,6 +3434,10 @@ export const zh: Translations = {
       goBack: '后退',
       goForward: '前进',
       reload: '重新加载页面',
+      clearCacheReload: '清除缓存并重新加载',
+      cacheClearedTitle: '缓存已清除',
+      cacheClearedMessage: '已删除该站点的全部缓存副本，并重新加载页面。',
+
       address: '地址',
       addressPlaceholder: '输入地址',
       blankPageBody: '在上方输入地址开始浏览，或让 Hermes 打开一个页面。',

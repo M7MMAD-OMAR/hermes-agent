@@ -2768,6 +2768,10 @@ export const zhHant = defineLocale({
       goBack: '上一頁',
       goForward: '下一頁',
       reload: '重新載入頁面',
+      clearCacheReload: '清除快取並重新載入',
+      cacheClearedTitle: '快取已清除',
+      cacheClearedMessage: '已刪除該站點的全部快取副本，並重新載入頁面。',
+
       address: '網址',
       addressPlaceholder: '輸入網址',
       blankPageBody: '在上方輸入網址開始瀏覽，或請 Hermes 開啟頁面。',

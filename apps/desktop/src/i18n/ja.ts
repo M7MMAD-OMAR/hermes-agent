@@ -2871,6 +2871,10 @@ export const ja = defineLocale({
       goBack: '戻る',
       goForward: '進む',
       reload: 'ページを再読み込み',
+      clearCacheReload: 'キャッシュを削除して再読み込み',
+      cacheClearedTitle: 'キャッシュを削除しました',
+      cacheClearedMessage: 'このサイトのキャッシュをすべて削除し、ページを再読み込みしました。',
+
       address: 'アドレス',
       addressPlaceholder: 'アドレスを入力',
       blankPageBody: '上のアドレス欄に入力するか、Hermes にページを開くよう頼んでください。',

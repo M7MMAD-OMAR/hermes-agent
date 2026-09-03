@@ -2479,6 +2479,10 @@ export const ar = defineLocale({
       goBack: 'رجوع',
       goForward: 'تقدم',
       reload: 'إعادة تحميل الصفحة',
+      clearCacheReload: 'حذف الكاش وإعادة التحميل',
+      cacheClearedTitle: 'تم حذف الكاش',
+      cacheClearedMessage: 'حُذفت كل النسخ المخزنة لهذا الموقع وأُعيد تحميل الصفحة من جديد.',
+
       address: 'العنوان',
       addressPlaceholder: 'أدخل العنوان',
       blankPageBody: 'اكتب عنوانًا في الأعلى للتصفح، أو اطلب من Hermes فتح صفحة.',

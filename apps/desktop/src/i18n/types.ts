@@ -2821,6 +2821,9 @@ export interface Translations {
       goBack: string
       goForward: string
       reload: string
+      clearCacheReload: string
+      cacheClearedTitle: string
+      cacheClearedMessage: string
       address: string
       addressPlaceholder: string
       blankPageBody: string

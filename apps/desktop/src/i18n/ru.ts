@@ -3261,6 +3261,10 @@ export const ru = defineLocale({
       goBack: 'Назад',
       goForward: 'Вперёд',
       reload: 'Перезагрузить страницу',
+      clearCacheReload: 'Очистить кэш и перезагрузить',
+      cacheClearedTitle: 'Кэш очищен',
+      cacheClearedMessage: 'Все кэшированные копии этого сайта удалены, страница перезагружена заново.',
+
       address: 'Адрес',
       addressPlaceholder: 'Введите адрес',
       blankPageBody: 'Введите адрес выше, чтобы просматривать, или попросите Hermes открыть страницу.',

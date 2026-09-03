@@ -33,6 +33,10 @@ interface PreviewBrowserBarProps {
   devToolsOpen: boolean
   loading: boolean
   onBack: () => void
+  /** Drop every cached copy for this site (HTTP cache, Cache API, service
+   *  workers) and reload — the dev-workflow refresh that a plain reload is
+   *  not, because a reload trusts the cache it is trying to escape. */
+  onClearCacheReload?: () => void
   onFlushComments?: () => void
   onForward: () => void
   onNavigate: (url: string) => void
@@ -110,6 +114,7 @@ export function PreviewBrowserBar({
   devToolsOpen,
   loading,
   onBack,
+  onClearCacheReload,
   onFlushComments,
   onForward,
   onNavigate,
@@ -175,6 +180,16 @@ export function PreviewBrowserBar({
         label={copy.reload}
         onSelect={onReload}
       />
+      {/* The dev-workflow refresh, one slot over: a plain reload still trusts
+          the very cache the user is trying to escape, so during development
+          this drops every cached copy for the site and loads from scratch. */}
+      {onClearCacheReload ? (
+        <PaneStripGlyph
+          icon={<Codicon name="clear-all" size="0.8125rem" />}
+          label={copy.clearCacheReload}
+          onSelect={onClearCacheReload}
+        />
+      ) : null}
       {/* The copy control lives INSIDE the field, on its right edge — the
           same pre-faded inline icon code blocks use, not a toolbar button.
           It copies what the field shows: on a remote gateway, that is the

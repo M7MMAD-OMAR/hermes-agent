@@ -136,6 +136,7 @@ describe('PreviewBrowserBar', () => {
     ['Back', 'onBack'],
     ['Forward', 'onForward'],
     ['Reload page', 'onReload'],
+    ['Clear cache & reload', 'onClearCacheReload'],
     ['Pop out', 'onPopOut']
   ] as const)('fires %s', (label, handler) => {
     const spy = vi.fn()
@@ -144,6 +145,20 @@ describe('PreviewBrowserBar', () => {
     fireEvent.click(rendered.getByRole('button', { name: label }))
 
     expect(spy).toHaveBeenCalledOnce()
+  })
+
+  it('offers the cache-clearing refresh only when a handler is wired', () => {
+    // The dev-workflow refresh is wired by the live web preview only; a bar
+    // rendered without the handler (tests, non-web previews) shows no dead
+    // button where the plain reload already is.
+    const without = render(<PreviewBrowserBar {...baseProps} />)
+    expect(without.queryByRole('button', { name: 'Clear cache & reload' })).toBeNull()
+
+    const onClearCacheReload = vi.fn()
+    const withHandler = render(<PreviewBrowserBar {...baseProps} onClearCacheReload={onClearCacheReload} />)
+
+    fireEvent.click(withHandler.getByRole('button', { name: 'Clear cache & reload' }))
+    expect(onClearCacheReload).toHaveBeenCalledOnce()
   })
 
   it('toggles the console and DevTools, and labels them by current state', () => {

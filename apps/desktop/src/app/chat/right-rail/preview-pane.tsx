@@ -79,6 +79,10 @@ import { RealProfileConsentDialog } from './real-profile-consent-dialog'
 type PreviewWebview = HTMLElement & {
   canGoBack?: () => boolean
   canGoForward?: () => boolean
+  /** Drop the HTTP cache of the guest's session — the webview-tag face of
+   *  `session.clearCache()`. One partition is shared by the user's tabs, so
+   *  this clears across them; that is what a dev refresh means here. */
+  clearCache?: () => void
   closeDevTools?: () => void
   copy?: () => void
   cut?: () => void
@@ -683,6 +687,77 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       webviewRef.current?.reload?.()
     }
   }, [isWebPreview])
+
+  /**
+   * The dev-workflow refresh: drop every cached copy for this site, then load
+   * from scratch. A plain reload trusts the very cache the user is trying to
+   * escape, and during development that stale cache has bitten more than once
+   * (a rebuilt stylesheet that "didn't apply" was, several sessions running,
+   * just Chromium's disk cache refusing to let go). Three layers, because the
+   * site's copies live in three places:
+   *
+   * - the Cache API + service workers, per-origin, in the guest page itself
+   *   (both exist on the loopback hosts dev servers use);
+   * - the HTTP cache, session-wide, via the webview's clearCache;
+   * - the render cache of the current document, via reloadIgnoringCache.
+   *
+   * localStorage/cookies are data, not cache, and are deliberately untouched —
+   * the point is a fresh page, not a logged-out one.
+   */
+  const clearCacheReloadPreview = useCallback(async () => {
+    setLoadError(null)
+
+    if (!isWebPreview) {
+      setLocalReloadKey(key => key + 1)
+
+      return
+    }
+
+    const webview = webviewRef.current
+
+    if (webview?.executeJavaScript) {
+      try {
+        await webview.executeJavaScript(
+          `(function () {
+  var work = [];
+  try {
+    if (window.caches && window.caches.keys) {
+      work.push(window.caches.keys().then(function (keys) {
+        return Promise.all(keys.map(function (key) { return window.caches.delete(key); }));
+      }));
+    }
+  } catch (err) {}
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      work.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+        return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
+      }));
+    }
+  } catch (err) {}
+  return Promise.all(work).then(function () { return true; }, function () { return false; });
+})()`
+        )
+      } catch {
+        // The guest may be mid-navigation or gone; the session clear and the
+        // reload below still run, which is the part that matters most.
+      }
+    }
+
+    try {
+      webview?.clearCache?.()
+    } catch {
+      // Pre-attach or already-removed guest: reloadIgnoringCache below still
+      // serves a response that was not read from this cache.
+    }
+
+    if (webview?.reloadIgnoringCache) {
+      webview.reloadIgnoringCache()
+    } else {
+      webview?.reload?.()
+    }
+
+    notify({ kind: 'success', title: copy.cacheClearedTitle, message: copy.cacheClearedMessage })
+  }, [copy, isWebPreview])
 
   const annotateGuest = useCallback((): null | PreviewAnnotateGuest => {
     const webview = webviewRef.current
@@ -1605,6 +1680,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
             devToolsOpen={devtoolsOpen}
             loading={loading}
             onBack={goBack}
+            onClearCacheReload={() => void clearCacheReloadPreview()}
             onFlushComments={() => void flushComments()}
             onForward={goForward}
             onNavigate={navigateTo}

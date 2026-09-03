@@ -35,10 +35,10 @@ export interface NextMove {
   tip: string
 }
 
-/** The moves standing for each session, most-wanted first. The composer paints
- *  `[0]`; the rest exist so a move the renderer rejects (a skill that has since
- *  vanished, a payload that arrives empty) has a runner-up rather than
- *  collapsing the whole offer. Not a queue — there is no "next suggestion". */
+/** The move standing for each session. A list because the wire carries one,
+ *  and a shape that can hold more without a contract change is worth the two
+ *  characters — but the composer paints one ghost and the backend sends one,
+ *  so there is no runner-up and no "next suggestion". */
 export const $nextMovesBySession = atom<Record<string, NextMove[]>>({})
 
 /** Mirrors `MOVE_KINDS` in `agent/next_moves.py`. Re-checked here because the
@@ -50,7 +50,9 @@ const MAX_MOVES = 3
 
 /** The ghost sits on one clipped line where the placeholder does. Past this it
  *  is all ellipsis and tells the user nothing, so the offer is dropped rather
- *  than shown as a shrug. */
+ *  than shown as a shrug. Same number as `PAYLOAD_LIMIT` in
+ *  `agent/next_moves.py`, which refuses to emit a longer one — this end is the
+ *  guard against an older backend, not the primary rule. */
 const GHOST_LIMIT = 160
 
 /** How long a standing offer survives with nothing happening.

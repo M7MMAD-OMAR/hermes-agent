@@ -36,19 +36,24 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
-# The bus caps the strip well below this; the ceiling is here so a malformed
-# model answer cannot flood the wire.
-MAX_MOVES = 3
+# The composer paints ONE ghost, so one is what goes on the wire. Asking for a
+# shortlist and showing the top of it sounds richer and is not: the renderer
+# could never surface the runners-up, and every extra move is prompt budget
+# spent on something nobody sees.
+MAX_MOVES = 1
 
 # What a move can be. `followup` and `action` insert prose, `skill` inserts a
 # slash command, `delegate` inserts a delegation prompt — all four end up as
 # text in the composer, and the user still presses Enter.
 MOVE_KINDS = frozenset({"action", "delegate", "followup", "skill"})
 
-# Pills are `max-w-56` with a truncating label. Anything longer is clipped by
-# the strip, so cut it at the producer where the meaning is still known.
+# The label is the internal name for the move; the payload is what lands in the
+# draft, and it is painted on ONE clipped line where the placeholder sits. Past
+# that it is all ellipsis, so the renderer drops it — which means emitting a
+# longer one would just be the feature silently not working. Same number both
+# ends: GHOST_LIMIT in `store/next-moves.ts`.
 LABEL_LIMIT = 48
-PAYLOAD_LIMIT = 400
+PAYLOAD_LIMIT = 160
 
 # Surfaces with no strip to paint on. A verbatim mirror of
 # `_UNTITLED_PLATFORMS` (agent/turn_context.py) and for the same reason:
@@ -119,7 +124,8 @@ _MOVES_RESPONSE_FORMAT = {
 
 _SYSTEM_PROMPT = """You suggest what the user could do next, right after their coding agent \
 finished a turn. You are not the agent and you are not talking to them: you write the \
-short labels on 1-3 buttons above their message box.
+one greyed-out suggestion sitting in their empty message box, which they take by \
+pressing Tab.
 
 Rules:
 - Only propose moves that follow from what THIS turn actually did. No generic advice.
@@ -130,7 +136,9 @@ would write it to the agent, in the same language as their last message.
 - kind: `skill` only for a skill in the installed list, and `payload` must start with \
 its slash command. `delegate` only when delegation is available and the work is genuinely \
 separable. `action` for a concrete next step. `followup` for a question worth asking.
-- Offer fewer moves rather than weak ones. An empty list is a valid, good answer."""
+- ONE move, or none. An empty list is a valid, good answer — offer nothing
+rather than something weak.
+- `payload` must fit on one line: keep it under 160 characters."""
 
 _FILE_EDIT_TOOL_ARGS: Mapping[str, str] = {
     "patch": "path",
@@ -482,10 +490,13 @@ def validate_moves(raw: Any) -> List[NextMove]:
             return []
 
         kind = str(entry.get("kind") or "").strip()
+        # The label is a name and may be trimmed. The payload is CONTENT — it
+        # becomes the user's draft — and a sentence cut mid-word is worse than
+        # no suggestion, so an over-long one is refused rather than clipped.
         label = _clip(entry.get("label"), LABEL_LIMIT)
-        payload = _clip(entry.get("payload"), PAYLOAD_LIMIT)
+        payload = " ".join(str(entry.get("payload") or "").split())
 
-        if kind not in MOVE_KINDS or not label or not payload:
+        if kind not in MOVE_KINDS or not label or not payload or len(payload) > PAYLOAD_LIMIT:
             return []
 
         moves.append(NextMove(kind=kind, label=label, tip=_clip(entry.get("tip"), PAYLOAD_LIMIT), payload=payload))
@@ -597,6 +608,22 @@ def _evidence_prompt(evidence: TurnEvidence) -> str:
     return "\n".join(lines)
 
 
+def _route_is_own_runtime(route: Mapping[str, Any], main_runtime: Optional[Mapping[str, Any]]) -> bool:
+    """Whether the call landed on the conversation's own provider.
+
+    Silent on an unreported route (an older client, or a path that never
+    records one): the pin is `prefer_fast_model: false`, and this is the check
+    that catches the router leaving it, not the pin itself.
+    """
+    routed = str(route.get("provider") or "").strip().lower()
+    own = str((main_runtime or {}).get("provider") or "").strip().lower()
+
+    if not routed or routed == "auto" or not own:
+        return True
+
+    return routed == own
+
+
 def model_moves(evidence: TurnEvidence, main_runtime: Optional[Dict[str, Any]] = None) -> List[NextMove]:
     """One auxiliary call. Raises nothing: an empty list means "use the rules".
 
@@ -615,6 +642,14 @@ def model_moves(evidence: TurnEvidence, main_runtime: Optional[Dict[str, Any]] =
         if language:
             system += f"\n- Write `label`, `tip` and `payload` in {language}."
 
+        # The suggestion has to sound like the conversation it follows, so it
+        # has to COME from that conversation's model. `prefer_fast_model` is
+        # off, which pins the happy path — but the router's own credit and
+        # health fallbacks can still walk to another provider on a 402 or an
+        # outage, and an answer from a different vendor is not the thing that
+        # was asked for. `route_info` reports where the call actually landed;
+        # anywhere else and we throw the answer away and use the local rules.
+        route: Dict[str, Any] = {}
         response = call_llm(
             task="next_moves",
             main_runtime=main_runtime,
@@ -625,7 +660,14 @@ def model_moves(evidence: TurnEvidence, main_runtime: Optional[Dict[str, Any]] =
             max_tokens=400,
             temperature=0.3,
             extra_body={"response_format": _MOVES_RESPONSE_FORMAT},
+            route_info=route,
         )
+
+        if not _route_is_own_runtime(route, main_runtime):
+            logger.debug("Next moves: discarding an answer routed to %s", route.get("provider"))
+
+            return []
+
         parsed = safe_json_loads(response.choices[0].message.content or "")
     except Exception as exc:
         logger.debug("Next-moves model call failed: %s", exc)

@@ -187,14 +187,20 @@ Event `next_moves.offer`, emitted through `_emit(type, sid, payload)`
   "session_id": "<runtime sid, never empty>",
   "turn_id":    "<the value finalize_turn passes to on_session_end>",
   "source":     "model" | "heuristic",
-  "moves": [                       // 1..3, schema-validated at the boundary
+  "moves": [                       // exactly one, schema-validated at the boundary
     { "kind": "followup" | "skill" | "delegate" | "action",
-      "label": "…",                // model-authored, <= 48 chars
-      "tip":   "…",                // model-authored, why this is offered
-      "payload": "…" }             // the text inserted into the draft
+      "label": "…",                // internal name, <= 48 chars, may be trimmed
+      "tip":   "…",                // why this is offered
+      "payload": "…" }             // the ghost text, <= 160 chars, REFUSED if longer
   ]
 }
 ```
+
+One move, not a shortlist. The composer paints one ghost, so a runner-up is
+prompt budget spent on something no surface can show. The payload is content —
+it becomes the user's draft — so an over-long one is refused rather than
+clipped: a sentence cut mid-word is worse than no suggestion. Both ends carry
+the same number (`PAYLOAD_LIMIT` / `GHOST_LIMIT`, 160).
 
 New optional fields go on `GatewayEventPayload`
 (`apps/desktop/src/lib/chat-messages/types.ts:160`), beside `session_id`/`title`.
@@ -658,8 +664,14 @@ unadvertised with the suite green.
   Deferred rather than solved — see *Not solved*.
 - **Partial failures are folded into errors**, because the flag the plan
   assumed is not on the wire at the dispatch seam. See the table above.
-- **`prefer_fast_model` ships ON**, unlike `title_generation`, which ships it
-  off. Titling is once per session; this is once per turn, and that is the cost
-  profile that justifies overriding the documented "auto = the main model"
-  contract. Users whose main model is already a cheap tier should set it false
-  — otherwise the fast tier can mean a different vendor for no saving.
+- **`prefer_fast_model` ships OFF**, like `title_generation`. The suggestion has
+  to sound like the conversation it follows, so it has to come from that
+  conversation's model — and a provider's "fast tier" is often another vendor
+  entirely, which buys nothing when the main model is already cheap and changes
+  the voice when it is not.
+- **The pin is checked, not assumed.** `prefer_fast_model: false` fixes the
+  happy path, but the router's own credit and health fallbacks still walk to
+  another provider on a 402 or an outage. The call passes `route_info` and an
+  answer that landed anywhere but the conversation's own provider is discarded
+  — the local rules answer instead. "Uses the conversation's model" is
+  otherwise only true when nothing goes wrong.

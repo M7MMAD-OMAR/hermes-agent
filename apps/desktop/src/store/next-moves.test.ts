@@ -157,6 +157,20 @@ describe('offerNextMoves', () => {
     expect(offerNextMoves('s1', [move({ kind: 'nope' })])).toBe(false)
     expect(ghost('s1')).toEqual([])
   })
+
+  it('takes a fresh offer on the next turn after the last one was accepted', () => {
+    // Accepting withdraws, which disarms the session. The next completion has
+    // to re-arm it or the feature works exactly once per conversation.
+    settled('s1')
+    offerNextMoves('s1', [move()])
+    withdrawNextMoves('s1')
+
+    noteTurnStarted('s1')
+    noteTurnCompleted('s1')
+
+    expect(offerNextMoves('s1', [move({ payload: 'The next thing.' })])).toBe(true)
+    expect(ghost('s1')).toEqual(['The next thing.'])
+  })
 })
 
 describe('withdrawNextMoves', () => {

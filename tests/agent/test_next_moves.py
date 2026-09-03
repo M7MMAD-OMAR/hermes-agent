@@ -214,16 +214,20 @@ def good(**over):
         [good(kind="explode")],
         [good(label="")],
         [good(payload="   ")],
-        [good(), "not a mapping"],
+        ["not a mapping", good()],
+        [good(payload="x" * 500)],
     ],
 )
 def test_a_malformed_pack_yields_nothing_not_a_partial_strip(raw):
     assert validate_moves(raw) == []
 
 
-def test_a_long_pack_is_capped_not_rejected():
+def test_only_the_first_move_is_read():
+    # The composer paints one ghost, so one is what crosses the wire. A model
+    # that answers with a shortlist gets its own top pick used.
     moves = validate_moves([good(label=f"Move {i}") for i in range(20)])
 
+    assert [m.label for m in moves] == ["Move 0"]
     assert len(moves) == MAX_MOVES
 
 

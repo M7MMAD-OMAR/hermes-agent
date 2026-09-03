@@ -393,7 +393,12 @@ export function ChatBar({
   // offering it against half-typed text would show a suggestion the CSS has
   // already hidden.
   const nextMoves = useSessionSlice($nextMovesBySession, statusSessionId)
-  const ghostMove = hasComposerPayload ? undefined : nextMoves[0]
+  // `hasText`, NOT `hasComposerPayload`. The ghost IS the placeholder, and the
+  // placeholder paints on an empty EDITOR — attachments do not fill it. Gating
+  // on the payload would blank the suggestion while the placeholder it
+  // replaced is still on screen, which is one condition disagreeing with
+  // another about the same pixel.
+  const ghostMove = hasText ? undefined : nextMoves[0]
 
   // Resting / reconnecting / starting placeholder text, re-rolled only on a real
   // conversation change.

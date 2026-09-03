@@ -19,6 +19,8 @@ from agent.next_moves import (
     NextMove,
     TurnEvidence,
     build_moves,
+    cancel_next_moves,
+    model_moves,
     dispatch_next_moves,
     extract_evidence,
     heuristic_moves,
@@ -38,6 +40,17 @@ class FakeAgent:
 def _enabled(monkeypatch):
     """The shipped default is off; every test here is about what happens on."""
     monkeypatch.setattr("agent.next_moves.next_moves_enabled", lambda *a, **k: True)
+
+
+@pytest.fixture(autouse=True)
+def _rules_only(monkeypatch):
+    """Default test world is the local rules: synchronous, and no provider.
+
+    With the model on, dispatch forks a daemon thread, so a test asserting on
+    the emitted events would be reading them before the worker wrote them. The
+    model tests below opt back in explicitly.
+    """
+    monkeypatch.setattr("agent.next_moves.next_moves_use_model", lambda *a, **k: False)
 
 
 @pytest.fixture(autouse=True)
@@ -371,3 +384,111 @@ def test_build_moves_reports_its_source():
 
     assert source == "heuristic"
     assert all(isinstance(move, NextMove) for move in moves)
+
+
+# ---------------------------------------------------------------------------
+# The auxiliary model path
+# ---------------------------------------------------------------------------
+
+
+class FakeResponse:
+    def __init__(self, content):
+        message = type("M", (), {"content": content})()
+        self.choices = [type("C", (), {"message": message})()]
+
+
+def fake_call(content):
+    def call(**kwargs):
+        call.kwargs = kwargs
+
+        return FakeResponse(content)
+
+    return call
+
+
+def test_the_model_answer_is_used_when_it_is_usable(monkeypatch):
+    monkeypatch.setattr("agent.next_moves.next_moves_use_model", lambda *a, **k: True)
+    monkeypatch.setattr(
+        "agent.auxiliary_client.call_llm",
+        fake_call('{"moves": [{"kind": "followup", "label": "Ask about X", "tip": "why", "payload": "What about X?"}]}'),
+    )
+
+    moves, source = build_moves(FakeAgent(), TurnEvidence(edited_files=["a.py"]))
+
+    assert source == "model"
+    assert [m.label for m in moves] == ["Ask about X"]
+
+
+def test_a_provider_failure_falls_back_to_the_rules(monkeypatch):
+    # call_llm RAISES on exhaustion rather than returning None, and a
+    # suggestion is never worth surfacing a provider error for.
+    def boom(**kwargs):
+        raise RuntimeError("provider exhausted")
+
+    monkeypatch.setattr("agent.next_moves.next_moves_use_model", lambda *a, **k: True)
+    monkeypatch.setattr("agent.auxiliary_client.call_llm", boom)
+
+    moves, source = build_moves(FakeAgent(), TurnEvidence(edited_files=["a.py"]))
+
+    assert source == "heuristic"
+    assert [m.label for m in moves] == ["Run the tests"]
+
+
+def test_an_empty_model_answer_falls_back_to_the_rules(monkeypatch):
+    monkeypatch.setattr("agent.next_moves.next_moves_use_model", lambda *a, **k: True)
+    monkeypatch.setattr("agent.auxiliary_client.call_llm", fake_call('{"moves": []}'))
+
+    _moves, source = build_moves(FakeAgent(), TurnEvidence(edited_files=["a.py"]))
+
+    assert source == "heuristic"
+
+
+def test_the_model_may_not_invent_a_skill_the_user_does_not_have(monkeypatch):
+    monkeypatch.setattr(
+        "agent.auxiliary_client.call_llm",
+        fake_call(
+            '{"moves": ['
+            '{"kind": "skill", "label": "Use docx", "tip": "why", "payload": "/docx report"},'
+            '{"kind": "skill", "label": "Use pptx", "tip": "why", "payload": "/pptx deck"}'
+            "]}"
+        ),
+    )
+
+    moves = model_moves(TurnEvidence(skills=["docx"]))
+
+    assert [m.payload for m in moves] == ["/docx report"]
+
+
+def test_a_delegate_move_is_dropped_when_delegation_is_unavailable(monkeypatch):
+    monkeypatch.setattr(
+        "agent.auxiliary_client.call_llm",
+        fake_call('{"moves": [{"kind": "delegate", "label": "Split it out", "tip": "why", "payload": "Do X"}]}'),
+    )
+
+    assert model_moves(TurnEvidence(can_delegate=False)) == []
+    assert len(model_moves(TurnEvidence(can_delegate=True))) == 1
+
+
+def test_a_malformed_model_answer_falls_back(monkeypatch):
+    monkeypatch.setattr("agent.next_moves.next_moves_use_model", lambda *a, **k: True)
+    monkeypatch.setattr("agent.auxiliary_client.call_llm", fake_call("not json at all"))
+
+    _moves, source = build_moves(FakeAgent(), TurnEvidence(edited_files=["a.py"]))
+
+    assert source == "heuristic"
+
+
+def test_a_fresh_turn_fences_off_an_offer_still_being_built(monkeypatch):
+    agent = stage()
+    events, emit = collect()
+
+    def slow(agent_arg, evidence):
+        # Stands in for the round trip: the user sends again mid-flight.
+        cancel_next_moves(agent_arg)
+
+        return [NextMove(kind="action", label="Too late", tip="t", payload="p")], "model"
+
+    monkeypatch.setattr("agent.next_moves.build_moves", slow)
+    dispatch_next_moves(agent, session_id="sess-1", status="complete", emit=emit)
+
+    assert events == []

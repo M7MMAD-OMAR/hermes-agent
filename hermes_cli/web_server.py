@@ -7471,7 +7471,9 @@ def get_model_info(profile: Optional[str] = None):
 # ---------------------------------------------------------------------------
 
 # Canonical auxiliary task slots. Keep in sync with DEFAULT_CONFIG["auxiliary"]
-# in hermes_cli/config.py — listed here for deterministic ordering in the UI.
+# in hermes_cli/config_defaults.py — listed here for deterministic ordering in
+# the UI. (The dict moved out of config.py; the old pointer sent people to the
+# wrong file.)
 _AUX_TASK_SLOTS: Tuple[str, ...] = (
     "vision",
     "compression",
@@ -7479,6 +7481,7 @@ _AUX_TASK_SLOTS: Tuple[str, ...] = (
     "approval",
     "mcp",
     "title_generation",
+    "next_moves",
     "review",
     "triage_specifier",
     "kanban_decomposer",

@@ -1272,8 +1272,8 @@ DEFAULT_CONFIG = {
             "language": "",
         },
         "next_moves": {
-            "enabled": False,  # post-turn suggestion pills in the desktop composer
-            "use_model": False,  # spend one auxiliary call per turn; false = local rules only
+            "enabled": True,  # post-turn suggestion pills in the desktop composer
+            "use_model": True,  # spend one auxiliary call per turn; false = local rules only
             "provider": "auto",
             "model": "",
             "prefer_fast_model": True,  # a 3-line answer never needs the main model

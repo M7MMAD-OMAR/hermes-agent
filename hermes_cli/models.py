@@ -4960,6 +4960,14 @@ def clear_provider_models_cache(provider: Optional[str] = None) -> None:
         if normalized in cache:
             del cache[normalized]
             changed = True
+        if normalized == "anthropic":
+            # cached_fetch_anthropic_models keys its own entries by base URL
+            # (anthropic-native:<url>) rather than the plain "anthropic" slug
+            # cached_provider_model_ids uses, so a targeted refresh must drop
+            # those too or a stale native /v1/models answer survives it.
+            for key in [k for k in cache if k.startswith("anthropic-native:")]:
+                del cache[key]
+                changed = True
         if changed:
             _save_provider_models_cache(cache)
     except Exception:
@@ -5078,6 +5086,73 @@ def _fetch_anthropic_models(
         import logging
         logging.getLogger(__name__).debug("Failed to fetch Anthropic models: %s", e)
         return None
+
+
+def cached_fetch_anthropic_models(
+    *,
+    base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    timeout: float = 5.0,
+    force_refresh: bool = False,
+    ttl_seconds: int = _PROVIDER_MODELS_CACHE_TTL,
+) -> Optional[list[str]]:
+    """Disk-cached wrapper around :func:`_fetch_anthropic_models`.
+
+    Every ``/model`` switch onto a native Anthropic model called the
+    uncached fetcher directly (:func:`validate_requested_model`'s
+    ``normalized == "anthropic"`` branch) — a live, unpooled HTTPS round
+    trip to ``/v1/models`` on EVERY switch, ~330-1800ms measured on this
+    machine, dwarfing everything else `switch_model()` does. Every sibling
+    lookup in this module (:func:`cached_provider_model_ids`,
+    :func:`cached_fetch_api_models`) already goes through a disk cache —
+    this one didn't.
+
+    Mirrors :func:`cached_fetch_api_models`'s exact contract (same
+    stale-while-revalidate tier, same ``Optional[list[str]]`` return —
+    ``None`` only when nothing has EVER been cached and the live fetch also
+    fails; once anything has been cached, a later outage serves the stale
+    entry rather than None) so callers do not need to change their None
+    handling. Keyed by ``anthropic-native:<base_url>`` so a custom base URL
+    (proxy, Bedrock-compatible gateway) gets its own entry; fingerprinted on
+    ``api_key`` so a credential rotation invalidates the cache automatically.
+    """
+    cache_key = f"anthropic-native:{(base_url or '').strip().rstrip('/').lower() or 'default'}"
+    fp = _custom_endpoint_fingerprint(api_key, "anthropic-native", None)
+    cache = _load_provider_models_cache()
+    entry = cache.get(cache_key)
+    now = time.time()
+
+    if not force_refresh and _cache_entry_valid(entry, fp):
+        age = now - entry["at"]
+        if age < ttl_seconds:
+            return list(entry["models"])
+        if age < _PROVIDER_MODELS_STALE_SERVE_MAX:
+            # Stale-while-revalidate: serve the expired entry immediately —
+            # a `/model` switch must never block on this round trip when a
+            # merely-old answer is sitting right there — and refresh off
+            # a background thread for the next switch.
+            def _refresh_anthropic():
+                live = _fetch_anthropic_models(
+                    timeout=timeout, base_url=base_url, api_key=api_key
+                )
+                if not live:
+                    return None
+                return {"fp": fp, "at": time.time(), "models": list(live)}
+
+            _spawn_swr_refresh(cache_key, _refresh_anthropic)
+            return list(entry["models"])
+
+    live = _fetch_anthropic_models(timeout=timeout, base_url=base_url, api_key=api_key)
+    if live:
+        cache[cache_key] = {"fp": fp, "at": now, "models": list(live)}
+        _save_provider_models_cache(cache)
+        return list(live)
+
+    # Live fetch returned nothing (offline, timeout, auth hiccup, or no
+    # resolvable token). A stale same-fingerprint entry beats no data.
+    if _cache_entry_valid(entry, fp):
+        return list(entry["models"])
+    return live
 
 
 def _payload_items(payload: Any) -> list[dict[str, Any]]:
@@ -7329,7 +7404,10 @@ def validate_requested_model(
     # tokens.  (The api_mode=="anthropic_messages" branch below handles the
     # Messages-API transport case separately.)
     if normalized == "anthropic":
-        anthropic_models = _fetch_anthropic_models(
+        # Cached: this ran on every `/model` switch uncached, a live
+        # /v1/models round trip (measured 330-1800ms) on top of everything
+        # else switch_model() does. See cached_fetch_anthropic_models.
+        anthropic_models = cached_fetch_anthropic_models(
             base_url=base_url or None,
             api_key=api_key or None,
         )
@@ -7373,7 +7451,9 @@ def validate_requested_model(
     # Anthropic Messages API: many proxies don't implement /v1/models.
     # Try probing with correct auth; if it fails, accept with a warning.
     if api_mode == "anthropic_messages":
-        api_models = fetch_api_models(api_key, base_url, api_mode=api_mode)
+        # Cached — identical Optional[list[str]] contract to fetch_api_models,
+        # see cached_fetch_anthropic_models above for why this hot path needs it.
+        api_models = cached_fetch_api_models(api_key, base_url, api_mode=api_mode)
         if api_models is not None:
             if requested_for_lookup in set(api_models):
                 return {
@@ -7405,8 +7485,10 @@ def validate_requested_model(
             ),
         }
 
-    # Probe the live API to check if the model actually exists
-    api_models = fetch_api_models(api_key, base_url)
+    # Probe the live API to check if the model actually exists.
+    # Cached — same contract as fetch_api_models; see cached_fetch_anthropic_models
+    # above for the measured cost of doing this uncached on every /model switch.
+    api_models = cached_fetch_api_models(api_key, base_url)
 
     if api_models is not None:
         # Gemini's OpenAI-compat /v1beta/openai/models endpoint returns IDs

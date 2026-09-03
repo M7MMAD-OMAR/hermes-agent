@@ -119,6 +119,10 @@ const armPins = vi.fn(async (seed?: null | PreviewPin[]) => {
 
 vi.mock('./preview-pins', () => ({
   armPins: (seed?: null | PreviewPin[]) => armPins(seed),
+  // The panel photographs each new pin once. There is no camera in jsdom, so
+  // it declines — which is exactly the shape the real capture takes against a
+  // pane with no live guest behind it.
+  capturePinShot: vi.fn(async () => false),
   // Mirrors the real engine: delivered pins LEAVE the page, so the next state
   // read merges a page without them and the book auto-clears.
   deliverPins: vi.fn(async (ids: string[]) => {

@@ -163,8 +163,6 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       'pointer-events:auto;box-shadow:0 10px 34px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.04) inset;',
       'font:13px/1.5 system-ui,sans-serif;box-sizing:border-box}',
       '.bubble *{box-sizing:border-box}',
-      // Head: the pin's own number and what it is fastened to, so an open
-      // bubble is never ambiguous about which marker it belongs to.
       // Head: the pin's number and a way out. No target label — it rendered
       // the clicked element's own text, truncated mid-phrase, telling the
       // user nothing the marker they just placed does not already say.
@@ -619,6 +617,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       closeBubble()
       paint()
     })
+
     // Sending and queueing are COMMITTING acts: the bubble closes the moment
     // the request is written, the same way Done closes it. The panel picks the
     // request up on its next read and reports success or failure in a toast —

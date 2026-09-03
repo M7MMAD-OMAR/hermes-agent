@@ -96,26 +96,30 @@ describe('PreviewBrowserBar', () => {
     expect(address(rendered)).toBeTruthy()
   })
 
-  it('renders the Annotate control and a blue Commenting status while the mode is on', () => {
-    const onToggleAnnotate = vi.fn()
-    const rendered = render(<PreviewBrowserBar {...baseProps} annotateMode onToggleAnnotate={onToggleAnnotate} />)
+  it('offers exactly one way into commenting', () => {
+    const rendered = render(<PreviewBrowserBar {...baseProps} />)
 
-    const toggle = rendered.getByRole('button', { name: 'Stop annotating' })
-    expect(toggle.getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(toggle)
-    expect(onToggleAnnotate).toHaveBeenCalledOnce()
-    expect(rendered.getByText('Commenting').getAttribute('data-annotate-status')).toBe('commenting')
+    // The bar used to carry two: an "Annotate" mode toggle and a "Comments"
+    // panel toggle, each with its own pins, its own delivery and its own idea
+    // of what a comment was. There is one system now, so there is one control
+    // — and no bar-level status pill or flush button, because the panel and
+    // the in-page bubble own those.
+    const buttons = rendered.getAllByRole('button').map(button => button.getAttribute('aria-label'))
+
+    expect(buttons.filter(label => label === 'Comments')).toHaveLength(1)
+    expect(buttons).not.toContain('Annotate')
+    expect(rendered.queryByText('Commenting')).toBeNull()
+    expect(rendered.queryByText(/Add \d+ comments?/)).toBeNull()
   })
 
-  it('flushes stacked comments from the bar without implying a send on save', () => {
-    const onFlushComments = vi.fn()
+  it('the comments control reports whether the panel is open', () => {
+    const onTogglePins = vi.fn()
+    const rendered = render(<PreviewBrowserBar {...baseProps} onTogglePins={onTogglePins} pinsOpen />)
 
-    const rendered = render(
-      <PreviewBrowserBar {...baseProps} commentCount={2} onFlushComments={onFlushComments} onToggleAnnotate={vi.fn()} />
-    )
-
-    fireEvent.click(rendered.getByRole('button', { name: 'Add 2 comments' }))
-    expect(onFlushComments).toHaveBeenCalledOnce()
+    const toggle = rendered.getByRole('button', { name: 'Comments' })
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(toggle)
+    expect(onTogglePins).toHaveBeenCalledOnce()
   })
 
   it('disables back and forward when there is no history', () => {

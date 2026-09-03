@@ -115,8 +115,18 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
    *  not) must reach the book regardless. */
   const lastSyncRef = useRef<{ rev: null | number; url: string }>({ rev: null, url: '' })
 
-  /** Pins this panel has already pointed the camera at. */
-  const shotRef = useRef(new Set<string>())
+  /**
+   * Pins the camera has already been pointed at.
+   *
+   * Seeded from the book on the first sync, not left empty: the panel
+   * remounts on a tab switch, a pop-out and a window reopen, and an empty set
+   * would re-photograph every comment already on the page — including the
+   * ones whose shot the user deleted, which is the panel arguing with them.
+   *
+   * The rule the seed encodes: photograph a pin that APPEARS while the panel
+   * is watching. One already in the book has had its chance.
+   */
+  const shotRef = useRef<null | Set<string>>(null)
 
   const sync = useCallback(
     async (report: Awaited<ReturnType<typeof readPins>>) => {
@@ -148,24 +158,29 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       setArmed(report.armed === true)
       setBubbleOpen(report.bubbleOpen === true)
 
-      // Photograph what a new comment points at, once, the first time this
-      // panel sees it. A comment about a page is half about how it LOOKS, and
-      // asking the user to go and screenshot the thing they just clicked is
-      // the step that makes them not bother.
+      // Photograph what a new comment points at, once. A comment about a page
+      // is half about how it LOOKS, and asking the user to go and screenshot
+      // the thing they just clicked is the step that makes them not bother.
       //
       // Attempted-set rather than a shots check: a capture that legitimately
       // yields nothing (a torn-down guest, a pin scrolled to nowhere) must not
-      // be retried on every poll, and a user who deletes the auto shot has
-      // said no — re-adding it next beat would be the panel arguing.
-      for (const pin of report.pins) {
-        if (shotRef.current.has(pin.id)) {
-          continue
-        }
+      // be retried on every poll.
+      if (!shotRef.current) {
+        // First sight of this panel's life. Everything already here predates
+        // it — adopt it as seen rather than reshooting the whole page, which
+        // would also stall the first render behind one capture per pin.
+        shotRef.current = new Set(report.pins.map(pin => pin.id))
+      } else {
+        for (const pin of report.pins) {
+          if (shotRef.current.has(pin.id)) {
+            continue
+          }
 
-        shotRef.current.add(pin.id)
+          shotRef.current.add(pin.id)
 
-        if (!(pin.shots ?? []).length && !pin.orphaned) {
-          await capturePinShot(pin.id)
+          if (!(pin.shots ?? []).length && !pin.orphaned) {
+            await capturePinShot(pin.id)
+          }
         }
       }
 

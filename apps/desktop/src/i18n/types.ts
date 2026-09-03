@@ -2847,9 +2847,6 @@ export interface Translations {
       openTarget: (url: string) => string
       fallbackTitle: string
       comments: string
-      commentPlaceholder: string
-      commentTitle: (n: number) => string
-      saveComment: string
       cancelComment: string
     }
   }

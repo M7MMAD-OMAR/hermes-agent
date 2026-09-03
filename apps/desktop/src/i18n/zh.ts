@@ -3462,9 +3462,6 @@ export const zh: Translations = {
       openTarget: url => `打开 ${url}`,
       fallbackTitle: '预览',
       comments: '批注',
-      commentPlaceholder: '添加批注…',
-      commentTitle: n => `批注 ${n}`,
-      saveComment: '保存',
       cancelComment: '取消批注'
     }
   },

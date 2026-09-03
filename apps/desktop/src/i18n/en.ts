@@ -3320,9 +3320,6 @@ export const en: Translations = {
       openTarget: url => `Open ${url}`,
       fallbackTitle: 'Preview',
       comments: 'Comments',
-      commentPlaceholder: 'Add a comment...',
-      commentTitle: n => `Comment ${n}`,
-      saveComment: 'Save',
       cancelComment: 'Cancel comment'
     }
   },

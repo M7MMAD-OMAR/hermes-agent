@@ -420,7 +420,11 @@ def heuristic_moves(evidence: TurnEvidence) -> List[NextMove]:
             NextMove(
                 kind="action",
                 label="Run the tests",
-                tip=f"{len(evidence.edited_files)} file(s) changed and nothing ran the tests.",
+                tip=(
+                    f"{count} file{'' if count == 1 else 's'} changed and nothing ran the tests."
+                    if (count := len(evidence.edited_files))
+                    else "Files changed and nothing ran the tests."
+                ),
                 # Deliberately does not name a runner: the agent knows the
                 # project's, and a wrong command is worse than a prompt.
                 payload="Run the tests that cover what we just changed, and fix anything that fails.",

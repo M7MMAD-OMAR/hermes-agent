@@ -180,4 +180,21 @@ describe('SuggestionPills', () => {
     expect(labels(container)).toEqual(['Connecting github…', 'Add linear'])
     expect(invoke).not.toHaveBeenCalled()
   })
+  it('isolates the label direction so model-authored text cannot render backwards', () => {
+    // A provider's label is not always chrome copy — the post-turn provider's
+    // is written by a model, in the conversation's language. Asserted at the
+    // attribute level, same contract as block-direction.test.tsx.
+    const { suggestion } = pill('rtl')
+
+    offerSuggestions('dir1', 'mcp', [{ ...suggestion, label: 'أعد تشغيل الاختبارات' }])
+
+    const { container } = render(<SuggestionPills sessionId="dir1" />)
+    const span = container.querySelector('button > span.truncate')
+
+    expect(span?.getAttribute('dir')).toBe('auto')
+    expect(span?.textContent).toBe('أعد تشغيل الاختبارات')
+
+    offerSuggestions('dir1', 'mcp', [])
+  })
+
 })

@@ -129,7 +129,11 @@ function SessionSuggestionPills({ sessionId }: { sessionId: null | string }) {
     }
 
     return (
-      <Tip key={key} label={tip}>
+      // `dir="auto"` on both text slots, same mechanism markdown-text.tsx uses
+      // for model-authored prose. A provider's label is not guaranteed to be
+      // chrome copy — an Arabic one under an LTR document resolves the wrong
+      // base direction, and `truncate` then clips its logical start.
+      <Tip key={key} label={<span dir="auto">{tip}</span>}>
         <button
           className={cn(composerFloatingPill, 'max-w-56', phase === 'done' && 'cursor-default')}
           onClick={() => {
@@ -151,7 +155,9 @@ function SessionSuggestionPills({ sessionId }: { sessionId: null | string }) {
           ) : (
             <Codicon className="shrink-0 opacity-70" name={suggestion.icon ?? 'lightbulb'} size="0.75rem" />
           )}
-          <span className="truncate">{label}</span>
+          <span className="truncate" dir="auto">
+            {label}
+          </span>
         </button>
       </Tip>
     )

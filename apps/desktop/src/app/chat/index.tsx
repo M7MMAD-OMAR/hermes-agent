@@ -669,7 +669,6 @@ const ChatViewContent = memo(function ChatViewContent({
       data-composer-target={composerScope.target}
       data-session-anchor={sessionAnchor}
     >
-      <Backdrop />
       {/* Tiles get their chrome from the layout zone (chip strip); the modal
           prompt overlays stay active-session-scoped in the primary surface. */}
       {isPrimary && (
@@ -701,7 +700,23 @@ const ChatViewContent = memo(function ChatViewContent({
           browser. `relative` is safe for the popped-out (fixed) composer —
           only `contain`/`transform` would capture it. */}
       <div className="flex min-h-0 flex-1 flex-row overflow-hidden rtl:flex-row-reverse">
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {/* `isolate` so the backdrop's blend and z-index resolve HERE. Without
+            it, `relative` alone is not a stacking context and the backdrop's
+            `z-2` climbs to the surface — contained today only by this column's
+            box and `overflow-hidden`, which is geometry doing a job that
+            should be structural. Safe for the popped-out (fixed) composer:
+            isolation creates a stacking context, not a containing block. */}
+        <div className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {/* Inside the conversation column, NOT on the whole surface. The
+              backdrop is a `mix-blend-difference` layer, and a blend layer
+              composites with everything painted beneath it — so at surface
+              level it was inverting the docked browser's page, which is a live
+              website and not ours to tint. Here it is clipped to the column's
+              own box (`inset-0` + the column's `overflow-hidden`) and the
+              browser, a later sibling of that column, paints over it
+              untouched. Matches what this always claimed to be: the texture
+              behind the transcript. */}
+          <Backdrop />
           <ChatRuntimeBoundary
             busy={busy}
             onCancel={haltRun}

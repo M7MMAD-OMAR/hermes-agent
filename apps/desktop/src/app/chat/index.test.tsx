@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type * as React from 'react'
 import { useState } from 'react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { assistantTextPart, type ChatMessage } from '@/lib/chat-messages'
+import { setBackdrop } from '@/store/backdrop'
 import {
   $activeSessionId,
   $awaitingResponse,
@@ -106,35 +108,47 @@ describe('ChatView render isolation', () => {
     $sessions.set([])
   })
 
-  it('does not re-render chat history when an unrelated parent idle tick updates', () => {
-    const props = {
-      gateway: null,
-      maxVoiceRecordingSeconds: 120,
-      onAddContextRef: vi.fn(),
-      onAddUrl: vi.fn(),
-      onAttachDroppedItems: vi.fn(),
-      onAttachImageBlob: vi.fn(),
-      onBranchInNewChat: vi.fn(),
-      onCancel: vi.fn(),
-      onDeleteSelectedSession: vi.fn(),
-      onEdit: vi.fn(),
-      onPasteClipboardImage: vi.fn(),
-      onPickFiles: vi.fn(),
-      onPickFolders: vi.fn(),
-      onPickImages: vi.fn(),
-      onReload: vi.fn(),
-      onRemoveAttachment: vi.fn(),
-      onRetryResume: vi.fn(),
-      onSteer: vi.fn(),
-      onSubmit: vi.fn(),
-      onThreadMessagesChange: vi.fn(),
-      onToggleSelectedPin: vi.fn(),
-      onTranscribeAudio: vi.fn()
-    }
+  const chatProps = () => ({
+    gateway: null,
+    maxVoiceRecordingSeconds: 120,
+    onAddContextRef: vi.fn(),
+    onAddUrl: vi.fn(),
+    onAttachDroppedItems: vi.fn(),
+    onAttachImageBlob: vi.fn(),
+    onBranchInNewChat: vi.fn(),
+    onCancel: vi.fn(),
+    onDeleteSelectedSession: vi.fn(),
+    onEdit: vi.fn(),
+    onPasteClipboardImage: vi.fn(),
+    onPickFiles: vi.fn(),
+    onPickFolders: vi.fn(),
+    onPickImages: vi.fn(),
+    onReload: vi.fn(),
+    onRemoveAttachment: vi.fn(),
+    onRetryResume: vi.fn(),
+    onSteer: vi.fn(),
+    onSubmit: vi.fn(),
+    onThreadMessagesChange: vi.fn(),
+    onToggleSelectedPin: vi.fn(),
+    onTranscribeAudio: vi.fn()
+  })
 
+  const renderChat = (extra?: React.ReactNode) =>
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/stored-1']}>
+          {extra}
+          <ChatView {...chatProps()} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+  it('does not re-render chat history when an unrelated parent idle tick updates', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } }
     })
+
+    const props = chatProps()
 
     function ParentTickHarness() {
       const [tick, setTick] = useState(0)
@@ -161,5 +175,24 @@ describe('ChatView render isolation', () => {
     // memo(ChatView) with stable props must absorb the parent's idle tick —
     // the transcript (Thread) must not re-render. This is PR #38470's contract.
     expect(threadRenderCount.current).toBe(1)
+  })
+
+  it('keeps the backdrop inside the conversation column, never over the whole surface', () => {
+    // The backdrop is a mix-blend-difference layer: it composites with
+    // everything painted beneath it. Mounted on the chat surface it reached
+    // the docked browser and inverted a live website. It has to stay clipped
+    // to the column the transcript lives in.
+    setBackdrop(true)
+
+    const { container } = renderChat()
+    const surface = container.querySelector('[data-chat-surface]')
+    const backdrop = screen.getByTestId('backdrop')
+
+    expect(surface).toBeTruthy()
+    expect(backdrop.parentElement).not.toBe(surface)
+    // Positively: it sits with the transcript, not beside it.
+    expect(backdrop.parentElement!.contains(screen.getByTestId('thread'))).toBe(true)
+
+    setBackdrop(false)
   })
 })

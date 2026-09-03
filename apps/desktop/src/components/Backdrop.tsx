@@ -4,6 +4,14 @@ import { $backdrop } from '@/store/backdrop'
 
 const assetPath = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
+/** The faint statue texture behind the transcript.
+ *
+ *  `mix-blend-difference` composites with everything painted beneath it, so
+ *  WHERE this mounts is load-bearing, not cosmetic: at chat-surface level it
+ *  reached the docked browser and inverted a live website. It belongs inside
+ *  the conversation column, clipped to that column's box. See the mount site
+ *  in `app/chat/index.tsx`.
+ */
 export function Backdrop() {
   const on = useStore($backdrop)
 

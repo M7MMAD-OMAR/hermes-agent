@@ -196,11 +196,11 @@ function toSuggestion(name: string): ComposerSuggestion {
     doneTip: copy('doneTip'),
     icon: 'zap',
     id: name,
-    invoke: async () => {
+    invoke: async ({ target }) => {
       // Prefix, don't replace: the user's words stay theirs. mode:'prefix'
       // puts the command where slash routing expects it — line start.
-      requestComposerInsert(`/${name} `, { mode: 'prefix' })
-      requestComposerFocus()
+      requestComposerInsert(`/${name} `, { mode: 'prefix', target })
+      requestComposerFocus(target)
     },
     label: copy('label', name),
     provider: 'skill',

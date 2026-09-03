@@ -200,7 +200,7 @@ describe('composer suggestion bus', () => {
     offer('first')
     offer('second')
 
-    await ($composerSuggestionsBySession.get().s8 ?? [])[0]!.invoke({ cancelled: () => false, sessionId: 's8' })
+    await ($composerSuggestionsBySession.get().s8 ?? [])[0]!.invoke({ cancelled: () => false, sessionId: 's8', target: 'main' })
 
     // A pinned first object means the pill runs work built for a draft the
     // user has since changed.
@@ -223,7 +223,7 @@ describe('composer suggestion bus', () => {
     offer('first')
     offer('second')
 
-    await ($composerSuggestionsBySession.get().s8b ?? [])[0]!.invoke({ cancelled: () => false, sessionId: 's8b' })
+    await ($composerSuggestionsBySession.get().s8b ?? [])[0]!.invoke({ cancelled: () => false, sessionId: 's8b', target: 'main' })
 
     expect(calls).toEqual(['first'])
 

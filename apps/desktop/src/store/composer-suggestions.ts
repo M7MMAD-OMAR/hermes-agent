@@ -1,5 +1,7 @@
 import { atom } from 'nanostores'
 
+import type { ComposerTarget } from '@/app/chat/composer/focus'
+
 /**
  * The composer suggestion bus — a generic, session-scoped feed for the pill
  * strip above the composer (rendered by `composer/suggestion-pills.tsx`).
@@ -42,8 +44,18 @@ export interface ComposerSuggestion {
   icon?: string
   /** Runs the whole action; the pill shows `workingLabel` while it's
    *  in flight and `doneLabel` on success. Reject to return to idle
-   *  (provider surfaces its own error toast). */
-  invoke: (context: { cancelled: () => boolean; sessionId: string | null }) => Promise<void>
+   *  (provider surfaces its own error toast).
+   *
+   *  `target` is the composer the clicked pill belongs to, and a provider
+   *  that edits the draft MUST pass it on. The default target is the last
+   *  composer to receive editor FOCUS, and clicking a pill does not focus its
+   *  own editor — so a pill clicked in a tile writes into whichever
+   *  conversation was typed in last. */
+  invoke: (context: {
+    cancelled: () => boolean
+    sessionId: string | null
+    target: ComposerTarget
+  }) => Promise<void>
   /** Label while `invoke` runs ("Connecting Atlassian…"). */
   workingLabel: string
   /** Tooltip while working; clicking a working pill requests cancel. */

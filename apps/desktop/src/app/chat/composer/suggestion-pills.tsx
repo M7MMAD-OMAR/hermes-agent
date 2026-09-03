@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import type { ComposerTarget } from '@/app/chat/composer/focus'
 import { composerFloatingPill } from '@/components/chat/composer-dock'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
@@ -40,11 +41,11 @@ type PillPhase = 'done' | 'idle' | 'working'
  * keys are `provider:id`, so without this "Added GitHub" in one chat renders
  * the next chat's genuine offer as already-done and inert.
  */
-export function SuggestionPills({ sessionId }: { sessionId: null | string }) {
-  return <SessionSuggestionPills key={sessionId ?? ''} sessionId={sessionId} />
+export function SuggestionPills({ sessionId, target }: { sessionId: null | string; target: ComposerTarget }) {
+  return <SessionSuggestionPills key={sessionId ?? ''} sessionId={sessionId} target={target} />
 }
 
-function SessionSuggestionPills({ sessionId }: { sessionId: null | string }) {
+function SessionSuggestionPills({ sessionId, target }: { sessionId: null | string; target: ComposerTarget }) {
   const suggestions = useSessionSlice($composerSuggestionsBySession, sessionId)
   const [phases, setPhases] = useState<Record<string, PillPhase>>({})
   // Cancel flags outlive renders but never trigger them (poll-boundary abort).
@@ -116,7 +117,7 @@ function SessionSuggestionPills({ sessionId }: { sessionId: null | string }) {
       markSuggestionInvoked(sessionId, key)
 
       try {
-        await suggestion.invoke({ cancelled: () => cancels.get(key) === true, sessionId })
+        await suggestion.invoke({ cancelled: () => cancels.get(key) === true, sessionId, target })
         triggerHaptic('submit')
         setPhase(key, 'done')
       } catch {

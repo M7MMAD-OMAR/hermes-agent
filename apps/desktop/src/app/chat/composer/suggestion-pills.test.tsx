@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { $composerSuggestionsBySession, type ComposerSuggestion, offerSuggestions } from '@/store/composer-suggestions'
 
+import { markActiveComposer, onComposerInsertRequest, requestComposerInsert } from './focus'
 import { SuggestionPills } from './suggestion-pills'
 
 /**
@@ -56,7 +57,7 @@ afterEach(() => {
 describe('SuggestionPills', () => {
   it('narrates idle → working → done through one invoke', async () => {
     const { flow, suggestion } = pill('github')
-    const { container } = render(<SuggestionPills sessionId="s1" />)
+    const { container } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [suggestion]))
     expect(labels(container)).toEqual(['Add github'])
@@ -70,7 +71,7 @@ describe('SuggestionPills', () => {
 
   it('re-offering a withdrawn key starts from idle, not a stale done', async () => {
     const first = pill('github')
-    const { container } = render(<SuggestionPills sessionId="s1" />)
+    const { container } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [first.suggestion]))
     await click(container)
@@ -87,7 +88,7 @@ describe('SuggestionPills', () => {
   it('a fresh offer is clickable again after an earlier one completed', async () => {
     const first = pill('github')
     const second = pill('github')
-    const { container } = render(<SuggestionPills sessionId="s1" />)
+    const { container } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [first.suggestion]))
     await click(container)
@@ -104,7 +105,7 @@ describe('SuggestionPills', () => {
 
   it('cancels the in-flight action when the pill is withdrawn mid-flight', async () => {
     const { flow, suggestion } = pill('github')
-    const { container } = render(<SuggestionPills sessionId="s1" />)
+    const { container } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [suggestion]))
     await click(container)
@@ -119,7 +120,7 @@ describe('SuggestionPills', () => {
 
   it('cancels in-flight work when the strip unmounts', async () => {
     const { flow, suggestion } = pill('github')
-    const { container, unmount } = render(<SuggestionPills sessionId="s1" />)
+    const { container, unmount } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [suggestion]))
     await click(container)
@@ -131,7 +132,7 @@ describe('SuggestionPills', () => {
 
   it('does not carry phase across a session switch on one mounted composer', async () => {
     const { flow, suggestion } = pill('github')
-    const { container, rerender } = render(<SuggestionPills sessionId="s1" />)
+    const { container, rerender } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [suggestion]))
     await click(container)
@@ -139,14 +140,14 @@ describe('SuggestionPills', () => {
     expect(labels(container)).toEqual(['Added github'])
 
     act(() => offerSuggestions('s2', 'mcp', [pill('github').suggestion]))
-    rerender(<SuggestionPills sessionId="s2" />)
+    rerender(<SuggestionPills sessionId="s2" target="main" />)
 
     expect(labels(container)).toEqual(['Add github'])
   })
 
   it('returns to idle when the provider rejects, so it can be retried', async () => {
     const { flow, suggestion } = pill('github')
-    const { container } = render(<SuggestionPills sessionId="s1" />)
+    const { container } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [suggestion]))
     await click(container)
@@ -158,7 +159,7 @@ describe('SuggestionPills', () => {
 
   it('a second click on a working pill requests cancel', async () => {
     const { flow, suggestion } = pill('github')
-    const { container } = render(<SuggestionPills sessionId="s1" />)
+    const { container } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [suggestion]))
     await click(container)
@@ -172,7 +173,7 @@ describe('SuggestionPills', () => {
     const a = pill('github')
     const b = pill('linear')
     const invoke = vi.spyOn(b.suggestion, 'invoke')
-    const { container } = render(<SuggestionPills sessionId="s1" />)
+    const { container } = render(<SuggestionPills sessionId="s1" target="main" />)
 
     act(() => offerSuggestions('s1', 'mcp', [a.suggestion, b.suggestion]))
     await click(container)
@@ -188,13 +189,45 @@ describe('SuggestionPills', () => {
 
     offerSuggestions('dir1', 'mcp', [{ ...suggestion, label: 'أعد تشغيل الاختبارات' }])
 
-    const { container } = render(<SuggestionPills sessionId="dir1" />)
+    const { container } = render(<SuggestionPills sessionId="dir1" target="main" />)
     const span = container.querySelector('button > span.truncate')
 
     expect(span?.getAttribute('dir')).toBe('auto')
     expect(span?.textContent).toBe('أعد تشغيل الاختبارات')
 
     offerSuggestions('dir1', 'mcp', [])
+  })
+
+  it('inserts into its own composer, not whichever one was typed in last', async () => {
+    // The bleed this exists to stop: requestComposerInsert defaults to the
+    // last composer to receive editor FOCUS, and clicking a pill does not
+    // focus its own editor. In a split layout that put a tile's suggestion
+    // into another conversation's draft.
+    const inserts: { target: string; text: string }[] = []
+    const off = onComposerInsertRequest(detail => inserts.push({ target: String(detail.target), text: detail.text }))
+
+    // Someone was typing in the main composer a moment ago.
+    markActiveComposer('main')
+
+    const suggestion: ComposerSuggestion = {
+      ...pill('skill').suggestion,
+      invoke: async ({ target }) => {
+        requestComposerInsert('/skill ', { mode: 'prefix', target })
+      }
+    }
+
+    act(() => offerSuggestions('s1', 'mcp', [suggestion]))
+
+    const { container } = render(<SuggestionPills sessionId="s1" target="tile-7" />)
+
+    await act(async () => {
+      container.querySelector('button')!.click()
+    })
+
+    expect(inserts).toEqual([{ target: 'tile-7', text: '/skill' }])
+
+    off()
+    act(() => offerSuggestions('s1', 'mcp', []))
   })
 
 })

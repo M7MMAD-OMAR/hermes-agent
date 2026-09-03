@@ -69,9 +69,9 @@ registerDraftProvider('cron', async ({ text }) => {
       doneTip: copy('doneTip'),
       icon: 'calendar',
       id: 'schedule',
-      invoke: async () => {
-        requestComposerInsert(copy('prefix'), { mode: 'prefix' })
-        requestComposerFocus()
+      invoke: async ({ target }) => {
+        requestComposerInsert(copy('prefix'), { mode: 'prefix', target })
+        requestComposerFocus(target)
       },
       label: copy('label'),
       provider: 'cron',

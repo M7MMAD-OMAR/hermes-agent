@@ -81,12 +81,12 @@ function toSuggestion(): ComposerSuggestion {
     doneLabel: copy('done'),
     doneTip: copy('doneTip'),
     id: SKILL_NAME,
-    invoke: async () => {
+    invoke: async ({ target }) => {
       // Prefix, don't replace — and never send. The agent takes over when
       // the user sends: the github-auth skill installs gh if needed and
       // runs the device-code OAuth flow.
-      requestComposerInsert(`/${SKILL_NAME} `, { mode: 'prefix' })
-      requestComposerFocus()
+      requestComposerInsert(`/${SKILL_NAME} `, { mode: 'prefix', target })
+      requestComposerFocus(target)
     },
     label: copy('label'),
     provider: 'github',

@@ -13,7 +13,7 @@ metadata:
     # matches everything — comes last.
     tags: [report, deck, spreadsheet, invoice, letter, resume, herwork, workspace, productivity]
     category: productivity
-    related_skills: [docx, powerpoint, xlsx, pdf, ocr-and-documents, obsidian]
+    related_skills: [docx, powerpoint, xlsx, pdf, ocr-and-documents, arabic-rtl-documents, architecture-diagram, excalidraw, grounded-citations, adversarial-doc-review, obsidian]
 ---
 
 # HerWork Mode
@@ -54,22 +54,63 @@ Create the three directories at the start of a herwork session if they are
 missing. Check `inbox/` when the user's request references "the files I
 gave you" without attaching paths.
 
+## Show the plan
+
+Any job with more than one artifact starts with a `todo` list before the work.
+The user watches it to know what is in flight — a transcript they have to
+re-read is not progress reporting.
+
+## Research is first-class
+
+Open the internal browser and read real sources rather than answering from
+memory. Screenshot what matters into `work/` so the evidence outlives the
+conversation. Say what you verified and what you assumed; an unverified claim
+inside a finished deliverable is a liability. Load `grounded-citations` when
+the deliverable asserts researched facts.
+
+## Draw it, do not describe it
+
+A flow, an architecture, a comparison, a timeline: draw it.
+
+| Where it goes | Use |
+| --- | --- |
+| Inline in the chat | a ```mermaid fenced block — the desktop renders it |
+| A file in the deliverable | `architecture-diagram` or `excalidraw` skill |
+| An illustration | the native `image_generate` tool |
+
 ## Workflow
 
 1. **Intake.** Restate the deliverable in one sentence: what file(s),
    what format, who it's for. If the request names source material, read
    it first (inbox files, attached paths, or URLs via the browser tools).
-2. **Plan briefly.** For anything with more than one artifact, list the
-   artifacts you'll produce before producing them.
-3. **Produce into `work/`, then promote.** Draft in `work/`; when a file
-   is finished and verified, move or save the final copy into `output/`
-   with a clear name (`q3-sales-report.docx`, not `draft2-final.docx`).
+2. **Plan.** Post the `todo` list (see *Show the plan* above) so the user
+   can watch the artifacts arrive.
+3. **Produce into `work/`.** Every draft and intermediate stays in `work/`.
+   Nothing enters `output/` until step 5 promotes it, so `output/` only ever
+   holds finished work. Name for the reader (`q3-sales-report.docx`, not
+   `draft2-final.docx`).
 4. **Verify before delivering.** Re-open what you produced: read the
    `.docx` back, count the slides, recompute the sheet's totals, or open
    the PDF's first page. A file you haven't re-read is not done.
-5. **Deliver.** End with the output paths and two or three sentences on
-   what's inside. Offer the obvious next iteration (shorter, different
-   tone, Arabic version, ...).
+5. **Deliver.** Move — do not copy — the finished file from `work/` to
+   `output/`, and add a row to `output/MANIFEST.md`:
+
+   ```
+   | file | what it is | from draft | verified by | superseded by |
+   ```
+
+   Superseded drafts go to `work/archive/`. Without the manifest, `output/`
+   is a folder of indistinguishable files and nobody can tell a shipped
+   client deliverable from a smoke test.
+
+   Write a **PDF sibling** next to every Office file
+   (`soffice --headless --convert-to pdf <file>`): the desktop preview rail
+   renders PDF but refuses docx and pptx, so without it the user cannot see
+   their own deliverable without leaving the app.
+
+   End with the output paths and two or three sentences on what's inside.
+   Offer the obvious next iteration (shorter, different tone, Arabic
+   version, ...).
 
 ## Routing — which tool for which job
 
@@ -80,6 +121,13 @@ gave you" without attaching paths.
 | Spreadsheets, data tables, budgets | `xlsx` skill |
 | Reading or producing PDFs | `pdf` skill |
 | Scanned documents, images of text | `ocr-and-documents` skill |
+| Any Arabic or RTL deliverable | `arabic-rtl-documents` skill |
+| System / flow diagrams as a file | `architecture-diagram` skill |
+| Hand-drawn-style diagrams and boards | `excalidraw` skill |
+| A diagram inside the chat, not a file | a ```mermaid fenced block |
+| An illustration or generated picture | native `image_generate` tool |
+| Anything asserting researched facts | `grounded-citations` skill |
+| Stress-testing a document before it ships | `adversarial-doc-review` skill |
 | Web research, reading pages, filling web forms | native `browser_*` tools |
 | GUI apps with no API (desktop clicks) | `computer-use` skill |
 | Notes and knowledge bases | `obsidian` skill |

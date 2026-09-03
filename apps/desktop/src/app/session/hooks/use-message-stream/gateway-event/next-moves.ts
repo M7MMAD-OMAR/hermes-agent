@@ -1,4 +1,4 @@
-import { offerNextMoves } from '@/store/suggestion-providers/next-move'
+import { offerNextMoves } from '@/store/next-moves'
 
 import type { GatewayEventContext } from './types'
 

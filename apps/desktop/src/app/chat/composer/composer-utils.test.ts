@@ -1,18 +1,7 @@
 import type { Unstable_TriggerItem } from '@assistant-ui/core'
 import { describe, expect, it } from 'vitest'
 
-import {
-  acceptsTriggerCompletion,
-  implicitSlashAcceptIndex,
-  isPendingDraftPersistCurrent,
-  type PendingDraftPersist,
-  pickPlaceholder,
-  shouldDisableComposerInput,
-  slashArgStage,
-  slashChipKindForItem,
-  slashCommandToken,
-  type TriggerAcceptInput
-} from './composer-utils'
+import { acceptsGhostSuggestion, acceptsTriggerCompletion, implicitSlashAcceptIndex, isPendingDraftPersistCurrent, type PendingDraftPersist, pickPlaceholder, shouldDisableComposerInput, slashArgStage, slashChipKindForItem, slashCommandToken, type TriggerAcceptInput } from './composer-utils'
 
 const item = (group: string): Unstable_TriggerItem =>
   ({ id: 'x', type: 'slash', label: 'x', metadata: { group } }) as unknown as Unstable_TriggerItem
@@ -175,5 +164,36 @@ describe('isPendingDraftPersistCurrent (#54527 integrity guard)', () => {
 
   it('rejects when nothing was ever captured', () => {
     expect(isPendingDraftPersistCurrent(null, null)).toBe(false)
+  })
+})
+
+
+describe('acceptsGhostSuggestion', () => {
+  const input = (over: Partial<Parameters<typeof acceptsGhostSuggestion>[0]> = {}) => ({
+    hasGhost: true,
+    hasTrigger: false,
+    key: 'Tab',
+    shiftKey: false,
+    ...over
+  })
+
+  it('takes Tab when a suggestion is painted and nothing else wants it', () => {
+    expect(acceptsGhostSuggestion(input())).toBe(true)
+  })
+
+  it('leaves Tab alone with no suggestion', () => {
+    expect(acceptsGhostSuggestion(input({ hasGhost: false }))).toBe(false)
+  })
+
+  it('yields Tab to an open completion popover', () => {
+    expect(acceptsGhostSuggestion(input({ hasTrigger: true }))).toBe(false)
+  })
+
+  it('never takes Shift+Tab — that is backwards focus navigation', () => {
+    expect(acceptsGhostSuggestion(input({ shiftKey: true }))).toBe(false)
+  })
+
+  it.each(['Enter', ' ', 'ArrowRight', 'Escape'])('ignores %s', key => {
+    expect(acceptsGhostSuggestion(input({ key }))).toBe(false)
   })
 })

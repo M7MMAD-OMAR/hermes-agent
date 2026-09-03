@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { $parkedQueueSessions, clearQueuedPrompts, enqueueQueuedPrompt } from '@/store/composer-queue'
-import { $composerSuggestionsBySession, forgetSessionSuggestions } from '@/store/composer-suggestions'
 import { clearApprovalRequest, setApprovalRequest } from '@/store/prompts'
 
 import {
+  $nextMovesBySession,
   noteTurnCompleted,
   noteTurnStarted,
   offerNextMoves,
   readMoves,
   resetNextMoveTracking,
   withdrawNextMoves
-} from './next-move'
+} from './next-moves'
 
 /**
  * The provider's whole job is deciding whether an offer may land. The turn
@@ -28,7 +28,7 @@ const move = (over: Record<string, unknown> = {}) => ({
   ...over
 })
 
-const pills = (sessionId: string) => ($composerSuggestionsBySession.get()[sessionId] ?? []).map(s => s.id)
+const ghost = (sessionId: string) => ($nextMovesBySession.get()[sessionId] ?? []).map(m => m.payload)
 
 /** A session sitting on a clean completion — the only state that takes an offer. */
 function settled(sessionId: string) {
@@ -40,12 +40,8 @@ afterEach(() => {
   resetNextMoveTracking()
   clearApprovalRequest('s1')
   $parkedQueueSessions.set({})
-
   clearQueuedPrompts('s1')
-
-  for (const key of Object.keys($composerSuggestionsBySession.get())) {
-    forgetSessionSuggestions(key)
-  }
+  $nextMovesBySession.set({})
 })
 
 describe('readMoves', () => {
@@ -78,40 +74,32 @@ describe('offerNextMoves', () => {
     settled('s1')
 
     expect(offerNextMoves('s1', [move()])).toBe(true)
-    // The id is the target, not the turn: kind plus a slug of the text the
-    // click would insert.
-    expect(pills('s1')).toHaveLength(1)
-    expect(pills('s1')[0]).toMatch(/^action:run-the-tests-that-cover/)
+    expect(ghost('s1')).toEqual(['Run the tests that cover what we just changed.'])
   })
 
-  it('ids per target, so the same action next turn is the same key', () => {
+  it('replaces the standing offer rather than accumulating', () => {
     settled('s1')
     offerNextMoves('s1', [move()])
-    const first = pills('s1')
-
-    noteTurnStarted('s1')
-    noteTurnCompleted('s1')
-    offerNextMoves('s1', [move()])
-
-    expect(pills('s1')).toEqual(first)
-  })
-
-  it('gives a changed action a changed key', () => {
-    settled('s1')
-    offerNextMoves('s1', [move()])
-    const first = pills('s1')
 
     noteTurnStarted('s1')
     noteTurnCompleted('s1')
     offerNextMoves('s1', [move({ payload: 'Something else entirely.' })])
 
-    expect(pills('s1')).not.toEqual(first)
+    expect(ghost('s1')).toEqual(['Something else entirely.'])
+  })
+
+  it('drops a payload too long to read on one clipped line', () => {
+    settled('s1')
+
+    // The ghost sits where the placeholder does: one line, ellipsis after.
+    // All-ellipsis says nothing, so no offer beats a shrug.
+    expect(offerNextMoves('s1', [move({ payload: 'x'.repeat(400) })])).toBe(false)
   })
 
   it('never writes the shared null bucket', () => {
     expect(offerNextMoves(null, [move()])).toBe(false)
     expect(offerNextMoves('', [move()])).toBe(false)
-    expect($composerSuggestionsBySession.get()['']).toBeUndefined()
+    expect($nextMovesBySession.get()['']).toBeUndefined()
   })
 
   it('drops an offer for a session that never completed a turn here', () => {
@@ -167,7 +155,7 @@ describe('offerNextMoves', () => {
     settled('s1')
 
     expect(offerNextMoves('s1', [move({ kind: 'nope' })])).toBe(false)
-    expect(pills('s1')).toEqual([])
+    expect(ghost('s1')).toEqual([])
   })
 })
 
@@ -178,7 +166,7 @@ describe('withdrawNextMoves', () => {
 
     withdrawNextMoves('s1')
 
-    expect(pills('s1')).toEqual([])
+    expect(ghost('s1')).toEqual([])
     // Disarmed: a late pack for the withdrawn turn cannot re-land.
     expect(offerNextMoves('s1', [move()])).toBe(false)
   })

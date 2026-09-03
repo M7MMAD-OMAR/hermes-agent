@@ -37,7 +37,7 @@ import {
 } from '@/store/session-states'
 import { broadcastSessionsChanged } from '@/store/session-sync'
 import { clearSessionSubagents } from '@/store/subagents'
-import { withdrawNextMoves } from '@/store/suggestion-providers/next-move'
+import { withdrawNextMoves } from '@/store/next-moves'
 import { clearSessionTodos } from '@/store/todos'
 import { setSessionDraftingTool } from '@/store/tool-drafting'
 import type { SessionInfo } from '@/types/hermes'

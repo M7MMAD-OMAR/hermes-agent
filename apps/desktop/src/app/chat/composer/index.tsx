@@ -13,7 +13,7 @@ import { PR_COMMENT_URL_RE } from '@/lib/chat-runtime'
 import { sanitizeComposerInput } from '@/lib/composer-input-sanitize'
 import { DATA_IMAGE_URL_RE } from '@/lib/embedded-images'
 import { triggerHaptic } from '@/lib/haptics'
-import { useStoresSelector } from '@/lib/use-session-slice'
+import { useSessionSlice, useStoresSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { interceptsTypedVoiceStop } from '@/lib/voice-stop-word'
 import { sessionCompacting } from '@/store/compaction'
@@ -21,6 +21,7 @@ import { browseBackward, browseForward, deriveUserHistory, isBrowsingHistory } f
 import { POPOUT_WIDTH_REM } from '@/store/composer-popout'
 import { parkQueuedPrompts, removeQueuedPrompt, unparkQueuedPrompts } from '@/store/composer-queue'
 import { $hudMode } from '@/store/hud'
+import { $nextMovesBySession, withdrawNextMoves } from '@/store/next-moves'
 import { sessionBlockingPrompt } from '@/store/prompts'
 import { toggleReview } from '@/store/review'
 import { $gatewayState } from '@/store/session'
@@ -30,20 +31,13 @@ import { $autoSpeakReplies } from '@/store/voice-prefs'
 import { useTheme } from '@/themes'
 
 import { AttachmentList } from './attachments'
-import {
-  acceptsTriggerCompletion,
-  COMPOSER_FADE_BACKGROUND,
-  implicitSlashAcceptIndex,
-  type QueueEditState,
-  shouldDisableComposerInput,
-  slashArgStage
-} from './composer-utils'
+import { acceptsGhostSuggestion, acceptsTriggerCompletion, COMPOSER_FADE_BACKGROUND, implicitSlashAcceptIndex, type QueueEditState, shouldDisableComposerInput, slashArgStage } from './composer-utils'
 import { ContextMenu } from './context-menu'
 import { COMPOSER_AREAS, runComposerMiddleware } from './contrib'
 import { ComposerControls, ComposerSendControl } from './controls'
 import { ComposerDirectiveActions } from './directive-actions'
 import { COMPOSER_DROP_ACTIVE_CLASS, COMPOSER_DROP_FADE_CLASS } from './drop-affordance'
-import { markActiveComposer, onComposerAttachImagesRequest } from './focus'
+import { markActiveComposer, onComposerAttachImagesRequest, requestComposerInsert } from './focus'
 import { HelpHint } from './help-hint'
 import { useAtCompletions } from './hooks/use-at-completions'
 import { useComposerBranch } from './hooks/use-composer-branch'
@@ -393,9 +387,34 @@ export function ChatBar({
     stashAt
   })
 
+  // The post-turn next move, painted where the placeholder goes and accepted
+  // with Tab. Only while the composer is genuinely empty: the ghost IS the
+  // placeholder, and the placeholder only paints on an empty editor, so
+  // offering it against half-typed text would show a suggestion the CSS has
+  // already hidden.
+  const nextMoves = useSessionSlice($nextMovesBySession, statusSessionId)
+  const ghostMove = hasComposerPayload ? undefined : nextMoves[0]
+
   // Resting / reconnecting / starting placeholder text, re-rolled only on a real
   // conversation change.
-  const placeholder = useComposerPlaceholder({ disabled, reconnecting, sessionId })
+  const placeholder = useComposerPlaceholder({ disabled, ghost: ghostMove?.payload, reconnecting, sessionId })
+
+  const acceptGhostMove = useCallback(() => {
+    if (!ghostMove) {
+      return false
+    }
+
+    // Prefix for a slash command (routing wants it at line start), block for
+    // prose. Same rule the pill providers use, and the same guarantee: it
+    // edits the draft and stops. The user still presses Enter.
+    requestComposerInsert(ghostMove.payload, {
+      mode: ghostMove.kind === 'skill' ? 'prefix' : 'block',
+      target: scope.target
+    })
+    withdrawNextMoves(statusSessionId)
+
+    return true
+  }, [ghostMove, scope.target, statusSessionId])
 
   // Trigger / completion engine: @// detection, the adapter-driven item list,
   // popover selection, and chip insertion. The keydown nav block below consumes
@@ -670,6 +689,24 @@ export function ChatBar({
       if (!busy) {
         void drainNextQueued()
       }
+
+      return
+    }
+
+    // Tab accepts the ghost suggestion. Ahead of the trigger blocks below but
+    // gated on there being no trigger: while a completion popover is open Tab
+    // belongs to it, and the ghost is not visible then anyway (the popover
+    // implies typed text, and the placeholder only paints on an empty editor).
+    if (
+      acceptsGhostSuggestion({
+        hasGhost: Boolean(ghostMove),
+        hasTrigger: Boolean(trigger),
+        key: event.key,
+        shiftKey: event.shiftKey
+      }) &&
+      acceptGhostMove()
+    ) {
+      event.preventDefault()
 
       return
     }
@@ -1092,6 +1129,7 @@ export function ChatBar({
           hudNativeDrag && '[-webkit-app-region:no-drag]'
         )}
         contentEditable={!inputDisabled}
+        data-ghost={ghostMove ? '' : undefined}
         data-placeholder={placeholder}
         data-slot={RICH_INPUT_SLOT}
         onBeforeInput={handleEditorBeforeInput}

@@ -1834,11 +1834,6 @@ export const ar = defineLocale({
     }
   },
   composer: {
-    nextMoveSuggestions: {
-      done: 'أُضيف إلى رسالتك',
-      doneTip: 'عدّله أو أرسله كما هو',
-      workingTip: 'جارٍ إضافته إلى رسالتك'
-    },
     message: 'الرسالة',
     wakingProfile: profile => `جار إيقاظ ${profile}`,
     placeholderStarting: 'جار بدء Hermes...',

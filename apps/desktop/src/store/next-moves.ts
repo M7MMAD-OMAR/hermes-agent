@@ -1,18 +1,21 @@
-import { requestComposerFocus, requestComposerInsert } from '@/app/chat/composer/focus'
-import { translateNow } from '@/i18n'
+import { atom } from 'nanostores'
+
 import { getQueuedPrompts, isQueueParked } from '@/store/composer-queue'
-import { type ComposerSuggestion, offerSuggestions } from '@/store/composer-suggestions'
 import { hasBlockingPromptRequest } from '@/store/prompts'
 
 /**
- * Post-turn next moves — the second event provider on the composer suggestion
- * bus (`repair` is the first), fed by the backend's `next_moves.offer` event.
- * Design doc: `docs/design/next-moves.md`.
+ * Post-turn next moves — the composer's ghost suggestion, fed by the backend's
+ * `next_moves.offer` event. Design doc: `docs/design/next-moves.md`.
  *
- * Every move is a DRAFT EDIT and nothing else: no submit, no delegation spawn,
- * no gateway call. The strip has no dismiss affordance on purpose, so the only
- * way to decline is not to click — which is safe for text that lands in the
- * composer and unsafe for anything that spends money or starts a process.
+ * NOT a pill on the suggestion bus. The bus is for ACTIONS you click (connect
+ * this server, repair that connection); a next move is TEXT, and text belongs
+ * where text goes — in the composer, greyed out where the placeholder sits,
+ * accepted with Tab. Two surfaces showing one suggestion would be the same
+ * mistake as two surfaces rendering one page.
+ *
+ * Accepting is a draft edit and nothing else: no submit, no delegation spawn,
+ * no gateway call. Declining is not pressing Tab, and typing anything replaces
+ * the ghost — which is only safe because acceptance is reversible.
  *
  * The offer is bound to the turn it describes. `noteTurnStarted` /
  * `noteTurnCompleted` keep a per-session counter, and an offer is published
@@ -32,12 +35,23 @@ export interface NextMove {
   tip: string
 }
 
+/** The moves standing for each session, most-wanted first. The composer paints
+ *  `[0]`; the rest exist so a move the renderer rejects (a skill that has since
+ *  vanished, a payload that arrives empty) has a runner-up rather than
+ *  collapsing the whole offer. Not a queue — there is no "next suggestion". */
+export const $nextMovesBySession = atom<Record<string, NextMove[]>>({})
+
 /** Mirrors `MOVE_KINDS` in `agent/next_moves.py`. Re-checked here because the
  *  wire is untrusted input, not because the backend is expected to lie. */
 const MOVE_KINDS = new Set(['action', 'delegate', 'followup', 'skill'])
 
 const LABEL_LIMIT = 48
 const MAX_MOVES = 3
+
+/** The ghost sits on one clipped line where the placeholder does. Past this it
+ *  is all ellipsis and tells the user nothing, so the offer is dropped rather
+ *  than shown as a shrug. */
+const GHOST_LIMIT = 160
 
 /** How long a standing offer survives with nothing happening.
  *
@@ -108,7 +122,13 @@ export function withdrawNextMoves(sessionId: null | string | undefined): void {
     state.awaiting = null
   }
 
-  offerSuggestions(sessionId, 'nextmove', [])
+  const current = $nextMovesBySession.get()
+
+  if (sessionId in current) {
+    const { [sessionId]: _dropped, ...rest } = current
+
+    $nextMovesBySession.set(rest)
+  }
 }
 
 /** A turn began. Withdraws whatever stood, and moves the session off the
@@ -146,13 +166,6 @@ export function resetNextMoveTracking(): void {
   states.clear()
 }
 
-const slug = (text: string): string =>
-  text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40)
-
 const clip = (text: unknown, limit: number): string => {
   const flat = String(text ?? '')
     .replace(/\s+/g, ' ')
@@ -180,7 +193,7 @@ export function readMoves(raw: unknown): NextMove[] {
     const label = clip(row.label, LABEL_LIMIT)
     const payload = String(row.payload ?? '').trim()
 
-    if (!MOVE_KINDS.has(kind) || !label || !payload) {
+    if (!MOVE_KINDS.has(kind) || !label || !payload || payload.length > GHOST_LIMIT) {
       return []
     }
 
@@ -188,34 +201,6 @@ export function readMoves(raw: unknown): NextMove[] {
   }
 
   return moves
-}
-
-function toSuggestion(move: NextMove): ComposerSuggestion {
-  const copy = (key: string) => translateNow(`composer.nextMoveSuggestions.${key}`)
-
-  return {
-    doneLabel: copy('done'),
-    doneTip: copy('doneTip'),
-    icon: move.kind === 'skill' ? 'zap' : move.kind === 'delegate' ? 'organization' : 'lightbulb',
-    // Per TARGET, never per turn and never a bare provider-wide id. A stable
-    // id would let three turns of the user simply typing instead of clicking
-    // silence the provider for the session; a per-turn id makes the declined
-    // ledger unreachable and it nags forever. Folding the payload in also
-    // means a changed action is a changed key, which is what the bus's
-    // rendered-fields bail-out requires.
-    id: `${move.kind}:${slug(move.payload)}`,
-    invoke: async ({ target }) => {
-      // A slash command has to start the line for slash routing to see it;
-      // prose is appended so the user's own words survive. Neither sends.
-      requestComposerInsert(move.payload, { mode: move.kind === 'skill' ? 'prefix' : 'block', target })
-      requestComposerFocus(target)
-    },
-    label: move.label,
-    provider: 'nextmove',
-    tip: move.tip || move.label,
-    workingLabel: move.label,
-    workingTip: copy('workingTip')
-  }
 }
 
 /**
@@ -261,11 +246,7 @@ export function offerNextMoves(sessionId: null | string | undefined, raw: unknow
   }
 
   clearExpiry(state)
-  offerSuggestions(
-    sessionId,
-    'nextmove',
-    moves.map(toSuggestion)
-  )
+  $nextMovesBySession.set({ ...$nextMovesBySession.get(), [sessionId]: moves })
   state.expiry = window.setTimeout(() => withdrawNextMoves(sessionId), OFFER_TTL_MS)
 
   return true

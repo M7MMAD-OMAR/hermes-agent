@@ -13,7 +13,7 @@ import { requestDesktopOnboarding } from '@/store/onboarding'
 import { flashPetActivity, setPetActivity } from '@/store/pet'
 import { clearAllPrompts } from '@/store/prompts'
 import { setTurnStartedAt } from '@/store/session'
-import { withdrawNextMoves } from '@/store/suggestion-providers/next-move'
+import { withdrawNextMoves } from '@/store/next-moves'
 import { clearActiveSessionTodos } from '@/store/todos'
 
 import type { GatewayEventContext } from './types'

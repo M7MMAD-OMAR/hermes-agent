@@ -2633,11 +2633,6 @@ export const en: Translations = {
       done: skill => `Added /${skill}`,
       doneTip: 'The skill loads when you send'
     },
-    nextMoveSuggestions: {
-      done: 'Added to your message',
-      doneTip: 'Edit it or send it as it is',
-      workingTip: 'Adding it to your message'
-    },
     githubSuggestions: {
       label: 'Set up GitHub',
       tip: 'GitHub works through the gh CLI skills here — click to connect your account',

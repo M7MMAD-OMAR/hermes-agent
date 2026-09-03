@@ -2657,11 +2657,6 @@ export const ru = defineLocale({
       done: skill => `Добавлено /${skill}`,
       doneTip: 'Навык загрузится при отправке'
     },
-    nextMoveSuggestions: {
-      done: 'Добавлено в сообщение',
-      doneTip: 'Отправьте как есть или отредактируйте',
-      workingTip: 'Добавляем в ваше сообщение'
-    },
     githubSuggestions: {
       label: 'Настроить GitHub',
       tip: 'GitHub работает через навыки gh CLI здесь — нажмите, чтобы подключить аккаунт',

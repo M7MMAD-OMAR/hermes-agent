@@ -186,6 +186,29 @@ export function acceptsTriggerCompletion({
   return key === ' ' && kind === '/' && Boolean(query.trim()) && !freeTextArgStage
 }
 
+export interface GhostAcceptInput {
+  /** A completion popover is open. */
+  hasTrigger: boolean
+  /** A next move is currently painted where the placeholder goes. */
+  hasGhost: boolean
+  key: string
+  shiftKey: boolean
+}
+
+/**
+ * Whether this keypress takes the composer's ghost suggestion.
+ *
+ * Tab, and only Tab, and only when nothing else wants it. A completion popover
+ * owns Tab while it is open — and a popover implies typed text, which means
+ * the ghost is not painted anyway, since it rides the placeholder and the
+ * placeholder only shows on an empty editor. Shift+Tab is backwards focus
+ * navigation and stays that way; taking it would trap focus in the composer
+ * for keyboard users.
+ */
+export function acceptsGhostSuggestion({ hasGhost, hasTrigger, key, shiftKey }: GhostAcceptInput): boolean {
+  return key === 'Tab' && !shiftKey && !hasTrigger && hasGhost
+}
+
 export interface QueueEditState {
   attachments: ComposerAttachment[]
   draft: string

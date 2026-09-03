@@ -20,7 +20,7 @@ import {
   completeOpenTimelineParts,
   textPart
 } from '@/lib/chat-messages'
-import { withdrawNextMoves } from '@/store/suggestion-providers/next-move'
+import { withdrawNextMoves } from '@/store/next-moves'
 
 import {
   appendText,

@@ -7,6 +7,9 @@ import { pickPlaceholder } from '../composer-utils'
 
 interface UseComposerPlaceholderOptions {
   disabled: boolean
+  /** The post-turn next move offered for this session, if any. Takes the
+   *  placeholder's place while the composer is empty — see below. */
+  ghost?: null | string
   reconnecting: boolean
   sessionId: null | string | undefined
 }
@@ -17,8 +20,18 @@ interface UseComposerPlaceholderOptions {
  * a *different* conversation — the null→id persist of a freshly-started session
  * keeps its starter so the text doesn't flip mid-stream. While the transport is
  * down, it swaps to a reconnecting / starting message instead.
+ *
+ * A post-turn next move outranks the resting text: it is the one placeholder
+ * that says something true about THIS conversation, and Tab accepts it. It
+ * never outranks the transport messages — an offer you cannot send is worse
+ * than no offer.
  */
-export function useComposerPlaceholder({ disabled, reconnecting, sessionId }: UseComposerPlaceholderOptions): string {
+export function useComposerPlaceholder({
+  disabled,
+  ghost,
+  reconnecting,
+  sessionId
+}: UseComposerPlaceholderOptions): string {
   const { t } = useI18n()
   const newSessionPlaceholders = t.composer.newSessionPlaceholders
   const followUpPlaceholders = t.composer.followUpPlaceholders
@@ -53,9 +66,9 @@ export function useComposerPlaceholder({ disabled, reconnecting, sessionId }: Us
   // we're trying to restore. During reconnect, keep the textbox editable so a
   // flaky network doesn't block drafting; only submit/backend actions stay
   // disabled until the gateway is open again.
-  return disabled
-    ? reconnecting
-      ? t.composer.placeholderReconnecting
-      : t.composer.placeholderStarting
-    : restingPlaceholder
+  if (disabled) {
+    return reconnecting ? t.composer.placeholderReconnecting : t.composer.placeholderStarting
+  }
+
+  return ghost || restingPlaceholder
 }

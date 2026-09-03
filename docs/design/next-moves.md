@@ -5,17 +5,23 @@ Blockers: landed first — see below
 Surfaces: `apps/desktop` renderer + `agent/` + `tui_gateway/`
 Anchors below were verified against `autobuild/sidebar-browser`.
 
-When a turn ends, offer the user 1–3 concrete next moves derived from what that
+When a turn ends, offer the user a concrete next move derived from what that
 turn actually did — a follow-up prompt, a skill they have, a delegation, or a
-retry of the step that failed. One click edits the draft. Nothing sends.
+retry of the step that failed. It is painted **inside the composer**, greyed
+out where the placeholder sits, and **Tab** takes it. Nothing sends.
+
+Not a pill. The suggestion bus is for ACTIONS you click (connect this server,
+repair that connection); a next move is TEXT, and text belongs where text goes.
+Two surfaces showing one suggestion would be the same mistake as two surfaces
+rendering one page.
 
 ## Reuse, don't rebuild
 
 | Element | Already exists | Anchor |
 |---|---|---|
-| Pill strip above the composer | `SuggestionPills` | `apps/desktop/src/app/chat/composer/suggestion-pills.tsx:44` |
-| Session-scoped suggestion bus | `offerSuggestions` (event half) | `apps/desktop/src/store/composer-suggestions.ts:149` |
-| Event-provider precedent | `repair` | `apps/desktop/src/store/suggestion-providers/repair.ts:101` |
+| Placeholder surface (CSS `::before` on the empty editor) | `data-placeholder` | `apps/desktop/src/styles.css:949` |
+| Resting placeholder pick | `useComposerPlaceholder` | `apps/desktop/src/app/chat/composer/hooks/use-composer-placeholder.ts` |
+| Key-decision helpers | `composer-utils.ts` | `acceptsTriggerCompletion` |
 | Post-turn aux-model call | `title_generator` | `agent/title_generator.py:403` |
 | Post-turn hook + snapshot | `_spawn_background_review` | `agent/turn_finalizer.py:824` |
 | Cancellation token | `_BackgroundReviewRun` | `agent/background_review.py:37` |

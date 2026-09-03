@@ -1284,11 +1284,13 @@ DEFAULT_CONFIG = {
             "use_model": True,  # spend one auxiliary call per turn; false = local rules only
             "provider": "auto",
             "model": "",
-            # ON by default, unlike title_generation. Titling is once per
-            # session; this runs on every turn, which is the cost profile that
-            # justifies overriding "auto = the main model". Set false to have
-            # your own model write the suggestions.
-            "prefer_fast_model": True,
+            # OFF, like title_generation. The suggestion has to sound like the
+            # conversation it follows, and the provider's "fast tier" is often
+            # another vendor's model entirely — a swap that buys nothing when
+            # the main model is already a cheap one, and changes the voice when
+            # it is not. `auto` therefore means what every settings surface
+            # says it means: the model this conversation is running on.
+            "prefer_fast_model": False,
             "base_url": "",
             "api_key": "",
             "timeout": 20,

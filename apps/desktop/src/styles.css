@@ -946,6 +946,26 @@
   position: relative;
 }
 
+/* A post-turn suggestion sits in the placeholder's place, so it needs the one
+   thing a placeholder does not: a way to know it can be taken. The key hint
+   rides the trailing edge, logical so it lands correctly in RTL, and only
+   while the editor is empty — the same condition the ghost itself paints
+   under. */
+[data-slot='composer-rich-input']:is(:empty, [data-empty])[data-ghost]::after {
+  content: '⇥';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  pointer-events: none;
+  user-select: none;
+}
+
 [data-slot='composer-rich-input']:is(:empty, [data-empty])::before {
   content: attr(data-placeholder);
   position: absolute;
@@ -960,6 +980,11 @@
   text-overflow: ellipsis;
   pointer-events: none;
   user-select: none;
+}
+
+[data-slot='composer-rich-input'][data-ghost]::before {
+  /* Leave the hint its corner rather than letting the ellipsis run under it. */
+  padding-inline-end: 1.5rem;
 }
 
 /* Primitive-level pointer cursor for every interactive control (buttons,

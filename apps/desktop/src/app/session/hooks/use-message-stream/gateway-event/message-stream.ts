@@ -15,7 +15,7 @@ import { clearAllPrompts } from '@/store/prompts'
 import { providerWaitText, setSessionProviderWait } from '@/store/provider-wait'
 import { setCurrentUsage, setTurnStartedAt } from '@/store/session'
 import { pruneFinishedSessionSubagents } from '@/store/subagents'
-import { noteTurnCompleted, noteTurnStarted, withdrawNextMoves } from '@/store/suggestion-providers/next-move'
+import { noteTurnCompleted, noteTurnStarted, withdrawNextMoves } from '@/store/next-moves'
 import { clearActiveSessionTodos } from '@/store/todos'
 
 import type { GatewayEventContext } from './types'

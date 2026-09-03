@@ -333,7 +333,13 @@ def _command_text(name: str, args: Mapping[str, Any]) -> str:
 
 
 def extract_evidence(agent: Any, messages: Sequence[Any], final_response: str) -> TurnEvidence:
-    """Everything the rules and (later) the model prompt are allowed to see."""
+    """What the TURN did. Cheap: message walking and string work, nothing else.
+
+    The environment half — installed skills, delegation capability — is filled
+    in by :func:`stage_next_moves` after its gates, because reading the skill
+    index means rebuilding the agent's system prompt and that must not happen
+    on a turn we are about to discard.
+    """
     window = _turn_slice(messages)
     evidence = TurnEvidence(final_response=(final_response or "").strip())
 
@@ -375,9 +381,6 @@ def extract_evidence(agent: Any, messages: Sequence[Any], final_response: str) -
 
             if name and name not in evidence.failed_tools:
                 evidence.failed_tools.append(name)
-
-    evidence.skills = _skill_names(agent)
-    evidence.can_delegate = "delegate_task" in (getattr(agent, "valid_tool_names", None) or ())
 
     return evidence
 
@@ -507,9 +510,21 @@ def stage_next_moves(
     """
     agent._next_moves_evidence = None
 
+    # Only a surface that DISPATCHES may stage. `finalize_turn` is shared by
+    # the CLI, ACP, messaging gateways, cron and delegated children, and the
+    # dispatcher lives at one seam — the desktop/TUI gateway, which sets this
+    # flag on the agent it owns. Without the gate every other surface copies a
+    # snapshot and extracts evidence on every turn, forever, for a consumer
+    # that does not exist there.
+    if not getattr(agent, "_next_moves_dispatch", False):
+        return
+
     if interrupted or not final_response:
         return
 
+    # Belt and braces beside the flag: a fork that inherits the parent agent's
+    # attributes must not inherit the right to suggest. Mirrors
+    # `_UNTITLED_PLATFORMS`.
     platform = str(getattr(agent, "platform", "") or "").lower()
 
     if platform in NO_NEXT_MOVES_PLATFORMS:
@@ -530,6 +545,15 @@ def stage_next_moves(
     if not evidence.tool_calls and len(evidence.final_response) < MIN_RESPONSE_CHARS:
         return
 
+    # Only now the expensive half: `_skill_names` rebuilds the system prompt to
+    # read the index out of it, which is far too much to spend on a turn the
+    # gate above was going to throw away.
+    try:
+        evidence.skills = _skill_names(agent)
+    except Exception:
+        logger.debug("Skill index unavailable for next moves", exc_info=True)
+
+    evidence.can_delegate = "delegate_task" in (getattr(agent, "valid_tool_names", None) or ())
     evidence.turn_id = str(turn_id or "")
     agent._next_moves_evidence = evidence
 

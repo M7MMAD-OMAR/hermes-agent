@@ -1276,7 +1276,11 @@ DEFAULT_CONFIG = {
             "use_model": True,  # spend one auxiliary call per turn; false = local rules only
             "provider": "auto",
             "model": "",
-            "prefer_fast_model": True,  # a 3-line answer never needs the main model
+            # ON by default, unlike title_generation. Titling is once per
+            # session; this runs on every turn, which is the cost profile that
+            # justifies overriding "auto = the main model". Set false to have
+            # your own model write the suggestions.
+            "prefer_fast_model": True,
             "base_url": "",
             "api_key": "",
             "timeout": 20,

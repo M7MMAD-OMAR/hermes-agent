@@ -272,7 +272,8 @@ Fires once per turn, at `tui_gateway/server.py:13760`. Every row is a hard gate.
 | No final response | reuse the background-review predicate (`:815`) |
 | Interrupted | `interrupted` — the renderer also early-returns at `use-message-stream/index.ts:575` |
 | cron / subagent platform | `_NO_NEXT_MOVES_PLATFORMS`, a copy of `_UNTITLED_PLATFORMS` (`agent/turn_context.py:263`, checked `:278`) — without it, N delegated children pay N calls |
-| CLI / ACP / messaging surfaces | gate staging on the dispatching surface, or the snapshot is copied every turn on every surface and never consumed |
+| CLI / ACP / messaging surfaces | `agent._next_moves_dispatch`, set by the gateway on the agent it owns. The dispatcher lives at one seam; every other surface sharing `finalize_turn` would otherwise extract evidence on every turn for a consumer that does not exist there |
+| Reading the skill index | fills in **after** the triviality gate. `_skill_names` rebuilds the agent's system prompt to read the block out of it — far too much to spend on a turn about to be discarded |
 | Trivial turn | `< min_turn_tool_calls` tool calls **and** a short response — the interval-gating idea `_should_review_skills` uses (`turn_finalizer.py:795`) |
 
 ### Dispatch-time (backend)
@@ -281,7 +282,7 @@ Fires once per turn, at `tui_gateway/server.py:13760`. Every row is a hard gate.
 |---|---|
 | `status != "complete"` | no dispatch. A failed turn is the same `message.complete` distinguished by `payload.status === 'error'` (`message-stream.ts:343`) |
 | Billing wall | `payload.billing` present (`message-stream.ts:355`) |
-| Partial failure (`failure.partial`) | heuristic only, one retry-shaped move, no aux call. It is a **third class** — real output *and* an error; folding it into either bucket is wrong |
+| Partial failure | **not separable at this seam, and shipped folded into `error`.** `partial` is not on the `message.complete` payload the gateway builds, so a turn that produced real output and then errored is indistinguishable from a clean failure here. The plan called it a third class and it should be; making that true means plumbing the flag onto the payload first |
 | Agent-continued turn | see below — needs a provenance field, not just a predicate |
 | Feature disabled | `auxiliary.next_moves.enabled` |
 | Managed local runtime | `skip_managed_local` — a **skip**, not a defer. `agent/review_idle_queue.py:1` documents that a post-turn job monopolizes the GPU the next prompt needs; a suggestion 40s late is worthless, so the deferral constants there are the wrong medicine |
@@ -587,9 +588,12 @@ Renderer, all deterministic, no fixture model:
 - Arity/shape: 0, 1, 3 and 20 moves; unknown `kind`; empty label; a `skill`
   naming a skill that is not installed.
 
-Backend:
+Backend (run with `venv/bin/python -m pytest` — the system interpreter is
+missing this project's dependencies):
 
-- Stage gates: no final response, interrupted, cron/subagent platform, trivial turn.
+- Stage gates: no final response, interrupted, cron/subagent platform, a
+  surface that cannot dispatch, trivial turn.
+- The skill index is not read for a turn the triviality gate discards.
 - Dispatch gates: error status, billing, partial failure → heuristic only,
   agent-continued turn.
 - `call_llm` raising → heuristic; heuristic empty → no emit at all.
@@ -646,3 +650,10 @@ unadvertised with the suite green.
 - **`ComposerSuggestion` gained no weight field.** The ranking problem is real
   and unfixed: `repair` holds standing offers and wins on Map insertion order.
   Deferred rather than solved — see *Not solved*.
+- **Partial failures are folded into errors**, because the flag the plan
+  assumed is not on the wire at the dispatch seam. See the table above.
+- **`prefer_fast_model` ships ON**, unlike `title_generation`, which ships it
+  off. Titling is once per session; this is once per turn, and that is the cost
+  profile that justifies overriding the documented "auto = the main model"
+  contract. Users whose main model is already a cheap tier should set it false
+  — otherwise the fast tier can mean a different vendor for no saving.

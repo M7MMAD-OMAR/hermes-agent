@@ -30,10 +30,13 @@ from agent.next_moves import (
 
 
 class FakeAgent:
-    def __init__(self, platform="desktop", tools=("write_file", "patch")):
+    def __init__(self, platform="desktop", tools=("write_file", "patch"), dispatches=True):
         self.platform = platform
         self.valid_tool_names = set(tools)
         self._next_moves_evidence = None
+        # Set by the gateway on the agent it owns; every other surface shares
+        # the same finalizer and must not stage.
+        self._next_moves_dispatch = dispatches
 
 
 @pytest.fixture(autouse=True)
@@ -272,6 +275,27 @@ def test_staging_declines_a_turn_with_nothing_in_it(over):
 def test_staging_skips_surfaces_with_no_strip(platform):
     # Without this every delegated child stages a snapshot nobody reads.
     assert stage(FakeAgent(platform=platform))._next_moves_evidence is None
+
+
+def test_staging_skips_a_surface_that_cannot_dispatch():
+    # CLI, ACP, messaging and cron all run the same finalize_turn. Only the
+    # gateway that owns the dispatcher arms this.
+    assert stage(FakeAgent(dispatches=False))._next_moves_evidence is None
+
+
+def test_the_skill_index_is_not_read_for_a_turn_that_is_thrown_away(monkeypatch):
+    # Reading it rebuilds the agent's whole system prompt. A trivial turn must
+    # never pay that.
+    calls = []
+    monkeypatch.setattr("agent.next_moves._skill_names", lambda agent: calls.append(1) or [])
+
+    stage(messages_snapshot=[user("hi")], final_response="hello")
+
+    assert calls == []
+
+    stage()
+
+    assert calls == [1]
 
 
 def test_staging_respects_the_feature_switch(monkeypatch):

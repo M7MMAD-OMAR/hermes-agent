@@ -9440,6 +9440,11 @@ def _init_session(
         agent.background_review_callback = lambda message, _sid=sid: _emit(
             "review.summary", _sid, {"text": str(message)}
         )
+        # This gateway is the only surface that dispatches post-turn next
+        # moves, so it is the only one that may ask finalize_turn to stage
+        # them. Every other surface sharing that finalizer would otherwise pay
+        # for evidence nobody reads.
+        agent._next_moves_dispatch = True
         # Honor display.memory_notifications (off | on | verbose) like the
         # messaging gateway and CLI do — otherwise the review always behaved as
         # "on" on the TUI/desktop and a user who set "off" was ignored.

@@ -353,10 +353,14 @@ export function handleMessageStreamEvent(ctx: GatewayEventContext): boolean {
           }
         : undefined
 
-    // Only a clean finish arms the next-moves offer. A partial failure is real
-    // output AND an error, and the backend answers it with a retry-shaped move
-    // at most — but it is still an ended turn, so it arms like any other.
-    if (payload?.status === 'error' && !payload?.partial) {
+    // Only a clean finish arms the next-moves offer, and an errored one
+    // actively disarms — the backend does not dispatch for `status: 'error'`,
+    // so an armed session would sit waiting on a pack that never comes and
+    // accept a late one for the wrong turn. Partial failures are not separable
+    // here: `partial` is not on the message.complete payload at the gateway
+    // seam, so a turn that produced real output and then errored is treated as
+    // an error, which is the safe side of that ambiguity.
+    if (payload?.status === 'error') {
       withdrawNextMoves(sessionId)
     } else {
       noteTurnCompleted(sessionId)

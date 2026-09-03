@@ -6990,8 +6990,62 @@ def _desktop_build_needed(desktop_dir: Path, project_root: Path, *, source_mode:
     if not saved_hash:
         return True
 
+    # Fast path: on a git checkout, "nothing changed since the commit this
+    # hash was computed against" is answerable from git's own index in a
+    # couple of scoped, single-digit-millisecond calls — HEAD's SHA plus a
+    # status check limited to the same paths the hash walks. That replaces a
+    # full SHA-256 read of every byte under apps/desktop/ (measured 131ms)
+    # on EVERY `hermes desktop` launch, not just the rare one that rebuilds.
+    # Any uncertainty at all — not a git checkout, git missing, HEAD moved,
+    # a scoped change present, any subprocess failure — falls straight
+    # through to the walk below, so this can only ever match today's answer
+    # or defer to it; it can never invent a different one.
+    if _desktop_content_unchanged_via_git(project_root, stamp_data):
+        return False
+
     current_hash = _compute_desktop_content_hash(project_root)
     return current_hash != saved_hash
+
+
+_DESKTOP_HASH_PATHS = ("apps/desktop", "package.json", "package-lock.json")
+
+
+def _desktop_content_unchanged_via_git(project_root: Path, stamp_data: dict) -> bool:
+    """True only when git can cheaply PROVE the hashed paths are unchanged.
+
+    Requires the stamp to carry the HEAD commit the saved hash was computed
+    against (older stamps predate this field and always miss here, which is
+    correct — they fall through to the real hash, exactly as before this
+    fast path existed).
+    """
+    saved_commit = stamp_data.get("gitCommit")
+    if not saved_commit:
+        return False
+    try:
+        common = {
+            "cwd": project_root,
+            "capture_output": True,
+            "text": True,
+            "timeout": 5,
+        }
+        head = subprocess.run(["git", "rev-parse", "HEAD"], **common)
+        if head.returncode != 0 or head.stdout.strip() != saved_commit:
+            return False
+        # git diff catches tracked modifications; git status also catches
+        # new untracked files sitting under these paths — the content hash
+        # walk sees those too (it reads the filesystem, not the index), so
+        # both checks are required to match its verdict.
+        diff = subprocess.run(
+            ["git", "diff", "--quiet", "HEAD", "--", *_DESKTOP_HASH_PATHS], **common
+        )
+        if diff.returncode != 0:
+            return False
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--", *_DESKTOP_HASH_PATHS], **common
+        )
+        return status.returncode == 0 and not status.stdout.strip()
+    except Exception:
+        return False
 
 
 def _write_desktop_build_stamp(project_root: Path, *, source_mode: bool) -> None:
@@ -7006,6 +7060,19 @@ def _write_desktop_build_stamp(project_root: Path, *, source_mode: bool) -> None
             "sourceMode": source_mode,
             "builtAt": datetime.now(timezone.utc).isoformat(),
         }
+        # Best-effort: absent on non-git installs (packaged app with no
+        # .git), which is fine -- _desktop_content_unchanged_via_git treats
+        # a missing gitCommit as "can't fast-path" and always falls through
+        # to the real hash, same as before this field existed.
+        try:
+            rev = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=project_root, capture_output=True, text=True, timeout=5,
+            )
+            if rev.returncode == 0 and rev.stdout.strip():
+                stamp_data["gitCommit"] = rev.stdout.strip()
+        except Exception:
+            pass
         stamp_file.write_text(json.dumps(stamp_data, indent=2) + "\n", encoding="utf-8")
     except Exception as exc:
         # Never let stamp-writing block or fail a build

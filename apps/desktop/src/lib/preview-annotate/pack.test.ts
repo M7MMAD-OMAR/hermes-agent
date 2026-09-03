@@ -4,6 +4,7 @@ import { flushAnnotateStack } from './flush'
 import { compactIdentity } from './identity'
 import { annotateFlushPrompt, packageAnnotatePin, packageAnnotateStack } from './pack'
 import { addAnnotatePin, type AnnotatePin, emptyAnnotateStack } from './stack'
+import { ANNOTATE_HTML_BUDGET } from './tokens'
 
 const png =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -20,6 +21,7 @@ function pin(partial: Partial<AnnotatePin> = {}): AnnotatePin {
     rect: { height: 40, width: 120, x: 8, y: 8 },
     identity: {
       css: { color: 'rgb(24, 24, 24)', 'font-size': '14px' },
+      html: '<button class="plan">Select plan</button>',
       selector: 'button.plan',
       tag: 'button',
       text: 'Select plan'
@@ -41,13 +43,23 @@ function pin(partial: Partial<AnnotatePin> = {}): AnnotatePin {
 // a curated whitelist, so a hostile or enormous page cannot flood the prompt.
 
 describe('packageAnnotatePin', () => {
-  it('gives a generic container an address, not just its text', () => {
+  it('carries the selector, markup, and computed styles the agent needs to find the source', () => {
+    const packed = packageAnnotatePin(pin())
+
+    expect(packed.prompt).toContain('Selector: button.plan')
+    expect(packed.prompt).toContain('HTML: <button class="plan">Select plan</button>')
+    expect(packed.prompt).toContain('color: rgb(24, 24, 24)')
+    expect(packed.prompt).toContain('font-size: 14px')
+  })
+
+  it('keeps the target line prose while the DOM detail rides its own labelled lines', () => {
     const text = 'גם בקיבוץ חולית הקטן יש ילד שעושה את הצעד הראשון במערכת החינוך'
 
     const packed = packageAnnotatePin(
       pin({
         identity: {
           css: { color: 'rgb(0, 0, 0)', 'font-family': 'Moses, NarkisBlock', 'font-size': '18px' },
+          html: '<div class="text_editor_paragraph rtl">…</div>',
           selector:
             'div.DraftEditor-editorContainer>div.public-DraftEditor-content>div>div.text_editor_paragraph.rtl:nth-of-type(9)',
           tag: 'div',
@@ -60,7 +72,11 @@ describe('packageAnnotatePin', () => {
     // A div is not named on the label line (the quoted text identifies it to a
     // human better than "div" does) — but the selector is how the agent finds
     // it, so it always ships.
-    expect(packed.prompt).toContain(`Target: "${text}"`)
+    const target = packed.prompt.split('\n').find(line => line.startsWith('Target:'))
+
+    expect(target).toBe(`Target: "${text}"`)
+    expect(target).not.toContain('div')
+    expect(target).not.toContain('DraftEditor')
     expect(packed.prompt).toContain('Note: תסכם את זה')
     expect(packed.prompt).toContain('Selector: div.DraftEditor-editorContainer')
     expect(packed.prompt).toContain('font-size: 18px')
@@ -79,30 +95,36 @@ describe('packageAnnotatePin', () => {
     expect(packed.prompt).toContain('font-size: 14px')
     expect(packed.prompt).toContain('Image 1 marks the target in blue.')
     expect(packed.prompt).toContain('Note: This button overflows on mobile.')
+    expect(packed.prompt).not.toContain('<html')
   })
 
   it('does not repeat the selector when it is already the label', () => {
     const packed = packageAnnotatePin(
       pin({
-        identity: { css: { display: 'block' }, selector: '#sales-chart', tag: 'div', text: '' },
+        identity: {
+          css: { display: 'block' },
+          html: '<div id="sales-chart"></div>',
+          selector: '#sales-chart',
+          tag: 'div',
+          text: ''
+        },
         note: 'Use the same scale as the chart above.'
       })
     )
 
     expect(packed.prompt).toContain('Target: #sales-chart')
     expect(packed.prompt).toContain('display: block')
-    // The label line already IS the selector; a `Selector:` line under it would
-    // be the same string twice.
     expect(packed.prompt).toContain('Selector: #sales-chart')
   })
 
-  it('packages an area pin without pretending it has a selector', () => {
+  it('invents no element detail for an area pin', () => {
     const packed = packageAnnotatePin(pin({ identity: undefined, kind: 'area', note: 'too tight' }))
 
     expect(packed.prompt).toContain('area')
     expect(packed.prompt).toContain('120×40px at 8,8')
     expect(packed.prompt).toContain('too tight')
     expect(packed.prompt).not.toContain('Selector:')
+    expect(packed.prompt).not.toContain('HTML:')
   })
 
   it('names the page per comment only when the review walked across pages', () => {
@@ -137,6 +159,24 @@ describe('compactIdentity', () => {
     expect(compact.css.display).toBeUndefined()
     expect(compact.css.margin).toBeUndefined()
     expect(compact.css.color).toBe('red')
+  })
+
+  it('clips markup to the budget rather than pasting a whole section', () => {
+    const compact = compactIdentity({
+      css: {},
+      html: `<section>${'<p>filler</p>'.repeat(400)}</section>`,
+      selector: 'section',
+      tag: 'section',
+      text: ''
+    })
+
+    expect(compact.html.length).toBeLessThanOrEqual(ANNOTATE_HTML_BUDGET)
+    expect(compact.html.startsWith('<section>')).toBe(true)
+    expect(compact.html.endsWith('…')).toBe(true)
+  })
+
+  it('tolerates a snapshot with no markup', () => {
+    expect(compactIdentity({ css: {}, selector: 'div', tag: 'div', text: '' }).html).toBe('')
   })
 })
 
@@ -192,5 +232,81 @@ describe('flushAnnotateStack', () => {
 
     expect(stacked).toHaveLength(2)
     expect(annotateFlushPrompt(stacked)).toContain('2 comments')
+  })
+})
+
+describe('annotateFlushPrompt batching', () => {
+  function at(number: number, selector: string): AnnotatePin {
+    return pin({
+      id: `annotate-${number}`,
+      number,
+      identity: { css: {}, html: '', selector, tag: 'div', text: '' }
+    })
+  }
+
+  const batch = packageAnnotateStack([
+    at(1, 'body>main>section.hero>h1'),
+    at(2, 'body>main>section.hero>p'),
+    at(3, 'body>main>section.pricing>button'),
+    at(4, 'body>main>section.pricing>span'),
+    at(5, 'body>main>section.faq>li')
+  ])
+
+  it('heads each region so a long batch is fewer pieces of work than comments', () => {
+    const prompt = annotateFlushPrompt(batch, 'http://localhost:5173/')
+
+    expect(prompt).toContain('Group 1 — `section.hero` (2 comments)')
+    expect(prompt).toContain('Group 2 — `section.pricing` (2 comments)')
+    expect(prompt).toContain('Group 3 — `section.faq` (1 comment)')
+    expect(prompt).toContain('Work them as 3 pieces of work, not 5.')
+  })
+
+  it('warns against the theme split that would put workers in the same files', () => {
+    const prompt = annotateFlushPrompt(batch)
+
+    expect(prompt).toContain('delegate whole groups')
+    expect(prompt).toContain('never form new groups by theme')
+    expect(prompt).toContain('Regroup if the code disagrees')
+  })
+
+  it('still lists every comment exactly once', () => {
+    const prompt = annotateFlushPrompt(batch)
+
+    for (const item of batch) {
+      expect(prompt.split(`Comment ${item.number}\n`)).toHaveLength(2)
+    }
+  })
+
+  it('leaves a short batch flat — grouping two comments is noise', () => {
+    const prompt = annotateFlushPrompt(batch.slice(0, 2))
+
+    expect(prompt).not.toContain('Group 1')
+    expect(prompt).not.toContain('pieces of work')
+  })
+
+  it('leaves a batch flat when every comment is in one region', () => {
+    const prompt = annotateFlushPrompt(
+      packageAnnotateStack([
+        at(1, 'body>div.card>h1'),
+        at(2, 'body>div.card>p'),
+        at(3, 'body>div.card>a'),
+        at(4, 'body>div.card>span')
+      ])
+    )
+
+    expect(prompt).not.toContain('Group 1')
+  })
+
+  it('gives dragged areas their own section instead of a guessed region', () => {
+    const prompt = annotateFlushPrompt(
+      packageAnnotateStack([
+        at(1, 'body>main>section.hero>h1'),
+        at(2, 'body>main>section.pricing>button'),
+        pin({ id: 'annotate-3', identity: undefined, kind: 'area', number: 3 }),
+        at(4, 'body>main>section.faq>li')
+      ])
+    )
+
+    expect(prompt).toContain('Unanchored (dragged areas) (1 comment)')
   })
 })

@@ -331,6 +331,37 @@ describe('useBackgroundQueueDrain', () => {
     expect($composerDraft.get()).toContain('two days of silence')
   })
 
+  it('does not condemn a fresh chat whose runtime is still alive', async () => {
+    vi.useFakeTimers()
+
+    // The real shape behind the browser-comment Queue failure: a brand-new
+    // chat's first message is not flushed to SessionDB yet, so
+    // listSessions(min_messages=1) omits it. resolveComposerSessionKey then
+    // falls back to the raw RUNTIME id, and the drain's orphan test is that
+    // same failed lookup — so the queue was declared gone forever. The
+    // runtime is sitting right there in $sessionStates the whole time.
+    const runtimeMap = { current: new Map<string, string>() }
+    const submitText = vi.fn(async () => false)
+
+    setSessions([lineageSession({ id: 'a-different-chat', title: 'Something else' })])
+    publishSessionState('fresh-runtime-id', createClientSessionState(null, []))
+    enqueueQueuedPrompt('fresh-runtime-id', { attachments: [], text: 'what should change here?' })
+
+    // NOT the selected chat — the user queued the comment then switched away,
+    // which is what hands this queue to the background drain at all.
+    render(
+      <Harness runtimeMap={runtimeMap} selectedStoredSessionId="a-different-chat" submitText={submitText} />
+    )
+
+    await exhaustRetries()
+
+    const toast = $notifications.get().find(n => n.id === 'composer-queue-stuck-fresh-runtime-id')
+
+    // Retryable ("stuck"), never "gone" — and the words stay queued.
+    expect(toast?.kind).toBe('error')
+    expect(getQueuedPrompts('fresh-runtime-id')).toHaveLength(1)
+  })
+
   it('takes the alarm down once the entry is gone', async () => {
     vi.useFakeTimers()
 

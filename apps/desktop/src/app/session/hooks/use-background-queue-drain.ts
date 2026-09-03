@@ -21,7 +21,7 @@ import {
 } from '@/store/composer-queue'
 import { notify } from '@/store/notifications'
 import { $sessions, idsShareLineage, sessionMatchesStoredId } from '@/store/session'
-import { $workingSessionIds } from '@/store/session-states'
+import { $sessionStates, $workingSessionIds } from '@/store/session-states'
 
 import type { SubmitTextOptions } from './use-prompt-actions/utils'
 
@@ -132,7 +132,21 @@ export function useBackgroundQueueDrain({
         // "this chat does not exist" read would condemn perfectly live queues.
         const sessions = $sessions.get()
 
-        const orphaned = sessions.length > 0 && !sessions.some(session => sessionMatchesStoredId(session, sessionKey))
+        // A live runtime is proof the chat exists, whatever the sessions
+        // list says. A brand-new chat's first message is not flushed to
+        // SessionDB yet, so listSessions(min_messages=1) omits it — and
+        // resolveComposerSessionKey (session.ts) falls back to the raw
+        // RUNTIME id when no row matches, which is then the queue's key.
+        // The orphan test below is that same failed lookup, so a queue
+        // parked in a fresh chat used to be condemned as gone-forever every
+        // time (the browser-comment Queue failure). $sessionStates is keyed
+        // by runtime id, so it answers the question the sessions list can't.
+        const runtimeAlive = Boolean($sessionStates.get()[sessionKey])
+
+        const orphaned =
+          !runtimeAlive
+          && sessions.length > 0
+          && !sessions.some(session => sessionMatchesStoredId(session, sessionKey))
 
         const pending = getQueuedPrompts(sessionKey)
 

@@ -15,6 +15,7 @@ import { clearAllPrompts } from '@/store/prompts'
 import { providerWaitText, setSessionProviderWait } from '@/store/provider-wait'
 import { setCurrentUsage, setTurnStartedAt } from '@/store/session'
 import { pruneFinishedSessionSubagents } from '@/store/subagents'
+import { noteTurnCompleted, noteTurnStarted, withdrawNextMoves } from '@/store/suggestion-providers/next-move'
 import { clearActiveSessionTodos } from '@/store/todos'
 
 import type { GatewayEventContext } from './types'
@@ -85,6 +86,10 @@ export function handleMessageStreamEvent(ctx: GatewayEventContext): boolean {
       return true
     }
 
+    // Withdraws the standing next-moves offer AND moves the session off the
+    // completion any in-flight offer was generated for, so a pack that loses
+    // the race to this turn can never land under it.
+    noteTurnStarted(sessionId)
     flushQueuedDeltas(sessionId)
     pruneFinishedSessionSubagents(sessionId)
     setSessionCompacting(sessionId, false)
@@ -347,6 +352,19 @@ export function handleMessageStreamEvent(ctx: GatewayEventContext): boolean {
             surface: parseErrorSurface(payload.error_surface)
           }
         : undefined
+
+    // Only a clean finish arms the next-moves offer, and an errored one
+    // actively disarms — the backend does not dispatch for `status: 'error'`,
+    // so an armed session would sit waiting on a pack that never comes and
+    // accept a late one for the wrong turn. Partial failures are not separable
+    // here: `partial` is not on the message.complete payload at the gateway
+    // seam, so a turn that produced real output and then errored is treated as
+    // an error, which is the safe side of that ambiguity.
+    if (payload?.status === 'error') {
+      withdrawNextMoves(sessionId)
+    } else {
+      noteTurnCompleted(sessionId)
+    }
 
     completeAssistantMessage(sessionId, finalText, payload?.response_previewed, failure, occurredAt)
 

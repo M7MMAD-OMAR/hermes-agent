@@ -2248,6 +2248,14 @@ export interface Translations {
       done: string
       doneTip: string
     }
+    /** Post-turn next moves. No `label`/`tip` here on purpose: those are
+     *  authored per move (by the rules, and later by the model) in the
+     *  conversation's own language, so only the chrome is translatable. */
+    nextMoveSuggestions: {
+      done: string
+      doneTip: string
+      workingTip: string
+    }
     repairSuggestions: {
       label: (server: string) => string
       tip: (server: string) => string

@@ -31,6 +31,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
 import re
+import threading
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,53 @@ _TEST_RUN_RE = re.compile(
     r"\b(?:pytest|vitest|jest|go test|cargo test|npm (?:run )?test|yarn test|pnpm test|tox|nox|ctest)\b",
     re.IGNORECASE,
 )
+
+# Strict schema, mirroring `_TITLE_RESPONSE_FORMAT`: a shape the parser can
+# reject wholesale is worth more here than a shape the model can improvise in.
+_MOVES_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "next_moves",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "moves": {
+                    "type": "array",
+                    "maxItems": MAX_MOVES,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "kind": {"type": "string", "enum": sorted(MOVE_KINDS)},
+                            "label": {"type": "string"},
+                            "tip": {"type": "string"},
+                            "payload": {"type": "string"},
+                        },
+                        "required": ["kind", "label", "tip", "payload"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["moves"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+_SYSTEM_PROMPT = """You suggest what the user could do next, right after their coding agent \
+finished a turn. You are not the agent and you are not talking to them: you write the \
+short labels on 1-3 buttons above their message box.
+
+Rules:
+- Only propose moves that follow from what THIS turn actually did. No generic advice.
+- `payload` is the text that gets typed into their message box. Write it as the user \
+would write it to the agent, in the same language as their last message.
+- `label` is at most 6 words, imperative, no trailing period.
+- `tip` says in one short sentence why you are offering this.
+- kind: `skill` only for a skill in the installed list, and `payload` must start with \
+its slash command. `delegate` only when delegation is available and the work is genuinely \
+separable. `action` for a concrete next step. `followup` for a question worth asking.
+- Offer fewer moves rather than weak ones. An empty list is a valid, good answer."""
 
 _FILE_EDIT_TOOL_ARGS: Mapping[str, str] = {
     "patch": "path",
@@ -158,6 +206,18 @@ def next_moves_enabled(config: Optional[Mapping[str, Any]] = None) -> bool:
         return is_truthy_value(block.get("enabled"), default=True)
     except Exception:
         return True
+
+
+def next_moves_use_model(config: Optional[Mapping[str, Any]] = None) -> bool:
+    """Whether to spend an auxiliary call. Off leaves the local rules alone."""
+    try:
+        from utils import is_truthy_value
+
+        block = _next_moves_config() if config is None else config
+
+        return is_truthy_value(block.get("use_model"), default=False)
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +333,13 @@ def _command_text(name: str, args: Mapping[str, Any]) -> str:
 
 
 def extract_evidence(agent: Any, messages: Sequence[Any], final_response: str) -> TurnEvidence:
-    """Everything the rules and (later) the model prompt are allowed to see."""
+    """What the TURN did. Cheap: message walking and string work, nothing else.
+
+    The environment half — installed skills, delegation capability — is filled
+    in by :func:`stage_next_moves` after its gates, because reading the skill
+    index means rebuilding the agent's system prompt and that must not happen
+    on a turn we are about to discard.
+    """
     window = _turn_slice(messages)
     evidence = TurnEvidence(final_response=(final_response or "").strip())
 
@@ -316,9 +382,6 @@ def extract_evidence(agent: Any, messages: Sequence[Any], final_response: str) -
             if name and name not in evidence.failed_tools:
                 evidence.failed_tools.append(name)
 
-    evidence.skills = _skill_names(agent)
-    evidence.can_delegate = "delegate_task" in (getattr(agent, "valid_tool_names", None) or ())
-
     return evidence
 
 
@@ -357,7 +420,11 @@ def heuristic_moves(evidence: TurnEvidence) -> List[NextMove]:
             NextMove(
                 kind="action",
                 label="Run the tests",
-                tip=f"{len(evidence.edited_files)} file(s) changed and nothing ran the tests.",
+                tip=(
+                    f"{count} file{'' if count == 1 else 's'} changed and nothing ran the tests."
+                    if (count := len(evidence.edited_files))
+                    else "Files changed and nothing ran the tests."
+                ),
                 # Deliberately does not name a runner: the agent knows the
                 # project's, and a wrong command is worse than a prompt.
                 payload="Run the tests that cover what we just changed, and fix anything that fails.",
@@ -447,9 +514,21 @@ def stage_next_moves(
     """
     agent._next_moves_evidence = None
 
+    # Only a surface that DISPATCHES may stage. `finalize_turn` is shared by
+    # the CLI, ACP, messaging gateways, cron and delegated children, and the
+    # dispatcher lives at one seam — the desktop/TUI gateway, which sets this
+    # flag on the agent it owns. Without the gate every other surface copies a
+    # snapshot and extracts evidence on every turn, forever, for a consumer
+    # that does not exist there.
+    if not getattr(agent, "_next_moves_dispatch", False):
+        return
+
     if interrupted or not final_response:
         return
 
+    # Belt and braces beside the flag: a fork that inherits the parent agent's
+    # attributes must not inherit the right to suggest. Mirrors
+    # `_UNTITLED_PLATFORMS`.
     platform = str(getattr(agent, "platform", "") or "").lower()
 
     if platform in NO_NEXT_MOVES_PLATFORMS:
@@ -470,12 +549,145 @@ def stage_next_moves(
     if not evidence.tool_calls and len(evidence.final_response) < MIN_RESPONSE_CHARS:
         return
 
+    # Only now the expensive half: `_skill_names` rebuilds the system prompt to
+    # read the index out of it, which is far too much to spend on a turn the
+    # gate above was going to throw away.
+    try:
+        evidence.skills = _skill_names(agent)
+    except Exception:
+        logger.debug("Skill index unavailable for next moves", exc_info=True)
+
+    evidence.can_delegate = "delegate_task" in (getattr(agent, "valid_tool_names", None) or ())
     evidence.turn_id = str(turn_id or "")
     agent._next_moves_evidence = evidence
 
 
+def _evidence_prompt(evidence: TurnEvidence) -> str:
+    """The digest the model reasons over. Bounded, and never the raw transcript."""
+    tools = []
+    seen = set()
+
+    for name, _args in evidence.tool_calls:
+        if name not in seen:
+            seen.add(name)
+            tools.append(name)
+
+    lines = [f"The user asked:\n{_clip(evidence.user_message, 1200)}", ""]
+    lines.append(f"The agent answered:\n{_clip(evidence.final_response, 2000)}")
+
+    if tools:
+        lines.append("\nTools used this turn: " + ", ".join(tools[:20]))
+
+    if evidence.failed_tools:
+        lines.append("Tools that FAILED this turn: " + ", ".join(evidence.failed_tools[:10]))
+
+    if evidence.edited_files:
+        lines.append("Files edited this turn: " + ", ".join(evidence.edited_files[:10]))
+
+    lines.append(f"Tests were {'run' if evidence.ran_tests else 'NOT run'} this turn.")
+
+    if evidence.skills:
+        lines.append("Skills installed (usable as /name): " + ", ".join(evidence.skills[:40]))
+    else:
+        lines.append("No skills are installed — never propose kind `skill`.")
+
+    if not evidence.can_delegate:
+        lines.append("Delegation is unavailable — never propose kind `delegate`.")
+
+    return "\n".join(lines)
+
+
+def model_moves(evidence: TurnEvidence, main_runtime: Optional[Dict[str, Any]] = None) -> List[NextMove]:
+    """One auxiliary call. Raises nothing: an empty list means "use the rules".
+
+    ``call_llm`` RAISES on provider exhaustion rather than returning None, so
+    every caller in this repo wraps it. Same here — a suggestion is never worth
+    surfacing a provider error for.
+    """
+    try:
+        from agent.auxiliary_client import call_llm
+        from utils import safe_json_loads
+
+        config = _next_moves_config()
+        language = str(config.get("language") or "").strip()
+        system = _SYSTEM_PROMPT
+
+        if language:
+            system += f"\n- Write `label`, `tip` and `payload` in {language}."
+
+        response = call_llm(
+            task="next_moves",
+            main_runtime=main_runtime,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": _evidence_prompt(evidence)},
+            ],
+            max_tokens=400,
+            temperature=0.3,
+            extra_body={"response_format": _MOVES_RESPONSE_FORMAT},
+        )
+        parsed = safe_json_loads(response.choices[0].message.content or "")
+    except Exception as exc:
+        logger.debug("Next-moves model call failed: %s", exc)
+
+        return []
+
+    moves = validate_moves((parsed or {}).get("moves") if isinstance(parsed, Mapping) else None)
+
+    # A skill the user does not have is not a suggestion, it is a dead end.
+    # Dropped rather than treated as a malformed pack: the rest may be fine.
+    installed = set(evidence.skills)
+    kept = [
+        move
+        for move in moves
+        if not (
+            (move.kind == "skill" and move.payload.lstrip("/").split()[0] not in installed)
+            or (move.kind == "delegate" and not evidence.can_delegate)
+        )
+    ]
+
+    return kept
+
+
+def _main_runtime(agent: Any) -> Dict[str, Any]:
+    """The agent's live runtime, so `provider: auto` reuses its credentials and
+    prefix cache instead of resolving a second backend. Same shape the turn
+    prologue hands the titler."""
+    return {
+        "api_key": getattr(agent, "api_key", None),
+        "api_mode": getattr(agent, "api_mode", None),
+        "base_url": getattr(agent, "base_url", None),
+        "model": getattr(agent, "model", None),
+        "provider": getattr(agent, "provider", None),
+    }
+
+
+def cancel_next_moves(agent: Any) -> None:
+    """Fence off any in-flight generation. Called when a fresh turn is admitted.
+
+    Deliberately not a join: the foreground never waits on this the way
+    `cancel_background_review_for_live_turn` does, because there is no fork and
+    no tools to interrupt — just one request whose answer gets thrown away.
+    """
+    try:
+        agent._next_moves_generation = int(getattr(agent, "_next_moves_generation", 0)) + 1
+    except Exception:
+        pass
+
+
 def build_moves(agent: Any, evidence: TurnEvidence) -> Tuple[List[NextMove], str]:
-    """Return ``(moves, source)``. Local rules today; the model lands here."""
+    """Return ``(moves, source)``.
+
+    The model first when it is switched on, the local rules whenever it is off,
+    unreachable, or answers with nothing usable. The rules are not a
+    degradation to apologise for — they are the same feature, cheaper.
+    """
+    if next_moves_use_model():
+        moves = model_moves(evidence, main_runtime=_main_runtime(agent))
+
+        if moves:
+            return moves, "model"
+
     return heuristic_moves(evidence), "heuristic"
 
 
@@ -507,23 +719,39 @@ def dispatch_next_moves(
     if agent_continued or billing_blocked or status != "complete":
         return
 
-    try:
-        moves, source = build_moves(agent, evidence)
-    except Exception:
-        logger.debug("Next-moves generation failed", exc_info=True)
+    def run() -> None:
+        generation = int(getattr(agent, "_next_moves_generation", 0))
 
-        return
+        try:
+            moves, source = build_moves(agent, evidence)
+        except Exception:
+            logger.debug("Next-moves generation failed", exc_info=True)
 
-    if not moves:
-        return
+            return
 
-    emit(
-        "next_moves.offer",
-        session_id,
-        {
-            "moves": [move.as_dict() for move in moves[:MAX_MOVES]],
-            "session_id": session_id,
-            "source": source,
-            "turn_id": evidence.turn_id,
-        },
-    )
+        # A fresh turn was admitted while the model was thinking. The renderer
+        # would drop this anyway — it tracks which completion it is sitting on
+        # — but there is no reason to put a dead offer on the wire.
+        if not moves or int(getattr(agent, "_next_moves_generation", 0)) != generation:
+            return
+
+        emit(
+            "next_moves.offer",
+            session_id,
+            {
+                "moves": [move.as_dict() for move in moves[:MAX_MOVES]],
+                "session_id": session_id,
+                "source": source,
+                "turn_id": evidence.turn_id,
+            },
+        )
+
+    # The local rules are microseconds of string work, so threading them would
+    # only add a scheduling hop and make the tests racy. The model path is a
+    # network round trip and must never sit on the turn thread: everything the
+    # gateway does after message.complete — the /goal judge, the /loop tick —
+    # would queue behind it.
+    if next_moves_use_model():
+        threading.Thread(target=run, daemon=True, name="next-moves").start()
+    else:
+        run()

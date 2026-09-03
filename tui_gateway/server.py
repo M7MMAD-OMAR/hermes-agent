@@ -9502,6 +9502,11 @@ def _init_session(
         agent.background_review_callback = lambda message, _sid=sid: _emit(
             "review.summary", _sid, {"text": str(message)}
         )
+        # This gateway is the only surface that dispatches post-turn next
+        # moves, so it is the only one that may ask finalize_turn to stage
+        # them. Every other surface sharing that finalizer would otherwise pay
+        # for evidence nobody reads.
+        agent._next_moves_dispatch = True
         # Honor display.memory_notifications (off | on | verbose) like the
         # messaging gateway and CLI do — otherwise the review always behaved as
         # "on" on the TUI/desktop and a user who set "off" was ignored.
@@ -13207,6 +13212,15 @@ def _run_prompt_submit(
     # N message.complete events a continuation chain produces. Read (and
     # cleared) at the post-turn seam.
     session["_turn_initiator"] = "agent" if str(initiator) == "agent" else "user"
+    # Fence off any next-moves generation still in flight for the PREVIOUS
+    # turn. Never blocks: there is no fork to interrupt, just one auxiliary
+    # request whose answer is now about a turn the user has moved past.
+    try:
+        from agent.next_moves import cancel_next_moves
+
+        cancel_next_moves(session.get("agent"))
+    except Exception:
+        pass
     # Ownership admission at the ONE chokepoint every fresh turn source must
     # cross. prompt.submit already claims the slot in its RPC handler (so this
     # is a no-op re-check there), but crash auto-continue, wake-ups and other

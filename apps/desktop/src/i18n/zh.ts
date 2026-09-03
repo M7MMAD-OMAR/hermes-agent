@@ -2792,6 +2792,11 @@ export const zh: Translations = {
       done: skill => `已添加 /${skill}`,
       doneTip: '发送时将加载该技能'
     },
+    nextMoveSuggestions: {
+      done: '已添加到你的消息',
+      doneTip: '可以直接发送，也可以先修改',
+      workingTip: '正在添加到你的消息'
+    },
     githubSuggestions: {
       label: '设置 GitHub',
       tip: '这里通过 gh CLI 技能使用 GitHub — 点击连接你的账号',

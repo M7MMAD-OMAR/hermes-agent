@@ -1,6 +1,7 @@
 # Next Moves — post-turn suggestions in the desktop
 
-Status: design proposal (not implemented)
+Status: implemented (`54fc5dd08`, `7a136e374`, `319cf04ba`), on by default
+Blockers: landed first — see below
 Surfaces: `apps/desktop` renderer + `agent/` + `tui_gateway/`
 Anchors below were verified against `autobuild/sidebar-browser`.
 
@@ -271,7 +272,8 @@ Fires once per turn, at `tui_gateway/server.py:13760`. Every row is a hard gate.
 | No final response | reuse the background-review predicate (`:815`) |
 | Interrupted | `interrupted` — the renderer also early-returns at `use-message-stream/index.ts:575` |
 | cron / subagent platform | `_NO_NEXT_MOVES_PLATFORMS`, a copy of `_UNTITLED_PLATFORMS` (`agent/turn_context.py:263`, checked `:278`) — without it, N delegated children pay N calls |
-| CLI / ACP / messaging surfaces | gate staging on the dispatching surface, or the snapshot is copied every turn on every surface and never consumed |
+| CLI / ACP / messaging surfaces | `agent._next_moves_dispatch`, set by the gateway on the agent it owns. The dispatcher lives at one seam; every other surface sharing `finalize_turn` would otherwise extract evidence on every turn for a consumer that does not exist there |
+| Reading the skill index | fills in **after** the triviality gate. `_skill_names` rebuilds the agent's system prompt to read the block out of it — far too much to spend on a turn about to be discarded |
 | Trivial turn | `< min_turn_tool_calls` tool calls **and** a short response — the interval-gating idea `_should_review_skills` uses (`turn_finalizer.py:795`) |
 
 ### Dispatch-time (backend)
@@ -280,7 +282,7 @@ Fires once per turn, at `tui_gateway/server.py:13760`. Every row is a hard gate.
 |---|---|
 | `status != "complete"` | no dispatch. A failed turn is the same `message.complete` distinguished by `payload.status === 'error'` (`message-stream.ts:343`) |
 | Billing wall | `payload.billing` present (`message-stream.ts:355`) |
-| Partial failure (`failure.partial`) | heuristic only, one retry-shaped move, no aux call. It is a **third class** — real output *and* an error; folding it into either bucket is wrong |
+| Partial failure | **not separable at this seam, and shipped folded into `error`.** `partial` is not on the `message.complete` payload the gateway builds, so a turn that produced real output and then errored is indistinguishable from a clean failure here. The plan called it a third class and it should be; making that true means plumbing the flag onto the payload first |
 | Agent-continued turn | see below — needs a provenance field, not just a predicate |
 | Feature disabled | `auxiliary.next_moves.enabled` |
 | Managed local runtime | `skip_managed_local` — a **skip**, not a defer. `agent/review_idle_queue.py:1` documents that a post-turn job monopolizes the GPU the next prompt needs; a suggestion 40s late is worthless, so the deferral constants there are the wrong medicine |
@@ -586,9 +588,12 @@ Renderer, all deterministic, no fixture model:
 - Arity/shape: 0, 1, 3 and 20 moves; unknown `kind`; empty label; a `skill`
   naming a skill that is not installed.
 
-Backend:
+Backend (run with `venv/bin/python -m pytest` — the system interpreter is
+missing this project's dependencies):
 
-- Stage gates: no final response, interrupted, cron/subagent platform, trivial turn.
+- Stage gates: no final response, interrupted, cron/subagent platform, a
+  surface that cannot dispatch, trivial turn.
+- The skill index is not read for a turn the triviality gate discards.
 - Dispatch gates: error status, billing, partial failure → heuristic only,
   agent-continued turn.
 - `call_llm` raising → heuristic; heuristic empty → no emit at all.
@@ -613,12 +618,42 @@ unadvertised with the suite green.
   not a true per-session project scope, and this design does not claim one.
 - Per-window ledger divergence, above.
 - Suggestion quality is only measurable with an eval battery, not a unit test.
+- **Ranking.** `nextmove` still has no reserved slot. Two stranded MCP servers
+  hold both pills and this provider loses every turn. The cap-eviction fix
+  (`14bd215ad`) means losing that race no longer *silences* it, which was the
+  urgent half; giving it a slot needs a weight field on `ComposerSuggestion`.
 
-## Build order
+## Build order — all landed
 
 1. ~~Blockers 1–5, each its own commit with its own test.~~ **Done.**
 2. Backend: `agent/next_moves.py` with the **heuristic only**, staged and
    dispatched, behind `enabled: false`. Full gate matrix, no LLM.
 3. Renderer: event, handler, provider, i18n, drops and withdrawals. Feature is
    now end-to-end and deterministic.
-4. Add the `call_llm` path and the three registrations. Flip `enabled: true`.
+4. Add the `call_llm` path and the three registrations. Flip both switches on.
+
+## What shipped differently from this plan
+
+- **Two switches, not one.** `auxiliary.next_moves.enabled` is the feature;
+  `use_model` is whether a turn spends an auxiliary call. With `use_model`
+  false the rule table is the whole feature — the plan described that as a
+  fallback, and it is cleaner as a mode.
+- **Staleness is counted, not timed.** The plan offered "turn identity and/or
+  emission timestamp". The renderer counts turn starts and completions per
+  session instead: a clock comparison would have drifted against a remote
+  gateway, where the two ends are not the same clock.
+- **The agent-continued gate needed a new field**, as flagged. `initiator` on
+  `_run_prompt_submit`, defaulting to `"user"`, passed as `"agent"` by all ten
+  synthesized callers. The queued-prompt drain keeps the default.
+- **The heuristic emits at most one move**, not up to three. A rule cannot tell
+  which of its own outputs is the interesting one.
+- **`ComposerSuggestion` gained no weight field.** The ranking problem is real
+  and unfixed: `repair` holds standing offers and wins on Map insertion order.
+  Deferred rather than solved — see *Not solved*.
+- **Partial failures are folded into errors**, because the flag the plan
+  assumed is not on the wire at the dispatch seam. See the table above.
+- **`prefer_fast_model` ships ON**, unlike `title_generation`, which ships it
+  off. Titling is once per session; this is once per turn, and that is the cost
+  profile that justifies overriding the documented "auto = the main model"
+  contract. Users whose main model is already a cheap tier should set it false
+  — otherwise the fast tier can mean a different vendor for no saving.

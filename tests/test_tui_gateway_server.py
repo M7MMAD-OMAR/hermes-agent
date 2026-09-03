@@ -16301,6 +16301,16 @@ def test_model_options_preserves_canonical_custom_row_after_agent_init(monkeypat
         "hermes_cli.auth.is_provider_explicitly_configured",
         lambda _slug: False,
     )
+    # The explicit-only filter deliberately keeps the Anthropic row when an
+    # OAuth login is present (Hermes device flow / Claude Code credentials /
+    # the credential pool). That reads real host state, so on a developer
+    # machine signed into Claude Code the canned "anthropic" row above would
+    # survive the filter and this assertion would see it. Stub the helper —
+    # not the individual readers — so all three of its sources are covered.
+    monkeypatch.setattr(
+        "hermes_cli.inventory._anthropic_oauth_credentials_present",
+        lambda: False,
+    )
     monkeypatch.setattr("hermes_cli.inventory._apply_pricing", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("hermes_cli.inventory._apply_capabilities", lambda *_args, **_kwargs: None)
 

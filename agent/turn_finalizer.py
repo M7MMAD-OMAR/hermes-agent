@@ -829,6 +829,24 @@ def finalize_turn(
         except Exception:
             pass  # Background review is best-effort
 
+    # Post-turn next moves — evidence only. Staged here because this is where
+    # the turn's own message list is still in hand; the dispatch that turns it
+    # into an offer runs from the gateway seam AFTER message.complete, since
+    # finalize_turn returns before the desktop has been told the turn ended.
+    # Every gate lives inside stage_next_moves, which is silent and LLM-free.
+    try:
+        from agent.next_moves import stage_next_moves
+
+        stage_next_moves(
+            agent,
+            messages_snapshot=messages,
+            final_response=final_response,
+            interrupted=interrupted,
+            turn_id=turn_id,
+        )
+    except Exception:
+        pass  # Suggestions are never worth failing a turn over.
+
     # Note: Memory provider on_session_end() + shutdown_all() are NOT
     # called here — run_conversation() is called once per user message in
     # multi-turn sessions. Shutting down after every turn would kill the

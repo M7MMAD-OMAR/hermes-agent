@@ -1271,6 +1271,20 @@ DEFAULT_CONFIG = {
             "reasoning_effort": "",  # per-task thinking level: none|minimal|low|medium|high|xhigh|max|ultra (empty = provider default)
             "language": "",
         },
+        "next_moves": {
+            "enabled": False,  # post-turn suggestion pills in the desktop composer
+            "use_model": False,  # spend one auxiliary call per turn; false = local rules only
+            "provider": "auto",
+            "model": "",
+            "prefer_fast_model": True,  # a 3-line answer never needs the main model
+            "base_url": "",
+            "api_key": "",
+            "timeout": 20,
+            "extra_body": {},
+            "reasoning_effort": "none",
+            "language": "",  # empty = answer in the conversation's language
+            "max_concurrency": 1,
+        },
         "memory_query_rewrite": {
             "provider": "auto",
             "model": "",

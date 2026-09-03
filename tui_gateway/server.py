@@ -10333,7 +10333,7 @@ def _maybe_schedule_auto_continue(sid: str, session: dict, session_key: str) -> 
                 {"kind": "process", "text": "Resuming interrupted turn…"},
             )
             _emit("message.start", sid)
-            _run_prompt_submit(rid, sid, session, text, display_kind="auto_continue")
+            _run_prompt_submit(rid, sid, session, text, display_kind="auto_continue", initiator="agent")
         except Exception as exc:
             print(
                 f"[tui_gateway] auto-continue dispatch failed: "
@@ -12338,7 +12338,7 @@ def _maybe_fire_tui_loop_tick(sid: str, session: dict) -> None:
                             return
                         session["running"] = True
                     _emit("message.start", sid)
-                    _run_prompt_submit(rid, sid, session, payload["message"])
+                    _run_prompt_submit(rid, sid, session, payload["message"], initiator="agent")
                     return
             except Exception:
                 pass
@@ -12347,7 +12347,7 @@ def _maybe_fire_tui_loop_tick(sid: str, session: dict) -> None:
                 _emit("status.update", sid, {"kind": "loop", "text": decision["message"]})
             return
         _emit("message.start", sid)
-        _run_prompt_submit(rid, sid, session, wakeup)
+        _run_prompt_submit(rid, sid, session, wakeup, initiator="agent")
     except Exception as exc:
         print(
             f"[tui_gateway] loop wakeup dispatch failed: "
@@ -12585,7 +12585,7 @@ def _notification_poller_loop(
                     rid = f"__notif__{int(time.time() * 1000)}"
                     try:
                         _emit("message.start", sid)
-                        _run_prompt_submit(rid, sid, session, "\n".join(_batch))
+                        _run_prompt_submit(rid, sid, session, "\n".join(_batch), initiator="agent")
                     except Exception as exc:
                         print(
                             f"[tui_gateway] kanban notification dispatch failed: "
@@ -12679,9 +12679,10 @@ def _notification_poller_loop(
                     text,
                     display_kind="async_delegation_complete",
                     display_metadata=_async_delegation_display_metadata(evt),
+                    initiator="agent",
                 )
             else:
-                _run_prompt_submit(rid, sid, session, text)
+                _run_prompt_submit(rid, sid, session, text, initiator="agent")
             complete_event_delivery(evt, _claim)
         except Exception as exc:
             release_event_delivery(evt, _claim)
@@ -12757,9 +12758,10 @@ def _notification_poller_loop(
                     text,
                     display_kind="async_delegation_complete",
                     display_metadata=_async_delegation_display_metadata(evt),
+                    initiator="agent",
                 )
             else:
-                _run_prompt_submit(rid, sid, session, text)
+                _run_prompt_submit(rid, sid, session, text, initiator="agent")
             complete_event_delivery(evt, _claim)
         except Exception as exc:
             release_event_delivery(evt, _claim)
@@ -13098,7 +13100,14 @@ def _run_prompt_submit(
     image_paths: list[str] | None = None,
     queued_prompt_generation: int | None = None,
     terminal_callback: Callable[[dict[str, Any]], None] | None = None,
+    initiator: str = "user",
 ) -> bool:
+    # Who asked for this turn. Every synthesized source below — crash
+    # auto-continue, wake-ups, batch drains, /goal continuations, /loop ticks —
+    # passes "agent", so a post-turn consumer can tell one user prompt from the
+    # N message.complete events a continuation chain produces. Read (and
+    # cleared) at the post-turn seam.
+    session["_turn_initiator"] = "agent" if str(initiator) == "agent" else "user"
     # Ownership admission at the ONE chokepoint every fresh turn source must
     # cross. prompt.submit already claims the slot in its RPC handler (so this
     # is a no-op re-check there), but crash auto-continue, wake-ups and other
@@ -13757,6 +13766,30 @@ def _run_prompt_submit(
                 _retire_turn_marker(session, marker_key)
             _emit("message.complete", sid, payload)
 
+            # ── post-turn next moves ──────────────────────────────────
+            # Dispatched here, not from finalize_turn, because the offer
+            # describes a turn the client has to have settled first. Read the
+            # initiator BEFORE the /goal and /loop blocks below can resubmit:
+            # a continuation sets its own, and this turn's provenance is what
+            # decides whether the user drove it.
+            try:
+                from agent.next_moves import dispatch_next_moves
+
+                dispatch_next_moves(
+                    agent,
+                    session_id=sid,
+                    status=status,
+                    emit=_emit,
+                    agent_continued=session.get("_turn_initiator") == "agent",
+                    billing_blocked=bool(payload.get("billing")),
+                )
+            except Exception as _moves_exc:
+                print(
+                    f"[tui_gateway] next moves dispatch failed: "
+                    f"{type(_moves_exc).__name__}: {_moves_exc}",
+                    file=sys.stderr,
+                )
+
             # ── /goal continuation (Ralph-style loop) ─────────────────
             # After every TUI turn, if a /goal is active, ask the judge
             # whether the goal is done and — if not and we're still under
@@ -14092,7 +14125,7 @@ def _run_prompt_submit(
                 session["running"] = True
             try:
                 _emit("message.start", sid)
-                _run_prompt_submit(rid, sid, session, goal_followup)
+                _run_prompt_submit(rid, sid, session, goal_followup, initiator="agent")
             except Exception as _cont_exc:
                 print(
                     f"[tui_gateway] goal continuation dispatch failed: "
@@ -14138,7 +14171,7 @@ def _run_prompt_submit(
                     continue
                 try:
                     _emit("message.start", sid)
-                    _run_prompt_submit(rid, sid, session, synth)
+                    _run_prompt_submit(rid, sid, session, synth, initiator="agent")
                     complete_event_delivery(_evt, _claim)
                 except Exception as _n_exc:
                     release_event_delivery(_evt, _claim)

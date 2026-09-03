@@ -1,6 +1,7 @@
 # Next Moves — post-turn suggestions in the desktop
 
-Status: design proposal (not implemented)
+Status: implemented (`54fc5dd08`, `7a136e374`, `319cf04ba`), on by default
+Blockers: landed first — see below
 Surfaces: `apps/desktop` renderer + `agent/` + `tui_gateway/`
 Anchors below were verified against `autobuild/sidebar-browser`.
 
@@ -613,12 +614,35 @@ unadvertised with the suite green.
   not a true per-session project scope, and this design does not claim one.
 - Per-window ledger divergence, above.
 - Suggestion quality is only measurable with an eval battery, not a unit test.
+- **Ranking.** `nextmove` still has no reserved slot. Two stranded MCP servers
+  hold both pills and this provider loses every turn. The cap-eviction fix
+  (`14bd215ad`) means losing that race no longer *silences* it, which was the
+  urgent half; giving it a slot needs a weight field on `ComposerSuggestion`.
 
-## Build order
+## Build order — all landed
 
 1. ~~Blockers 1–5, each its own commit with its own test.~~ **Done.**
 2. Backend: `agent/next_moves.py` with the **heuristic only**, staged and
    dispatched, behind `enabled: false`. Full gate matrix, no LLM.
 3. Renderer: event, handler, provider, i18n, drops and withdrawals. Feature is
    now end-to-end and deterministic.
-4. Add the `call_llm` path and the three registrations. Flip `enabled: true`.
+4. Add the `call_llm` path and the three registrations. Flip both switches on.
+
+## What shipped differently from this plan
+
+- **Two switches, not one.** `auxiliary.next_moves.enabled` is the feature;
+  `use_model` is whether a turn spends an auxiliary call. With `use_model`
+  false the rule table is the whole feature — the plan described that as a
+  fallback, and it is cleaner as a mode.
+- **Staleness is counted, not timed.** The plan offered "turn identity and/or
+  emission timestamp". The renderer counts turn starts and completions per
+  session instead: a clock comparison would have drifted against a remote
+  gateway, where the two ends are not the same clock.
+- **The agent-continued gate needed a new field**, as flagged. `initiator` on
+  `_run_prompt_submit`, defaulting to `"user"`, passed as `"agent"` by all ten
+  synthesized callers. The queued-prompt drain keeps the default.
+- **The heuristic emits at most one move**, not up to three. A rule cannot tell
+  which of its own outputs is the interesting one.
+- **`ComposerSuggestion` gained no weight field.** The ranking problem is real
+  and unfixed: `repair` holds standing offers and wins on Map insertion order.
+  Deferred rather than solved — see *Not solved*.

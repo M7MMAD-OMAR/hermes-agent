@@ -106,7 +106,8 @@ describe('EffortPill slider writes', () => {
     )
     await openPopover()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'High' }))
+    // 'high' is index 3 in REASONING_EFFORTS.
+    fireEvent.change(screen.getByRole('slider', { name: 'Effort' }), { target: { value: '3' } })
 
     await waitFor(() => {
       expect(calls).toEqual([
@@ -155,7 +156,7 @@ describe('EffortPill fast toggle', () => {
 
     // The popover opens (effort slider present); the only switch is the
     // Thinking toggle — the variant swap stays a model-menu operation.
-    await screen.findByRole('radio', { name: 'High' })
+    await screen.findByRole('slider', { name: 'Effort' })
     expect(screen.queryByRole('switch', { checked: false })).toBeNull()
   })
 })

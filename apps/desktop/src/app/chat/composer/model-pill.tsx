@@ -95,8 +95,18 @@ export function ModelPill({
   //
   // The label is the NAME only: the reasoning level has its own always-visible
   // dial beside this pill (effort-pill), so duplicating it here is noise.
+  // Compact keeps the NAME — truncated hard, but present. A bare chevron left
+  // the one thing the control exists to report invisible, and the toolbar had
+  // room for several characters even at its narrowest.
   const label = compact ? (
-    <ChevronDown className="size-3.5 shrink-0 opacity-70" />
+    <>
+      {currentModel.trim() ? (
+        <span className="max-w-14 truncate">{displayModelName(currentModel)}</span>
+      ) : (
+        <GlyphSpinner className="opacity-50" spinner="braille" />
+      )}
+      <ChevronDown className="size-2.5 shrink-0 opacity-50" />
+    </>
   ) : (
     <>
       {currentModel.trim() ? (
@@ -116,11 +126,12 @@ export function ModelPill({
     </>
   )
 
-  // Compact (floating composer): a snug square holding just the chevron — no pill
-  // padding, sized to match the other composer icon buttons.
+  // Compact (floating composer): the same height as the other composer icon
+  // buttons, but width follows the truncated name instead of being a fixed
+  // square — `min-w-0` + `shrink` let it give ground before anything else does.
   const pillClass = compact
     ? cn(
-        'size-(--composer-control-size) shrink-0 justify-center gap-0 rounded-md p-0',
+        'h-(--composer-control-size) min-w-0 shrink gap-1 rounded-md px-1.5 text-xs font-normal',
         'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground'
       )
     : PILL

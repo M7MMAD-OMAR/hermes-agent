@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Switch } from '@/components/ui/switch'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
+import { triggerHaptic } from '@/lib/haptics'
 import { Brain, iconSize } from '@/lib/icons'
 import type { CurrentModelCaps } from '@/lib/model-options'
 import {
@@ -151,25 +152,40 @@ export function EffortPill({
               <div className="flex items-center gap-2">
                 <span className="shrink-0 text-[0.625rem] text-muted-foreground">{t.composer.effortFaster}</span>
 
-                <div
-                  aria-label={copy.effort}
-                  className="flex flex-1 items-center gap-1"
-                  role="radiogroup"
-                >
-                  {REASONING_EFFORTS.map((step, index) => (
-                    <button
-                      aria-checked={index === activeIndex}
-                      aria-label={copy[step]}
-                      className={cn(
-                        'h-1.5 flex-1 rounded-full transition-colors',
-                        index <= activeIndex ? 'bg-primary' : 'bg-(--ui-stroke-secondary) hover:bg-(--ui-stroke-primary)'
-                      )}
-                      key={step}
-                      onClick={() => setEffort(step)}
-                      role="radio"
-                      type="button"
-                    />
-                  ))}
+                {/* One range input, not seven buttons: the scale is ordinal, so
+                    it should be draggable across in a single gesture and
+                    arrow-key steppable. `step={1}` snaps to the seven levels,
+                    and the tick marks below show where they are. */}
+                <div className="relative flex flex-1 flex-col justify-center">
+                  <input
+                    aria-label={copy.effort}
+                    aria-valuetext={copy[REASONING_EFFORTS[activeIndex]]}
+                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-transparent"
+                    max={REASONING_EFFORTS.length - 1}
+                    min={0}
+                    onChange={event => {
+                      const next = REASONING_EFFORTS[Number(event.target.value)]
+                      if (next && next !== level) {
+                        triggerHaptic('selection')
+                        setEffort(next)
+                      }
+                    }}
+                    step={1}
+                    style={{ accentColor: 'var(--dt-primary)' }}
+                    type="range"
+                    value={activeIndex < 0 ? 0 : activeIndex}
+                  />
+                  <div aria-hidden className="pointer-events-none absolute inset-x-0 flex justify-between px-[0.3125rem]">
+                    {REASONING_EFFORTS.map((step, index) => (
+                      <span
+                        className={cn(
+                          'size-[0.1875rem] rounded-full transition-colors',
+                          index <= activeIndex ? 'bg-primary/70' : 'bg-(--ui-stroke-primary)'
+                        )}
+                        key={step}
+                      />
+                    ))}
+                  </div>
                 </div>
 
                 <span className="shrink-0 text-[0.625rem] text-muted-foreground">{t.composer.effortSmarter}</span>

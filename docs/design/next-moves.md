@@ -61,8 +61,12 @@ Three architectures were designed and compared.
 
 ## Blockers — five defects that must land before the feature
 
-These are pre-existing. Each one silently breaks Next Moves, and the last one
-is already a live bug in three shipped providers.
+**Status: all five landed** (`14bd215ad`, `9674f7afa`, `cd6e95580`, `5512fd491`,
+`55c2324bc`). Kept here because each one explains a constraint the feature is
+built on top of.
+
+These were pre-existing. Each one silently breaks Next Moves, and the last one
+was already a live bug in three shipped providers.
 
 ### 1. Cap eviction is recorded as a user decline
 
@@ -88,9 +92,19 @@ change, own test — it affects all five existing providers.
 every rendered field matches (`:102`). Re-offering the same key with new
 behaviour and identical text keeps last turn's action.
 
-**Fix:** either the id changes with the action (this design's choice, see
-*Declined ledger*), or a test enforces that every re-offer changes a rendered
-field. Do not rely on labels happening to differ.
+**Fix — smaller than it first read.** The sibling store takes the identical
+trade-off deliberately and says so: `run` is excluded from the micro-action
+comparison because it is a fresh closure on every resolve, so including it
+would make every comparison false and defeat the bail-out
+(`store/composer-actions.ts`). The suggestion bus took the same trade-off
+silently, and its existing test covers only the case where a rendered field
+*did* change — so "re-offering swaps in the fresh invoke closure" read as
+unconditional when it is not.
+
+So this is a documentation-and-pin change, not a behaviour change: state the
+invariant where the comparison lives, and pin the other half of it. Providers
+comply by folding a moving target into the id — `action:<slug(payload)>`, not a
+bare `action` — which this design already does (see *Declined ledger*).
 
 ### 3. Nothing clears the bus on session teardown
 
@@ -133,15 +147,20 @@ required not to have, and it is already shipping.
 
 **Fix:** thread the pill's `ComposerTarget` through `invoke`'s context
 (`ComposerSuggestion.invoke` at `:46`) and pass it explicitly. Fix the three
-existing providers in the same change.
+existing providers in the same change. Make the field **required**, not
+optional — that is what turns "a provider might forget" into a compile error,
+and it found every call site by itself.
 
 Size check: `scope.target` is already in hand at the render site —
 `const scope = useComposerScope()` (`composer/index.tsx:161`) in the same
 component that renders `<SuggestionPills sessionId={statusSessionId} />`
 (`:1190`). So this is one new prop plus one context field, not a
 prop-threading change through the composer tree. `ActionBadges` (`:1189`) sits
-on the same line with the same exposure and should take the prop in the same
-commit.
+on the same line with the same exposure but has no instance to fix: core ships
+no micro-actions, and `ComposerMicroActionContext` is documented as "a standing
+compatibility promise to the plugins using it". A contributed action that edits
+the draft will need the target; expanding that contract for zero current callers
+is not a bug fix.
 
 ## Contract
 
@@ -590,8 +609,7 @@ unadvertised with the suite green.
 
 ## Build order
 
-1. Blockers 1–5, each its own commit with its own test. They are bug fixes and
-   stand on their own merit whether or not this feature ships.
+1. ~~Blockers 1–5, each its own commit with its own test.~~ **Done.**
 2. Backend: `agent/next_moves.py` with the **heuristic only**, staged and
    dispatched, behind `enabled: false`. Full gate matrix, no LLM.
 3. Renderer: event, handler, provider, i18n, drops and withdrawals. Feature is

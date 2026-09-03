@@ -33,7 +33,7 @@ vi.mock('@/app/chat/composer/focus', () => ({
 import { setPinBook } from '@/lib/preview-pins/pin-book-store'
 import { $composerAttachments } from '@/store/composer'
 import { $queuedPromptsBySession } from '@/store/composer-queue'
-import { $activeSessionId, $sessions } from '@/store/session'
+import { $activeSessionId, $selectedStoredSessionId, $sessions } from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
 
 import { deliverPrompt, deliverPromptLocally } from './prompt-delivery'
@@ -45,6 +45,7 @@ beforeEach(() => {
   $queuedPromptsBySession.set({})
   setPinBook({})
   $activeSessionId.set('sess-1')
+  $selectedStoredSessionId.set('sess-1')
   $sessions.set([{ _lineage_root_id: 'root-1', id: 'sess-1' } as never])
   $sessionStates.set({})
   submitted.mockClear()
@@ -56,6 +57,57 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks()
+})
+
+describe('which conversation a comment is addressed to', () => {
+  /**
+   * $activeSessionId is the RUNTIME id, written by gateway session-info
+   * events and turn recoveries. It is null in a chat that has not run a turn
+   * yet, and stale after switching to a conversation with no cached runtime.
+   * The conversation the user is LOOKING at is $selectedStoredSessionId,
+   * which is what ChatBar keys its own queue panel on.
+   *
+   * Resolving delivery from the runtime id is why Queue could fail outright
+   * on a fresh chat while Send worked: Send goes through the composer, which
+   * needs no key at all.
+   */
+  it('queues into the SELECTED conversation before any turn has run', async () => {
+    $activeSessionId.set(null)
+    $selectedStoredSessionId.set('sess-1')
+
+    const result = await deliverPromptLocally({ attachments: [chip], mode: 'queue', text: 'fix the nav' })
+
+    expect(result).toBe(true)
+    expect($queuedPromptsBySession.get()['root-1']?.[0]?.text).toBe('fix the nav')
+  })
+
+  it('follows the selection, not a runtime left behind by another conversation', async () => {
+    $sessions.set([
+      { _lineage_root_id: 'root-1', id: 'sess-1' },
+      { _lineage_root_id: 'root-2', id: 'sess-2' }
+    ] as never)
+    // The user switched to the second chat; the first one's runtime is still
+    // the last thing the gateway announced.
+    $activeSessionId.set('sess-1')
+    $selectedStoredSessionId.set('sess-2')
+
+    await deliverPromptLocally({ attachments: [chip], mode: 'queue', text: 'this one' })
+
+    expect($queuedPromptsBySession.get()['root-2']?.[0]?.text).toBe('this one')
+    expect($queuedPromptsBySession.get()['root-1']).toBeUndefined()
+  })
+
+  it('still finds the conversation when only the runtime id is known', async () => {
+    // The reverse: a restored session whose selection has not been written
+    // yet. The runtime id is the fallback, not the first choice.
+    $activeSessionId.set('sess-1')
+    $selectedStoredSessionId.set(null)
+
+    const result = await deliverPromptLocally({ attachments: [chip], mode: 'queue', text: 'still lands' })
+
+    expect(result).toBe(true)
+    expect($queuedPromptsBySession.get()['root-1']?.[0]?.text).toBe('still lands')
+  })
 })
 
 describe('local delivery', () => {

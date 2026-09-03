@@ -22,7 +22,13 @@ import { requestComposerSubmit } from '@/app/chat/composer/focus'
 import type { ComposerAttachment } from '@/store/composer'
 import { enqueueQueuedPrompt } from '@/store/composer-queue'
 import { relayPromptDelivery } from '@/store/composer-relay'
-import { $activeSessionId, $sessions, resolveComposerSessionKey, sessionMatchesStoredId } from '@/store/session'
+import {
+  $activeSessionId,
+  $selectedStoredSessionId,
+  $sessions,
+  resolveComposerSessionKey,
+  sessionMatchesStoredId
+} from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
 import { isBrowserWindow } from '@/store/windows'
 
@@ -33,12 +39,31 @@ export interface PromptDelivery {
   text: string
 }
 
-/** The conversation the send paths address. The route-driven key the composer
- *  itself uses is not reachable from the rail, so this resolves the same
- *  durable key from the active session — the queue panel and this resolver
- *  then agree about which conversation owns an entry. */
+/**
+ * The conversation the send paths address.
+ *
+ * The SELECTION first, the runtime second — they are different ids and only
+ * the first one means "the chat the user is looking at". `$activeSessionId`
+ * is written by gateway session-info events and turn recoveries, so it is
+ * null in a chat that has not run a turn yet and stale after a switch to a
+ * conversation with no cached runtime. Keying off it made Queue fail outright
+ * on a fresh chat — and, worse, silently file a comment into the previously
+ * active conversation's queue after a switch. Send hid both, because it goes
+ * through the composer and needs no key at all.
+ *
+ * ChatBar's own queue panel resolves the same durable key from its selection
+ * (route-driven, since the route is authoritative mid-switch), so preferring
+ * the selection here is what makes the two agree about who owns an entry.
+ * The runtime id stays as the fallback for the frame where a restored session
+ * has a runtime but has not written its selection yet.
+ */
 export function conversationKey(): null | string {
-  return resolveComposerSessionKey($activeSessionId.get(), $sessions.get())
+  const sessions = $sessions.get()
+
+  return (
+    resolveComposerSessionKey($selectedStoredSessionId.get(), sessions) ??
+    resolveComposerSessionKey($activeSessionId.get(), sessions)
+  )
 }
 
 /** Is that conversation mid-turn? Session states are keyed by RUNTIME id and

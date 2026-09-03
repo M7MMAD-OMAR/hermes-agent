@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   $composerSuggestionsBySession,
   type ComposerSuggestion,
+  forgetSessionSuggestions,
   markSuggestionInvoked,
   offerSuggestions,
+  resetComposerSuggestions,
   suggestionKey
 } from './composer-suggestions'
 
@@ -79,6 +81,62 @@ describe('composer suggestion bus', () => {
     offerSuggestions('cap2', 'b', [suggestion('solo', 'b')])
 
     expect(pillsFor('cap2')).toEqual([])
+  })
+
+  it('forgets one session outright — offerings and ledger both', () => {
+    for (let i = 0; i < 3; i += 1) {
+      offerSuggestions('gone', 'test', [suggestion('naggy')])
+      offerSuggestions('gone', 'test', [])
+    }
+
+    offerSuggestions('gone', 'test', [suggestion('naggy')])
+    offerSuggestions('stays', 'test', [suggestion('kept')])
+
+    // Quieted for this session, and something standing on a neighbour.
+    expect(pillsFor('gone')).toEqual([])
+    expect(pillsFor('stays')).toEqual(['kept'])
+
+    forgetSessionSuggestions('gone')
+
+    // The ledger went with it: the runtime id is dead, so a resumed
+    // conversation must not inherit three strikes it never earned.
+    offerSuggestions('gone', 'test', [suggestion('naggy')])
+
+    expect(pillsFor('gone')).toEqual(['naggy'])
+    expect(pillsFor('stays')).toEqual(['kept'])
+
+    forgetSessionSuggestions('gone')
+    forgetSessionSuggestions('stays')
+  })
+
+  it('leaves the shared null bucket alone', () => {
+    offerSuggestions(null, 'test', [suggestion('draft')])
+
+    forgetSessionSuggestions(null)
+    forgetSessionSuggestions(undefined)
+    forgetSessionSuggestions('')
+
+    expect(($composerSuggestionsBySession.get()[''] ?? []).map(x => x.id)).toEqual(['draft'])
+
+    offerSuggestions(null, 'test', [])
+  })
+
+  it('resets every session on a gateway switch', () => {
+    offerSuggestions('sw1', 'test', [suggestion('a')])
+    offerSuggestions('sw2', 'test', [suggestion('b')])
+
+    resetComposerSuggestions()
+
+    expect($composerSuggestionsBySession.get()).toEqual({})
+
+    // The offerings are gone too, not just the published copy — a republish
+    // from an unrelated session must not resurrect them.
+    offerSuggestions('sw3', 'test', [suggestion('c')])
+
+    expect(pillsFor('sw1')).toEqual([])
+    expect(pillsFor('sw2')).toEqual([])
+
+    offerSuggestions('sw3', 'test', [])
   })
 
   it('dedupes by provider-namespaced key across providers', () => {

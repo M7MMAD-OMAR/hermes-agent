@@ -4,6 +4,7 @@ import { resetLiveRuntimeTracking } from '@/app/contrib/hooks/use-background-syn
 import { resetSidebarBatchCapability } from '@/hermes'
 import { invalidateProfileScopedQueries } from '@/lib/query-client'
 import { clearArtifactRegistry } from '@/store/artifacts'
+import { resetComposerSuggestions } from '@/store/composer-suggestions'
 import { invalidateCronJobsRequests, setCronJobs } from '@/store/cron'
 import { resetSessionsLimit } from '@/store/layout'
 import { resetLiveSync } from '@/store/live-sync'
@@ -206,6 +207,9 @@ export function wipeSessionListsForGatewaySwitch(): void {
   // that are still unread once the next gateway's lists load — so a profile
   // round-trip doesn't swallow green dots.
   clearAllSessionStates()
+  // The backend that produced these offers is gone; its suggestions and its
+  // declined ledger must not outlive it.
+  resetComposerSuggestions()
   resetLiveRuntimeTracking()
   resetLiveSync()
   $unreadFinishedSessionIds.set([])

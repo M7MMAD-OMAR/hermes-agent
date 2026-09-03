@@ -326,6 +326,64 @@ export function sampleComposerDraft(sessionId: string | null | undefined, text: 
   )
 }
 
+/**
+ * Drop every trace of one session from the bus: both offering sets, the
+ * declined ledger, and the draft sampler's timers.
+ *
+ * The bus keys six module maps by runtime session id and, until this existed,
+ * evicted from none of them. A deleted, reclaimed or re-minted runtime left
+ * its offerings standing (so a stale pill could repaint on a resumed
+ * conversation) and its strike counts stranded for the life of the process.
+ *
+ * Call this wherever a runtime id stops being a live conversation —
+ * `markRuntimeGone`, session delete, gateway reclaim. NOT on composer unmount:
+ * leaving a chat is not the end of its session, and `clearDraftSuggestions` is
+ * the narrower tool for that.
+ *
+ * Never touches the `''` bucket. A falsy session id means there is no session
+ * to forget, and the shared drain is not this caller's to wipe.
+ */
+export function forgetSessionSuggestions(sessionId: null | string | undefined): void {
+  const key = keyFor(sessionId)
+
+  if (!key) {
+    return
+  }
+
+  window.clearTimeout(sampleTimers.get(key))
+  sampleTimers.delete(key)
+  sampleGenerations.delete(key)
+  eventOfferings.delete(key)
+  draftOfferings.delete(key)
+  ignoredCounts.delete(key)
+  shown.delete(key)
+
+  const current = $composerSuggestionsBySession.get()
+
+  if (key in current) {
+    const { [key]: _dropped, ...rest } = current
+
+    $composerSuggestionsBySession.set(rest)
+  }
+}
+
+/** Drop every session's suggestions — the gateway/profile switch, where the
+ *  whole backend is replaced and the previous one's offers and ledger would
+ *  otherwise outlive it. Mirrors `clearAllSessionStates`. */
+export function resetComposerSuggestions(): void {
+  for (const timer of sampleTimers.values()) {
+    window.clearTimeout(timer)
+  }
+
+  sampleTimers.clear()
+  sampleGenerations.clear()
+  eventOfferings.clear()
+  draftOfferings.clear()
+  ignoredCounts.clear()
+  shown.clear()
+  $composerSuggestionsBySession.set({})
+}
+
 /** Drop a session's suggestions outright (composer unmount / session leave).
  *  Draft offerings die with the draft; event offerings persist — their
  *  providers own that lifecycle and withdraw on their own signal. */

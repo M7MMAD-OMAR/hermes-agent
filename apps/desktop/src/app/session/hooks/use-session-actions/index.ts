@@ -28,6 +28,7 @@ import { setSessionYolo } from '@/lib/yolo-session'
 import { $clarifyRequests } from '@/store/clarify'
 import { migrateSessionDraft } from '@/store/composer'
 import { clearQueuedPrompts, migrateQueuedPrompts } from '@/store/composer-queue'
+import { forgetSessionSuggestions } from '@/store/composer-suggestions'
 import {
   openGatewayForAgent,
   openGatewayForProfile,
@@ -2436,6 +2437,7 @@ export function useSessionActions({
 
         if (closingRuntimeId) {
           clearQueuedPrompts(closingRuntimeId)
+          forgetSessionSuggestions(closingRuntimeId)
         }
 
         // A tiled copy of this session must not outlive it: collapse the pane
@@ -2448,6 +2450,7 @@ export function useSessionActions({
           runtimeIdByStoredSessionIdRef.current.delete(storedSessionId)
           sessionStateByRuntimeIdRef.current.delete(tiledRuntimeId)
           dropSessionState(tiledRuntimeId)
+          forgetSessionSuggestions(tiledRuntimeId)
         }
       } catch (err) {
         if (listed?.session) {
@@ -2549,6 +2552,7 @@ export function useSessionActions({
           runtimeIdByStoredSessionIdRef.current.delete(storedSessionId)
           sessionStateByRuntimeIdRef.current.delete(tiledRuntimeId)
           dropSessionState(tiledRuntimeId)
+          forgetSessionSuggestions(tiledRuntimeId)
         }
 
         notify({ durationMs: 2_000, kind: 'success', message: copy.archived })

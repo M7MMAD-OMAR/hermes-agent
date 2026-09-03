@@ -1,3 +1,4 @@
+import { forgetSessionSuggestions } from './composer-suggestions'
 import { $activeSessionId, requestSessionResume } from './session'
 import {
   healsByStoredId,
@@ -111,6 +112,12 @@ export function markRuntimeGone(runtimeId: string): boolean {
   }
 
   healedRuntimes.add(runtimeId)
+
+  // This runtime id is over — it resumes under a new one. Its composer
+  // suggestions and its declined ledger are about the dead id and nothing
+  // else evicts them, so a stale pill would repaint on the resumed
+  // conversation and the strike counts would strand for the process.
+  forgetSessionSuggestions(runtimeId)
 
   const storedId = storedIdForRuntime(runtimeId)
 

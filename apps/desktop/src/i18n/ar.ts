@@ -1845,6 +1845,8 @@ export const ar = defineLocale({
     steer: 'توجيه',
     stop: 'إيقاف',
     send: 'إرسال',
+    effortFaster: 'أسرع',
+    effortSmarter: 'أذكى',
     speaking: 'يتحدث',
     transcribing: 'جار التفريغ',
     thinking: 'يفكر',

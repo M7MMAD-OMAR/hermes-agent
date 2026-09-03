@@ -11,9 +11,9 @@ import { releaseTypingFocus } from '@/components/ui/keyboard-first'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { ChevronDown } from '@/lib/icons'
-import { formatModelStatusLabel } from '@/lib/model-status-label'
+import { displayModelName } from '@/lib/model-status-label'
 import { cn } from '@/lib/utils'
-import { $currentModelSource, $defaultReasoningEffort, setModelPickerOpen } from '@/store/session'
+import { $currentModelSource, setModelPickerOpen } from '@/store/session'
 
 import { onComposerModelMenuRequest } from './focus'
 import { useComposerScope } from './scope'
@@ -54,10 +54,7 @@ export function ModelPill({
   const viewProvider = useStore(view.$provider)
   const currentModel = model.model || viewModel
   const currentProvider = model.provider || viewProvider
-  const fastMode = useStore(view.$fast)
-  const reasoningEffort = useStore(view.$reasoningEffort)
   const modelSource = useStore($currentModelSource)
-  const defaultEffort = useStore($defaultReasoningEffort)
   const runtimeId = useStore(view.$runtimeId)
   const [open, setOpen] = useState(false)
   const scope = useComposerScope()
@@ -95,14 +92,15 @@ export function ModelPill({
   // The model resolves a beat after the gateway/session comes up. Rather than
   // flash a literal "No model", show a quiet loader (inherits the pill text
   // color at half opacity) until a model lands.
+  //
+  // The label is the NAME only: the reasoning level has its own always-visible
+  // dial beside this pill (effort-pill), so duplicating it here is noise.
   const label = compact ? (
     <ChevronDown className="size-3.5 shrink-0 opacity-70" />
   ) : (
     <>
       {currentModel.trim() ? (
-        <span className="truncate">
-          {formatModelStatusLabel(currentModel, { defaultEffort, fastMode, reasoningEffort })}
-        </span>
+        <span className="truncate">{displayModelName(currentModel)}</span>
       ) : (
         <GlyphSpinner className="opacity-50" spinner="braille" />
       )}

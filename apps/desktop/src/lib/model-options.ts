@@ -36,6 +36,46 @@ export function manualPickRemoved(
 
 const MOA_PROVIDER_SLUG = 'moa'
 
+/** True when a catalog provider row is the session's current provider. Custom
+ *  providers report the canonical `custom:<key>` identity from `model.options`
+ *  while the row's slug is the bare config key, so exact slug equality never
+ *  matches — check the row's alias set too (#87035). */
+export function isCurrentProvider(provider: ModelOptionProvider, currentProvider: string): boolean {
+  return provider.slug === currentProvider || (provider.aliases?.includes(currentProvider) ?? false)
+}
+
+/** What the CURRENT model can do, resolved from the catalog snapshot the
+ *  surface already holds. Capability-driven controls (the effort pill's slider
+ *  and fast toggle) gate off this, so a model without reasoning never shows a
+ *  slider that silently does nothing. */
+export interface CurrentModelCaps {
+  canDisableReasoning?: boolean
+  fast: boolean
+  /** The provider's live model list — the `-fast` variant check needs it. */
+  providerModels: string[]
+  reasoning: boolean
+}
+
+export function currentModelCapabilities(
+  providers: ModelOptionProvider[] | undefined,
+  provider: string,
+  model: string
+): CurrentModelCaps {
+  const row = providers?.find(candidate => isCurrentProvider(candidate, provider))
+
+  // Capabilities are keyed by the BASE model id; a `-fast` variant session
+  // model inherits its family's row (the same keys the catalog menu reads).
+  const baseId = model.replace(/-fast$/i, '')
+  const caps = row?.capabilities?.[model] ?? row?.capabilities?.[baseId]
+
+  return {
+    canDisableReasoning: caps?.can_disable_reasoning,
+    fast: caps?.fast ?? false,
+    providerModels: row?.models ?? [],
+    reasoning: caps?.reasoning ?? true
+  }
+}
+
 /** True when `model` appears in any provider's live list. Used after Refresh
  *  Models so a group/catalog swap can tell "still offered" from "gone". */
 export function selectionInCatalog(providers: ModelOptionProvider[] | undefined, model: string): boolean {

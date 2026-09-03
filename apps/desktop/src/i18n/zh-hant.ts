@@ -2093,6 +2093,8 @@ export const zhHant = defineLocale({
     queueMessage: '排隊訊息',
     stop: '停止',
     send: '傳送',
+    effortFaster: '更快',
+    effortSmarter: '更聰明',
     speaking: '說話中',
     transcribing: '轉寫中',
     thinking: '思考中',

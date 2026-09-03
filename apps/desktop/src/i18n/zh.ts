@@ -2675,6 +2675,8 @@ export const zh: Translations = {
     steer: '引导当前运行',
     stop: '停止',
     send: '发送',
+    effortFaster: '更快',
+    effortSmarter: '更聪明',
     speaking: '讲话中',
     transcribing: '转写中',
     thinking: '思考中',

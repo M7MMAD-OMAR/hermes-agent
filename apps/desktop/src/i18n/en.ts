@@ -2511,6 +2511,8 @@ export const en: Translations = {
     steer: 'Steer the current run',
     stop: 'Stop',
     send: 'Send',
+    effortFaster: 'Faster',
+    effortSmarter: 'Smarter',
     speaking: 'Speaking',
     transcribing: 'Transcribing',
     thinking: 'Thinking',

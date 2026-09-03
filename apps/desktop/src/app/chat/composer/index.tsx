@@ -39,7 +39,7 @@ import {
 } from './composer-utils'
 import { ContextMenu } from './context-menu'
 import { COMPOSER_AREAS, runComposerMiddleware } from './contrib'
-import { ComposerControls } from './controls'
+import { ComposerControls, ComposerSendControl } from './controls'
 import { ComposerDirectiveActions } from './directive-actions'
 import { COMPOSER_DROP_ACTIVE_CLASS, COMPOSER_DROP_FADE_CLASS } from './drop-affordance'
 import { markActiveComposer, onComposerAttachImagesRequest } from './focus'
@@ -94,6 +94,7 @@ export function ChatBar({
   gateway,
   maxRecordingSeconds = 120,
   queueSessionKey,
+  requestGateway,
   sessionId,
   state,
   onCancel,
@@ -333,7 +334,10 @@ export function ChatBar({
     return onCancel()
   }, [activeQueueSessionKeyRef, onCancel])
 
-  const { compactPill, foldVoice, minimal, stacked } = useComposerMetrics({
+  // The layout is always two decks now — input field above, toolbar below — so
+  // the stacked/inline flip is gone; the remaining fit stages still drive what
+  // folds (voice menu, compact pills, and the toolbar dropping at minimal).
+  const { compactPill, foldVoice, minimal } = useComposerMetrics({
     composerDockRef,
     composerRef,
     composerSurfaceRef,
@@ -1025,27 +1029,62 @@ export function ChatBar({
       disabled={disabled}
       foldVoice={foldVoice}
       hasComposerPayload={hasComposerPayload}
+      leading={contextMenu}
       minimal={minimal}
       onDictate={dictate}
       onQueue={queueDraft}
       onToggleAutoSpeak={handleToggleAutoSpeak}
+      requestGateway={requestGateway}
+      sessionId={sessionId ?? null}
       state={state}
       voiceStatus={voiceStatus}
     />
   )
 
+  // The in-field send control: inside the input surface, bottom-right. The
+  // conversation pill replaces the toolbar mid-conversation, so this steps
+  // aside with it (its props are the same source of truth).
+  const sendControl = (
+    <ComposerSendControl
+      busy={busy}
+      canSubmit={canSubmit}
+      conversation={{
+        active: voiceConversationActive,
+        level: conversation.level,
+        muted: conversation.muted,
+        onEnd: endConversation,
+        onStart: startConversation,
+        onStopTurn: conversation.stopTurn,
+        onToggleMute: conversation.toggleMute,
+        status: conversation.status
+      }}
+      disabled={disabled}
+      hasComposerPayload={hasComposerPayload}
+    />
+  )
+
   const input = (
-    <div className={cn('relative', stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1')}>
+    <div
+      className={cn(
+        // The field is its own surface — ring + fill, the reference composer's
+        // bordered input. The toolbar below sits OUTSIDE it, on the composer's
+        // shared fill, so the two decks read as field + tools, not one box.
+        'relative w-full rounded-xl border px-3 py-1.5 transition-colors',
+        'border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))]',
+        'bg-[color-mix(in_srgb,var(--dt-input)_45%,transparent)]',
+        'focus-within:border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(38%*var(--composer-ring-strength)),var(--dt-input))]',
+        hudNativeDrag && '[-webkit-app-region:no-drag]'
+      )}
+      data-slot="composer-field"
+    >
       <div
         aria-disabled={inputDisabled ? true : undefined}
         aria-label={t.composer.message}
         autoCapitalize="off"
         autoCorrect="off"
         className={cn(
-          'min-h-[1.625rem] min-h-(--composer-input-min-height) max-h-(--composer-input-max-height) cursor-text overflow-y-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-transparent pb-1 pr-1 pt-1 leading-normal text-foreground outline-none disabled:cursor-not-allowed',
+          'min-h-[1.625rem] min-h-(--composer-input-min-height) max-h-(--composer-input-max-height) w-full cursor-text overflow-y-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-transparent pb-1 pe-12 pt-1 leading-normal text-foreground outline-none disabled:cursor-not-allowed',
           '**:data-ref-text:cursor-default',
-          stacked && 'pl-3',
-          stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1',
           // Inside the native Wayland HUD drag region: a drag region swallows
           // the page's mouse input whole, so the input must opt back out or it
           // becomes unclickable. Buttons use the global no-drag rule.
@@ -1124,6 +1163,9 @@ export function ChatBar({
           tabIndex={-1}
         />
       </ComposerPrimitive.Input>
+      {/* The send control lives INSIDE the field, bottom-right. `pointer-events`
+        stay on: it is a real button, and the editor's pr-12 keeps text clear. */}
+      <div className="absolute bottom-[0.3125rem] end-1 z-2">{sendControl}</div>
     </div>
   )
 
@@ -1301,7 +1343,11 @@ export function ChatBar({
                   // track past the surface — and every `w-full` child (the fade,
                   // the input/controls row) laid out against that phantom width
                   // and got clipped by overflow-hidden, send button first.
-                  'group/composer-surface relative z-4 isolate grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] overflow-hidden rounded-[inherit] border border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))]',
+                  //
+                  // The visible ring lives on the INPUT FIELD (deck 1) now, not
+                  // here: the surface stays the quiet fill both decks share, so
+                  // field + toolbar read as field + tools, not one boxed row.
+                  'group/composer-surface relative z-4 isolate grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] overflow-hidden rounded-[inherit] border border-transparent',
                   COMPOSER_DROP_FADE_CLASS,
                   dragActive && COMPOSER_DROP_ACTIVE_CLASS
                 )}
@@ -1341,8 +1387,9 @@ export function ChatBar({
                   data-slot="composer-fade"
                 >
                   {/* Contribution seams: banners above, a row below, inline
-                    additions beside the "+" menu and before the controls.
-                    All four render nothing until something contributes. */}
+                    additions beside the toolbar's leading edge and before the
+                    toolbar's quick controls. All render nothing until
+                    something contributes. */}
                   <ContribSlot area={COMPOSER_AREAS.top} />
                   <VoiceActivity state={voiceActivityState} />
                   <VoicePlaybackActivity />
@@ -1371,24 +1418,13 @@ export function ChatBar({
                     </div>
                   )}
                   {attachments.length > 0 && <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />}
-                  <div
-                    className={cn(
-                      'grid w-full',
-                      stacked
-                        ? 'grid-cols-[auto_1fr] gap-(--composer-row-gap) [grid-template-areas:"input_input"_"menu_controls"]'
-                        : 'grid-cols-[auto_1fr_auto] items-center gap-(--composer-control-gap) [grid-template-areas:"menu_input_controls"]'
-                    )}
-                  >
-                    <div className="flex translate-y-[3px] items-start gap-(--composer-control-gap) self-start [grid-area:menu]">
-                      {contextMenu}
-                      <ContribSlot area={COMPOSER_AREAS.leading} />
-                    </div>
-                    <div className="min-w-0 [grid-area:input]">{input}</div>
-                    <div className="flex min-w-0 items-center justify-end gap-(--composer-control-gap) [grid-area:controls]">
-                      <ContribSlot area={COMPOSER_AREAS.actions} />
-                      {controls}
-                    </div>
-                  </div>
+                  {/* Deck 1 — the input field, send control inside it. */}
+                  <div className="min-w-0">{input}</div>
+                  {/* Deck 2 — the toolbar: attach/voice/browser on the left,
+                      context/model/effort/queue on the right. Invisible until
+                      `controls` renders something (minimal widths drop it; the
+                      in-field send above is the control that never folds). */}
+                  {controls}
                   <ContribSlot area={COMPOSER_AREAS.bottom} />
                 </div>
               </div>
@@ -1425,7 +1461,7 @@ export function ChatBarFallback() {
       )}
       data-slot="composer-root"
     >
-      <div className="composer-fallback-surface relative isolate h-(--composer-fallback-height) w-full rounded-[inherit] border border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))]">
+      <div className="composer-fallback-surface relative isolate h-(--composer-fallback-height) w-full rounded-[inherit]">
         <div
           aria-hidden
           className={cn(
@@ -1434,6 +1470,16 @@ export function ChatBarFallback() {
             composerSurfaceGlass
           )}
         />
+        {/* Skeleton of the real layout: bordered field on top, quiet toolbar
+          line below — the placeholder never fights the real composer's shape
+          when it mounts. */}
+        <div className="flex h-full flex-col justify-center gap-1.5 px-2 py-1.5">
+          <div className="h-6 rounded-xl border border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))] bg-[color-mix(in_srgb,var(--dt-input)_45%,transparent)]" />
+          <div className="flex items-center justify-between px-1">
+            <span className="size-3 rounded-md bg-(--ui-stroke-tertiary)" />
+            <span className="size-3 rounded-md bg-(--ui-stroke-tertiary)" />
+          </div>
+        </div>
       </div>
     </div>
   )

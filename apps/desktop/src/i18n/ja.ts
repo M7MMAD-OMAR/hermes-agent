@@ -2171,6 +2171,8 @@ export const ja = defineLocale({
     queueMessage: 'メッセージをキューに入れる',
     stop: '停止',
     send: '送信',
+    effortFaster: '速い',
+    effortSmarter: '賢い',
     speaking: '話しています',
     transcribing: '文字起こし中',
     thinking: '考え中',

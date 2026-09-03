@@ -111,7 +111,9 @@ describe('ModelPill per-surface model label', () => {
       </SessionViewProvider>
     )
 
-    expect(screen.getByText('Sonnet · High')).toBeTruthy()
+    // The label is the NAME only — the effort level has its own dial beside
+    // this pill (effort-pill), so it is not duplicated here.
+    expect(screen.getByText('Sonnet')).toBeTruthy()
     expect(screen.queryByText(/primary/i)).toBeNull()
   })
 })

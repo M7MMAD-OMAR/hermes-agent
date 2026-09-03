@@ -2545,6 +2545,8 @@ export const ru = defineLocale({
     steer: 'Направить текущий запуск',
     stop: 'Стоп',
     send: 'Отправить',
+    effortFaster: 'Быстрее',
+    effortSmarter: 'Умнее',
     speaking: 'Говорит',
     transcribing: 'Расшифровка',
     thinking: 'Думает',

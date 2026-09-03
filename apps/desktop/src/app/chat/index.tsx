@@ -23,7 +23,7 @@ import { useI18n } from '@/i18n'
 import type { ChatMessage } from '@/lib/chat-messages'
 import { NEW_SESSION_TITLE, quickModelOptions, sessionTitle } from '@/lib/chat-runtime'
 import { useIncrementalExternalStoreRuntime } from '@/lib/incremental-external-store-runtime'
-import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
+import { currentModelCapabilities, modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { migrateSessionDraft } from '@/store/composer'
@@ -586,12 +586,20 @@ const ChatViewContent = memo(function ChatViewContent({
     [currentModel, currentProvider, modelOptionsQuery.data]
   )
 
+  // What the current model can do, off the same catalog snapshot the quick
+  // models read — the effort pill's slider and fast toggle gate on this.
+  const modelCaps = useMemo(
+    () => currentModelCapabilities(modelOptionsQuery.data?.providers, currentProvider, currentModel),
+    [currentModel, currentProvider, modelOptionsQuery.data]
+  )
+
   const chatBarState = useMemo<ChatBarState>(
     () => ({
       model: {
         model: currentModel,
         provider: currentProvider,
         canSwitch: gatewayOpen,
+        caps: modelCaps,
         loading: !gatewayOpen || (!currentModel && !currentProvider),
         modelMenuContent,
         quickModels
@@ -606,7 +614,7 @@ const ChatViewContent = memo(function ChatViewContent({
         active: false
       }
     }),
-    [contextSuggestions, currentModel, currentProvider, gatewayOpen, modelMenuContent, quickModels]
+    [contextSuggestions, currentModel, currentProvider, gatewayOpen, modelCaps, modelMenuContent, quickModels]
   )
 
   // Drop files anywhere in the conversation area, not just on the composer
@@ -788,6 +796,7 @@ const ChatViewContent = memo(function ChatViewContent({
                   onSubmit={onSubmit}
                   onTranscribeAudio={onTranscribeAudio}
                   queueSessionKey={queueSessionKey}
+                  requestGateway={requestModelOptionsForOwner}
                   sessionId={activeSessionId}
                   state={chatBarState}
                 />

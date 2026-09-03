@@ -21,7 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { HermesGateway } from '@/hermes'
 import { getLocalModelsStatus } from '@/hermes'
 import { useI18n } from '@/i18n'
-import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
+import { isCurrentProvider, modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
 import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
 import { DEFAULT_REASONING_EFFORT, reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { normalize } from '@/lib/text'
@@ -44,13 +44,9 @@ import type { LocalModelLoadProgress, ModelOptionProvider, ModelOptionsResponse 
 
 import { type FastControl, ModelEditSubmenu, resolveFastControl } from './model-edit-submenu'
 
-/** Whether a catalog row represents the session's current provider. Custom
- *  providers report the canonical `custom:<key>` identity from `model.options`
- *  while the row's slug is the bare config key, so exact slug equality never
- *  matches — check the row's alias set too (#87035). */
-function isCurrentProvider(provider: ModelOptionProvider, currentProvider: string): boolean {
-  return provider.slug === currentProvider || (provider.aliases?.includes(currentProvider) ?? false)
-}
+// `isCurrentProvider` (the #87035 alias-aware match) lives in lib/model-options
+// next to the other catalog resolvers, shared with the composer's capability
+// reads.
 
 // Lets the host dropdown (model-pill, a kanban field trigger, …) hand the panel
 // a way to dismiss itself so clicking a model row commits + closes, while the

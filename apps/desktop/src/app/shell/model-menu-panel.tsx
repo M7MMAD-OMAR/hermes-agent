@@ -10,17 +10,11 @@ import { useI18n } from '@/i18n'
 import { modelOptionsQueryKey, reconcileSelectionAfterCatalogRefresh, requestModelOptions } from '@/lib/model-options'
 import { currentPickerSelection } from '@/lib/model-status-label'
 import { DEFAULT_REASONING_EFFORT } from '@/lib/reasoning-effort'
+import { writeSessionFast, writeSessionReasoning } from '@/lib/session-model-writes'
 import { cn } from '@/lib/utils'
 import { $modelPresets, applyModelPreset, modelPresetKey, setModelPreset } from '@/store/model-presets'
 import { $visibleModels } from '@/store/model-visibility'
-import { notifyError } from '@/store/notifications'
-import {
-  $defaultReasoningEffort,
-  markComposerSelectionManual,
-  setCurrentFastMode,
-  setCurrentReasoningEffort
-} from '@/store/session'
-import { sessionTileDelegate } from '@/store/session-states'
+import { $defaultReasoningEffort } from '@/store/session'
 import type { ModelOptionsResponse } from '@/types/hermes'
 
 import { ModelCatalogMenu, type ModelMenuController } from './model-catalog-menu'
@@ -130,65 +124,28 @@ export function ModelMenuPanel({
     }
   }
 
-  // Push a reasoning change onto the session that owns it, with rollback.
-  const patchReasoning = async (next: string, previous: string, provider: string, model: string) => {
-    if (touchesPrimary) {
-      markComposerSelectionManual()
-      setCurrentReasoningEffort(next)
-    } else if (activeSessionId) {
-      sessionTileDelegate()?.updateSession(activeSessionId, state => ({ ...state, reasoningEffort: next }))
-    }
+  // Push a reasoning change onto the session that owns it, with rollback. The
+  // write policy lives in ONE place (lib/session-model-writes) shared with the
+  // composer's effort pill — the menu only supplies this surface's scope.
+  const patchReasoning = (next: string, previous: string, provider: string, model: string) =>
+    void writeSessionReasoning({
+      next,
+      previous,
+      request: requestGateway,
+      sessionId: activeSessionId,
+      surface: { model, primary: touchesPrimary, provider },
+      updateFailedMessage: t.shell.modelOptions.updateFailed
+    })
 
-    // Preset-only without a session: the gateway's `config.set` falls back to
-    // global config when none matches — so don't reach it (preset + optimistic
-    // store are the whole effect).
-    if (!activeSessionId) {
-      return
-    }
-
-    try {
-      await requestGateway('config.set', { key: 'reasoning', session_id: activeSessionId, value: next })
-    } catch (err) {
-      if (touchesPrimary) {
-        setCurrentReasoningEffort(previous)
-      } else {
-        sessionTileDelegate()?.updateSession(activeSessionId, state => ({ ...state, reasoningEffort: previous }))
-      }
-
-      setModelPreset(provider, model, { effort: previous })
-      notifyError(err, t.shell.modelOptions.updateFailed)
-    }
-  }
-
-  const patchFast = async (enabled: boolean, provider: string, model: string) => {
-    if (touchesPrimary) {
-      markComposerSelectionManual()
-      setCurrentFastMode(enabled)
-    } else if (activeSessionId) {
-      sessionTileDelegate()?.updateSession(activeSessionId, state => ({ ...state, fast: enabled }))
-    }
-
-    if (!activeSessionId) {
-      return
-    }
-
-    try {
-      await requestGateway('config.set', {
-        key: 'fast',
-        session_id: activeSessionId,
-        value: enabled ? 'fast' : 'normal'
-      })
-    } catch (err) {
-      if (touchesPrimary) {
-        setCurrentFastMode(!enabled)
-      } else {
-        sessionTileDelegate()?.updateSession(activeSessionId, state => ({ ...state, fast: !enabled }))
-      }
-
-      setModelPreset(provider, model, { fast: !enabled })
-      notifyError(err, t.shell.modelOptions.fastFailed)
-    }
-  }
+  const patchFast = (enabled: boolean, provider: string, model: string) =>
+    void writeSessionFast({
+      next: enabled,
+      previous: !enabled,
+      request: requestGateway,
+      sessionId: activeSessionId,
+      surface: { model, primary: touchesPrimary, provider },
+      updateFailedMessage: t.shell.modelOptions.fastFailed
+    })
 
   const controller: ModelMenuController = {
     // Selecting a model row restores that model's remembered preset onto the

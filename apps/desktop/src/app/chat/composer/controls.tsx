@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip, TipKeybindLabel } from '@/components/ui/tooltip'
+import { Slot as ContribSlot } from '@/contrib/react/slot'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { AudioLines, Ear, EarOff, iconSize, Layers3, Loader2, Square, Volume2, VolumeX } from '@/lib/icons'
@@ -18,7 +19,10 @@ import {
 } from '@/store/preview'
 import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
+import { ContextPill } from './context-pill'
+import { COMPOSER_AREAS } from './contrib'
 import { ACTIVE_ICON_BTN, GHOST_ICON_BTN, PRIMARY_ICON_BTN } from './control-classes'
+import { EffortPill } from './effort-pill'
 import type { ConversationStatus } from './hooks/use-voice-conversation'
 import { ModelPill } from './model-pill'
 import type { ChatBarState, VoiceStatus } from './types'
@@ -39,6 +43,15 @@ interface ConversationProps {
   onToggleMute: () => void
 }
 
+/**
+ * The composer TOOLBAR — the deck below the input field. Left cluster: attach
+ * and the voice/browser toggles (every Hermes control, nothing folded away at
+ * roomy widths). Right cluster: the quick conversation controls — context
+ * gauge, model, thinking effort — then the queue action. The send/stop button
+ * lives INSIDE the input field above (see `ComposerSendControl`); a live voice
+ * conversation replaces this whole toolbar with its pill, exactly as it always
+ * replaced the old single control row.
+ */
 export function ComposerControls({
   autoSpeak,
   busy,
@@ -49,7 +62,10 @@ export function ComposerControls({
   disabled,
   foldVoice = false,
   hasComposerPayload,
+  leading,
   minimal = false,
+  requestGateway,
+  sessionId,
   state,
   voiceStatus,
   onDictate,
@@ -65,7 +81,12 @@ export function ComposerControls({
   disabled: boolean
   foldVoice?: boolean
   hasComposerPayload: boolean
+  /** The attach (`+`) menu and any contributed leading controls — rendered at
+   *  the toolbar's left edge, where the old inline row had them. */
+  leading?: React.ReactNode
   minimal?: boolean
+  requestGateway?: <T>(method: string, params?: Record<string, unknown>) => Promise<T>
+  sessionId?: null | string
   state: ChatBarState
   voiceStatus: VoiceStatus
   onDictate: () => void
@@ -77,20 +98,23 @@ export function ComposerControls({
   const hudMode = useStore($hudMode)
 
   if (conversation.active) {
-    return <ConversationPill {...conversation} disabled={disabled} />
+    return (
+      <div className="flex w-full min-w-0 items-center justify-end" data-slot="composer-toolbar">
+        <ConversationPill {...conversation} disabled={disabled} />
+      </div>
+    )
   }
 
-  const showVoicePrimary = !busy && !hasComposerPayload
-  // Steer is just send: a payload keeps the Send affordance mid-turn. Stop
-  // only when the composer is empty and a turn is running.
-  const showStop = busy && !hasComposerPayload
-  const showQueueButton = busyAction !== 'stop' && hasComposerPayload
+  // The tightest widths drop the toolbar entirely — the in-field send button
+  // is the one control that must survive every width, and it lives above.
+  if (minimal) {
+    return null
+  }
+
   // The HUD is a Spotlight bar a few hundred pixels wide, so the four separate
-  // voice toggles fold into one menu there and leave the row to the input. A
-  // narrow tile hits the same wall from the other direction and folds for the
-  // same reason — same controls, same state, different budget. Below that
-  // even the menu goes: at `minimal` the row is the send button and nothing
-  // else, which is the one thing that must survive every width.
+  // voice toggles fold into one menu there. A narrow tile hits the same wall
+  // from the other direction and folds for the same reason — same controls,
+  // same state, different budget.
   const foldedVoice = hudMode || foldVoice
 
   const voiceControls = foldedVoice ? (
@@ -111,79 +135,125 @@ export function ComposerControls({
     </>
   )
 
+  const showQueueButton = busyAction !== 'stop' && hasComposerPayload
+
   return (
-    <div className="ml-auto flex min-w-0 shrink items-center gap-(--composer-control-gap)">
-      {minimal ? null : (
-        <>
-          <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
-          <BrowserButton disabled={disabled} />
-          {voiceControls}
-        </>
-      )}
-      {showQueueButton ? (
-        <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />}>
-          <Button
-            aria-label={c.queueMessage}
-            className={GHOST_ICON_BTN}
-            disabled={disabled}
-            onClick={onQueue}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <Layers3 className={iconSize.sm} />
-          </Button>
-        </Tip>
-      ) : null}
-      {showVoicePrimary ? (
-        <Tip label={c.startVoice}>
-          <Button
-            aria-label={c.startVoice}
-            className={PRIMARY_ICON_BTN}
-            disabled={disabled}
-            onClick={() => {
-              triggerHaptic('open')
-              conversation.onStart()
-            }}
-            size="icon"
-            type="button"
-          >
-            <AudioLines className={iconSize.sm} />
-          </Button>
-        </Tip>
-      ) : (
-        <Tip
-          label={
-            showStop ? (
-              <TipKeybindLabel actionId="composer.send" text={c.stop} />
-            ) : (
-              <TipKeybindLabel actionId="composer.send" text={c.send} />
-            )
-          }
-        >
-          <Button
-            aria-label={showStop ? c.stop : c.send}
-            className={PRIMARY_ICON_BTN}
-            disabled={disabled || !canSubmit}
-            type="submit"
-          >
-            {showStop ? (
-              <span className="block size-2.5 rounded-[0.1875rem] bg-current" />
-            ) : (
-              <Codicon name="arrow-up" size="0.875rem" />
-            )}
-          </Button>
-        </Tip>
-      )}
-      {/* The way out of HUD mode, riding the controls row rather than floating
-          above the bar. The old chip lived in a 26px transparent strip reserved
-          over the composer (--hud-chip-strip), which under glass is bare
-          untinted material with a hidden button in it — a band of chrome above
-          the surface, paid for in every state, for a control that is invisible
-          until hovered. Here it costs no reserved space and sits with the other
-          things you can press. */}
-      {hudMode ? <HudWindowButtons /> : null}
+    <div className="flex w-full min-w-0 items-center justify-between gap-(--composer-control-gap)" data-slot="composer-toolbar">
+      <div className="flex min-w-0 items-center gap-(--composer-control-gap)">
+        {leading}
+        <ContribSlot area={COMPOSER_AREAS.leading} />
+        <BrowserButton disabled={disabled} />
+        {voiceControls}
+      </div>
+      <div className="flex min-w-0 items-center justify-end gap-(--composer-control-gap)">
+        <ContribSlot area={COMPOSER_AREAS.actions} />
+        <ContextPill
+          busy={busy}
+          compact={compactModelPill}
+          disabled={disabled}
+          requestGateway={requestGateway}
+          sessionId={sessionId ?? null}
+        />
+        <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
+        <EffortPill caps={state.model.caps} disabled={disabled} requestGateway={requestGateway} />
+        {showQueueButton ? (
+          <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />}>
+            <Button
+              aria-label={c.queueMessage}
+              className={GHOST_ICON_BTN}
+              disabled={disabled}
+              onClick={onQueue}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <Layers3 className={iconSize.sm} />
+            </Button>
+          </Tip>
+        ) : null}
+        {/* The way out of HUD mode, riding the controls row rather than floating
+            above the bar. The old chip lived in a 26px transparent strip reserved
+            over the composer (--hud-chip-strip), which under glass is bare
+            untinted material with a hidden button in it — a band of chrome above
+            the surface, paid for in every state, for a control that is invisible
+            until hovered. Here it costs no reserved space and sits with the other
+            things you can press. */}
+        {hudMode ? <HudWindowButtons /> : null}
+      </div>
     </div>
+  )
+}
+
+/**
+ * The in-field send control — the round button INSIDE the input surface,
+ * bottom-right. Idle with an empty composer it is the voice-conversation
+ * starter (the old row's primary affordance); otherwise Send, or Stop while a
+ * turn runs with nothing queued behind it. A live voice conversation renders
+ * nothing here — its pill owns the toolbar above.
+ */
+export function ComposerSendControl({
+  busy,
+  canSubmit,
+  conversation,
+  disabled,
+  hasComposerPayload
+}: {
+  busy: boolean
+  canSubmit: boolean
+  conversation: ConversationProps
+  disabled: boolean
+  hasComposerPayload: boolean
+}) {
+  const { t } = useI18n()
+  const c = t.composer
+
+  if (conversation.active) {
+    return null
+  }
+
+  // Steer is just send: a payload keeps the Send affordance mid-turn. Stop
+  // only when the composer is empty and a turn is running.
+  const showVoicePrimary = !busy && !hasComposerPayload
+  const showStop = busy && !hasComposerPayload
+
+  if (showVoicePrimary) {
+    return (
+      <Tip label={c.startVoice}>
+        <Button
+          aria-label={c.startVoice}
+          className={PRIMARY_ICON_BTN}
+          disabled={disabled}
+          onClick={() => {
+            triggerHaptic('open')
+            conversation.onStart()
+          }}
+          size="icon"
+          type="button"
+        >
+          <AudioLines className={iconSize.sm} />
+        </Button>
+      </Tip>
+    )
+  }
+
+  return (
+    <Tip
+      label={
+        showStop ? (
+          <TipKeybindLabel actionId="composer.send" text={c.stop} />
+        ) : (
+          <TipKeybindLabel actionId="composer.send" text={c.send} />
+        )
+      }
+    >
+      <Button aria-label={showStop ? c.stop : c.send} className={PRIMARY_ICON_BTN} disabled={disabled || !canSubmit} type="submit">
+        {showStop ? (
+          <span className="block size-2.5 rounded-[0.1875rem] bg-current" />
+        ) : (
+          <Codicon name="arrow-up" size="0.875rem" />
+        )}
+      </Button>
+    </Tip>
   )
 }
 

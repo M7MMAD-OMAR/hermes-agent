@@ -2139,6 +2139,9 @@ export interface Translations {
     steer: string
     stop: string
     send: string
+    /** Effort-popover slider end labels (Faster ← → Smarter). */
+    effortFaster: string
+    effortSmarter: string
     speaking: string
     transcribing: string
     thinking: string

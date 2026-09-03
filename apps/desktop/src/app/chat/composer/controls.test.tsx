@@ -6,15 +6,29 @@ import { I18nProvider } from '@/i18n'
 import { $hudMode } from '@/store/hud'
 import { applyWakeStartResult, applyWakeStatus, resetWakeWordState } from '@/store/wake-word'
 
-import { ComposerControls } from './controls'
+import { ComposerControls, ComposerSendControl } from './controls'
 
 vi.mock('./model-pill', () => ({ ModelPill: () => null }))
+vi.mock('./context-pill', () => ({ ContextPill: () => null }))
+vi.mock('./effort-pill', () => ({ EffortPill: () => null }))
 
 const state: ChatBarState = {
   model: { canSwitch: false, model: '', provider: '' },
   tools: { enabled: false, label: '' },
   voice: { active: false, enabled: false }
 }
+
+const conversation = (overrides: Partial<React.ComponentProps<typeof ComposerSendControl>['conversation']> = {}) => ({
+  active: false,
+  level: 0,
+  muted: false,
+  onEnd: vi.fn(),
+  onStart: vi.fn(),
+  onStopTurn: vi.fn(),
+  onToggleMute: vi.fn(),
+  status: 'idle' as const,
+  ...overrides
+})
 
 function renderControls(overrides: Partial<React.ComponentProps<typeof ComposerControls>> = {}) {
   return render(
@@ -24,16 +38,7 @@ function renderControls(overrides: Partial<React.ComponentProps<typeof ComposerC
         busy={false}
         busyAction="stop"
         canSubmit={true}
-        conversation={{
-          active: false,
-          level: 0,
-          muted: false,
-          onEnd: vi.fn(),
-          onStart: vi.fn(),
-          onStopTurn: vi.fn(),
-          onToggleMute: vi.fn(),
-          status: 'idle'
-        }}
+        conversation={conversation()}
         disabled={false}
         hasComposerPayload={true}
         onDictate={vi.fn()}
@@ -41,6 +46,21 @@ function renderControls(overrides: Partial<React.ComponentProps<typeof ComposerC
         onToggleAutoSpeak={vi.fn()}
         state={state}
         voiceStatus="idle"
+        {...overrides}
+      />
+    </I18nProvider>
+  )
+}
+
+function renderSendControl(overrides: Partial<React.ComponentProps<typeof ComposerSendControl>> = {}) {
+  return render(
+    <I18nProvider configClient={null} initialLocale="en">
+      <ComposerSendControl
+        busy={false}
+        canSubmit={true}
+        conversation={conversation()}
+        disabled={false}
+        hasComposerPayload={true}
         {...overrides}
       />
     </I18nProvider>
@@ -100,11 +120,12 @@ describe('HUD mode', () => {
   })
 })
 
-// A tile can be narrower than the controls cost, and the row is inside an
+// A tile can be narrower than the toolbar costs, and the row is inside an
 // overflow-hidden surface — so anything that doesn't fold gets clipped off the
-// right edge, send button first. The ladder keeps going past `stacked`: voice
-// folds into the same menu the HUD uses, then the model pill drops. Send is
-// the last thing standing.
+// right edge. The ladder keeps going past `stacked`: voice folds into the same
+// menu the HUD uses, the quick pills compact to icons, and at the tightest
+// width the whole toolbar drops — the in-field send control is the one thing
+// that must survive every width, and it lives in the input deck, not here.
 describe('narrow tiles', () => {
   it('folds the voice controls into one menu without entering HUD mode', () => {
     renderControls({ foldVoice: true })
@@ -117,39 +138,62 @@ describe('narrow tiles', () => {
     expect(screen.queryByLabelText('Exit HUD mode')).toBeNull()
   })
 
-  it('keeps Send at the tightest width, with everything else dropped', () => {
-    renderControls({ foldVoice: true, minimal: true })
+  it('drops the whole toolbar at the tightest width (send lives in the field)', () => {
+    const { container } = renderControls({ foldVoice: true, minimal: true })
 
-    expect(screen.getByLabelText('Send')).toBeTruthy()
+    expect(screen.queryByLabelText('Send')).toBeNull()
     expect(screen.queryByLabelText('Voice')).toBeNull()
+    expect(screen.queryByLabelText('Queue message')).toBeNull()
+    expect(container.querySelector('[data-slot="composer-toolbar"]')).toBeNull()
   })
 
-  it('keeps Stop reachable mid-turn at the tightest width', () => {
-    renderControls({ busy: true, busyAction: 'stop', foldVoice: true, hasComposerPayload: false, minimal: true })
+  it('keeps the conversation pill at the tightest width (it replaces the toolbar)', () => {
+    renderControls({ conversation: conversation({ active: true, status: 'listening' }), minimal: true })
 
-    expect(screen.getByLabelText('Stop')).toBeTruthy()
+    expect(screen.getByLabelText('End voice conversation')).toBeTruthy()
   })
 })
 
-describe('ComposerControls shortcut tooltips', () => {
+describe('in-field send control', () => {
+  it('keeps Send at the tightest width', () => {
+    renderSendControl()
+
+    expect(screen.getByLabelText('Send')).toBeTruthy()
+  })
+
+  it('keeps Stop reachable mid-turn with nothing queued behind it', () => {
+    renderSendControl({ busy: true, hasComposerPayload: false })
+
+    expect(screen.getByLabelText('Stop')).toBeTruthy()
+  })
+
   it('shows Enter for Send', async () => {
-    renderControls()
+    renderSendControl()
 
     await expectShortcutTooltip('Send', '↵')
   })
 
   it('keeps Send (not Steer) while a turn is running if there is a payload', async () => {
-    renderControls({ busy: true, busyAction: 'steer' })
+    renderSendControl({ busy: true })
 
     await expectShortcutTooltip('Send', '↵')
   })
 
   it('shows Stop only when the composer is empty mid-turn', async () => {
-    renderControls({ busy: true, busyAction: 'stop', canSubmit: true, hasComposerPayload: false })
+    renderSendControl({ busy: true, hasComposerPayload: false })
 
     await expectShortcutTooltip('Stop', '↵')
   })
 
+  it('renders nothing mid-conversation — the pill owns the row', () => {
+    renderSendControl({ conversation: conversation({ active: true, status: 'listening' }) })
+
+    expect(screen.queryByLabelText('Send')).toBeNull()
+    expect(screen.queryByLabelText('Start voice conversation')).toBeNull()
+  })
+})
+
+describe('ComposerControls queue tooltips', () => {
   it('shows Ctrl+Enter for Queue as the secondary mid-turn action', async () => {
     renderControls({ busy: true, busyAction: 'queue' })
 

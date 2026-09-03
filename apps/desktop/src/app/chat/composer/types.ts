@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import type { SubmitTextOptions } from '@/app/session/hooks/use-prompt-actions/utils'
 import type { HermesGateway } from '@/hermes'
+import type { CurrentModelCaps } from '@/lib/model-options'
 
 import type { DroppedFile } from '../hooks/use-composer-actions'
 
@@ -22,6 +23,9 @@ export interface ChatBarState {
     model: string
     provider: string
     canSwitch: boolean
+    /** What the current model can do, resolved from the catalog snapshot
+     *  upstream. Gates the effort pill's slider and fast toggle. */
+    caps?: CurrentModelCaps
     loading?: boolean
     quickModels?: QuickModelOption[]
     /** Reused status-bar dropdown (built with gateway + selectModel upstream). */
@@ -41,6 +45,10 @@ export interface ChatBarProps {
   queueSessionKey?: string | null
   sessionId?: string | null
   cwd?: string | null
+  /** Owner-routed RPC for the composer's own reads/writes (context usage,
+   *  reasoning/fast). Same dispatcher the model menu is built with upstream —
+   *  a tile's controls must query ITS backend, not ambient chrome. */
+  requestGateway?: <T>(method: string, params?: Record<string, unknown>) => Promise<T>
   onCancel: () => Promise<void> | void
   onAddContextRef?: (refText: string, label?: string, detail?: string) => void
   onAddUrl?: (url: string) => void

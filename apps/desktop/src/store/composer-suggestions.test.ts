@@ -42,6 +42,45 @@ describe('composer suggestion bus', () => {
     offerSuggestions('s3', 'test', [])
   })
 
+  it('never strikes a suggestion the cap evicted while it was still offered', () => {
+    // `capped` is painted, then repeatedly pushed off the strip by a
+    // higher-ranked provider that grows and shrinks. Event offerings flatten
+    // in Map insertion order, so provider 'a' always outranks 'b'.
+    const squeeze = () => {
+      offerSuggestions('cap1', 'a', [suggestion('hog', 'a'), suggestion('keeper', 'a')])
+      offerSuggestions('cap1', 'a', [suggestion('hog', 'a')])
+    }
+
+    offerSuggestions('cap1', 'a', [suggestion('hog', 'a')])
+    offerSuggestions('cap1', 'b', [suggestion('capped', 'b')])
+
+    expect(pillsFor('cap1')).toEqual(['hog', 'capped'])
+
+    // Four evictions — past IGNORED_LIMIT. Losing the slot race is not a
+    // decision the user made, so none of them may count against `capped`.
+    for (let i = 0; i < 4; i += 1) {
+      squeeze()
+    }
+
+    expect(pillsFor('cap1')).toEqual(['hog', 'capped'])
+
+    offerSuggestions('cap1', 'a', [])
+    offerSuggestions('cap1', 'b', [])
+  })
+
+  it('still strikes a painted suggestion that the cap later hides', () => {
+    // `solo` is painted, so the user saw it. It then loses the slots and is
+    // withdrawn by its own provider — that is a genuine ignored offer.
+    for (let i = 0; i < 3; i += 1) {
+      offerSuggestions('cap2', 'b', [suggestion('solo', 'b')])
+      offerSuggestions('cap2', 'b', [])
+    }
+
+    offerSuggestions('cap2', 'b', [suggestion('solo', 'b')])
+
+    expect(pillsFor('cap2')).toEqual([])
+  })
+
   it('dedupes by provider-namespaced key across providers', () => {
     offerSuggestions('s4', 'p1', [suggestion('same', 'p1')])
     offerSuggestions('s4', 'p2', [suggestion('same', 'p2')])

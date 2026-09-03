@@ -195,12 +195,32 @@ export function markSuggestionInvoked(sessionId: string | null | undefined, key:
 const quieted = (sessionKey: string, key: string): boolean =>
   (ignoredCounts.get(sessionKey)?.get(key) ?? 0) >= IGNORED_LIMIT
 
-// Suggestions visible in the last publish that vanish uninvoked get a strike.
-function recordWithdrawals(sessionKey: string, next: readonly ComposerSuggestion[]): void {
+/**
+ * Strike the suggestions the user watched appear and let die.
+ *
+ * Two different sets, and conflating them is what made this wrong: a
+ * suggestion is struck when it stops being OFFERED (`candidates`), but only
+ * ever if it was PAINTED (`painted`) in the first place.
+ *
+ *  - Striking against the painted set alone punished the cap. `publish` shows
+ *    MAX_SUGGESTIONS of them, so a provider that keeps offering while a
+ *    higher-ranked one holds the slot looked withdrawn on every publish —
+ *    three of those and `quieted` silenced it for the session, for an offer
+ *    the user was never shown and never had the chance to decline.
+ *  - Recording the candidate set as `shown` would invert the same bug: a
+ *    suggestion capped out of every publish it ever appeared in would collect
+ *    a strike the moment its provider withdrew it, again for something nobody
+ *    saw.
+ */
+function recordWithdrawals(
+  sessionKey: string,
+  candidates: readonly ComposerSuggestion[],
+  painted: readonly ComposerSuggestion[]
+): void {
   const previous = shown.get(sessionKey)
 
   if (previous) {
-    const surviving = new Set(next.map(suggestionKey))
+    const surviving = new Set(candidates.map(suggestionKey))
 
     for (const key of previous) {
       if (!surviving.has(key)) {
@@ -212,7 +232,7 @@ function recordWithdrawals(sessionKey: string, next: readonly ComposerSuggestion
     }
   }
 
-  shown.set(sessionKey, new Set(next.map(suggestionKey)))
+  shown.set(sessionKey, new Set(painted.map(suggestionKey)))
 }
 
 /** Event offerings first (they carry session/tool state, stronger signal
@@ -222,22 +242,23 @@ function publish(sessionId: string | null): void {
   const event = [...(eventOfferings.get(key)?.values() ?? [])].flat()
   const draft = draftOfferings.get(key) ?? []
   const seen = new Set<string>()
-  const merged: ComposerSuggestion[] = []
+  const candidates: ComposerSuggestion[] = []
 
+  // Rank the whole field before cutting it. The loop used to stop at the cap,
+  // which left the ledger unable to tell "this provider gave up" from "this
+  // one lost the slot race" — see recordWithdrawals.
   for (const suggestion of [...event, ...draft]) {
     const k = suggestionKey(suggestion)
 
     if (!seen.has(k) && !quieted(key, k)) {
       seen.add(k)
-      merged.push(suggestion)
-    }
-
-    if (merged.length >= MAX_SUGGESTIONS) {
-      break
+      candidates.push(suggestion)
     }
   }
 
-  recordWithdrawals(key, merged)
+  const merged = candidates.slice(0, MAX_SUGGESTIONS)
+
+  recordWithdrawals(key, candidates, merged)
   write(sessionId, merged)
 }
 

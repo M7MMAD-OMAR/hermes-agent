@@ -681,6 +681,16 @@ class SessionSchemaMixin:
         """
         if not getattr(self, "_fts_stale", False):
             return False
+        if getattr(self, "_db_corrupt", False):
+            # Quarantined: never run FTS DDL/DML against a damaged image
+            # (mirrors _try_wal_checkpoint / close). This runs every
+            # housekeeping tick for the life of a gateway process, so a stale
+            # flag on a corrupt handle would otherwise retry the rebuild
+            # forever. Reset the backoff so any future un-quarantine path
+            # starts from the default interval, not a doubled stale one.
+            self._fts_stale_retry_after = 0.0
+            self._fts_stale_retry_interval = 0.0
+            return False
         if getattr(self, "read_only", False) or getattr(self, "_conn", None) is None:
             return False
         now = time.monotonic()

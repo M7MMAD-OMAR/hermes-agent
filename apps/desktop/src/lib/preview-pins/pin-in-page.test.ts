@@ -161,7 +161,7 @@ describe('the bubble closes on its committing buttons', () => {
     area.value = 'make it blue, not green'
     area.dispatchEvent(new Event('input', { bubbles: true }))
 
-    const send = [...shadow.querySelectorAll('button')].find(button => button.textContent === 'Send')!
+    const send = shadow.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!
 
     send.click()
 
@@ -179,7 +179,7 @@ describe('the bubble closes on its committing buttons', () => {
     const placed = openBubbleFor('#save', 'park this')
     const shadow = document.getElementById('hermes-pin-host')!.shadowRoot!
 
-    const queue = [...shadow.querySelectorAll('button')].find(button => button.textContent === 'Queue')!
+    const queue = shadow.querySelector<HTMLButtonElement>('button[aria-label="Queue"]')!
 
     queue.click()
 
@@ -189,19 +189,36 @@ describe('the bubble closes on its committing buttons', () => {
     expect(report.deliver).toEqual([{ id: placed.id, mode: 'queue' }])
   })
 
-  it('Done keeps its old behaviour: close, no delivery request', () => {
+  it('closing keeps the comment — there is no Done button to press', () => {
     const placed = openBubbleFor('#save', 'just saving')
     const shadow = document.getElementById('hermes-pin-host')!.shadowRoot!
 
-    const done = [...shadow.querySelectorAll('button')].find(button => button.textContent === 'Done')!
+    // Done is gone on purpose: the textarea's input handler already writes
+    // every keystroke into the pin, so the button only ever did what closing
+    // does. The × in the header is the way out.
+    expect([...shadow.querySelectorAll('button')].some(b => b.textContent === 'Done')).toBe(false)
 
-    done.click()
+    shadow.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click()
 
     const report = run({ verb: 'state' })
 
     expect(report.bubbleOpen).toBe(false)
     expect(report.deliver ?? []).toEqual([])
     expect(report.pins[0].comment).toBe('just saving')
+    expect(placed.id).toBeTruthy()
+  })
+
+  it('shows no instructional prose and no truncated target label', () => {
+    openBubbleFor('#save', 'x')
+    const shadow = document.getElementById('hermes-pin-host')!.shadowRoot!
+    const bubble = shadow.querySelector('.bubble')!
+
+    // The screenshotted bug: the head rendered the clicked element's own
+    // text, truncated mid-phrase. It renders nothing there now.
+    expect(bubble.querySelector('.head span')).toBeNull()
+    expect(bubble.querySelector('.hint')).toBeNull()
+    expect(bubble.textContent).not.toContain('Paste or drop')
+    expect(shadow.querySelector('textarea')!.placeholder).toBe('')
   })
 })
 

@@ -161,10 +161,14 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       '.bubble *{box-sizing:border-box}',
       // Head: the pin's own number and what it is fastened to, so an open
       // bubble is never ambiguous about which marker it belongs to.
-      '.head{display:flex;align-items:center;gap:6px;margin:0 0 8px;color:#a09a91;font-size:11px}',
-      '.head b{display:inline-flex;align-items:center;justify-content:center;min-width:17px;',
-      'height:17px;padding:0 4px;border-radius:9px;background:#d99a5b;color:#1c1b19;font:700 10px system-ui}',
-      '.head span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
+      // Head: the pin's number and a way out. No target label — it rendered
+      // the clicked element's own text, truncated mid-phrase, telling the
+      // user nothing the marker they just placed does not already say.
+      '.head{display:flex;align-items:center;margin:0 0 8px}',
+      '.head b{display:inline-flex;align-items:center;justify-content:center;min-width:20px;',
+      'height:20px;padding:0 5px;border-radius:6px;background:rgba(217,154,91,.16);',
+      'color:#d99a5b;font:700 11px system-ui}',
+      '.head .shut{margin-inline-start:auto;width:24px;height:24px;padding:4px}',
       '.bubble textarea{display:block;width:100%;min-height:56px;max-height:168px;',
       'background:#131211;color:#f0ede8;border:1px solid #35322e;border-radius:8px;',
       // No resize grip: it drew a corner wart and the field grows on its own.
@@ -194,17 +198,24 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       '.bubble textarea::-webkit-scrollbar-corner{background:transparent}',
       '.bubble textarea:focus{border-color:#d99a5b;box-shadow:0 0 0 3px rgba(217,154,91,.16)}',
       '.row{display:flex;align-items:center;gap:6px;margin-top:9px}',
+      // Attach/delete sit left, deliver sits right: the two committing
+      // actions are together, away from the destructive one.
+      '.gap{flex:1 1 auto}',
       '.bubble button{border:1px solid #35322e;border-radius:8px;background:#26241f;',
       'color:#eae7e1;font:600 12px system-ui,sans-serif;cursor:pointer;padding:6px 12px;',
       'display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:background .12s}',
       '.bubble button:hover{background:#312e28}',
       '.bubble button:focus-visible{outline:2px solid #d99a5b;outline-offset:1px}',
-      // Icon-only actions stay quiet; the one committing action is the loud one.
+      // Every footer action is an icon. Weight carries the meaning instead of
+      // words: send is filled, queue is tonal, attach/delete are ghosts.
       '.bubble button.icon{padding:6px;width:30px;height:30px;background:transparent;border-color:transparent;color:#a09a91}',
       '.bubble button.icon:hover{background:#26241f;color:#eae7e1}',
       '.bubble button.icon.danger:hover{background:#3a2020;color:#ef9a9a}',
-      '.bubble button.go{margin-inline-start:auto;background:#d99a5b;color:#1c1b19;border-color:#d99a5b}',
-      '.bubble button.go:hover{background:#e4a869}',
+      '.bubble button.icon.tonal{background:rgba(217,154,91,.14);border-color:transparent;color:#d99a5b}',
+      '.bubble button.icon.tonal:hover{background:rgba(217,154,91,.24)}',
+      '.bubble button.icon.go{background:#d99a5b;border-color:#d99a5b;color:#1c1b19}',
+      '.bubble button.icon.go:hover{background:#e4a869}',
+      '.bubble button:active{transform:scale(.96)}',
       '.bubble svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;',
       'stroke-linecap:round;stroke-linejoin:round}',
       '.strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}',
@@ -215,7 +226,13 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       'line-height:15px;text-align:center;border-radius:50%;background:rgba(12,11,10,.82);',
       'color:#fff;font:700 11px system-ui;cursor:pointer;opacity:0;transition:opacity .12s}',
       '.strip figure:hover span{opacity:1}',
-      '.hint{margin-top:8px;color:#7d776f;font:11px/1.4 system-ui,sans-serif}',
+      '@keyframes hermes-pin-in{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}',
+      '@keyframes hermes-pin-full{0%,100%{transform:none}30%{transform:translateX(-3px)}70%{transform:translateX(3px)}}',
+      '.bubble{animation:hermes-pin-in .15s ease-out}',
+      '.strip.full{animation:hermes-pin-full .18s ease-in-out}',
+      '@media (prefers-reduced-motion:reduce){',
+      '.bubble{animation-name:none}.strip.full{animation:none}',
+      '.bubble button:active{transform:none}}',
       '.bubble.over{border-color:#d99a5b;box-shadow:0 0 0 3px rgba(217,154,91,.2)}',
       // A marker whose comment carries an image says so, so the strip is not a
       // surprise waiting inside a bubble nobody reopens.
@@ -428,13 +445,19 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     head.className = 'head'
     const badge = doc.createElement('b')
     badge.textContent = String(pins.indexOf(pin) + 1)
-    const where = doc.createElement('span')
-    where.textContent = String(pin.target || 'region')
-    head.append(badge, where)
+    // No target label. It rendered the clicked element's own text, which on a
+    // heading like "Commitment Trust Innovation Expertise Continual…" is a
+    // truncated fragment that tells the user nothing they cannot see by
+    // looking at the marker they just placed.
+    const shut = doc.createElement('button')
+    shut.className = 'icon shut'
+    shut.title = 'Close'
+    shut.setAttribute('aria-label', 'Close')
+    shut.append(icon('M6 6l12 12M18 6L6 18'))
+    head.append(badge, shut)
 
     const area = doc.createElement('textarea')
     area.value = String(pin.comment || '')
-    area.placeholder = 'What should change here?'
     // The comment is the user's own language, and this app is used in Arabic.
     // `auto` aligns and places the caret per what they actually type instead of
     // forcing every comment to read left-to-right.
@@ -448,12 +471,6 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
     const strip = doc.createElement('div')
     strip.className = 'strip'
-
-    const hint = doc.createElement('div')
-    hint.className = 'hint'
-    // One line. Two lines of instructions under a two-line comment is more
-    // chrome than content.
-    hint.textContent = 'Paste or drop an image · Esc to close'
 
     const shotsOf = () => (pin.shots as Record<string, unknown>[] | undefined) ?? []
 
@@ -497,7 +514,12 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
         }
 
         if (shotsOf().length >= MAX_SHOTS) {
-          hint.textContent = 'Up to ' + MAX_SHOTS + ' images per comment'
+          // Wordless: the strip pulses instead of a sentence appearing under
+          // the comment. The attach button is disabled at the cap too, so
+          // this only fires for a paste or a drop, which cannot be disabled.
+          strip.classList.remove('full')
+          void strip.offsetWidth
+          strip.classList.add('full')
 
           break
         }
@@ -548,35 +570,38 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     row.className = 'row'
     const add = doc.createElement('button')
     add.className = 'icon'
-    add.title = 'Attach an image'
+    add.title = 'Attach image'
     add.append(icon('M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6'))
     const remove = doc.createElement('button')
     remove.className = 'icon danger'
-    remove.title = 'Delete this comment'
+    remove.title = 'Delete'
     remove.append(icon('M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13'))
-    /** Send straight to the chat — the panel delivers and marks it done. */
-    const send = doc.createElement('button')
-    send.title = 'Send to chat now (Ctrl+Enter)'
-    send.textContent = 'Send'
     /** Park it in the conversation's queue — drains after the current turn. */
     const enqueue = doc.createElement('button')
-    enqueue.title = 'Add to the chat queue (Ctrl+Shift+Enter)'
-    enqueue.textContent = 'Queue'
-    const save = doc.createElement('button')
-    save.className = 'go'
-    save.textContent = 'Done'
+    enqueue.className = 'icon tonal'
+    enqueue.title = 'Queue · Ctrl+Shift+Enter'
+    enqueue.setAttribute('aria-label', 'Queue')
+    enqueue.append(icon('M4 7h11M4 12h11M4 17h7M17 14v6M14 17h6'))
+    /** Send straight to the chat — the panel delivers and marks it done.
+     *  The one primary control: delivering is what the bubble is FOR, and the
+     *  loudest button used to be `Done`, which delivered nothing. */
+    const send = doc.createElement('button')
+    send.className = 'icon go'
+    send.title = 'Send · Ctrl+Enter'
+    send.setAttribute('aria-label', 'Send')
+    send.append(icon('M4 12l16-8-6 8 6 8z'))
 
     add.addEventListener('click', event => {
       event.stopPropagation()
       picker.click()
     })
-    save.addEventListener('click', event => {
+    shut.addEventListener('click', event => {
       event.stopPropagation()
-      pin.comment = area.value
+      // Nothing to save here: `input` above has already written every
+      // keystroke into the pin. Closing is closing.
       closeBubble()
       paint()
     })
-
     // Sending and queueing are COMMITTING acts: the bubble closes the moment
     // the request is written, the same way Done closes it. The panel picks the
     // request up on its next read and reports success or failure in a toast —
@@ -681,8 +706,10 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
 
     // Quiet actions first, the committing one pushed to the end by CSS: the
     // eye lands on Done, and Delete is never a neighbour of it.
-    row.append(add, remove, send, enqueue, save)
-    bubble.append(head, area, strip, hint, row, picker)
+    const gap = doc.createElement('span')
+    gap.className = 'gap'
+    row.append(add, remove, gap, enqueue, send)
+    bubble.append(head, area, strip, row, picker)
     shadow().append(bubble)
     state.bubbleOpen = true
     bump()

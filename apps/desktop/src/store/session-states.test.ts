@@ -10,6 +10,7 @@ import {
   setWorkspaceScope,
   workspaceScopeKey
 } from '@/components/pane-shell/workspace-scope'
+import { $composerSuggestionsBySession, offerSuggestions } from '@/store/composer-suggestions'
 import {
   $embeddedBrowserSessions,
   $previewTabs,
@@ -128,6 +129,34 @@ describe('resetTileRuntimeBindings', () => {
     expect($sessionTiles.get()).toEqual([
       { anchor: undefined, before: undefined, dir: undefined, storedSessionId: 'stored-a' }
     ])
+  })
+
+  it('forgets the dropped runtimes\' composer suggestions', () => {
+    // The third channel a runtime id dies through. markRuntimeGone covers the
+    // 4001 and the reclaim; a reconnect re-mint reaches neither, so without
+    // this the tile's offers and its declined ledger strand for the process.
+    setSessionTileDelegate({} as unknown as SessionTileDelegate)
+    $sessionTiles.set([{ runtimeId: 'runtime-dead', storedSessionId: 'stored-a' }])
+
+    offerSuggestions('runtime-dead', 'test', [
+      {
+        doneLabel: 'done',
+        doneTip: 'done',
+        id: 'stale',
+        invoke: async () => {},
+        label: 'stale',
+        provider: 'test',
+        tip: 'because',
+        workingLabel: 'working',
+        workingTip: 'working'
+      }
+    ])
+
+    expect($composerSuggestionsBySession.get()['runtime-dead']).toHaveLength(1)
+
+    resetTileRuntimeBindings()
+
+    expect($composerSuggestionsBySession.get()['runtime-dead']).toBeUndefined()
   })
 
   it('tolerates a delegate without invalidateRuntimeBindings (older wiring)', () => {

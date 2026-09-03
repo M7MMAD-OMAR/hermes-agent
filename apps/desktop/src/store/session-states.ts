@@ -35,6 +35,7 @@ import { stableArray } from '@/lib/stable-array'
 import { readJson, writeJson } from '@/lib/storage'
 import type { SessionInfo } from '@/types/hermes'
 
+import { forgetSessionSuggestions } from './composer-suggestions'
 import { $browserSessionId, DRAFT_BROWSER_SESSION_ID } from './preview'
 import { $activeGatewayProfile, normalizeProfileKey } from './profile'
 import { clearAllProviderWaits, clearSessionProviderWait } from './provider-wait'
@@ -1266,7 +1267,21 @@ export function resetTileRuntimeBindings(
 
   sessionTileDelegate()?.invalidateRuntimeBindings?.(preservedStoredIds)
 
-  if (tiles.some(tile => tile.runtimeId && !preservedStoredIds.has(tile.storedSessionId))) {
+  const dropped = tiles.filter(tile => tile.runtimeId && !preservedStoredIds.has(tile.storedSessionId))
+
+  if (dropped.length > 0) {
+    // These runtime ids are over — a respawned backend re-mints them, and the
+    // tile re-resumes onto a fresh one. The composer suggestion bus keys by
+    // runtime id and nothing else evicts these: markRuntimeGone covers the
+    // 4001 (pull) and reclaim (push) channels, and a reconnect re-mint reaches
+    // neither, so a tile's offers and declined ledger would strand for the
+    // life of the process. Losing a ledger the tile might get back is the
+    // cheap side of that trade — same "a reset only costs a re-resume" rule
+    // this function already runs on.
+    for (const tile of dropped) {
+      forgetSessionSuggestions(tile.runtimeId)
+    }
+
     $sessionTiles.set(tiles.map(tile => (preservedStoredIds.has(tile.storedSessionId) ? tile : toStored(tile))))
   }
 }

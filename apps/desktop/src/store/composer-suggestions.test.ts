@@ -110,6 +110,11 @@ describe('composer suggestion bus', () => {
   })
 
   it('leaves the shared null bucket alone', () => {
+    // Scope note, not an endorsement: the `''` bucket is a shared drain that
+    // `useSessionSlice` never reads back, and nothing empties its EVENT half
+    // today. This pins only that a caller with no session id cannot wipe it on
+    // every other session-less composer's behalf — deciding who owns that
+    // drain is a separate question from evicting a real session.
     offerSuggestions(null, 'test', [suggestion('draft')])
 
     forgetSessionSuggestions(null)

@@ -2,7 +2,6 @@ import { useStore } from '@nanostores/react'
 import { useMemo, useState } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
-import { AccountUsagePanel } from '@/app/shell/account-usage-panel'
 import { ContextUsagePanel } from '@/app/shell/context-usage-panel'
 import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { Button } from '@/components/ui/button'
@@ -147,13 +146,12 @@ export function ContextPill({
         </PopoverTrigger>
       </Tip>
       <PopoverContent align="end" className="w-80 border-(--ui-stroke-secondary) p-0" side="top" sideOffset={8}>
-        <div className="max-h-[min(70vh,32rem)] overflow-y-auto" data-slot="context-popover">
-          <div className="[&>div]:w-full">
-            <ContextUsagePanel breakdown={breakdown} loading={loading} usage={usage} />
-          </div>
-          <div className="border-t border-(--ui-stroke-tertiary)">
-            <AccountUsagePanel />
-          </div>
+        {/* Context only, and no scroll container. Plan usage has its own
+            statusbar item (use-statusbar-items) — showing it here too made the
+            popover tall enough to need scrolling for a breakdown that is at
+            most nine bounded rows. */}
+        <div className="[&>div]:w-full" data-slot="context-popover">
+          <ContextUsagePanel breakdown={breakdown} loading={loading} usage={usage} />
         </div>
       </PopoverContent>
     </Popover>

@@ -89,12 +89,25 @@ describe('ContextPill gauge', () => {
 })
 
 describe('ContextPill popover', () => {
-  it('composes the context breakdown and the plan usage panels', async () => {
+  it('shows the context breakdown alone — plan usage has its own statusbar item', async () => {
     renderPill({ request: okRequest, sessionId: 'runtime-1' })
 
     fireEvent.click(screen.getByLabelText('Context meter'))
 
     expect(await screen.findByTestId('context-usage-panel')).toBeTruthy()
-    expect(screen.getByTestId('account-usage-panel')).toBeTruthy()
+    // Rendering it here too made the popover tall enough to scroll, for a
+    // breakdown that is at most nine bounded rows.
+    expect(screen.queryByTestId('account-usage-panel')).toBeNull()
+  })
+
+  it('does not put the breakdown in a scroll container', async () => {
+    renderPill({ request: okRequest, sessionId: 'runtime-1' })
+
+    fireEvent.click(screen.getByLabelText('Context meter'))
+
+    await screen.findByTestId('context-usage-panel')
+    const popover = document.querySelector('[data-slot="context-popover"]')
+    expect(popover).toBeTruthy()
+    expect(popover!.className).not.toMatch(/overflow-y-auto|max-h-/)
   })
 })

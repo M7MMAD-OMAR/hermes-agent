@@ -23,6 +23,7 @@ let sent: string[]
 
 beforeEach(() => {
   sent = []
+
   h.runner = async (code: string) => {
     sent.push(code)
 

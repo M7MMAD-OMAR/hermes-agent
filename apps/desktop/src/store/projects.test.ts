@@ -967,6 +967,12 @@ describe('project tree profile isolation', () => {
     const result = await fetchProjectSessions('p_123')
 
     expect(result.status).toBe('failed')
+
+    // A failed read must also leave the in-flight map, or one flap during a
+    // gateway reconnect would pin the entered view to `failed` for good.
+    await fetchProjectSessions('p_123')
+
+    expect(request).toHaveBeenCalledTimes(2)
   })
 })
 

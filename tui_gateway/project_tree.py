@@ -26,6 +26,7 @@ returns the worktree's own root, which is why the client double-counted them).
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any, Callable, Optional
 
@@ -48,6 +49,37 @@ Exists = Callable[[str], bool]
 _KANBAN_DIR_RE = re.compile(r"^(.*[/\\]\.worktrees)[/\\]t_[0-9a-f]+[/\\]?$")
 _TRUNK_BRANCHES = {"main", "master", "trunk", "develop"}
 DEFAULT_BRANCH_LABEL = "main"
+
+
+def _trunk_branch(repo_root: str) -> str:
+    """The main checkout's CURRENT branch, read straight from ``.git/HEAD``.
+
+    A session whose branch was never recorded has to fold into the repo's real
+    trunk lane. Falling back to a hardcoded ``main`` invents a lane that does
+    not exist the moment a repo lives on ``master``/``develop``/``trunk`` — and
+    since almost nothing records a branch (200 of 207 sessions in the repo this
+    was found on had ``git_branch = NULL``), the fabricated lane ends up holding
+    nearly every row while the real one holds the handful that did record it.
+    The desktop then shows the real lane and the recent chats look deleted.
+
+    Read, not probed: ``git_probe.branch()`` is two subprocesses and is not
+    memoized, while this runs once per session on every tree build. One small
+    file read is ~2 us and is always current, so a branch switch is picked up
+    without any cache to invalidate.
+
+    Returns "" for a detached HEAD, a linked worktree (``.git`` is a file
+    there), or anything unreadable — every caller falls back to
+    ``DEFAULT_BRANCH_LABEL``, which is the old behaviour.
+    """
+    if not repo_root:
+        return ""
+    try:
+        with open(os.path.join(repo_root, ".git", "HEAD"), encoding="utf-8", errors="replace") as fh:
+            head = fh.readline().strip()
+    except OSError:
+        return ""
+    prefix = "ref: refs/heads/"
+    return head[len(prefix):].strip() if head.startswith(prefix) else ""
 
 # The synthetic bucket holding every session no project claimed — a chat with no
 # cwd at all, or one whose folder can't be promoted (the bare home dir, HERMES
@@ -249,8 +281,11 @@ def _place(cwd: str, branch: str, resolve: Optional[Resolve], persisted_root: st
 
         if is_main:
             # Unrecorded branch folds into the one trunk lane, so a repo never
-            # shows two "main" lanes (recorded "main" + the empty-branch bucket).
-            b = (branch or "").strip() or DEFAULT_BRANCH_LABEL
+            # shows two trunk lanes (a recorded branch + the empty-branch
+            # bucket). The fallback must be the repo's ACTUAL branch: a fixed
+            # "main" forks a phantom lane on every repo whose trunk is named
+            # anything else, and that lane takes almost every row with it.
+            b = (branch or "").strip() or _trunk_branch(repo_root) or DEFAULT_BRANCH_LABEL
             return _placement(repo_root, _branch_lane_id(repo_root, b), b, repo_root, True, False)
 
         kanban_dir = kanban_worktree_dir(worktree_root)
@@ -266,7 +301,7 @@ def _place(cwd: str, branch: str, resolve: Optional[Resolve], persisted_root: st
         kanban_dir = kanban_worktree_dir(cwd)
         if kanban_dir:
             return _placement(persisted_root, _kanban_lane_id(persisted_root), "kanban", kanban_dir, False, True)
-        b = (branch or "").strip() or DEFAULT_BRANCH_LABEL
+        b = (branch or "").strip() or _trunk_branch(persisted_root) or DEFAULT_BRANCH_LABEL
         return _placement(persisted_root, _branch_lane_id(persisted_root, b), b, persisted_root, True, False)
 
     # Unresolvable cwd: a deleted ``<repo>-<suffix>`` worktree still belongs to
@@ -274,7 +309,7 @@ def _place(cwd: str, branch: str, resolve: Optional[Resolve], persisted_root: st
     # lane rather than stranding a dead-path lane in the project forever.
     sibling_root = _probe_sibling_worktree(cwd, resolve) if resolve else ""
     if sibling_root:
-        b = (branch or "").strip() or DEFAULT_BRANCH_LABEL
+        b = (branch or "").strip() or _trunk_branch(sibling_root) or DEFAULT_BRANCH_LABEL
         return _placement(sibling_root, _branch_lane_id(sibling_root, b), b, sibling_root, True, False)
 
     return _place_by_heuristic(cwd)

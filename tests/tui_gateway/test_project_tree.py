@@ -225,6 +225,42 @@ def test_unrecorded_and_recorded_main_share_one_lane():
     assert len(main_lanes[0]["sessions"]) == 2
 
 
+def test_unrecorded_branch_folds_into_the_repo_real_trunk_not_a_fixed_main(tmp_path):
+    # A repo on `master` with sessions that never recorded a branch. The
+    # fallback used to be a hardcoded "main", which forked a phantom trunk lane
+    # that took nearly every row with it while the real lane kept the handful
+    # that did record one -- and the desktop, showing the real lane, looked like
+    # it had lost every recent chat. Found on a repo where 200 of 207 sessions
+    # had git_branch = NULL.
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    (root / ".git" / "HEAD").write_text("ref: refs/heads/master\n")
+    key = str(root)
+
+    resolve = _resolver({key: (key, key)})
+    sessions = [_session(key, branch=""), _session(key, branch="master")]
+
+    tree = pt.build_tree([], sessions, [], resolve, hydrate=True)
+    project = tree["projects"][0]
+    lanes = [g for repo in project["repos"] for g in repo["groups"] if g.get("isMain")]
+
+    assert [g["label"] for g in lanes] == ["master"]
+    assert len(lanes[0]["sessions"]) == 2
+
+
+def test_detached_head_keeps_the_default_trunk_label(tmp_path):
+    # No `ref:` line to read, so the fallback stays exactly what it was.
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    (root / ".git" / "HEAD").write_text("9f92b33c02d0e42bc15c4490b65af41ad8af4d60\n")
+    key = str(root)
+
+    tree = pt.build_tree([], [_session(key, branch="")], [], _resolver({key: (key, key)}), hydrate=True)
+    lanes = [g for repo in tree["projects"][0]["repos"] for g in repo["groups"] if g.get("isMain")]
+
+    assert [g["label"] for g in lanes] == [pt.DEFAULT_BRANCH_LABEL]
+
+
 def test_main_checkout_detected_when_roots_differ_only_in_path_spelling():
     # The two roots come from DIFFERENT git probes: `rev-parse --show-toplevel`
     # emits forward slashes, while the `--git-common-dir` path goes through

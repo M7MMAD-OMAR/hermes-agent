@@ -1150,6 +1150,116 @@ class TestOpenRouterPaidLaneGuard:
         assert not _is_free_model(None)
 
 
+class TestKanbanAuxiliaryFreeOnlyFallback:
+    """Kanban triage auxiliary calls (kanban_decomposer / triage_specifier)
+    must not force the session's paid main model onto the OpenRouter
+    free_only gate.
+
+    Both tasks default to ``auxiliary.<task>.provider: auto`` (see
+    ``config_defaults.py``), so an unconfigured task routes through
+    ``_resolve_auto_route()``. Step 1 there deliberately reuses "the user's
+    main provider + main model" for auxiliary tasks in general — but when
+    the main provider is OpenRouter and that main model is a paid SKU,
+    passing it straight through as an explicit ``model=`` forces
+    ``_try_openrouter()``'s ``auxiliary.free_only`` gate to reject it
+    outright, discarding the session's already-known-good OpenRouter
+    credentials along with it instead of deferring to
+    ``auxiliary.openrouter_model`` (the free SKU the user configured
+    specifically so background auxiliary work never spends real money).
+    """
+
+    def test_kanban_decomposer_falls_back_to_configured_free_model(self, monkeypatch):
+        """auxiliary.free_only=true + paid main model → the kanban_decomposer
+        auxiliary call still resolves via the configured free OpenRouter
+        model, instead of the whole auxiliary call coming back empty."""
+        cfg = {
+            "auxiliary": {
+                "free_only": True,
+                "openrouter_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            }
+        }
+        main_runtime = {
+            "provider": "openrouter",
+            "model": "z-ai/glm-5.3-flash",  # the session's live, PAID main model
+            "api_key": "sess-live-openrouter-key",
+        }
+        with patch("hermes_cli.config.load_config_readonly", return_value=cfg), \
+             patch("agent.auxiliary_client._select_pool_entry", return_value=(False, None)), \
+             patch("agent.auxiliary_client._try_nous", return_value=(None, None)), \
+             patch("agent.auxiliary_client._try_custom_endpoint", return_value=(None, None)), \
+             patch("agent.auxiliary_client._resolve_api_key_provider", return_value=(None, None)), \
+             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+            mock_client = MagicMock(name="openrouter_client")
+            mock_openai.return_value = mock_client
+
+            client, model = resolve_provider_client(
+                "auto", main_runtime=main_runtime, task="kanban_decomposer",
+            )
+
+        assert client is mock_client
+        assert model == "nvidia/nemotron-3-ultra-550b-a55b:free"
+        # The session's already-resolved OpenRouter key is reused rather than
+        # re-discovered from the (here, empty) pool/env — the point of
+        # falling back to the free model in place, not re-running discovery.
+        assert mock_openai.call_args.kwargs["api_key"] == "sess-live-openrouter-key"
+
+    def test_triage_specifier_falls_back_to_configured_free_model(self, monkeypatch):
+        """Same contract for triage_specifier (``hermes kanban specify``)."""
+        cfg = {
+            "auxiliary": {
+                "free_only": True,
+                "openrouter_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            }
+        }
+        main_runtime = {
+            "provider": "openrouter",
+            "model": "z-ai/glm-5.3-flash",
+            "api_key": "sess-live-openrouter-key",
+        }
+        with patch("hermes_cli.config.load_config_readonly", return_value=cfg), \
+             patch("agent.auxiliary_client._select_pool_entry", return_value=(False, None)), \
+             patch("agent.auxiliary_client._try_nous", return_value=(None, None)), \
+             patch("agent.auxiliary_client._try_custom_endpoint", return_value=(None, None)), \
+             patch("agent.auxiliary_client._resolve_api_key_provider", return_value=(None, None)), \
+             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+            mock_client = MagicMock(name="openrouter_client")
+            mock_openai.return_value = mock_client
+
+            client, model = resolve_provider_client(
+                "auto", main_runtime=main_runtime, task="triage_specifier",
+            )
+
+        assert client is mock_client
+        assert model == "nvidia/nemotron-3-ultra-550b-a55b:free"
+
+    def test_free_main_model_is_used_directly_no_fallback_needed(self, monkeypatch):
+        """Sanity check: when the main model IS already free, Step 1 succeeds
+        with it directly — the fallback path only engages for paid models."""
+        cfg = {
+            "auxiliary": {
+                "free_only": True,
+                "openrouter_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            }
+        }
+        main_runtime = {
+            "provider": "openrouter",
+            "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "api_key": "sess-live-openrouter-key",
+        }
+        with patch("hermes_cli.config.load_config_readonly", return_value=cfg), \
+             patch("agent.auxiliary_client._select_pool_entry", return_value=(False, None)), \
+             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+            mock_client = MagicMock(name="openrouter_client")
+            mock_openai.return_value = mock_client
+
+            client, model = resolve_provider_client(
+                "auto", main_runtime=main_runtime, task="kanban_decomposer",
+            )
+
+        assert client is mock_client
+        assert model == "nvidia/nemotron-3-ultra-550b-a55b:free"
+
+
 class TestGetTextAuxiliaryClient:
     """Test the full resolution chain for get_text_auxiliary_client."""
 

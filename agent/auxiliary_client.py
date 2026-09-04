@@ -6598,6 +6598,25 @@ def _resolve_auto_route(
             # so that a working key is reused instead of re-selecting from the pool
             # (which might pick a different, potentially exhausted key).
             explicit_api_key = runtime_api_key
+        # auxiliary.free_only guards against ANY auxiliary call spending real
+        # money on OpenRouter — including this Step-1 "use my main model"
+        # path. Passing a paid main model through as an explicit override
+        # would make _try_openrouter() reject it outright (correct), but
+        # that also discards explicit_api_key/base_url above, and Step-2/3's
+        # own bare OpenRouter retry has no way to recover them — a user
+        # whose OpenRouter access is only the runtime key (no
+        # OPENROUTER_API_KEY env var, no credential pool) gets no
+        # auxiliary provider at all, on every task (title generation,
+        # compression, kanban decomposition, ...) instead of the free SKU
+        # they configured via auxiliary.openrouter_model specifically for
+        # this. Drop the explicit model so resolve_provider_client's
+        # "openrouter" branch falls through to that configured free model
+        # itself, while still reusing the resolved credentials/base_url.
+        step1_model = main_model
+        if resolved_provider == "openrouter":
+            _free_only, _ = _aux_openrouter_settings()
+            if _free_only and not _is_free_model(main_model):
+                step1_model = None
         # Skip Step-1 if the main provider was recently 402'd. The unhealthy
         # cache TTL bounds how long we bypass it, so a topped-up account
         # recovers automatically. If we tried Step-1 anyway, every aux call
@@ -6609,15 +6628,15 @@ def _resolve_auto_route(
         else:
             client, resolved = resolve_provider_client(
                 resolved_provider,
-                main_model,
+                step1_model,
                 explicit_base_url=explicit_base_url,
                 explicit_api_key=explicit_api_key,
                 api_mode=runtime_api_mode or None,
             )
             if client is not None:
                 logger.info("Auxiliary auto-detect: using main provider %s (%s)",
-                            main_provider, resolved or main_model)
-                return client, resolved or main_model, resolved_provider
+                            main_provider, resolved or step1_model or main_model)
+                return client, resolved or step1_model or main_model, resolved_provider
 
     # ── Step 2: user-configured fallback policy ─────────────────────────
     # In auto mode, respect the task-specific fallback chain first, then the

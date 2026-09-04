@@ -51,7 +51,21 @@ function seedScript(pins: PreviewPin[]): string {
   };`
 }
 
-function buildScript(command: PinCommand, seed: PreviewPin[] | null): string {
+/**
+ * Settle the guest's own paint before the report comes back.
+ *
+ * `executeJavaScript` resolves a returned promise, so a verb whose effect is
+ * VISUAL can wait for the frame that makes it visual rather than making every
+ * caller guess how long that takes. Two frames, because one only guarantees
+ * the style was applied — the second is the compositor having drawn it, which
+ * is what a capture actually reads.
+ */
+const GUEST_PAINT = `new Promise(function (go) {
+  var raf = w.requestAnimationFrame || function (fn) { return setTimeout(fn, 16); };
+  raf(function () { raf(function () { go(report); }); });
+})`
+
+function buildScript(command: PinCommand, seed: PreviewPin[] | null, settle = ''): string {
   return `(function () {
   var w = window;
   if (!w.${ENGINE}) {
@@ -59,7 +73,9 @@ function buildScript(command: PinCommand, seed: PreviewPin[] | null): string {
     w.${ENGINE} = ${pinEngineSource()};
     ${seed && seed.length ? seedScript(seed) : ''}
   }
-  return w.${ENGINE}(document, w.${HOLDER}, ${JSON.stringify(command)});
+  var report = w.${ENGINE}(document, w.${HOLDER}, ${JSON.stringify(command)});
+
+  return ${settle || 'report'};
 })()`
 }
 
@@ -87,7 +103,11 @@ async function withTimeout<T>(work: Promise<T>, label: string): Promise<T> {
  * that as "open a page first" rather than an error, because it is a state, not
  * a failure.
  */
-export async function pinVerb(command: PinCommand, seed: PreviewPin[] | null = null): Promise<PinEngineReport | null> {
+export async function pinVerb(
+  command: PinCommand,
+  seed: PreviewPin[] | null = null,
+  settle = ''
+): Promise<PinEngineReport | null> {
   const run = activePreviewScriptRunner()
 
   if (!run) {
@@ -95,7 +115,10 @@ export async function pinVerb(command: PinCommand, seed: PreviewPin[] | null = n
   }
 
   try {
-    const report = (await withTimeout(run(buildScript(command, seed)) as Promise<PinEngineReport>, command.verb)) as
+    const report = (await withTimeout(
+      run(buildScript(command, seed, settle)) as Promise<PinEngineReport>,
+      command.verb
+    )) as
       PinEngineReport | undefined
 
     if (!report || !Array.isArray(report.pins)) {
@@ -130,8 +153,16 @@ export const clearPins = () => pinVerb({ verb: 'clear' })
 /** Take one attached image's bytes out of the page and leave nothing behind. */
 export const takeShot = (id: string) => pinVerb({ id, verb: 'take' })
 
-/** Where to point the camera for one pin — and the overlay steps aside. */
-export const aimPin = (id: string) => pinVerb({ id, verb: 'aim' })
+/**
+ * Where to point the camera for one pin — and the overlay steps aside.
+ *
+ * Hiding the overlay is a style change, which does not become a hidden
+ * overlay until the guest paints. The capture reads the compositor, so
+ * shooting the moment `aim` answers is a race whose losing side is our own
+ * markers sitting in the user's screenshot. Two frames after the style lands
+ * is past it.
+ */
+export const aimPin = (id: string) => pinVerb({ id, verb: 'aim' }, null, GUEST_PAINT)
 /** Hand the crop back and put the overlay on screen again. */
 export const shootPin = (id: string, data: string) => pinVerb({ data, id, verb: 'shoot' })
 

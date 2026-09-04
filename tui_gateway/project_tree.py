@@ -56,7 +56,7 @@ def _trunk_branch(repo_root: str) -> str:
 
     A session whose branch was never recorded has to fold into the repo's real
     trunk lane. Falling back to a hardcoded ``main`` invents a lane that does
-    not exist the moment a repo lives on ``master``/``develop``/``trunk`` — and
+    not exist the moment a repo lives on ``master``/``develop``/``trunk``, and
     since almost nothing records a branch (200 of 207 sessions in the repo this
     was found on had ``git_branch = NULL``), the fabricated lane ends up holding
     nearly every row while the real one holds the handful that did record it.
@@ -68,7 +68,7 @@ def _trunk_branch(repo_root: str) -> str:
     without any cache to invalidate.
 
     Returns "" for a detached HEAD, a linked worktree (``.git`` is a file
-    there), or anything unreadable — every caller falls back to
+    there), or anything unreadable. Every caller falls back to
     ``DEFAULT_BRANCH_LABEL``, which is the old behaviour.
     """
     if not repo_root:

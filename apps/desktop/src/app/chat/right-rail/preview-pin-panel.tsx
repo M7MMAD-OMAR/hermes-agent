@@ -1,6 +1,8 @@
 /**
- * PIN PANEL — annotation mode's UI: the toggle, the list, and the ways a
- * review becomes a prompt.
+ * PIN PANEL — commenting's UI: the toggle, the list, and the ways a review
+ * becomes a prompt. The only one, since the parallel "annotate" system was
+ * deleted; the two used to sit side by side in the same toolbar sharing no
+ * state, so a comment made in one was invisible to the other.
  *
  * The pins themselves are drawn IN the page by the engine, because only the
  * page knows where its elements are after a scroll or a reflow. This panel is
@@ -568,7 +570,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
           type="button"
         >
           <Codicon name="comment-draft" size="0.8125rem" />
-          {armed ? 'Annotating' : 'Annotate'}
+          {armed ? 'Commenting' : 'Comment'}
         </button>
 
         <span className="truncate text-muted-foreground">

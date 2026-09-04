@@ -232,7 +232,7 @@ describe('closing the panel', () => {
 
   it('renders nothing while closed', () => {
     render(<PreviewPinPanel open={false} url={HOME} />)
-    expect(screen.queryByText('Annotate')).toBeNull()
+    expect(screen.queryByText('Comment')).toBeNull()
   })
 })
 
@@ -281,12 +281,12 @@ describe('bubble requests and keybinds (Sprint 02)', () => {
 
   it('the annotate keybind request toggles the arm state', async () => {
     render(<PreviewPinPanel open url={HOME} />)
-    await waitFor(() => expect(screen.getByText('Annotate')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Comment')).toBeTruthy())
 
     requestAnnotateToggle()
 
     await waitFor(() => expect(armPins).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getByText('Annotating')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Commenting')).toBeTruthy())
   })
 
   it('the attach keybind request delivers every pending comment', async () => {

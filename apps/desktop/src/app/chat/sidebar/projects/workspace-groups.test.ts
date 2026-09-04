@@ -1269,3 +1269,44 @@ describe('excludeProjectSessions', () => {
     expect(overlaid.repos[0].groups.map(g => g.id)).toEqual(['wt'])
   })
 })
+
+describe('a session with no recorded branch', () => {
+  // The backend lane for a repo on `master` is `<root>::branch::master`, but
+  // live placement computes `<root>::branch::main` for any session whose
+  // git_branch is empty -- and almost none of them record one. Id and label
+  // both miss, the path-keyed fallback deliberately skips `::branch::` ids, so
+  // the overlay used to FORK a second trunk lane and move every recent chat
+  // into it. On screen the repo's lane then looked like it had lost today's
+  // work. Same class as the backend fix in tui_gateway/project_tree.py.
+  const laneWithOldRow = (): SidebarProjectTree => ({
+    id: 'p1',
+    label: 'repo',
+    repos: [
+      {
+        id: '/repo',
+        label: 'repo',
+        path: '/repo',
+        sessionCount: 1,
+        groups: [
+          {
+            id: '/repo::branch::master',
+            isMain: true,
+            label: 'master',
+            path: '/repo',
+            sessions: [makeCwdSession('/repo', { id: 'old', last_active: 1_000 })]
+          }
+        ]
+      }
+    ]
+  })
+
+  it('joins the repo trunk lane instead of forking a second one', () => {
+    const live = makeCwdSession('/repo', { git_branch: null, id: 'fresh', last_active: 9_000 })
+
+    const out = overlayLiveLanes(laneWithOldRow(), [live])
+    const lanes = out.repos[0].groups
+
+    expect(lanes.map(lane => lane.label)).toEqual(['master'])
+    expect(lanes[0].sessions.map(session => session.id)).toEqual(['fresh', 'old'])
+  })
+})

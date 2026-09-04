@@ -588,6 +588,18 @@ export function overlayRepoLanes(
                 g.isMain && pathKey(g.path) === placedKey && !g.id.includes('::branch::') && !g.id.includes('::kanban')
             )
           : undefined) ??
+        // A session that recorded NO branch has no lane of its own to find:
+        // liveLaneForRepo still has to name one and picks DEFAULT_BRANCH_LABEL,
+        // so on a repo whose trunk is `master` (or trunk/develop) the id and
+        // label both miss and the clause above skips `::branch::` ids -- and
+        // the overlay forks a phantom `main` lane, carrying every recent chat
+        // out of the lane on screen. Fold it into the repo's existing trunk
+        // instead. Only a TRUNK-named lane qualifies, so a session that really
+        // did record a feature branch is never absorbed by one that did not.
+        // The backend makes the same choice in tui_gateway/project_tree.py.
+        (placed.isMain && placedKey && !(session.git_branch || '').trim()
+          ? lanes.find(g => pathKey(g.path) === placedKey && isTrunkLane(g))
+          : undefined) ??
         (!placed.isMain && placedKey ? lanes.find(g => pathKey(g.path) === placedKey) : undefined)
 
       if (!lane) {

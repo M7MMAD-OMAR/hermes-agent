@@ -24,20 +24,38 @@ import { ProjectContextMenu, ProjectMenu } from './project-menu'
 import type { SidebarProjectTree } from './workspace-groups'
 import { WorkspaceAddButton } from './workspace-header'
 
-// A bare color dot (no icon) or an icon glyph — tinted by `color` when set, else
-// the lead's default tertiary. The glyph wrapper centers + caps size either way.
+/**
+ * Is this icon a codicon NAME, or something the icon font cannot draw?
+ *
+ * `icon` is a free text column, so anything that creates a project outside the
+ * appearance picker — an agent, the API — routinely stores an emoji. Codicon
+ * names are lowercase ASCII words joined by dashes; anything else would render
+ * as a font class that does not exist and draw nothing.
+ */
+export function isCodiconName(icon: string): boolean {
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(icon)
+}
+
+/**
+ * Every project row leads with a glyph, and a folder is the default.
+ *
+ * It used to be three different things: a codicon for a project whose icon the
+ * picker had set, a bare 4px dot for one with a colour and no icon, and — for
+ * the ten of thirteen rows carrying an emoji from an agent — literally
+ * nothing, because `codicon-📈` is not a class the font ships. One list, three
+ * kinds of lead, and the blank ones read as broken.
+ *
+ * So: the picker's own choice is honoured, Home keeps its house, and
+ * EVERYTHING else is a folder. Colour survives as the tint rather than as a
+ * dot of its own, which is what made the projects distinguishable in the first
+ * place without making them look like different kinds of thing.
+ */
 export function projectIcon({ color, icon, isNoProject }: SidebarProjectTree) {
-  if (color && !icon) {
-    return (
-      <SidebarRowLeadGlyph>
-        <span aria-hidden="true" className="size-1 rounded-full" style={{ backgroundColor: color }} />
-      </SidebarRowLeadGlyph>
-    )
-  }
+  const name = icon && isCodiconName(icon) ? icon : isNoProject ? 'home' : 'folder-library'
 
   return (
     <SidebarRowLeadGlyph style={color ? { color } : undefined}>
-      <Codicon name={icon || (isNoProject ? 'home' : 'folder-library')} size={SIDEBAR_LEAD_ICON_SIZE} />
+      <Codicon name={name} size={SIDEBAR_LEAD_ICON_SIZE} />
     </SidebarRowLeadGlyph>
   )
 }

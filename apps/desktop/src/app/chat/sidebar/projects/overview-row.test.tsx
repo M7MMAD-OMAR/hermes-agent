@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { SessionInfo } from '@/hermes'
 
-import { ProjectOverviewRow } from './overview-row'
+import { isCodiconName, projectIcon, ProjectOverviewRow } from './overview-row'
 import type { SidebarProjectTree } from './workspace-groups'
 
 afterEach(cleanup)
@@ -91,5 +91,66 @@ describe('ProjectOverviewRow', () => {
     const { container } = render(<ProjectOverviewRow project={project} />)
 
     expect(container.querySelector('[data-sessions-project="p1"]')).toBeTruthy()
+  })
+})
+
+describe('projectIcon', () => {
+  const iconOf = (project: Partial<SidebarProjectTree>) =>
+    render(<>{projectIcon(project as SidebarProjectTree)}</>).container
+
+  it('leads every project with a folder, whatever is in the icon column', () => {
+    // Real rows from a live projects.db. These carry emoji because anything
+    // creating a project outside the appearance picker reaches for one, and
+    // they used to render as `codicon-📈` — a class the font does not ship —
+    // so the row drew nothing and looked blanker than an undecorated one.
+    for (const emoji of ['📈', '🎮', '🧩', '🏛️', '🎙️', '🛒']) {
+      const el = iconOf({ color: '#16a34a', icon: emoji })
+
+      expect(el.querySelector('.codicon-folder-library')).toBeTruthy()
+      expect(el.textContent).toBe('')
+      cleanup()
+    }
+  })
+
+  it('gives a folder to a project with a colour and no icon, not a bare dot', () => {
+    const el = iconOf({ color: '#22c55e', icon: null })
+
+    expect(el.querySelector('.codicon-folder-library')).toBeTruthy()
+  })
+
+  it('gives a folder to a project with nothing set at all', () => {
+    expect(iconOf({ color: null, icon: null }).querySelector('.codicon-folder-library')).toBeTruthy()
+  })
+
+  it('keeps the colour as the tint, which is what still tells them apart', () => {
+    const el = iconOf({ color: '#e11d48', icon: '🛒' })
+
+    expect((el.firstElementChild as HTMLElement).style.color).toBeTruthy()
+  })
+
+  it('honours an icon the appearance picker actually set', () => {
+    // The picker only writes codicon names, so this is a deliberate choice by
+    // the user and outranks the default.
+    expect(iconOf({ color: '#b45309', icon: 'briefcase' }).querySelector('.codicon-briefcase')).toBeTruthy()
+  })
+
+  it('keeps Home on its house rather than folding it into the folders', () => {
+    const el = iconOf({ icon: null, isNoProject: true })
+
+    expect(el.querySelector('.codicon-home')).toBeTruthy()
+  })
+})
+
+describe('isCodiconName', () => {
+  it('accepts the lowercase dashed names the icon font actually ships', () => {
+    for (const name of ['home', 'folder-library', 'briefcase', 'git-branch', 'symbol-misc']) {
+      expect(isCodiconName(name)).toBe(true)
+    }
+  })
+
+  it('rejects anything that could not be one', () => {
+    for (const name of ['📈', '🏛️', 'Folder', 'two words', '', '-lead', 'trail-']) {
+      expect(isCodiconName(name)).toBe(false)
+    }
   })
 })

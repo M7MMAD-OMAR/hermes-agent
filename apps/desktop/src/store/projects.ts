@@ -508,11 +508,37 @@ async function refreshProjectTreeAcrossProfiles(): Promise<void> {
 // Fully hydrated lanes (repo -> lane -> session rows) for one project, fetched
 // when the user enters it. Same backend grouping as `projects.tree`, so ids and
 // membership match exactly.
-let projectSessionsRefreshGeneration = 0
 
-export async function fetchProjectSessions(projectId: string): Promise<SidebarProjectTree | null> {
-  const generation = ++projectSessionsRefreshGeneration
+// Why callers get a tagged result instead of `SidebarProjectTree | null`: a
+// null answer conflated "another fetch owns this view now" with "the read
+// failed", and both entered-project call sites collapsed the two into "keep the
+// last good snapshot" — so a view starved of every response looked exactly like
+// a view that was already current.
+export type ProjectSessionsResult =
+  | { error: unknown; status: 'failed' }
+  | { project: SidebarProjectTree | null; status: 'ok' }
+  | { status: 'superseded' }
 
+// At most one `projects.project_sessions` read in flight per (profile, project):
+// a caller arriving mid-flight joins the pending read instead of starting a
+// second one.
+//
+// Keying by project id ALONE would not be enough. The two entered-project
+// callers — the drill-in effect and the sessions.changed re-hydration — both
+// pass the SAME entered project id, so a per-project generation counter still
+// has them invalidate each other. `projects.project_sessions` hydrates the
+// whole tree at session_limit=5000 and then keeps one project, so on a large
+// state.db it can outlast the 10s refresh gap; each new fetch then superseded
+// the one still in flight and nothing ever landed, pinning the entered view to
+// an old snapshot. Joining the pending read is what breaks that, and staleness
+// is bounded: `useEnteredProjectRefresh` is trailing-edge, so the tick that
+// joined an in-flight read schedules a fresh one behind it.
+//
+// The profile belongs in the key because a profile switch makes the pending
+// read answer for the wrong scope entirely — those two must not share.
+const inFlightProjectSessions = new Map<string, Promise<ProjectSessionsResult>>()
+
+async function readProjectSessions(projectId: string): Promise<ProjectSessionsResult> {
   try {
     const context = await activeProjectsContext()
 
@@ -522,14 +548,39 @@ export async function fetchProjectSessions(projectId: string): Promise<SidebarPr
       projectParams({ project_id: projectId }, context.profile)
     )
 
-    if (generation !== projectSessionsRefreshGeneration || !stillOnProjectsContext(context)) {
-      return null
+    // The gateway or profile moved under the request: this payload describes a
+    // scope the user has left, and whoever owns the new scope will paint it.
+    if (!stillOnProjectsContext(context)) {
+      return { status: 'superseded' }
     }
 
-    return res.project ?? null
-  } catch {
-    return null
+    return { project: res.project ?? null, status: 'ok' }
+  } catch (error) {
+    return { error, status: 'failed' }
   }
+}
+
+export function fetchProjectSessions(projectId: string): Promise<ProjectSessionsResult> {
+  // Read the profile before awaiting anything so concurrent callers key off the
+  // scope they were issued under, not whichever one wins the race.
+  const key = `${projectProfile() ?? ALL_PROFILES}::${projectId}`
+  const pending = inFlightProjectSessions.get(key)
+
+  if (pending) {
+    return pending
+  }
+
+  // The entry must be dropped once settled, or every later fetch would join a
+  // resolved promise and the view would freeze on one snapshot for good.
+  const started: Promise<ProjectSessionsResult> = readProjectSessions(projectId).finally(() => {
+    if (inFlightProjectSessions.get(key) === started) {
+      inFlightProjectSessions.delete(key)
+    }
+  })
+
+  inFlightProjectSessions.set(key, started)
+
+  return started
 }
 
 interface WorkspaceMovePayload {

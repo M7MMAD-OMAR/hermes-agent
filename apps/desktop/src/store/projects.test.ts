@@ -867,8 +867,106 @@ describe('project tree profile isolation', () => {
       project: { id: 'profile-a', label: 'Profile A', path: null, repos: [], sessionCount: 0 }
     })
 
-    expect(profileB?.id).toBe('profile-b')
-    await expect(pendingDefault).resolves.toBeNull()
+    expect(profileB.status === 'ok' ? profileB.project?.id : null).toBe('profile-b')
+    // Not `failed`: the read succeeded, it just answers for a scope the user
+    // left — the caller must be able to tell that from a broken backend.
+    await expect(pendingDefault).resolves.toEqual({ status: 'superseded' })
+  })
+
+  it('joins a second fetch for the same project to the one already in flight', async () => {
+    // The starvation this pins: the drill-in effect and the sessions.changed
+    // re-hydration both fetch the SAME entered project id, so a generation
+    // counter — global or keyed per project — has each new fetch supersede the
+    // one still in flight. `projects.project_sessions` hydrates the whole tree
+    // at session_limit=5000, so on a large state.db it outlasts the 10s refresh
+    // gap and no response ever lands: the entered view stays pinned to an old
+    // snapshot. Both callers must get the payload, off ONE backend read.
+    const { promise: response, resolve: resolveResponse } = deferred<unknown>()
+    const request = vi.fn(() => response)
+
+    const gateway = { connectionState: 'open', request }
+    activeGateway.mockReturnValue(gateway as never)
+    gatewayAtom.set(gateway as never)
+
+    const first = fetchProjectSessions('p_123')
+    // `activeProjectsContext` awaits before requesting, so let the first fetch
+    // reach the gateway — a caller arriving later is the case that starved.
+    await Promise.resolve()
+    const second = fetchProjectSessions('p_123')
+
+    resolveResponse({ project: { id: 'p_123', label: 'Entered', path: null, repos: [], sessionCount: 2 } })
+
+    const [firstResult, secondResult] = await Promise.all([first, second])
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(firstResult).toEqual({
+      project: { id: 'p_123', label: 'Entered', path: null, repos: [], sessionCount: 2 },
+      status: 'ok'
+    })
+    expect(secondResult).toEqual(firstResult)
+  })
+
+  it('starts a fresh read once the joined one has settled', async () => {
+    // The other half of coalescing: a settled entry must leave the map, or the
+    // entered view would be frozen on the first snapshot for the rest of the
+    // session — worse than the stale-by-one-gap bug being fixed.
+    const request = vi.fn(async () => ({
+      project: { id: 'p_123', label: 'Entered', path: null, repos: [], sessionCount: 0 }
+    }))
+
+    const gateway = { connectionState: 'open', request }
+    activeGateway.mockReturnValue(gateway as never)
+    gatewayAtom.set(gateway as never)
+
+    await fetchProjectSessions('p_123')
+    await fetchProjectSessions('p_123')
+
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps concurrent reads for different projects independent', async () => {
+    // A shared counter let an unrelated project's fetch invalidate this one.
+    const pending = new Map<string, (value: unknown) => void>()
+
+    const request = vi.fn((_method: string, params: Record<string, unknown>) => {
+      const { promise, resolve } = deferred<unknown>()
+      pending.set(String(params.project_id), resolve)
+
+      return promise
+    })
+
+    const gateway = { connectionState: 'open', request }
+    activeGateway.mockReturnValue(gateway as never)
+    gatewayAtom.set(gateway as never)
+
+    const a = fetchProjectSessions('p_a')
+    const b = fetchProjectSessions('p_b')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // Resolve out of order: the later-started read landing first must not make
+    // the earlier one report itself superseded.
+    pending.get('p_b')?.({ project: { id: 'p_b', label: 'B', path: null, repos: [], sessionCount: 0 } })
+    pending.get('p_a')?.({ project: { id: 'p_a', label: 'A', path: null, repos: [], sessionCount: 0 } })
+
+    const [resultA, resultB] = await Promise.all([a, b])
+
+    expect(resultA.status === 'ok' ? resultA.project?.id : null).toBe('p_a')
+    expect(resultB.status === 'ok' ? resultB.project?.id : null).toBe('p_b')
+  })
+
+  it('reports a backend failure as failed, not as a missing project', async () => {
+    const request = vi.fn(async () => {
+      throw new Error('gateway connection closed')
+    })
+
+    const gateway = { connectionState: 'open', request }
+    activeGateway.mockReturnValue(gateway as never)
+    gatewayAtom.set(gateway as never)
+
+    const result = await fetchProjectSessions('p_123')
+
+    expect(result.status).toBe('failed')
   })
 })
 

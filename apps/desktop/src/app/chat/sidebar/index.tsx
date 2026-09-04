@@ -970,11 +970,12 @@ export function ChatSidebar({
 
     let cancelled = false
 
-    void fetchProjectSessions(enteredProjectId).then(project => {
-      // A failed re-hydration (null) keeps the last good snapshot on screen
-      // instead of blanking the entered view back to the structure-only node.
-      if (!cancelled && project) {
-        setEnteredProjectTree(project)
+    void fetchProjectSessions(enteredProjectId).then(result => {
+      // A failed or superseded re-hydration keeps the last good snapshot on
+      // screen instead of blanking the entered view back to the structure-only
+      // node — a superseded read means a newer one owns the paint.
+      if (!cancelled && result.status === 'ok' && result.project) {
+        setEnteredProjectTree(result.project)
       }
     })
 
@@ -994,9 +995,9 @@ export function ChatSidebar({
   // a project the user already left, and a failed refresh keeps the last good
   // snapshot on screen.
   const refreshEnteredProject = useCallback((projectId: string) => {
-    void fetchProjectSessions(projectId).then(project => {
-      if (project && $projectScope.get() === projectId) {
-        setEnteredProjectTree(project)
+    void fetchProjectSessions(projectId).then(result => {
+      if (result.status === 'ok' && result.project && $projectScope.get() === projectId) {
+        setEnteredProjectTree(result.project)
       }
     })
   }, [])

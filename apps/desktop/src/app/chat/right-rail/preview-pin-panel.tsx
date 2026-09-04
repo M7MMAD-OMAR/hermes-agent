@@ -172,6 +172,13 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
         // it — adopt it as seen rather than reshooting the whole page, which
         // would also stall the first render behind one capture per pin.
         shotRef.current = new Set(report.pins.map(pin => pin.id))
+      } else if (report.bubbleOpen) {
+        // NOT while the user is writing. Aiming hides the whole overlay host,
+        // and the bubble lives inside it — so a capture here blinks the
+        // comment box out and back and takes the caret with it, which is the
+        // "it appears, disappears, appears" the feature was reported for.
+        // Nothing is lost by waiting: the pin stays unseen in the set above,
+        // so the first poll after the bubble closes takes the picture.
       } else {
         for (const pin of report.pins) {
           if (shotRef.current.has(pin.id)) {
@@ -344,7 +351,55 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
    * Send, Queue and Send-all so every road a comment takes into the chat
    * carries the same things.
    */
-  const buildParts = async (sending: PreviewPin[]): Promise<ComposerAttachment[]> => {
+  /**
+   * Nobody leaves without their picture.
+   *
+   * The placement capture waits for the bubble to close, so a comment sent
+   * straight from the bubble gets no poll in between and would travel with
+   * words alone. This is the backstop, and it sits in buildParts because every
+   * road out — Send, Queue, Send-all — goes through it exactly once.
+   *
+   * The pins handed in are snapshots taken before the capture, so the fresh
+   * shots have to be read back off the page and merged in; `orderedShots`
+   * numbers the images from this array, and a stale copy would number them
+   * against pictures that are not there.
+   */
+  const withShots = async (sending: PreviewPin[]): Promise<PreviewPin[]> => {
+    const missing = sending.filter(pin => !(pin.shots ?? []).length && !pin.orphaned)
+
+    if (!missing.length) {
+      return sending
+    }
+
+    for (const pin of missing) {
+      await capturePinShot(pin.id)
+    }
+
+    const report = await readPins()
+
+    if (!report) {
+      return sending
+    }
+
+    for (const id of report.pendingShots ?? []) {
+      if (bytes.has(id)) {
+        continue
+      }
+
+      const answer = await takeShot(id)
+
+      if (answer?.shot) {
+        bytes.set(id, answer.shot)
+      }
+    }
+
+    const fresh = new Map(report.pins.map(pin => [pin.id, pin.shots ?? []]))
+
+    return sending.map(pin => (fresh.get(pin.id)?.length ? { ...pin, shots: fresh.get(pin.id) } : pin))
+  }
+
+  const buildParts = async (snapshot: PreviewPin[]): Promise<ComposerAttachment[]> => {
+    const sending = await withShots(snapshot)
     const parts: ComposerAttachment[] = []
 
     parts.push({

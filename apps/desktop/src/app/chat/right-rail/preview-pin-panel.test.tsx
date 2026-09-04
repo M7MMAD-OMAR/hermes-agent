@@ -66,6 +66,7 @@ import {
   requestAnnotateToggle,
   requestAttachPins
 } from './preview-pin-requests'
+import { capturePinShot } from './preview-pins'
 
 const HOME = 'http://localhost:5178/en/index.html'
 const ABOUT = 'http://localhost:5178/en/about.html'
@@ -73,6 +74,7 @@ const ABOUT = 'http://localhost:5178/en/about.html'
 /** The guest page, standing in for the engine: one bucket of pins per url. */
 const page = {
   armed: false,
+  bubbleOpen: false,
   hidden: false,
   pins: {} as Record<string, PreviewPin[]>,
   url: HOME
@@ -81,6 +83,7 @@ const page = {
 function report(): PinEngineReport {
   return {
     armed: page.armed,
+    bubbleOpen: page.bubbleOpen,
     hidden: page.hidden,
     pendingShots: [],
     pins: page.pins[page.url] ?? [],
@@ -188,6 +191,7 @@ beforeEach(() => {
   page.pins = {}
   page.url = HOME
   $composerAttachments.set([])
+  page.bubbleOpen = false
   $queuedPromptsBySession.set({})
   setPinBook({})
   $activeSessionId.set('sess-1')
@@ -596,5 +600,30 @@ describe('a review across pages', () => {
     expect(button.disabled).toBe(false)
     button.click()
     await waitFor(() => expect($composerAttachments.get()).toHaveLength(1))
+  })
+})
+
+describe('the camera never fires while the user is writing', () => {
+  /**
+   * Aiming hides the whole overlay host, and the comment bubble lives inside
+   * it. Capturing mid-write blinked the box out and back and took the caret
+   * with it — measured in a real browser at six lost carets across seven poll
+   * beats, which is the "appears, disappears, appears" this was reported for.
+   */
+  it('skips a new pin while its bubble is open, then takes the shot once it closes', async () => {
+    page.pins[HOME] = []
+    render(<PreviewPinPanel open url={HOME} />)
+    // Let the panel seed its already-seen set from the empty page first.
+    await waitFor(() => expect(readPinsMock).toHaveBeenCalled())
+
+    page.bubbleOpen = true
+    page.pins[HOME] = [pin(HOME, '', 'fresh')]
+
+    await waitFor(() => expect(readPinsMock.mock.calls.length).toBeGreaterThan(2))
+    expect(capturePinShot).not.toHaveBeenCalled()
+
+    page.bubbleOpen = false
+
+    await waitFor(() => expect(capturePinShot).toHaveBeenCalledWith('fresh'))
   })
 })

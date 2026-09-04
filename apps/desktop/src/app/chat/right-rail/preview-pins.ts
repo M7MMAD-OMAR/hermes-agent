@@ -77,6 +77,40 @@ const GUEST_PAINT = `new Promise(function (go) {
   setTimeout(finish, 80);
 })`
 
+/**
+ * Wait for a shot to actually be attached before the report comes back.
+ *
+ * `shoot` hands the engine a data URL, but attaching it means decoding an
+ * Image and shrinking it twice — asynchronous, so the report the dispatcher
+ * returns is always from BEFORE the shot exists. A caller that reads the pin
+ * straight after would find no picture and send the comment without it.
+ *
+ * Watching the pending list rather than the pin's own shots: pending is where
+ * a new shot's id lands, it is one array on the state, and it grows for
+ * exactly this reason and no other.
+ */
+const SHOT_LANDED = `new Promise(function (go) {
+  var holder = w.${HOLDER};
+  var before = ((holder.__hermesPinState || {}).pending || []).length;
+  var t0 = Date.now();
+  var tick = function () {
+    var pending = ((holder.__hermesPinState || {}).pending || []).length;
+
+    // The deadline is not a failure: a page with no 2D context (locked down,
+    // or a canvas the browser refuses) never attaches, and the send must go
+    // on without the picture rather than stall behind it.
+    if (pending > before || Date.now() - t0 > 1200) {
+      go(w.${ENGINE}(document, holder, { verb: 'state' }));
+
+      return;
+    }
+
+    setTimeout(tick, 25);
+  };
+
+  tick();
+})`
+
 function buildScript(command: PinCommand, seed: PreviewPin[] | null, settle = ''): string {
   return `(function () {
   var w = window;
@@ -176,7 +210,8 @@ export const takeShot = (id: string) => pinVerb({ id, verb: 'take' })
  */
 export const aimPin = (id: string) => pinVerb({ id, verb: 'aim' }, null, GUEST_PAINT)
 /** Hand the crop back and put the overlay on screen again. */
-export const shootPin = (id: string, data: string) => pinVerb({ data, id, verb: 'shoot' })
+export const shootPin = (id: string, data: string) =>
+  pinVerb({ data, id, verb: 'shoot' }, null, data ? SHOT_LANDED : '')
 
 /** How much page to keep around the target, in CSS px. A crop cut exactly to
  *  the element reads as a floating fragment; a little of what surrounds it is

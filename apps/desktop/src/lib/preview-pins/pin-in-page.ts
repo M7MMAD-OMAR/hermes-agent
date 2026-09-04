@@ -158,10 +158,25 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       '.box{position:fixed;border:2px dashed #d99a5b;background:rgba(217,154,91,.1);pointer-events:none}',
       // The bubble sizes itself to the page it is floating over: comfortable on
       // a desktop layout, still inside the margins on a 320px phone viewport.
-      '.bubble{position:fixed;width:min(304px,calc(100vw - 24px));background:#1c1b19;',
-      'color:#eae7e1;border:1px solid #35322e;border-radius:12px;padding:10px;',
-      'pointer-events:auto;box-shadow:0 10px 34px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.04) inset;',
+      '.bubble{position:fixed;width:min(304px,calc(100vw - 24px));',
+      // OPAQUE FIRST. The blur pair below only holds where the compositor
+      // will run it; a guest page with compositing disabled, or a context
+      // that refuses backdrop-filter, would otherwise render a see-through
+      // panel with page content straight through the user's own words.
+      'background:#1c1b19;',
+      'color:#eae7e1;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:11px;',
+      'pointer-events:auto;box-shadow:0 16px 40px rgba(0,0,0,.44);',
       'font:13px/1.5 system-ui,sans-serif;box-sizing:border-box}',
+      // Frosted only where it is actually supported — @supports keeps the
+      // translucent background from ever landing without the blur that makes
+      // it legible.
+      '@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){',
+      // The tint carries the panel; the blur only adds depth behind it.
+      // saturate() was 160% and amplified whatever sat behind the bubble —
+      // over a colourful page that turned the panel muddy brown instead of
+      // dark. Verified against a saturated gradient, the worst case.
+      '.bubble{background:rgba(24,23,21,.84);',
+      '-webkit-backdrop-filter:blur(24px) saturate(115%);backdrop-filter:blur(24px) saturate(115%)}}',
       '.bubble *{box-sizing:border-box}',
       // Head: the pin's number and a way out. No target label — it rendered
       // the clicked element's own text, truncated mid-phrase, telling the
@@ -172,7 +187,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       'color:#d99a5b;font:700 11px system-ui}',
       '.head .shut{margin-inline-start:auto;width:24px;height:24px;padding:4px}',
       '.bubble textarea{display:block;width:100%;min-height:56px;max-height:168px;',
-      'background:#131211;color:#f0ede8;border:1px solid #35322e;border-radius:8px;',
+      'background:rgba(0,0,0,.24);color:#f0ede8;border:1px solid rgba(255,255,255,.07);border-radius:10px;',
       // No resize grip: it drew a corner wart and the field grows on its own.
       'padding:8px;font:13px/1.5 system-ui,sans-serif;resize:none;outline:none;',
       // The guest page's own scrollbar is whatever Chromium gives that site —
@@ -198,7 +213,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       // clicks them in a 168px-tall field.
       '.bubble textarea::-webkit-scrollbar-button{display:none;width:0;height:0}',
       '.bubble textarea::-webkit-scrollbar-corner{background:transparent}',
-      '.bubble textarea:focus{border-color:#d99a5b;box-shadow:0 0 0 3px rgba(217,154,91,.16)}',
+      '.bubble textarea:focus{border-color:rgba(217,154,91,.55);box-shadow:0 0 0 2px rgba(217,154,91,.10)}',
       '.row{display:flex;align-items:center;gap:6px;margin-top:9px}',
       // Attach/delete sit left, deliver sits right: the two committing
       // actions are together, away from the destructive one.
@@ -220,6 +235,10 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
       '.bubble button:active{transform:scale(.96)}',
       '.bubble svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;',
       'stroke-linecap:round;stroke-linejoin:round}',
+      // The send glyph is a paper plane — a SOLID shape. Stroked like the
+      // others it came out as two disconnected strokes reading "«", which
+      // points the wrong way and does not say send at all.
+      '.bubble .go svg{fill:currentColor;stroke:none}',
       '.strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}',
       '.strip figure{position:relative;margin:0;width:52px;height:40px;border-radius:7px;',
       'overflow:hidden;border:1px solid #35322e;background:#0e0d0c}',
@@ -604,7 +623,7 @@ export function pinEngineCore(doc: Document, holder: Record<string, unknown>, co
     send.className = 'icon go'
     send.title = 'Send · Ctrl+Enter'
     send.setAttribute('aria-label', 'Send')
-    send.append(icon('M4 12l16-8-6 8 6 8z'))
+    send.append(icon('M2 21l20-9L2 3v7l14 2-14 2z'))
 
     add.addEventListener('click', event => {
       event.stopPropagation()

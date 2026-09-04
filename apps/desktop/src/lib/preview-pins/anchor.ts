@@ -211,19 +211,86 @@ export function anchorKit(doc: Document): AnchorKit {
     return parts.join('>')
   }
 
-  const selectorOf = (el: Element) => {
+  /** `#id` or `[data-testid]` for one element, or '' when it names itself
+   *  neither way. */
+  const ownName = (el: Element) => {
     if (el.id) {
       return '#' + cssEscape(el.id)
     }
 
     const testid = el.getAttribute('data-testid')
 
-    if (testid) {
-      return '[data-testid="' + String(testid).replace(/"/g, '\\"') + '"]'
+    return testid ? '[data-testid="' + String(testid).replace(/"/g, '\\"') + '"]' : ''
+  }
+
+  /**
+   * A selector for an element that does not name itself.
+   *
+   * Most things worth commenting on carry no id — an image, a heading, a cell
+   * in a table. Those used to fall through to the structural path
+   * (`#packages>div>div:nth-of-type(2)>img`), which is a description of where
+   * the element sits rather than of what it is: it says nothing to the agent
+   * reading the comment, and it breaks the moment a div is added above it.
+   *
+   * So climb to the nearest ancestor that IS named, and narrow from there by
+   * tag plus whatever the element says about itself. Every candidate is then
+   * tried against the live document and kept ONLY if it resolves back to this
+   * exact element — a selector that matches a sibling instead is worse than
+   * no selector at all, because the ladder would trust it. Anything that
+   * cannot be proven here falls through to the path as before.
+   */
+  const scopedName = (el: Element) => {
+    const tag = el.tagName.toLowerCase()
+    // Attributes that describe the element rather than its position, in the
+    // order they identify it best.
+    const narrowing = ['alt', 'name', 'aria-label', 'type', 'href']
+    let scope: Element | null = el.parentElement
+    let hops = 0
+
+    while (scope && hops < 6) {
+      const named = ownName(scope)
+
+      if (named) {
+        // ONLY with a narrowing attribute. `#objectives img` resolves fine
+        // today and matches a SIBLING tomorrow, once the original is gone —
+        // the ladder would then trust it and move the comment onto whatever
+        // took its place, which is the "refusing to guess" rule this file is
+        // built around. An attribute the element carries about itself is a
+        // claim about identity; a tag inside a scope is a claim about
+        // position wearing a selector's clothes.
+        const tries: string[] = []
+
+        for (const attr of narrowing) {
+          const value = el.getAttribute(attr)
+
+          if (value) {
+            tries.push(named + ' ' + tag + '[' + attr + '="' + value.replace(/"/g, '\\"') + '"]')
+          }
+        }
+
+        for (const candidate of tries) {
+          try {
+            if (doc.querySelector(candidate) === el) {
+              return candidate
+            }
+          } catch {
+            // An attribute value CSS cannot parse is a miss, not a crash.
+          }
+        }
+
+        // The nearest named ancestor could not distinguish it; a further one
+        // is only more ambiguous, so stop rather than climb past it.
+        return ''
+      }
+
+      scope = scope.parentElement
+      hops += 1
     }
 
     return ''
   }
+
+  const selectorOf = (el: Element) => ownName(el) || scopedName(el)
 
   const rectOf = (el: Element) => {
     const box = el.getBoundingClientRect()

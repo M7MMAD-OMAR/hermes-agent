@@ -6609,14 +6609,17 @@ def _resolve_auto_route(
         # auxiliary provider at all, on every task (title generation,
         # compression, kanban decomposition, ...) instead of the free SKU
         # they configured via auxiliary.openrouter_model specifically for
-        # this. Drop the explicit model so resolve_provider_client's
-        # "openrouter" branch falls through to that configured free model
-        # itself, while still reusing the resolved credentials/base_url.
+        # this. Substitute that configured free model directly — NOT None:
+        # resolve_provider_client's own universal pre-fill (a few lines above
+        # this function, "model = _get_aux_model_for_provider(provider) or
+        # _read_main_model_for_aux() or model") re-reads the same paid main
+        # model straight out of the live runtime context when handed a blank
+        # model for a concrete provider, defeating a bare None here.
         step1_model = main_model
         if resolved_provider == "openrouter":
-            _free_only, _ = _aux_openrouter_settings()
+            _free_only, _cfg_or_model = _aux_openrouter_settings()
             if _free_only and not _is_free_model(main_model):
-                step1_model = None
+                step1_model = _cfg_or_model
         # Skip Step-1 if the main provider was recently 402'd. The unhealthy
         # cache TTL bounds how long we bypass it, so a topped-up account
         # recovers automatically. If we tried Step-1 anyway, every aux call

@@ -1232,6 +1232,55 @@ class TestKanbanAuxiliaryFreeOnlyFallback:
         assert client is mock_client
         assert model == "nvidia/nemotron-3-ultra-550b-a55b:free"
 
+    def test_falls_back_via_live_runtime_context_not_just_explicit_main_runtime(self, monkeypatch):
+        """Reproduces the reported scenario through set_runtime_main(), the
+        same context-local channel a live gateway session populates —
+        rather than an explicit ``main_runtime=`` dict passed by the test.
+
+        This distinction matters: resolve_provider_client() has its own
+        universal pre-fill ("model = ... or _read_main_model_for_aux() or
+        model") that re-reads the paid main model straight out of
+        ``_RUNTIME_MAIN_CONTEXT`` whenever it is handed a blank model for a
+        concrete provider — independently of whatever ``main_runtime`` dict
+        a caller passed in. A fix that merely swaps the Step-1 model for
+        ``None`` looks correct against an explicit ``main_runtime=`` dict
+        but is silently defeated by that pre-fill once a real session's
+        runtime context is live; substituting the resolved free model
+        directly (instead of ``None``) is what survives both paths.
+        """
+        import agent.auxiliary_client as aux_mod
+
+        cfg = {
+            "auxiliary": {
+                "free_only": True,
+                "openrouter_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            }
+        }
+        token = aux_mod.set_runtime_main(
+            "openrouter", "z-ai/glm-5.3-flash", api_key="sess-live-openrouter-key",
+        )
+        try:
+            with patch("hermes_cli.config.load_config_readonly", return_value=cfg), \
+                 patch("agent.auxiliary_client._select_pool_entry", return_value=(False, None)), \
+                 patch("agent.auxiliary_client._try_nous", return_value=(None, None)), \
+                 patch("agent.auxiliary_client._try_custom_endpoint", return_value=(None, None)), \
+                 patch("agent.auxiliary_client._resolve_api_key_provider", return_value=(None, None)), \
+                 patch("agent.auxiliary_client.OpenAI") as mock_openai:
+                mock_client = MagicMock(name="openrouter_client")
+                mock_openai.return_value = mock_client
+
+                # No explicit main_runtime= — resolved entirely from the
+                # live context, like a real kanban_decompose/specify call.
+                client, model = resolve_provider_client(
+                    "auto", main_runtime=None, task="kanban_decomposer",
+                )
+        finally:
+            aux_mod.reset_runtime_main(token)
+
+        assert client is mock_client
+        assert model == "nvidia/nemotron-3-ultra-550b-a55b:free"
+        assert mock_openai.call_args.kwargs["api_key"] == "sess-live-openrouter-key"
+
     def test_free_main_model_is_used_directly_no_fallback_needed(self, monkeypatch):
         """Sanity check: when the main model IS already free, Step 1 succeeds
         with it directly — the fallback path only engages for paid models."""

@@ -9,20 +9,24 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ runner: null as null | ((code: string) => Promise<unknown>) }))
+const h = vi.hoisted(() => ({
+  capture: null as null | ((rect: unknown) => Promise<string>),
+  runner: null as null | ((code: string) => Promise<unknown>)
+}))
 
 vi.mock('./preview-script-runner', () => ({
-  activePreviewCapture: () => null,
+  activePreviewCapture: () => h.capture,
   activePreviewScriptRunner: () => h.runner
 }))
 
-import { aimPin, pinVerb, readPins, shootPin } from './preview-pins'
+import { aimPin, capturePinShot, pinVerb, readPins, shootPin } from './preview-pins'
 
 /** The last script the bridge sent, and a canned report back. */
 let sent: string[]
 
 beforeEach(() => {
   sent = []
+  h.capture = async () => 'data:image/png;base64,shot'
 
   h.runner = async (code: string) => {
     sent.push(code)
@@ -72,5 +76,80 @@ describe('what the bridge sends', () => {
     h.runner = async () => ({ armed: true, hidden: false, url: 'http://x' })
 
     expect(await pinVerb({ verb: 'state' })).toBeNull()
+  })
+})
+
+describe('the overlay always comes back', () => {
+  /**
+   * `aim` hides the whole pin overlay INSIDE the guest, so by the time
+   * anything downstream can fail, the user's comments are already invisible.
+   * Every one of these paths used to return before `shoot` ran, leaving them
+   * that way until a reload.
+   */
+  const verbsIn = () => sent.map(code => (code.match(/"verb":"(\w+)"/) ?? [])[1])
+
+  it('restores after a normal capture', async () => {
+    h.runner = async (code: string) => {
+      sent.push(code)
+
+      return { aim: { height: 20, left: 5, top: 5, width: 40 }, armed: false, hidden: false, pins: [], url: 'http://x' }
+    }
+
+    expect(await capturePinShot('pin-1')).toBe(true)
+    expect(verbsIn()).toEqual(['aim', 'shoot'])
+  })
+
+  it('restores when aim times out and never answers', async () => {
+    h.runner = async (code: string) => {
+      sent.push(code)
+
+      if (code.includes('"verb":"aim"')) {
+        throw new Error('preview pins: aim did not answer')
+      }
+
+      return { armed: false, hidden: false, pins: [], url: 'http://x' }
+    }
+
+    expect(await capturePinShot('pin-1')).toBe(false)
+    expect(verbsIn()).toContain('shoot')
+  })
+
+  it('restores when the pin resolves nowhere, so no capture is taken', async () => {
+    h.runner = async (code: string) => {
+      sent.push(code)
+
+      return { aim: null, armed: false, hidden: false, pins: [], url: 'http://x' }
+    }
+
+    expect(await capturePinShot('pin-1')).toBe(false)
+    expect(verbsIn()).toContain('shoot')
+  })
+
+  it('restores when the capture itself throws', async () => {
+    h.capture = async () => {
+      throw new Error('guest torn down mid-shot')
+    }
+
+    h.runner = async (code: string) => {
+      sent.push(code)
+
+      return { aim: { height: 20, left: 5, top: 5, width: 40 }, armed: false, hidden: false, pins: [], url: 'http://x' }
+    }
+
+    expect(await capturePinShot('pin-1')).toBe(false)
+    expect(verbsIn()).toContain('shoot')
+  })
+})
+
+describe('the paint wait cannot hang', () => {
+  it('races requestAnimationFrame against a timer', async () => {
+    await aimPin('pin-1')
+
+    // A page that is not painting never fires rAF — a hidden pane, an occluded
+    // guest, a backgrounded window. Verified in a real browser; jsdom fires rAF
+    // on a timer regardless of visibility, so the hang is invisible here and
+    // only this assertion keeps the guard in place.
+    expect(sent[0]).toContain('requestAnimationFrame')
+    expect(sent[0]).toContain('setTimeout')
   })
 })

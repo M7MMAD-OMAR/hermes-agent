@@ -59,10 +59,22 @@ function seedScript(pins: PreviewPin[]): string {
  * caller guess how long that takes. Two frames, because one only guarantees
  * the style was applied — the second is the compositor having drawn it, which
  * is what a capture actually reads.
+ *
+ * RACED WITH A TIMER, because a page that is not painting never fires
+ * requestAnimationFrame at all — a backgrounded window, a pane the app has
+ * hidden, an occluded guest. Waiting on rAF alone hangs there forever, and
+ * the caller has already hidden the overlay by the time it would find out.
+ * Verified in a real browser, where jsdom cannot help: jsdom fires rAF on a
+ * timer regardless of visibility, so this failure is invisible to the suite.
  */
 const GUEST_PAINT = `new Promise(function (go) {
+  var done = false;
+  var finish = function () { if (!done) { done = true; go(report); } };
   var raf = w.requestAnimationFrame || function (fn) { return setTimeout(fn, 16); };
-  raf(function () { raf(function () { go(report); }); });
+  raf(function () { raf(finish); });
+  // The floor is a frame at 30fps twice over; past that the page is not
+  // painting and no amount of waiting will make it.
+  setTimeout(finish, 80);
 })`
 
 function buildScript(command: PinCommand, seed: PreviewPin[] | null, settle = ''): string {
@@ -179,10 +191,14 @@ const CROP_PAD = 12
  * currently is or how to get the overlay out of the way. So the page aims,
  * the host shoots, and the page adopts.
  *
- * `shoot` runs in a finally on purpose. `aim` hides the whole overlay host,
- * and a capture that throws — a torn-down webview, a guest mid-navigation —
- * would otherwise leave the user's pins invisible with no way back short of a
- * reload.
+ * `shoot` restores the overlay and runs in a finally that starts the moment
+ * `aim` is ISSUED, not once it has answered. `aim` hides the whole overlay
+ * host inside the guest, so the hiding has already happened by the time
+ * anything can go wrong — and everything can: the bridge times out at four
+ * seconds, the guest navigates mid-call, the webview is torn down. Every one
+ * of those used to return early and leave the user's comments invisible with
+ * no way back short of a reload. Restoring is not the success path's job, it
+ * is unconditional.
  */
 export async function capturePinShot(id: string): Promise<boolean> {
   const capture = activePreviewCapture()
@@ -191,26 +207,23 @@ export async function capturePinShot(id: string): Promise<boolean> {
     return false
   }
 
-  const aimed = await aimPin(id)
-  const box = aimed?.aim
-
-  if (!box) {
-    return false
-  }
-
   let data = ''
 
   try {
-    data = await capture({
-      height: box.height + CROP_PAD * 2,
-      width: box.width + CROP_PAD * 2,
-      x: box.left - CROP_PAD,
-      y: box.top - CROP_PAD
-    })
+    const box = (await aimPin(id))?.aim
+
+    if (box) {
+      data = await capture({
+        height: box.height + CROP_PAD * 2,
+        width: box.width + CROP_PAD * 2,
+        x: box.left - CROP_PAD,
+        y: box.top - CROP_PAD
+      })
+    }
   } catch {
-    // Not worth surfacing: the comment itself is intact and the user can
-    // still attach an image by hand. Losing the overlay would be the real bug,
-    // and the finally below is what prevents it.
+    // Not worth surfacing: the comment itself is intact and the user can still
+    // attach an image by hand. Losing the overlay is the failure that matters,
+    // and the finally is what prevents it.
   } finally {
     await shootPin(id, data)
   }

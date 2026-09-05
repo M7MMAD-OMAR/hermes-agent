@@ -104,33 +104,6 @@ async function highlightToHtml(
   })
 }
 
-/**
- * Serialised highlight admission.
- *
- * `HIGHLIGHT_DELAY_MS` throttles each block independently, so N cache-missing
- * blocks mounted together still queue N timers into the same task window and
- * their tokenization runs as one burst. This chain admits one highlight at a
- * time and waits `HIGHLIGHT_SETTLE_MS` before the next, so each gets its own
- * slice instead of stacking. Every block still ends up highlighted; the work
- * just stops arriving all at once.
- */
-const HIGHLIGHT_SETTLE_MS = 40
-
-let highlightChain: Promise<unknown> = Promise.resolve()
-
-function queueHighlight<T>(run: () => Promise<T>): Promise<T> {
-  const result = highlightChain.then(run, run)
-
-  // Keep the chain alive on failure, and leave a settle gap after each one.
-  highlightChain = result.then(
-    () => new Promise(resolve => window.setTimeout(resolve, HIGHLIGHT_SETTLE_MS)),
-    () => new Promise(resolve => window.setTimeout(resolve, HIGHLIGHT_SETTLE_MS))
-  )
-
-  return result
-}
-
-
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
@@ -165,7 +138,7 @@ export default function CachedShikiBlock({ language, code, theme, colorReplaceme
     }
 
     const timer = window.setTimeout(() => {
-      queueHighlight(() => highlightToHtml(language, code, themeConfig, replacements))
+      highlightToHtml(language, code, themeConfig, replacements)
         .then(result => {
           if (cancelled) {
             return

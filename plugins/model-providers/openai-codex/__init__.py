@@ -42,12 +42,9 @@ class CodexProfile(ProviderProfile):
 
 
 openai_codex = CodexProfile(
-    name="openai-codex",
-    aliases=("codex", "openai_codex"),
-    api_mode="codex_responses",
+    name="openai-codex", aliases=("codex", "openai_codex"), api_mode="codex_responses",
     env_vars=(),  # OAuth external — no API key
-    base_url="https://chatgpt.com/backend-api/codex",
-    auth_type="oauth_external",
+    base_url="https://chatgpt.com/backend-api/codex", auth_type="oauth_external",
     # Rolling windows measured in hours; a 5-minute cache is plenty.
     usage_ttl=300,
 )

@@ -10,11 +10,9 @@ from datetime import datetime, timezone
 import pytest
 
 from hermes_cli.foreign_sessions import (
+    _list_sessions,
     gather_foreign_sessions,
     import_foreign_session,
-    list_claude_sessions,
-    list_codex_sessions,
-    list_kimi_sessions,
     parse_claude_session,
     parse_codex_session,
     parse_kimi_session,
@@ -285,8 +283,8 @@ def test_malformed_lines_are_skipped(tmp_path):
 def test_list_sessions(tmp_path):
     _write_claude_fixture(tmp_path)
     _write_codex_fixture(tmp_path)
-    claude = list_claude_sessions(tmp_path / ".claude" / "projects")
-    codex = list_codex_sessions(tmp_path / ".codex" / "sessions")
+    claude = _list_sessions("claude", tmp_path / ".claude" / "projects")
+    codex = _list_sessions("codex", tmp_path / ".codex" / "sessions")
     assert len(claude) == 1 and claude[0].source == "claude"
     assert claude[0].turn_count == 4
     assert len(codex) == 1 and codex[0].source == "codex"
@@ -304,8 +302,8 @@ def test_list_sessions(tmp_path):
 
 
 def test_list_sessions_missing_roots(tmp_path):
-    assert list_claude_sessions(tmp_path / "nope") == []
-    assert list_codex_sessions(tmp_path / "nope") == []
+    assert _list_sessions("claude", tmp_path / "nope") == []
+    assert _list_sessions("codex", tmp_path / "nope") == []
 
 
 # ── import into SessionDB ────────────────────────────────────────────────
@@ -460,12 +458,12 @@ def test_parse_kimi_session_without_state_json(tmp_path):
 
 def test_list_kimi_sessions(tmp_path):
     _write_kimi_fixture(tmp_path)
-    kimi = list_kimi_sessions(tmp_path / ".kimi-code" / "sessions")
+    kimi = _list_sessions("kimi", tmp_path / ".kimi-code" / "sessions")
     assert len(kimi) == 1
     assert kimi[0].source == "kimi"
     assert kimi[0].turn_count == 3
     assert kimi[0].mtime == 1786707200000 / 1000.0
-    assert list_kimi_sessions(tmp_path / "nope") == []
+    assert _list_sessions("kimi", tmp_path / "nope") == []
 
     both = gather_foreign_sessions(
         source="kimi", kimi_root=tmp_path / ".kimi-code" / "sessions"
@@ -525,7 +523,7 @@ def test_parse_kimi_session_legacy_state_shape(tmp_path):
     # the placeholder title must not win over the first typed line
     assert parsed["title_guess"].startswith("Summarize the repo")
 
-    listed = list_kimi_sessions(tmp_path / ".kimi-code" / "sessions")
+    listed = _list_sessions("kimi", tmp_path / ".kimi-code" / "sessions")
     assert len(listed) == 1
     assert listed[0].mtime == datetime(
         2026, 8, 24, 0, 37, 56, 953000, tzinfo=timezone.utc
@@ -537,6 +535,6 @@ def test_list_kimi_sessions_falls_back_to_file_mtime(tmp_path):
     f = _rewrite_kimi_state(
         _write_kimi_fixture(tmp_path), {"id": "s1", "updatedAt": "not a date"}
     )
-    listed = list_kimi_sessions(tmp_path / ".kimi-code" / "sessions")
+    listed = _list_sessions("kimi", tmp_path / ".kimi-code" / "sessions")
     assert len(listed) == 1
     assert listed[0].mtime == f.stat().st_mtime

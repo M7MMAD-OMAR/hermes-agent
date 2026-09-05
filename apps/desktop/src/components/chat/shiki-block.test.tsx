@@ -1,106 +1,122 @@
-import { StrictMode } from 'react'
-import { act } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ShikiBlock from './shiki-block'
-import { SHIKI_THEME } from './shiki-highlighter'
+/**
+ * Perf regression guard for #95595: switching to a warm session remounts the
+ * incoming transcript, and every mounted code block used to re-tokenize from
+ * scratch on the main thread. The content-keyed cache must make a remount of
+ * an unchanged block a cache hit — ZERO highlighter calls.
+ *
+ * shiki itself is mocked (jsdom cannot run the oniguruma wasm engine); the
+ * mock counts `codeToHtml` invocations, which is the cost we are guarding.
+ */
+const { codeToHtml } = vi.hoisted(() => ({
+  codeToHtml: vi.fn((code: string) => {
+    const escaped = String(code).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-declare global {
-   
-  namespace JSX {
-    interface IntrinsicElements {
-      'shiki-stub': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>
-    }
-  }
-}
-
-vi.mock('react-shiki', () => ({
-  default: (props: { children?: unknown }) => <code data-stub="1">{String(props.children ?? '')}</code>
+    return `<pre class="shiki"><code>${escaped}</code></pre>`
+  })
 }))
 
-// The mock highlighter renders `code[data-stub]`; plain pre-admission blocks
-// are `code` without the marker.
-const pairs = (host: HTMLElement) => ({
-  stubs: host.querySelectorAll('code[data-stub]').length,
-  plain: host.querySelectorAll('code:not([data-stub])').length
+vi.mock('shiki', () => ({
+  bundledLanguages: { typescript: 'typescript-loader', text: 'text-loader' },
+  getSingletonHighlighter: vi.fn(async () => ({
+    codeToHtml: (code: string) => codeToHtml(code),
+    getLoadedLanguages: () => ['text', 'typescript'],
+    loadLanguage: vi.fn(async () => undefined)
+  }))
+}))
+
+vi.mock('shiki/engine/oniguruma', () => ({
+  createOnigurumaEngine: vi.fn(() => ({}) as never)
+}))
+
+import CachedShikiBlock from '@/components/chat/shiki-block'
+import { highlightCache } from '@/components/chat/shiki-highlight-cache'
+
+const TS_BLOCK = { language: 'typescript', code: 'const answer: number = 42\n' }
+
+async function waitForHighlighted(): Promise<void> {
+  await screen.findByTestId('shiki-container', undefined, { timeout: 2_000 })
+}
+
+beforeEach(() => {
+  codeToHtml.mockClear()
+  highlightCache.clear()
 })
 
-describe('ShikiBlock mount queue', () => {
-  let host: HTMLElement
-  let root: Root
+afterEach(() => {
+  cleanup()
+})
 
-  beforeEach(() => {
-    vi.useFakeTimers()
-    host = document.createElement('div')
-    document.body.appendChild(host)
-    root = createRoot(host)
+describe('CachedShikiBlock (warm-switch perf guard)', () => {
+  it('highlights on first mount and reuses the cached HTML on remount', async () => {
+    const { unmount } = render(<CachedShikiBlock {...TS_BLOCK} />)
+    await waitForHighlighted()
+
+    expect(codeToHtml).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('shiki-container').innerHTML).toContain('const answer')
+
+    // Warm session switch: the row unmounts and the SAME block mounts again.
+    unmount()
+    render(<CachedShikiBlock {...TS_BLOCK} />)
+    await waitForHighlighted()
+
+    // The guard: remounting an unchanged block must NOT re-tokenize.
+    expect(codeToHtml).toHaveBeenCalledTimes(1)
   })
 
-  afterEach(() => {
-    act(() => root.unmount())
-    host.remove()
-    vi.useRealTimers()
+  it('re-highlights a block whose code changed (cache miss)', async () => {
+    const { unmount } = render(<CachedShikiBlock {...TS_BLOCK} />)
+    await waitForHighlighted()
+
+    unmount()
+    render(<CachedShikiBlock code="const other = true\n" language="typescript" />)
+    await waitForHighlighted()
+
+    expect(codeToHtml).toHaveBeenCalledTimes(2)
   })
 
-  const renderNodes = (nodes: React.ReactNode) => {
-    act(() => {
-      root.render(<StrictMode>{nodes}</StrictMode>)
-    })
-  }
+  it('keeps blocks independent: N blocks highlight N times across two mounts', async () => {
+    const { unmount } = render(
+      <>
+        <CachedShikiBlock {...TS_BLOCK} />
+        <CachedShikiBlock code="function two(): void {}\n" language="typescript" />
+      </>
+    )
 
-  const block = (key: string, code: string) => (
-    <ShikiBlock className="x" key={key} language="ts" theme={SHIKI_THEME}>
-      {code}
-    </ShikiBlock>
-  )
+    await screen.findAllByTestId('shiki-container', undefined, { timeout: 2_000 })
 
-  it('admits a lone block immediately (queue empty, slot free)', () => {
-    renderNodes(block('a', 'first block'))
+    expect(codeToHtml).toHaveBeenCalledTimes(2)
 
-    expect(host.querySelectorAll('code[data-stub]')).toHaveLength(1)
-    expect(host.querySelectorAll('code[data-stub]')[0]?.textContent).toBe('first block')
+    unmount()
+    render(
+      <>
+        <CachedShikiBlock {...TS_BLOCK} />
+        <CachedShikiBlock code="function two(): void {}\n" language="typescript" />
+      </>
+    )
+    await screen.findAllByTestId('shiki-container', undefined, { timeout: 2_000 })
+
+    // Two mounts of the same two blocks: exactly two tokenizations total.
+    expect(codeToHtml).toHaveBeenCalledTimes(2)
   })
 
-  it('staggered admission: the second of a same-commit pair waits for the slot', () => {
-    // Two blocks mount together — the open-a-session herd.
-    renderNodes([block('a', 'block a'), block('b', 'block b')])
+  it('does not cache a failed highlight, so a retry can succeed', async () => {
+    codeToHtml.mockRejectedValueOnce(new Error('boom'))
 
-    // At most one real highlighter may be up; the other shows plain code.
-    const { stubs, plain } = pairs(host)
-    expect(stubs).toBeLessThanOrEqual(1)
-    expect(plain).toBeGreaterThanOrEqual(1)
+    const { unmount } = render(<CachedShikiBlock {...TS_BLOCK} />)
+    await waitForHighlighted()
 
-    // Advance past the release gap — the queued block must admit.
-    act(() => {
-      vi.advanceTimersByTime(150)
-    })
+    // The failure degrades to escaped plain text (and is NOT cached).
+    expect(screen.getByTestId('shiki-container').innerHTML).toContain('const answer')
+    expect(codeToHtml).toHaveBeenCalledTimes(1)
 
-    expect(host.querySelectorAll('code[data-stub]')).toHaveLength(2)
-  })
+    unmount()
+    render(<CachedShikiBlock {...TS_BLOCK} />)
+    await waitForHighlighted()
 
-  it('releases the slot when a queued block unmounts before admission', () => {
-    renderNodes(block('a', 'stays'))
-    expect(host.querySelectorAll('code[data-stub]')).toHaveLength(1)
-
-    // Queue a second block, then take it away before its turn.
-    renderNodes([block('a', 'stays'), block('b', 'leaving')])
-    renderNodes(block('a', 'stays'))
-
-    // The first block still holds the slot.
-    expect(host.querySelectorAll('code[data-stub]')).toHaveLength(1)
-
-    // Release gap elapses → the unmount released nothing extra, the slot
-    // cycles once, and a fresh block admits without a second wait.
-    act(() => {
-      vi.advanceTimersByTime(150)
-    })
-
-    renderNodes([block('a', 'stays'), block('c', 'newcomer')])
-
-    // The newcomer admits immediately: the leaked-ticket regression would
-    // leave it as plain code here.
-    expect(host.querySelectorAll('code[data-stub]')).toHaveLength(2)
-    expect(pairs(host).plain).toBe(0)
+    // Second mount tries the highlighter again instead of serving stale HTML.
+    expect(codeToHtml).toHaveBeenCalledTimes(2)
   })
 })

@@ -285,6 +285,11 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
   try {
     window.localStorage.setItem('hermes-boot-background', chromeBg)
     window.localStorage.setItem('hermes-boot-color-scheme', rendered)
+    // Ink for the boot screen's CONNECTING text. It is the same
+    // `--theme-primary` <GatewayConnectingOverlay> uses, cached here so the
+    // inline screen and the React one are the same colour rather than two
+    // shades of nearly-right.
+    window.localStorage.setItem('hermes-boot-primary', c.primary)
   } catch {
     // Storage may be unavailable (private mode / quota); the inline script
     // falls back to prefers-color-scheme.

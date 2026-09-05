@@ -15,25 +15,134 @@
       // UA-default white page, and the real theme only lands once the whole
       // module graph has executed — i.e. the "white flash" on every new
       // window. applyTheme() in src/themes/context.tsx keeps these keys fresh.
-      try {
-        let bg = localStorage.getItem('hermes-boot-background')
-        let scheme = localStorage.getItem('hermes-boot-color-scheme')
-        if (!bg) {
-          const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
-          bg = dark ? '#111111' : '#f7f7f7'
-          scheme = dark ? 'dark' : 'light'
+      // Read one cached key. Storage can be unavailable outright (private
+      // mode, quota, a data: URL) and there the ACCESSOR itself throws — so
+      // each read is guarded separately. Wrapping the whole block in one
+      // try/catch instead means the first failed read skips the paint too,
+      // and the window comes up UA-default white: the exact flash this
+      // script exists to prevent, in the one case it most needs to work.
+      function bootKey(name) {
+        try {
+          return localStorage.getItem(name)
+        } catch {
+          return null
         }
-        document.documentElement.style.backgroundColor = bg
-        if (scheme === 'dark' || scheme === 'light') {
-          document.documentElement.style.colorScheme = scheme
-        }
-      } catch {
-        // localStorage unavailable — keep UA defaults.
       }
+
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      var bg = bootKey('hermes-boot-background')
+      var scheme = bootKey('hermes-boot-color-scheme')
+      if (!bg) {
+        bg = prefersDark ? '#111111' : '#f7f7f7'
+      }
+      // Never leave the scheme unresolved. It picks the boot screen's ink
+      // below, and an unresolved value would take the light branch on a dark
+      // background — grey-on-near-black, which reads as "nothing rendered".
+      if (scheme !== 'dark' && scheme !== 'light') {
+        scheme = prefersDark ? 'dark' : 'light'
+      }
+      var root = document.documentElement
+      root.style.backgroundColor = bg
+      root.style.colorScheme = scheme
+      // The boot screen paints before styles.css exists, so it cannot use the
+      // --ui-chat-surface-background token the React overlay fills with. Hand
+      // it the same colour directly.
+      root.style.setProperty('--boot-surface', bg)
+      // Ink for the CONNECTING text: the theme's own accent once the app has
+      // run here before, otherwise a neutral legible against that background.
+      root.style.setProperty(
+        '--boot-ink',
+        bootKey('hermes-boot-primary') || (scheme === 'dark' ? '#d4d4d4' : '#3f3f3f')
+      )
     </script>
+    <style>
+      /* Boot screen — see the #boot-connecting markup below. Inline because a
+         stylesheet link would be one more thing to fetch before it can paint. */
+      #boot-connecting {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        /* --boot-surface is set by the script above from the same cached
+           value the React overlay's --ui-chat-surface-background resolves to,
+           because that token does not exist until styles.css has loaded. */
+        background: var(--boot-surface, #111111);
+      }
+      #boot-connecting b {
+        padding-left: 0.4em;
+        font: 600 0.64rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.4em;
+        text-transform: uppercase;
+        font-variant-numeric: tabular-nums;
+        display: inline-flex;
+        align-items: center;
+        color: var(--boot-ink, #808080);
+      }
+      /* The trailing cursor square from <DecodeText cursor>. */
+      #boot-connecting i {
+        margin-left: 0.125rem;
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 1px;
+        transform: translateY(-1px);
+        background: currentcolor;
+      }
+    </style>
   </head>
   <body>
-    <div id="root" class="scrollbar-dt"></div>
+    <div id="root" class="scrollbar-dt">
+      <!--
+        Boot screen, painted before the app bundle exists.
+
+        The renderer's entry graph is ~5.4 MB across ~107 modules; fetching,
+        compiling and evaluating it took ~1.8 s on the reference machine, and
+        for all of it the window was mapped and EMPTY — the pre-paint script
+        above only sets a background colour, so the user watched a blank
+        rectangle and reasonably concluded nothing had happened.
+
+        This is deliberately not a new screen. It is the same CONNECTING
+        surface <GatewayConnectingOverlay> renders a moment later (same
+        background token, same mono/uppercase/0.4em type, same 4-character
+        legible prefix and cursor square), so React taking over is a
+        handoff rather than a transition. Keep the two in step.
+
+        It lives INSIDE #root on purpose: createRoot() clears its container on
+        the first commit, so there is no teardown to get wrong.
+      -->
+      <div aria-hidden="true" data-glass-opaque="" id="boot-connecting">
+        <b id="boot-connecting-text"
+          >CONN<span id="boot-connecting-tail">//////</span><i></i
+        ></b>
+      </div>
+    </div>
+    <script>
+      // Scramble the tail so the boot screen reads as working rather than
+      // hung. Same charset and same 4-character legible prefix as
+      // <DecodeText>. Stops on its own once React clears #root, so nothing
+      // has to remember to cancel it.
+      ;(function () {
+        try {
+          var tail = document.getElementById('boot-connecting-tail')
+          if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return
+          }
+          var chars = '/\\|-_=+<>~:*'
+          var id = setInterval(function () {
+            if (!tail.isConnected) {
+              clearInterval(id)
+              return
+            }
+            var out = ''
+            for (var i = 0; i < 6; i++) {
+              out += chars[(Math.random() * chars.length) | 0]
+            }
+            tail.textContent = out
+          }, 70)
+        } catch {
+          // Any failure here just leaves the static boot screen up.
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -14428,13 +14428,12 @@ function createWindow() {
     )
   }
 
-  // Start the Python backend NOW, in parallel with the renderer load — not on
-  // did-finish-load. The backend cold boot (spawn → port announce → /api/status)
-  // is the dominant startup cost, and serializing it behind Chromium's load
-  // added the whole renderer load time to first-usable-composer. The promise is
-  // shared (backendConnectionState), so the renderer's getConnection() joins
-  // this in-flight boot instead of duplicating it; early boot-progress events
-  // the renderer misses are recovered by its getBootProgress() pull on mount.
+  // The Python backend is NOT started here any more. It moved up into the
+  // whenReady handler, ahead of this window's construction — see the comment
+  // at that call. It still has to be kicked off from here for the paths that
+  // reach createWindow() without whenReady having done it (the macOS
+  // 'activate' re-create), and startHermes() is idempotent: an in-flight
+  // attempt is returned from backendConnectionState rather than duplicated.
   startHermes().catch(error => rememberLog(error.stack || error.message))
 
   mainWindow.webContents.once('did-finish-load', () => {
@@ -17762,6 +17761,28 @@ app.whenReady().then(() => {
 
   setActiveGatewayProfile(primaryProfile)
   setWslBridgeProfileState(primaryProfile, !primaryBackendIsRemote())
+
+  // Spawn the Python backend HERE, not from createWindow(). It used to be
+  // kicked off right after loadRenderer(), which put the whole BrowserWindow
+  // construction ahead of the spawn on a clock the user is already staring
+  // at: measured 256 ms from whenReady to "Resolving Hermes backend", nearly
+  // all of it window construction. The backend cold boot (~1.3 s uncontended)
+  // is the longest single item in the launch, so every millisecond it starts
+  // earlier is a millisecond off first-usable-composer.
+  //
+  // Everything startHermes() depends on has already run at this point, and
+  // the ordering is load-bearing — do not move this call further up:
+  //   · enableBasicPasswordStoreEncryption + migrateLegacyEncryptedSecretsOnce
+  //     must precede the first connection resolution (they own safeStorage).
+  //   · primaryProfileKey() / setActiveGatewayProfile() must be seeded first,
+  //     which is what the two lines above do.
+  //
+  // The promise is shared through backendConnectionState, so the renderer's
+  // getConnection() still joins this in-flight boot instead of starting a
+  // second one, and boot-progress events emitted before the window exists are
+  // recovered by the renderer's getBootProgress() pull on mount.
+  startHermes().catch(error => rememberLog(error.stack || error.message))
+
   // Quick Entry's global chord — registered on ready so a cold launch restores
   // it without the renderer visiting Settings. A failed registration is logged
   // here and surfaced in Settings via the IPC state (never silent).

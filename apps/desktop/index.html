@@ -35,11 +35,37 @@
       if (!bg) {
         bg = prefersDark ? '#111111' : '#f7f7f7'
       }
-      // Never leave the scheme unresolved. It picks the boot screen's ink
-      // below, and an unresolved value would take the light branch on a dark
-      // background — grey-on-near-black, which reads as "nothing rendered".
+
+      // Is the surface we are ACTUALLY about to paint dark? Ask the colour,
+      // not the scheme key. The three cached keys are written together but
+      // read independently, and a store holding the background without the
+      // scheme is a real state (observed on this machine) — deciding the ink
+      // from the scheme there picks the light branch over a dark background
+      // and renders near-black on near-black, which looks like a window that
+      // failed to paint. `chromeBackground()` in themes/context.tsx emits
+      // hex, so luminance is available right here; anything unparseable
+      // falls back to the OS preference.
+      function surfaceIsDark(color) {
+        var hex = String(color).trim()
+        if (hex.charAt(0) !== '#') {
+          return prefersDark
+        }
+        hex = hex.slice(1)
+        if (hex.length === 3) {
+          hex = hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2) + hex.charAt(2)
+        }
+        if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
+          return prefersDark
+        }
+        var n = parseInt(hex, 16)
+        // Rec. 601 luma, which is close enough to pick an ink.
+        var luma = (((n >> 16) & 255) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 255000
+        return luma < 0.5
+      }
+
+      var isDark = surfaceIsDark(bg)
       if (scheme !== 'dark' && scheme !== 'light') {
-        scheme = prefersDark ? 'dark' : 'light'
+        scheme = isDark ? 'dark' : 'light'
       }
       var root = document.documentElement
       root.style.backgroundColor = bg
@@ -49,10 +75,10 @@
       // it the same colour directly.
       root.style.setProperty('--boot-surface', bg)
       // Ink for the CONNECTING text: the theme's own accent once the app has
-      // run here before, otherwise a neutral legible against that background.
+      // run here before, otherwise a neutral legible against THIS surface.
       root.style.setProperty(
         '--boot-ink',
-        bootKey('hermes-boot-primary') || (scheme === 'dark' ? '#d4d4d4' : '#3f3f3f')
+        bootKey('hermes-boot-primary') || (isDark ? '#d4d4d4' : '#3f3f3f')
       )
     </script>
     <style>

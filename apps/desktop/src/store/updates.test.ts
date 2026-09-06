@@ -86,6 +86,7 @@ const {
   applyBackendUpdate,
   $backendUpdateApply,
   reportBackendContract,
+  resetBackendContractMemory,
   applyUpdates,
   applyEverythingUpdate,
   hasMultipleUpdateTargets,
@@ -189,7 +190,23 @@ describe('reportBackendContract', () => {
     storage.clear()
     notifySpy.mockClear()
     dismissSpy.mockClear()
+    resetBackendContractMemory()
     vi.useRealTimers()
+  })
+
+  it('treats a payload without the key as partial once the backend has proven current', () => {
+    reportBackendContract(6)
+    dismissSpy.mockClear()
+
+    // A hand-rolled session `info` that forgot desktop_contract (the
+    // fresh-Bot-Chat resume path did exactly this) must not libel the backend.
+    reportBackendContract(undefined)
+    expect(notifySpy).not.toHaveBeenCalled()
+    expect(dismissSpy).toHaveBeenCalledWith('backend-contract-skew')
+
+    // A backend that really is behind still warns.
+    reportBackendContract(1)
+    expect(notifySpy).toHaveBeenCalledTimes(1)
   })
 
   it('dismisses the toast when the backend meets the contract', () => {

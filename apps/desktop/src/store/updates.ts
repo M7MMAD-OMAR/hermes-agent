@@ -148,7 +148,28 @@ function isInstallMethodToastSnoozed(): boolean {
  * Runs on every session open; closing the toast snoozes it for a cooldown so it
  * doesn't nag on every thread switch.
  */
+// The highest contract any session payload has reported this app run. A
+// missing key has to read as "pre-GUI checkout" the FIRST time (that is how an
+// old backend is recognised at all), but once this backend has proven itself
+// current, a later payload without the key is a partial payload, not skew. Four
+// separate hand-rolled `info` dicts have produced exactly that false alarm
+// (#36112, #68392, the compression resume path, and the fresh-Bot-Chat resume
+// on 6 Sept 2026); the gateway-side AST sweep catches new ones in tests, this
+// keeps a fifth from ever reaching the user.
+let bestContractSeen = 0
+
+/** Test seam: forget what this app run has seen from the backend. */
+export function resetBackendContractMemory(): void {
+  bestContractSeen = 0
+}
+
 export function reportBackendContract(contract: number | undefined): void {
+  if (typeof contract === 'number' && Number.isFinite(contract)) {
+    bestContractSeen = Math.max(bestContractSeen, contract)
+  } else if (bestContractSeen >= REQUIRED_BACKEND_CONTRACT) {
+    contract = bestContractSeen
+  }
+
   if ((contract ?? 0) >= REQUIRED_BACKEND_CONTRACT) {
     dismissNotification(SKEW_TOAST_ID)
     // Backend caught up — forget any prior snooze so a future regression warns

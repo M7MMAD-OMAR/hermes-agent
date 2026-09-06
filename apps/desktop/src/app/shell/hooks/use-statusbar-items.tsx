@@ -271,9 +271,12 @@ export function useStatusbarItems({
   // and the store merges rather than replaces, so the PREVIOUS session's gauge
   // numbers survive the switch. Mid-turn there's no breakdown by design and
   // the streamed usage carries the gauge.
+  // A breakdown with no window (a lazy session answered before its agent was
+  // built) carries nothing the streamed usage lacks, and shadowing it painted
+  // "~0 / 0" through the whole first turn.
   const gaugeUsage = useMemo<UsageStats>(
     () =>
-      contextBreakdown
+      contextBreakdown && contextBreakdown.context_max > 0
         ? {
             ...currentUsage,
             context_max: contextBreakdown.context_max,

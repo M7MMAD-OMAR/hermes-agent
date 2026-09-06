@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 import {
   $contextBreakdownBySession,
@@ -36,18 +36,30 @@ export function useContextBreakdown({ busy, enabled, requestGateway, sessionId }
   loading: boolean
 } {
   const bySession = useStore($contextBreakdownBySession)
+  const { breakdown, loading } = contextBreakdownFor(sessionId, bySession)
+  // Read through a ref so the effect below keys on turn boundaries only; a
+  // dependency on the entry itself would refetch on its own answer.
+  const breakdownRef = useRef(breakdown)
+
+  breakdownRef.current = breakdown
 
   useEffect(() => {
+    if (!enabled || !sessionId) {
+      return
+    }
+
     // Mid-turn the transcript changes on every delta and the gateway already
     // streams measured usage, so an estimate would be both stale and wasteful.
-    if (!enabled || !sessionId || busy) {
+    // The one exception is a session that answered before its agent existed
+    // (lazy resume: no categories, no window): its agent is built by the time
+    // the turn starts, so ask once more then rather than painting 0/0 until
+    // the turn ends.
+    if (busy && breakdownRef.current?.categories.length) {
       return
     }
 
     void refreshContextBreakdown(sessionId, requestGateway)
   }, [busy, enabled, requestGateway, sessionId])
-
-  const { breakdown, loading } = contextBreakdownFor(sessionId, bySession)
 
   return { breakdown, loading }
 }

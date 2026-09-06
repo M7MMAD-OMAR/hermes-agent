@@ -443,12 +443,16 @@ describe('a file edit among ordinary activity', () => {
     expect(shape).toEqual(['summary', 'row', 'summary'])
   })
 
-  it('keeps the diff itself on screen rather than behind the summary', async () => {
+  it('keeps the edit row on screen, collapsed to its summary line', async () => {
     const { container } = render(<GroupHarness message={editBetweenRunsMessage()} />)
 
+    // The row itself is not folded into a run summary, but it starts closed:
+    // the header carries the file and its +N/-N, and the patch body waits
+    // behind the caret (data-file-edit marks an OPEN edit row).
     await waitFor(() => {
-      expect(container.querySelector('[data-tool-row][data-file-edit]')).not.toBeNull()
+      expect(container.querySelector('[data-tool-row] button[aria-expanded="false"]')).not.toBeNull()
     })
+    expect(container.querySelector('[data-tool-row][data-file-edit]')).toBeNull()
   })
 })
 

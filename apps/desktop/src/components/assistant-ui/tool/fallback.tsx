@@ -374,8 +374,11 @@ function ToolEntry({ part }: ToolEntryProps) {
   const sideDiff = useStore($toolInlineDiff(toolCallId ?? ''))
   const inlineDiff = stripInlineDiffChrome(sideDiff) || inlineDiffFromResult(result)
   const isFileEdit = isFileEditTool(toolName)
-  const defaultOpen = Boolean(inlineDiff)
-  const open = useDisclosureOpen(disclosureId, defaultOpen)
+  // Rows start collapsed, diffs included: the header already names the file
+  // and its +N/-N, which is the summary the reader wants by default. A diff
+  // that auto-unfurled on every edit turned a long session into a wall of
+  // patches; the caret (persisted per row) is one click away.
+  const open = useDisclosureOpen(disclosureId, false)
   const canDismiss = !isPending && !embedded
   // Only animate entries that mount while their message is actively
   // streaming — historical sessions mount with `messageRunning === false`,

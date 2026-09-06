@@ -187,7 +187,10 @@ export function useSlashCommand(deps: SlashCommandDeps) {
   const compressInFlightRef = useRef(new Set<string>())
 
   return useCallback(
-    async (rawCommand: string, options?: { sessionId?: string; recordInput?: boolean }) => {
+    async (
+      rawCommand: string,
+      options?: { sessionId?: string; recordInput?: boolean; storedSessionId?: null | string }
+    ) => {
       // Resolve the session this command targets through the SHARED ladder that
       // submit.ts uses. A slash command runs backend commands against a runtime
       // session, and per-session state (`/goal`, `/usage`, `/status`) is keyed by
@@ -205,7 +208,11 @@ export function useSlashCommand(deps: SlashCommandDeps) {
           getRuntimeIdForStoredSession,
           requestGateway,
           routedStoredSessionId: getRoutedStoredSessionId(),
-          selectedStoredSessionId: selectedStoredSessionIdRef.current
+          selectedStoredSessionId: selectedStoredSessionIdRef.current,
+          // A queued /slash drained for a BACKGROUND chat names its own
+          // conversation here. Without it the ladder fell to the foreground
+          // runtime and ran the queued command in the chat on screen.
+          targetStoredSessionId: options?.storedSessionId ?? null
         })
 
       // Resolve the target session plus a writer for inline slash output, or

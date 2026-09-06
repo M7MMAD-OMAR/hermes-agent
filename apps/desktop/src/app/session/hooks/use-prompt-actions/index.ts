@@ -611,9 +611,19 @@ export function usePromptActions({
 
       if (!attachments.length && SLASH_COMMAND_RE.test(visibleText)) {
         triggerHaptic('selection')
-        // Forward the explicit target (background queue drain, tile) — dropping
-        // it ran the command against whatever chat happened to be in front.
-        await executeSlashCommand(visibleText, options?.sessionId ? { sessionId: options.sessionId } : undefined)
+
+        // Forward BOTH halves of the explicit target (background queue drain,
+        // tile). Forwarding only the runtime id was not enough: a drain whose
+        // binding was reaped passes `sessionId: null`, and the command then
+        // resolved to the foreground runtime and ran in whatever chat was in
+        // front. The stored id names the conversation even when no runtime is
+        // bound, so the resolver can rebind it instead of inheriting.
+        const slashTarget = {
+          ...(options?.sessionId ? { sessionId: options.sessionId } : {}),
+          ...(options?.storedSessionId ? { storedSessionId: options.storedSessionId } : {})
+        }
+
+        await executeSlashCommand(visibleText, Object.keys(slashTarget).length ? slashTarget : undefined)
 
         return true
       }

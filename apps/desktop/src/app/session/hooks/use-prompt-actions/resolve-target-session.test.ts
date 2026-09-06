@@ -142,3 +142,88 @@ describe('resolveTargetSessionId', () => {
     expect(requestGateway).toHaveBeenCalledWith('session.resume', expect.objectContaining({ session_id: STORED }))
   })
 })
+
+describe('a caller-named background conversation', () => {
+  // The cross-session leak: a queued /slash command drained for a chat the user
+  // is NOT looking at. Its runtime binding is routinely absent (reap,
+  // reconnect, profile swap), and the foreground runtime is a DIFFERENT
+  // conversation, so inheriting it runs the queued command in the wrong chat.
+  const BACKGROUND = 'stored-background-chat'
+  const FOREGROUND_RUNTIME = 'rt-foreground-WRONG'
+
+  it('never inherits the foreground runtime when the binding is missing', async () => {
+    const createSession = vi.fn(async () => 'rt-brand-new-WRONG')
+    const requestGateway = vi.fn(async () => ({ session_id: RECOVERED }))
+
+    const resolved = await resolveTargetSessionId(
+      deps({
+        activeRuntimeId: FOREGROUND_RUNTIME,
+        createSession,
+        requestGateway: requestGateway as never,
+        routedStoredSessionId: 'stored-foreground-chat',
+        selectedStoredSessionId: 'stored-foreground-chat',
+        targetStoredSessionId: BACKGROUND
+      })
+    )
+
+    expect(resolved).toBe(RECOVERED)
+    expect(resolved).not.toBe(FOREGROUND_RUNTIME)
+    expect(createSession).not.toHaveBeenCalled()
+    expect(requestGateway).toHaveBeenCalledWith('session.resume', {
+      session_id: BACKGROUND,
+      source: 'desktop',
+      profile: 'work'
+    })
+  })
+
+  it('prefers that conversation\'s own runtime binding over the foreground one', async () => {
+    const resolved = await resolveTargetSessionId(
+      deps({
+        activeRuntimeId: FOREGROUND_RUNTIME,
+        getRuntimeIdForStoredSession: id => (id === BACKGROUND ? 'rt-background' : FOREGROUND_RUNTIME),
+        selectedStoredSessionId: 'stored-foreground-chat',
+        targetStoredSessionId: BACKGROUND
+      })
+    )
+
+    expect(resolved).toBe('rt-background')
+  })
+
+  it('reports failure rather than retargeting when the chat cannot be rebound', async () => {
+    const createSession = vi.fn(async () => 'rt-brand-new-WRONG')
+    const requestGateway = vi.fn(async () => {
+      throw new Error('gateway down')
+    })
+
+    const resolved = await resolveTargetSessionId(
+      deps({
+        activeRuntimeId: FOREGROUND_RUNTIME,
+        createSession,
+        requestGateway: requestGateway as never,
+        selectedStoredSessionId: 'stored-foreground-chat',
+        targetStoredSessionId: BACKGROUND
+      })
+    )
+
+    expect(resolved).toBeNull()
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
+  it('leaves the ordinary foreground ladder untouched', async () => {
+    // Same conversation named by both: the existing rungs must still decide,
+    // so a fresh chat keeps using its live runtime rather than resuming.
+    const requestGateway = vi.fn(async () => ({ session_id: 'rt-resumed-UNWANTED' }))
+
+    const resolved = await resolveTargetSessionId(
+      deps({
+        activeRuntimeId: 'rt-foreground',
+        requestGateway: requestGateway as never,
+        selectedStoredSessionId: 'stored-foreground-chat',
+        targetStoredSessionId: 'stored-foreground-chat'
+      })
+    )
+
+    expect(resolved).toBe('rt-foreground')
+    expect(requestGateway).not.toHaveBeenCalled()
+  })
+})

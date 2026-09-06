@@ -26,6 +26,13 @@ import type { GatewayRequest } from './utils'
  *
  *   1. An explicit runtime id from the caller (queue drain / tile) — always
  *      authoritative.
+ *   1b. A stored session the caller NAMED that is not the one in front. A queue
+ *      drain for a background chat carries `targetStoredSessionId`; its runtime
+ *      binding is routinely absent (reap, reconnect, profile swap), and without
+ *      this rung rung 2 handed the command the FOREGROUND runtime — the queued
+ *      prompt then ran in whichever chat the user happened to be looking at.
+ *      Resolve it from the binding map, else resume it; never inherit the
+ *      foreground, never create.
  *   2. The live runtime ref. A durable ROUTE outranks it: when the URL names a
  *      conversation whose runtime binding the cache does not confirm, the ref
  *      is stale or cross-wired (often from the previous profile) and must not
@@ -50,6 +57,9 @@ export interface ResolveTargetSessionDeps {
   requestGateway: GatewayRequest
   routedStoredSessionId: null | string
   selectedStoredSessionId: null | string
+  /** The stored conversation this command belongs to, when the caller knows it
+   *  (queue drain, tile). Authoritative over the foreground runtime. */
+  targetStoredSessionId?: null | string
 }
 
 export async function resolveTargetSessionId(deps: ResolveTargetSessionDeps): Promise<null | string> {
@@ -60,35 +70,12 @@ export async function resolveTargetSessionId(deps: ResolveTargetSessionDeps): Pr
     getRuntimeIdForStoredSession,
     requestGateway,
     routedStoredSessionId,
-    selectedStoredSessionId
+    selectedStoredSessionId,
+    targetStoredSessionId
   } = deps
 
-  // 1. An explicit target always wins — the caller knows which session it means.
-  if (explicitRuntimeId) {
-    return explicitRuntimeId
-  }
-
-  // A route whose runtime binding is incomplete or cross-wired outranks the
-  // live ref: a profile swap / reconnect can leave the previous profile's
-  // runtime active while the URL still names the conversation on screen.
-  // Matches submit.ts's `routedSessionNeedsResume`.
-  const routedNeedsResume = Boolean(
-    routedStoredSessionId &&
-    (selectedStoredSessionId !== routedStoredSessionId ||
-      !activeRuntimeId ||
-      activeRuntimeId !== getRuntimeIdForStoredSession(routedStoredSessionId))
-  )
-
-  // 2. Trust the live runtime unless the durable route disagrees with it.
-  if (activeRuntimeId && !routedNeedsResume) {
-    return activeRuntimeId
-  }
-
-  // 3. Rebind the durable conversation on its owning profile. The route wins
-  //    over a stale selection; otherwise continue whatever is selected.
-  const storedTarget = routedNeedsResume ? routedStoredSessionId : (selectedStoredSessionId ?? routedStoredSessionId)
-
-  if (storedTarget) {
+  /** Rebind a durable conversation on its OWNING profile. Never creates. */
+  const resumeStored = async (storedTarget: string): Promise<null | string> => {
     try {
       // Reuse a runtime an aborted recovery already minted for this stored
       // session; otherwise resume once, shared across concurrent callers.
@@ -115,6 +102,44 @@ export async function resolveTargetSessionId(deps: ResolveTargetSessionDeps): Pr
       // resolver exists to prevent (#55578 class).
       return null
     }
+  }
+
+  // 1. An explicit target always wins — the caller knows which session it means.
+  if (explicitRuntimeId) {
+    return explicitRuntimeId
+  }
+
+  // 1b. The caller named a conversation that is NOT the one in front. Its own
+  //     binding or a resume — never the foreground runtime, which is a
+  //     different chat by construction here. Mirrors submit.ts's
+  //     `isBackgroundQueueDrain`, which had this guard while this resolver
+  //     (used by every queued /slash command) did not.
+  if (targetStoredSessionId && targetStoredSessionId !== selectedStoredSessionId) {
+    return getRuntimeIdForStoredSession(targetStoredSessionId) ?? (await resumeStored(targetStoredSessionId))
+  }
+
+  // A route whose runtime binding is incomplete or cross-wired outranks the
+  // live ref: a profile swap / reconnect can leave the previous profile's
+  // runtime active while the URL still names the conversation on screen.
+  // Matches submit.ts's `routedSessionNeedsResume`.
+  const routedNeedsResume = Boolean(
+    routedStoredSessionId &&
+    (selectedStoredSessionId !== routedStoredSessionId ||
+      !activeRuntimeId ||
+      activeRuntimeId !== getRuntimeIdForStoredSession(routedStoredSessionId))
+  )
+
+  // 2. Trust the live runtime unless the durable route disagrees with it.
+  if (activeRuntimeId && !routedNeedsResume) {
+    return activeRuntimeId
+  }
+
+  // 3. Rebind the durable conversation on its owning profile. The route wins
+  //    over a stale selection; otherwise continue whatever is selected.
+  const storedTarget = routedNeedsResume ? routedStoredSessionId : (selectedStoredSessionId ?? routedStoredSessionId)
+
+  if (storedTarget) {
+    return await resumeStored(storedTarget)
   }
 
   // 4. A genuine new-chat draft: nothing durable is in play.

@@ -231,6 +231,15 @@ export const zhHant = defineLocale({
   },
 
   titlebar: {
+    inbox: {
+      open: '通知',
+      title: '通知',
+      empty: '沒有新訊息',
+      emptyHint: '已完成的對話、待核准項目與提問會顯示在這裡。',
+      markAllRead: '全部標為已讀',
+      clear: '清除',
+      unread: count => `${count} 則未讀通知`
+    },
     hideSidebar: '隱藏側邊欄',
     showSidebar: '顯示側邊欄',
     search: '搜尋',

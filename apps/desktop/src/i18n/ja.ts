@@ -240,6 +240,15 @@ export const ja = defineLocale({
   },
 
   titlebar: {
+    inbox: {
+      open: '通知',
+      title: '通知',
+      empty: '新しい通知はありません',
+      emptyHint: '完了したチャット、承認待ち、質問がここに表示されます。',
+      markAllRead: 'すべて既読にする',
+      clear: 'クリア',
+      unread: count => `未読の通知 ${count} 件`
+    },
     hideSidebar: 'サイドバーを非表示',
     showSidebar: 'サイドバーを表示',
     search: '検索',

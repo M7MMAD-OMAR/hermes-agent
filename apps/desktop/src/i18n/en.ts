@@ -254,7 +254,16 @@ export const en: Translations = {
     exitHud: 'Exit HUD mode',
     resetHudLayout: 'Reset HUD size and position',
     layoutEditor: 'Layout editor',
-    layoutEditorTitle: mod => `Layout editor — ${mod}-click resets the layout`
+    layoutEditorTitle: mod => `Layout editor — ${mod}-click resets the layout`,
+    inbox: {
+      open: 'Notifications',
+      title: 'Notifications',
+      empty: 'Nothing new',
+      emptyHint: 'Finished chats, approvals and questions land here.',
+      markAllRead: 'Mark all as read',
+      clear: 'Clear',
+      unread: count => (count === 1 ? '1 unread notification' : `${count} unread notifications`)
+    }
   },
 
   keybinds: {

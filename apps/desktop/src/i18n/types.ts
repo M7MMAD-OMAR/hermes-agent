@@ -295,6 +295,15 @@ export interface Translations {
     resetHudLayout: string
     layoutEditor: string
     layoutEditorTitle: (modifier: string) => string
+    inbox: {
+      open: string
+      title: string
+      empty: string
+      emptyHint: string
+      markAllRead: string
+      clear: string
+      unread: (count: number) => string
+    }
   }
 
   keybinds: {

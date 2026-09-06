@@ -7,7 +7,15 @@ import { toggleLayoutEditMode } from '@/components/pane-shell/edit-mode'
 import { resetLayoutTree } from '@/components/pane-shell/tree/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tip, TipKeybindLabel } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  Tip,
+  TipKeybindLabel,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { compactNumber } from '@/lib/format'
 import { triggerHaptic } from '@/lib/haptics'
@@ -23,10 +31,12 @@ import {
   togglePanesFlipped,
   toggleSidebarOpen
 } from '@/store/layout'
+import { $unreadInboxCount } from '@/store/notification-inbox'
 import { $unreadSessionCount } from '@/store/session-dot-state'
 
 import { appViewForPath, isOverlayView } from '../routes'
 
+import { NotificationInboxPanel } from './notification-inbox-panel'
 import {
   TITLEBAR_ICON_BADGE_SCALE,
   titlebarButtonClass,
@@ -49,6 +59,11 @@ export interface TitlebarTool {
   actionId?: string
   /** Overlay count on the glyph (unread sessions). Hidden when 0/undefined. */
   badge?: number
+  /** Renders a popover under the button instead of firing `onSelect`. The fn
+   *  receives a `close()` so the content can dismiss itself after acting. */
+  menuContent?: ((close: () => void) => ReactNode) | ReactNode
+  /** Width class for that popover. */
+  menuClassName?: string
   title?: string
   to?: string
   /** Durable `data-tour` handle. Tools are addressed by icon and translated
@@ -139,6 +154,7 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
   const panesFlipped = useStore($panesFlipped)
   const sidebarOpen = useStore($sidebarOpen)
   const unreadCount = useStore($unreadSessionCount)
+  const unreadInbox = useStore($unreadInboxCount)
   const unreadBadge = unreadCount > 0 ? unreadCount : undefined
   const unreadHint = unreadBadge ? ` · ${t.titlebar.unreadSessions(unreadBadge)}` : ''
 
@@ -246,6 +262,18 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
       onSelect: toggleHaptics
     },
     {
+      // The bell counts INBOX entries. The sidebar tool's badge counts unread
+      // SESSIONS and is left alone: they answer different questions ("what
+      // happened just now" vs "which chats have I not read"), and making one
+      // mirror the other would give the titlebar two numbers that disagree.
+      badge: unreadInbox > 0 ? unreadInbox : undefined,
+      icon: <TitlebarIcon name={unreadInbox > 0 ? 'bell-dot' : 'bell'} />,
+      id: 'notifications',
+      label: t.titlebar.inbox.open,
+      menuContent: (close: () => void) => <NotificationInboxPanel onClose={close} />,
+      title: unreadInbox > 0 ? t.titlebar.inbox.unread(unreadInbox) : t.titlebar.inbox.open
+    },
+    {
       actionId: 'nav.settings',
       icon: <TitlebarIcon name="settings-gear" />,
       id: 'settings',
@@ -320,6 +348,8 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
 }
 
 function TitlebarToolButton({ navigate, tool }: { navigate: ReturnType<typeof useNavigate>; tool: TitlebarTool }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
   // Titlebar actions never show an active background — state reads from the
   // icon itself (e.g. the mute/unmute glyph). aria-pressed still carries it
   // for a11y.
@@ -330,6 +360,43 @@ function TitlebarToolButton({ navigate, tool }: { navigate: ReturnType<typeof us
   ) : (
     (tool.title ?? tool.label)
   )
+
+  if (tool.menuContent) {
+    // `Tip` cannot wrap a menu: its TooltipTrigger needs a DOM child, but
+    // DropdownMenu's Root renders no element, so the hover listeners never land
+    // on the button and the tooltip silently never appears. Compose both
+    // triggers onto the same button instead, the way the statusbar does.
+    const trigger = (
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label={tool.label}
+          className={className}
+          data-tour={tool.tour}
+          disabled={tool.disabled}
+          onPointerDown={event => event.stopPropagation()}
+          size="icon-titlebar"
+          type="button"
+          variant="ghost"
+        >
+          {withCountBadge(tool.icon, tool.badge)}
+        </Button>
+      </DropdownMenuTrigger>
+    )
+
+    return (
+      <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+            <TooltipContent>{tooltipLabel}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <DropdownMenuContent align="end" className={cn('w-80 p-0', tool.menuClassName)} sideOffset={6}>
+          {typeof tool.menuContent === 'function' ? tool.menuContent(() => setMenuOpen(false)) : tool.menuContent}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
 
   if (tool.href) {
     return (

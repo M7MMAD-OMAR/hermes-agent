@@ -4,6 +4,7 @@ import { type HermesOpenTarget, resolveHermesOpenPath } from '@/lib/hermes-open-
 import { persistString, storedString } from '@/lib/storage'
 
 import { $gateway } from './gateway'
+import { recordInboxEntry } from './notification-inbox'
 import { withinNativeNotifyBaseline } from './notify-baseline'
 import { clearApprovalRequest } from './prompts'
 import { isSessionGone, isSessionGoneForBackgroundPolling, markSessionGone } from './runtime-gone'
@@ -203,6 +204,16 @@ export interface NativeNotificationInput {
  *  OS bridge — callers registering per-notification state (plugin handlers)
  *  must only do so on true, or suppressed/throttled notifications leak it. */
 export function dispatchNativeNotification(input: NativeNotificationInput): boolean {
+  // Record BEFORE any gate. Every early return below is a case where the OS was
+  // deliberately not interrupted (the kind is muted, the user is looking at the
+  // app, a duplicate arrived), and those are precisely the events people go
+  // looking for afterwards. The inbox applies its own, narrower filter.
+  //
+  // The return value is unaffected on purpose: its contract is "an OS
+  // notification IS being shown", which plugin callers rely on to avoid leaking
+  // per-notification handler state.
+  recordInboxEntry({ body: input.body, global: input.global, kind: input.kind, sessionId: input.sessionId, title: input.title })
+
   const prefs = $nativeNotifyPrefs.get()
 
   if (!prefs.enabled || !prefs.kinds[input.kind]) {

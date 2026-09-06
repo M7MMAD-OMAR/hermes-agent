@@ -223,6 +223,15 @@ export const ru = defineLocale({
   },
 
   titlebar: {
+    inbox: {
+      open: 'Уведомления',
+      title: 'Уведомления',
+      empty: 'Ничего нового',
+      emptyHint: 'Здесь появляются завершённые чаты, запросы подтверждения и вопросы.',
+      markAllRead: 'Отметить все как прочитанные',
+      clear: 'Очистить',
+      unread: count => `Непрочитанных уведомлений: ${count}`
+    },
     hideSidebar: 'Скрыть боковую панель',
     showSidebar: 'Показать боковую панель',
     search: 'Поиск',

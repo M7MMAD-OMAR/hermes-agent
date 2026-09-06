@@ -231,6 +231,15 @@ export const zh: Translations = {
   },
 
   titlebar: {
+    inbox: {
+      open: '通知',
+      title: '通知',
+      empty: '暂无新消息',
+      emptyHint: '已完成的对话、待批准项和提问会显示在这里。',
+      markAllRead: '全部标为已读',
+      clear: '清空',
+      unread: count => `${count} 条未读通知`
+    },
     hideSidebar: '隐藏侧边栏',
     showSidebar: '显示侧边栏',
     search: '搜索',

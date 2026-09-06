@@ -97,11 +97,15 @@ class KimiProfile(ProviderProfile):
     ):
         """Kimi Code plan quotas: a rolling window plus a longer one.
 
-        ``GET {coding}/v1/usages``. The response labels a field ``used`` whose
-        value tracks what is LEFT, while the sibling window calls the same
-        quantity ``remaining`` — so nothing here derives a percentage from
-        ``used``. Both figures are stored verbatim and the shared model derives
-        a percentage only from ``limit`` + ``remaining``, which is unambiguous.
+        ``GET {coding}/v1/usages``. Every window (``limits[].detail`` and the
+        rolling ``usage``) now carries ``limit``, ``used`` and ``remaining``
+        side by side (verified 6 Sept 2026: ``used: 30, remaining: 70`` on a
+        100-unit period). An older shape labelled the leftover amount ``used``
+        on the rolling window and had no ``remaining`` there, so ``used`` is
+        read as the remainder ONLY when ``remaining`` is absent. Reading
+        ``used`` as ``remaining`` on the current shape inverted the period
+        gauge (30 left shown for 70 left). The shared model derives the
+        percentage from ``limit`` + ``remaining``.
 
         Window length comes from the payload (``window.duration`` +
         ``timeUnit``), never from a guessed name: the second window's
@@ -144,8 +148,9 @@ class KimiProfile(ProviderProfile):
                 UsageWindow(
                     label=_kimi_window_label(entry.get("window") or {}),
                     unit=UNIT_COUNT,
+                    used=to_decimal(detail.get("used")) if "remaining" in detail else None,
                     limit=to_decimal(detail.get("limit")),
-                    remaining=to_decimal(detail.get("remaining")),
+                    remaining=to_decimal(detail.get("remaining", detail.get("used"))),
                     reset_at=to_datetime(detail.get("resetTime")),
                 )
             )
@@ -156,8 +161,9 @@ class KimiProfile(ProviderProfile):
                 UsageWindow(
                     label="period",
                     unit=UNIT_COUNT,
+                    used=to_decimal(rolling.get("used")) if "remaining" in rolling else None,
                     limit=to_decimal(rolling.get("limit")),
-                    remaining=to_decimal(rolling.get("used")),
+                    remaining=to_decimal(rolling.get("remaining", rolling.get("used"))),
                     reset_at=to_datetime(rolling.get("resetTime")),
                 )
             )

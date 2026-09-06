@@ -146,3 +146,75 @@ class TestKimiFullKwargsIntegration:
         )
 
 
+
+
+class TestKimiUsageWindows:
+    """``fetch_usage`` reads what each window MEANS, not what it is labelled.
+
+    The live payload (6 Sept 2026) carries ``limit``/``used``/``remaining``
+    on every window. An older shape put the leftover amount under ``used`` on
+    the rolling window with no ``remaining`` at all; the parser read ``used``
+    as the remainder unconditionally, which on the current shape showed
+    "30 left" for a period with 70 left.
+    """
+
+    _PAYLOAD = {
+        "user": {"membership": {"level": "LEVEL_ADVANCED"}},
+        "usage": {"limit": "100", "used": "30", "remaining": "70", "resetTime": "2026-09-11T11:01:47Z"},
+        "limits": [
+            {
+                "window": {"duration": 300, "timeUnit": "TIME_UNIT_MINUTE"},
+                "detail": {"limit": "100", "used": "93", "remaining": "7", "resetTime": "2026-09-06T04:01:47Z"},
+            }
+        ],
+    }
+
+    @staticmethod
+    def _fetch(kimi_profile, payload, monkeypatch):
+        import httpx
+
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return payload
+
+        class _Client:
+            def __init__(self, *a, **k):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get(self, *a, **k):
+                return _Resp()
+
+        monkeypatch.setattr(httpx, "Client", _Client)
+        cred = type("Cred", (), {"access_token": "tok", "base_url": "https://api.kimi.com/coding"})()
+        return kimi_profile.fetch_usage(credential=cred)
+
+    def test_current_shape_reads_remaining_not_used(self, kimi_profile, monkeypatch):
+        usage = self._fetch(kimi_profile, self._PAYLOAD, monkeypatch)
+        by_label = {w.label: w for w in usage.windows}
+        assert usage.plan == "Advanced"
+        assert str(by_label["period"].remaining) == "70"
+        assert str(by_label["period"].used) == "30"
+        assert by_label["period"].used_percent == 30.0
+        assert str(by_label["5h"].remaining) == "7"
+        assert by_label["5h"].used_percent == 93.0
+
+    def test_legacy_shape_without_remaining_treats_used_as_remainder(self, kimi_profile, monkeypatch):
+        legacy = {
+            "user": {"membership": {"level": "LEVEL_ADVANCED"}},
+            "usage": {"limit": "100", "used": "70", "resetTime": "2026-09-11T11:01:47Z"},
+            "limits": [],
+        }
+        usage = self._fetch(kimi_profile, legacy, monkeypatch)
+        (period,) = usage.windows
+        assert str(period.remaining) == "70"
+        assert period.used is None
+        assert period.used_percent == 30.0

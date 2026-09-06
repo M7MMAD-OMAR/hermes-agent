@@ -11,6 +11,7 @@ import { GatewayMenuPanel } from '@/app/shell/gateway-menu-panel'
 import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { useSystemResourcesStatusbarItem } from '@/app/shell/system-resources-statusbar'
 import { WorkspaceFolderMenu } from '@/app/shell/workspace-folder-menu'
+import { workspaceMoveTargetSessionId } from '@/app/shell/workspace-move-target'
 import { $paneVisible, togglePaneVisible } from '@/components/pane-shell/tree/store'
 import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
@@ -308,10 +309,7 @@ export function useStatusbarItems({
     [gatewayState, inferenceStatus, openCommandCenterSection, statusSnapshot]
   )
 
-  // The chat the workspace chip describes, so the picker moves THAT one: a
-  // focused tile owns its own row, and only the primary falls back to the
-  // selection. A draft with no row yet leaves the panel read-only.
-  const workspaceSessionId = focusedStoredSessionId || selectedStoredSessionId || null
+  const workspaceSessionId = workspaceMoveTargetSessionId(focusedStoredSessionId, selectedStoredSessionId)
 
   const workspaceMenuContent = useMemo(
     () => (close: () => void) => (

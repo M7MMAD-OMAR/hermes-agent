@@ -452,7 +452,18 @@ function runtimeReferenced(runtimeId: string, storedSessionId: null | string): b
  *  moves focus off the tile that owns the turn. On screen is the property that
  *  actually holds; a session with no surface is still refused. */
 export function runtimeHasOpenSurface(runtimeId: null | string): boolean {
-  return !!runtimeId && runtimeReferenced(runtimeId, null)
+  if (!runtimeId) {
+    return false
+  }
+
+  // Hand `runtimeReferenced` this runtime's OWN stored id, so its mid-resume
+  // clause can actually fire. Passing null killed that clause outright, which
+  // left a window during a tile's resume where a session plainly on screen
+  // reported no surface: the tile references by stored id until `resumeTile`
+  // returns and patches the runtime binding in. Everything gated on this
+  // (preview-pane permission, completion notifications, the notification list)
+  // silently refused that session for the length of the resume.
+  return runtimeReferenced(runtimeId, $sessionStates.get()[runtimeId]?.storedSessionId ?? null)
 }
 
 /** A state no surface needs anymore: its turn is over (not busy, not waiting

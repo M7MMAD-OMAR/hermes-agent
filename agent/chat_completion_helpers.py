@@ -1721,9 +1721,34 @@ def build_assistant_message(agent, assistant_message, finish_reason: str) -> dic
         if value:
             msg[attr] = value
 
+    # Record WHICH model signed the thinking on this turn. Anthropic validates a
+    # signature against its producer, so after a /model switch every stored
+    # signature is unreplayable and the request 400s on
+    # "Invalid signature in thinking block" — with no way to tell, the converter
+    # replayed it anyway. Only stamped when a signed carrier is actually
+    # present, so ordinary turns gain no field. See PERSISTENCE_ONLY_MESSAGE_FIELDS.
+    if _carries_signed_thinking(msg):
+        msg["thinking_model"] = getattr(agent, "model", "") or ""
+
     if assistant_tool_calls:
         msg["tool_calls"] = [_assistant_tool_call_dict(agent, tc, i) for i, tc in enumerate(assistant_tool_calls)]
     return msg
+
+
+def _carries_signed_thinking(msg: dict) -> bool:
+    """Whether this assistant turn stores a provider-signed thinking carrier.
+
+    Two independent replay paths exist and BOTH carry signatures:
+    ``reasoning_details`` (rebuilt block list) and ``anthropic_content_blocks``
+    (verbatim interleaved-thinking replay). A fix that knows about only one of
+    them leaves the other 400-ing.
+    """
+    if isinstance(msg.get("anthropic_content_blocks"), list) and msg["anthropic_content_blocks"]:
+        return True
+    for detail in msg.get("reasoning_details") or ():
+        if isinstance(detail, dict) and (detail.get("signature") or detail.get("data")):
+            return True
+    return False
 
 
 def rewrite_prompt_model_identity(agent, model: str, provider: str) -> None:

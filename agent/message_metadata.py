@@ -8,7 +8,12 @@ from typing import Any, MutableMapping, Optional, TypeVar
 
 # These fields describe Hermes' durable record, not provider-visible message
 # content. They must not influence context-pressure decisions.
-PERSISTENCE_ONLY_MESSAGE_FIELDS = frozenset({"timestamp"})
+# ``thinking_model``: which model MINTED the signed thinking on this turn.
+# Anthropic validates a thinking signature against the model that produced it,
+# so replaying one after a /model switch (Kimi -> Claude, opus <-> sonnet) is a
+# guaranteed 400 "Invalid signature in thinking block". Persistence-only: it
+# never goes on the wire, it only tells the converter whose signature this is.
+PERSISTENCE_ONLY_MESSAGE_FIELDS = frozenset({"timestamp", "thinking_model"})
 
 _Message = TypeVar("_Message", bound=MutableMapping[str, Any])
 

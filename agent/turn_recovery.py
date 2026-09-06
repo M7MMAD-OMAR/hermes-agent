@@ -362,13 +362,24 @@ def _recover_format_errors(
         _retry.thinking_sig_retry_attempted = True
         _api_stripped = 0
         for _m in api_messages:
-            if isinstance(_m, dict) and "reasoning_details" in _m:
+            if not isinstance(_m, dict):
+                continue
+            # BOTH signed carriers, not just one. `anthropic_content_blocks` is the
+            # verbatim interleaved-thinking replay, and _convert_assistant_message
+            # returns from it BEFORE reading reasoning_details — so stripping
+            # reasoning_details alone repaired nothing for those turns, the retry hit
+            # the identical 400, and this one-shot flag then blocked any further
+            # recovery. That is how the error reached the user as a Provider error
+            # toast after a /model switch.
+            if any(key in _m for key in ("reasoning_details", "anthropic_content_blocks", "bedrock_content_blocks")):
                 _m.pop("reasoning_details", None)
+                _m.pop("anthropic_content_blocks", None)
+                _m.pop("bedrock_content_blocks", None)
                 _api_stripped += 1
-        _vlines(agent, "⚠️  Thinking block signature invalid, stripped reasoning_details from api_messages for retry...")
+        _vlines(agent, "⚠️  Thinking block signature invalid, stripped signed thinking from api_messages for retry...")
         logger.warning(
-            "%sThinking block signature recovery: stripped "
-            "reasoning_details from %d api_messages "
+            "%sThinking block signature recovery: stripped signed thinking carriers "
+            "(reasoning_details / anthropic_content_blocks) from %d api_messages "
             "(canonical messages unchanged)",
             agent.log_prefix, _api_stripped,
         )

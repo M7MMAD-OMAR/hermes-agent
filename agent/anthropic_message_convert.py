@@ -370,7 +370,20 @@ def _replay_ordered_blocks(m: Dict[str, Any], ordered_blocks: List[Any]) -> Opti
     return replayed
 
 
-def _convert_assistant_message(m: Dict[str, Any]) -> Dict[str, Any]:
+def _thinking_from_another_model(m: Dict[str, Any], current_model: str | None) -> bool:
+    """Whether this turn's signed thinking was minted by a DIFFERENT model.
+
+    Anthropic validates a thinking signature against its producer, so a turn
+    signed by Kimi K3 — or by opus when the chat has since switched to sonnet —
+    is rejected with 400 "Invalid signature in thinking block". Unstamped turns
+    (written before the stamp existed, or by a provider that signs nothing) read
+    as "no evidence of a mismatch" and keep the previous behaviour.
+    """
+    producer = str(m.get("thinking_model") or "").strip()
+    return bool(producer) and bool(current_model) and producer != str(current_model).strip()
+
+
+def _convert_assistant_message(m: Dict[str, Any], current_model: str | None = None) -> Dict[str, Any]:
     """Assistant message -> Anthropic content blocks (thinking, text, tool_use, Kimi/DeepSeek
     reasoning_content injection)."""
     # apply_anthropic_cache_control marks an assistant turn with non-empty text by writing cache_control
@@ -380,11 +393,18 @@ def _convert_assistant_message(m: Dict[str, Any]) -> Dict[str, Any]:
     # than relocated. #56195 covered the complementary shape (blank content -> top-level marker); this is
     # the interleaved thinking + preamble-text + tool_use shape.
     content = m.get("content", "")
+    # A signature minted by another model can never validate here. Flag rather
+    # than strip: _manage_thinking_signatures demotes the reasoning to text, so
+    # the words survive and only the unusable signature is dropped.
+    foreign_signature = _thinking_from_another_model(m, current_model)
     ordered_blocks = m.get("anthropic_content_blocks")
     if isinstance(ordered_blocks, list) and ordered_blocks:
         replayed = _replay_ordered_blocks(m, ordered_blocks)
         if replayed:
-            return {"role": "assistant", "content": replayed}
+            out: Dict[str, Any] = {"role": "assistant", "content": replayed}
+            if foreign_signature:
+                out["_thinking_signature_invalidated"] = True
+            return out
     blocks = _extract_preserved_thinking_blocks(m)
     # Blank text blocks are dropped; a cache marker riding on one is relocated onto the last
     # surviving cacheable block (prompt_caching sets cache_control on content[-1], which may be
@@ -415,7 +435,10 @@ def _convert_assistant_message(m: Dict[str, Any]) -> Dict[str, Any]:
     effective = blocks or [_text_block(_EMPTY_TEXT_PLACEHOLDER)]
     _apply_assistant_cache_control_to_last_cacheable_block(effective, relocated_cc)
     _apply_assistant_cache_control_to_last_cacheable_block(effective, m.get("cache_control"))
-    return {"role": "assistant", "content": effective}
+    converted: Dict[str, Any] = {"role": "assistant", "content": effective}
+    if foreign_signature:
+        converted["_thinking_signature_invalidated"] = True
+    return converted
 
 
 def _tool_result_content(m: Dict[str, Any]) -> Any:
@@ -692,7 +715,7 @@ def convert_messages_to_anthropic(
         if role == "system":
             system = _convert_system_content(m.get("content", ""))
         elif role == "assistant":
-            result.append(_convert_assistant_message(m))
+            result.append(_convert_assistant_message(m, model))
         elif role == "tool":
             _convert_tool_message_to_result(result, m)
         else:

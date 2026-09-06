@@ -590,29 +590,29 @@ interface WorkspaceMovePayload {
   git_repo_root?: null | string
 }
 
-// Re-home a stored session into another project's root folder — the fix for a
-// chat created in the wrong directory. The backend replaces cwd + git identity
-// (so the tree's grouping follows) and re-anchors any live agent bound to the
-// row; here we mirror the move into the `$sessions` cache so both the flat list
-// and the grouped tree reflect it before the next authoritative refresh.
-export async function moveSessionToProject(
-  sessionId: string,
-  projectId: string,
-  profile?: null | string
-): Promise<void> {
-  const cwd = projectRootCwd($projectTree.get().find(node => node.id === projectId))
+// Re-home a stored session into another folder, the fix for a chat created in
+// the wrong directory. The backend replaces cwd + git identity (so the tree's
+// grouping follows) and re-anchors any live agent bound to the row; here we
+// mirror the move into the `$sessions` cache so both the flat list and the
+// grouped tree reflect it before the next authoritative refresh.
+//
+// The cwd is the primitive because a folder is not always a project: the
+// statusbar workspace picker also offers an arbitrary directory chosen from the
+// native dialog. `moveSessionToProject` is the project-shaped caller on top.
+export async function moveSessionToCwd(sessionId: string, cwd: string, profile?: null | string): Promise<void> {
+  const target = (cwd || '').trim()
 
-  if (!cwd) {
+  if (!target) {
     throw new Error(translateNow('sidebar.projects.moveNoFolder'))
   }
 
   const res = await gatewayRequest<WorkspaceMovePayload>('session.workspace.move', {
-    cwd,
+    cwd: target,
     session_key: sessionId,
     ...(profile ? { profile } : {})
   })
 
-  const moved = res.cwd || cwd
+  const moved = res.cwd || target
   setSessions(prev =>
     prev.map(s =>
       sessionMatchesStoredId(s, sessionId)
@@ -621,6 +621,18 @@ export async function moveSessionToProject(
     )
   )
   void refreshProjectTree()
+}
+
+export async function moveSessionToProject(
+  sessionId: string,
+  projectId: string,
+  profile?: null | string
+): Promise<void> {
+  return moveSessionToCwd(
+    sessionId,
+    projectRootCwd($projectTree.get().find(node => node.id === projectId)),
+    profile
+  )
 }
 
 export interface RepoDiscoveryPolicy {

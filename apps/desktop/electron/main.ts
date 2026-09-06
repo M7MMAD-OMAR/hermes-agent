@@ -186,7 +186,6 @@ import {
   performFindAfterIndexingStarted,
   stopFind
 } from './find-in-page'
-import { classifyPreviewShortcut } from './preview-shortcut'
 import { createFirstRunSetupGate } from './first-run-setup-gate'
 import { registerFsIpc } from './fs-ipc'
 import {
@@ -297,6 +296,7 @@ import { poolTouchKeys } from './pool-touch-scope'
 import { createKeepAwake } from './power-save'
 import { capturePreviewContents } from './preview-capture'
 import { PreviewReachRegistry } from './preview-reach'
+import { classifyPreviewShortcut } from './preview-shortcut'
 import {
   createPrimaryRemoteConnection,
   FirstRunSetupResetError,

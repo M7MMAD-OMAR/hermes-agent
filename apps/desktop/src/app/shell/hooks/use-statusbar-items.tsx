@@ -10,6 +10,7 @@ import { ContextUsagePanel } from '@/app/shell/context-usage-panel'
 import { GatewayMenuPanel } from '@/app/shell/gateway-menu-panel'
 import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { useSystemResourcesStatusbarItem } from '@/app/shell/system-resources-statusbar'
+import { WorkspaceFolderMenu } from '@/app/shell/workspace-folder-menu'
 import { $paneVisible, togglePaneVisible } from '@/components/pane-shell/tree/store'
 import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
@@ -33,8 +34,6 @@ import { cacheHitLabel, contextBarLabel, LiveDuration, tokensPerSecondLabel, usa
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { resolveVersionStatus } from '@/lib/version-status'
-import { copyFilePath, revealFile } from '@/store/file-actions'
-import { revealFileInTree } from '@/store/layout'
 import { toggleEmbeddedBrowser } from '@/store/preview'
 import { $activeGatewayProfile } from '@/store/profile'
 import { $projectTree, projectNameForCwd } from '@/store/projects'
@@ -102,7 +101,6 @@ export function useStatusbarItems({
 }: StatusbarItemsOptions) {
   const { t } = useI18n()
   const copy = t.shell.statusbar
-  const fileMenu = t.fileMenu
   const primaryActiveSessionId = useStore($activeSessionId)
   const activeGatewayProfile = useStore($activeGatewayProfile)
   // What the button paints and flips is whether the terminal is ON SCREEN —
@@ -310,6 +308,23 @@ export function useStatusbarItems({
     [gatewayState, inferenceStatus, openCommandCenterSection, statusSnapshot]
   )
 
+  // The chat the workspace chip describes, so the picker moves THAT one: a
+  // focused tile owns its own row, and only the primary falls back to the
+  // selection. A draft with no row yet leaves the panel read-only.
+  const workspaceSessionId = focusedStoredSessionId || selectedStoredSessionId || null
+
+  const workspaceMenuContent = useMemo(
+    () => (close: () => void) => (
+      <WorkspaceFolderMenu
+        cwd={currentCwd}
+        onClose={close}
+        profile={activeGatewayProfile}
+        sessionId={workspaceSessionId}
+      />
+    ),
+    [activeGatewayProfile, currentCwd, workspaceSessionId]
+  )
+
   const gatewayOpen = gatewayState === 'open'
   const gatewayConnecting = gatewayState === 'connecting'
   const inferenceReady = gatewayOpen && inferenceStatus?.ready === true
@@ -468,28 +483,11 @@ export function useStatusbarItems({
         // the shared display formatter (home → ~) so statusbar and branch bar
         // agree on how a path looks.
         label: projectName || (currentCwd ? pathLeaf(currentCwd) : undefined),
-        menuItems: currentCwd
-          ? [
-              {
-                id: 'copy-workspace-path',
-                label: fileMenu.copyPath,
-                onSelect: () => void copyFilePath(currentCwd),
-                title: displayPath(currentCwd)
-              },
-              {
-                id: 'reveal-workspace-finder',
-                label: fileMenu.revealFileManager,
-                onSelect: () => void revealFile(currentCwd),
-                title: displayPath(currentCwd)
-              },
-              {
-                id: 'reveal-workspace-sidebar',
-                label: fileMenu.revealInSidebar,
-                onSelect: () => revealFileInTree(currentCwd),
-                title: displayPath(currentCwd)
-              }
-            ]
-          : undefined,
+        // A panel rather than a flat item list: the chip names the chat's
+        // folder, so it is also the natural place to CHANGE it. The read-only
+        // path actions stay, below the folder list.
+        menuContent: workspaceMenuContent,
+        menuClassName: 'w-64',
         title: currentCwd ? displayPath(currentCwd) : undefined,
         toggleLabel: copy.toggleWorkspace,
         variant: 'menu'
@@ -543,9 +541,6 @@ export function useStatusbarItems({
       commandCenterOpen,
       copy,
       currentCwd,
-      fileMenu.copyPath,
-      fileMenu.revealFileManager,
-      fileMenu.revealInSidebar,
       gatewayMenuContent,
       gatewayClassName,
       gatewayDetail,
@@ -557,7 +552,8 @@ export function useStatusbarItems({
       sessionsShowing,
       subagentsFailed,
       subagentsRunning,
-      toggleCommandCenter
+      toggleCommandCenter,
+      workspaceMenuContent
     ]
   )
 

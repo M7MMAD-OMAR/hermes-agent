@@ -191,6 +191,7 @@ describe('a caller-named background conversation', () => {
 
   it('reports failure rather than retargeting when the chat cannot be rebound', async () => {
     const createSession = vi.fn(async () => 'rt-brand-new-WRONG')
+
     const requestGateway = vi.fn(async () => {
       throw new Error('gateway down')
     })

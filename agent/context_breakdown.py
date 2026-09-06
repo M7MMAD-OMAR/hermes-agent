@@ -105,6 +105,20 @@ def _file_tool_names() -> frozenset:
         return frozenset()
 
 
+def _tool_name(call: Any) -> str:
+    """A tool call's function name (``function.name``, or a flat ``name``).
+
+    Restored: the 2 Sept 2026 simplify pass (7a9e36f226) dropped this helper
+    but kept its caller in ``_file_context_stats``, so every breakdown over a
+    transcript with tool calls raised ``NameError`` and the desktop context
+    panel showed "No context data yet" for the whole session.
+    """
+    fn = call.get("function") if isinstance(call, dict) else None
+    if isinstance(fn, dict):
+        return str(fn.get("name") or "")
+    return str(call.get("name") or "") if isinstance(call, dict) else ""
+
+
 def _raw_arguments(call: Any) -> str:
     """A tool call's ``arguments`` as text, for sizing without re-encoding."""
     fn = call.get("function") if isinstance(call, dict) else None

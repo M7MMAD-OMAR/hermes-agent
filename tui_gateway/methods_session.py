@@ -537,7 +537,7 @@ def _resume_live_unpersisted(ctx: _Resume, live_sid: str, live: dict) -> dict:
     return _ok(ctx.rid, _attach_todo_state({
         "session_id": live_sid, "stored_session_id": str(live.get("session_key") or ""),
         "message_count": len(history), "messages": ctx.messages(history),
-        "info": {"model": _resolve_model(), "lazy": True, "profile_name": ctx.profile or ""}}, live))
+        "info": _lazy_resume_info(str(live.get("cwd") or _default_session_cwd()), profile=ctx.profile)}, live))
 
 
 def _resume_adopt_stranded(ctx: _Resume) -> None:
@@ -1133,16 +1133,45 @@ def _(rid, params: dict, session: dict) -> dict:
     return _ok(rid, usage)
 
 
+def _lazy_context_breakdown(session: dict, usage: dict) -> dict:
+    """Breakdown for a session whose agent is not built yet (lazy resume, fresh Bot Chat, every desktop
+    tile before its first turn). The metadata mirror rarely carries a context window here, so the desktop
+    gauge read "~0 / 0" and "No context data yet" until the first turn ENDED, and on providers whose stream
+    reports usage only in the final chunk (Kimi Code) nothing replaced it mid-turn. Resolve the window from
+    model metadata (cache-first, no provider call for known routes) and estimate the stored transcript."""
+    mirror = _metadata_mirror(session)
+    override = session.get("model_override") or {}
+    model = str(override.get("model") or mirror.get("model") or _resolve_model() or "")
+    provider = str(override.get("provider") or mirror.get("provider") or "")
+    context_max = int(usage.get("context_max", 0) or 0)
+    if not context_max and model:
+        with contextlib.suppress(Exception):
+            from hermes_cli.model_switch import resolve_display_context_length
+            context_max = int(resolve_display_context_length(model, provider) or 0)
+    with (session.get("history_lock") or contextlib.nullcontext()):
+        history = list(session.get("history") or [])
+    conversation = 0
+    with contextlib.suppress(Exception):
+        from agent.model_metadata import estimate_messages_tokens_rough
+        conversation = int(estimate_messages_tokens_rough(history) or 0)
+    context_used = int(usage.get("context_used", 0) or 0) or conversation
+    categories = []
+    if conversation > 0:
+        with contextlib.suppress(Exception):
+            from agent.context_breakdown import _CATEGORIES
+            label, color, _glyph = _CATEGORIES["conversation"]
+            categories.append({"color": color, "id": "conversation", "label": label, "tokens": conversation})
+    return {
+        "categories": categories, "context_max": context_max,
+        "context_percent": max(0, min(100, round(context_used / context_max * 100))) if context_max else 0,
+        "context_used": context_used, "estimated_total": conversation or context_used, "model": model}
+
+
 @_session_method("session.context_breakdown")
 def _(rid, params: dict, session: dict) -> dict:
     if (agent := session.get("agent")) is None:
         usage = _session_usage_snapshot(session) or _get_usage(None)
-        return _ok(rid, {
-            "categories": [], "context_max": usage.get("context_max", 0) or 0,
-            "context_percent": usage.get("context_percent", 0) or 0,
-            "context_used": usage.get("context_used", 0) or 0,
-            "estimated_total": usage.get("context_used", 0) or usage.get("total", 0) or 0,
-            "model": _metadata_mirror(session).get("model", "")})
+        return _ok(rid, _lazy_context_breakdown(session, usage))
     with session["history_lock"]:
         history = list(session.get("history", []))
     try:

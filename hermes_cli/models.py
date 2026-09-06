@@ -465,6 +465,47 @@ def _fetch_live_catalog_index(url: str, timeout: float, opener) -> Optional[tupl
     return live_items, live_by_id
 
 
+def _configured_openrouter_extra_models() -> list[tuple[str, str]]:
+    """Extra OpenRouter model ids from ``model.extra_openrouter_models`` in config.yaml.
+
+    The picker shows the CURATED catalog intersected with what is live, so a model OpenRouter serves
+    but nobody curated is unreachable through the UI no matter how good it is — the user has to wait
+    for a manifest release. This is the escape hatch: list an id here and it appears, subject to the
+    same live + tool-support filter as every other entry (a typo or a tool-less model still will not
+    show, rather than appearing and failing at the first tool call).
+    """
+    try:
+        from hermes_cli.config import load_config
+        raw = (load_config().get("model") or {}).get("extra_openrouter_models")
+    except Exception:
+        return []
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [(mid, "") for mid in (str(entry).strip() for entry in raw) if mid]
+
+
+def _merge_openrouter_curated(*sources) -> list[tuple[str, str]]:
+    """Concatenate curated ``(id, desc)`` sources, first occurrence wins, order preserved.
+
+    Order is load-bearing: ``fetch_openrouter_models`` badges ``curated[0]`` as "recommended" and the
+    silent default is resolved by id, so the manifest must stay in front. Later sources only ever
+    APPEND ids the earlier ones did not carry.
+    """
+    merged: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for source in sources:
+        for entry in source or ():
+            mid, desc = (entry, "") if isinstance(entry, str) else (entry[0], entry[1] if len(entry) > 1 else "")
+            mid = str(mid).strip()
+            if not mid or mid in seen:
+                continue
+            seen.add(mid)
+            merged.append((mid, desc))
+    return merged
+
+
 def fetch_openrouter_models(
     timeout: float = 8.0, *, force_refresh: bool = False) -> list[tuple[str, str]]:
     """Return the curated OpenRouter picker list, refreshed from the live catalog when possible."""
@@ -473,14 +514,18 @@ def fetch_openrouter_models(
     if _openrouter_catalog_cache is not None and not force_refresh:
         return list(_openrouter_catalog_cache)
 
-    # Remote catalog manifest first, in-repo snapshot when unreachable; the live /v1/models filter
-    # (tool support, free pricing) is applied on top either way.
+    # Remote catalog manifest first, then anything the in-repo snapshot adds, then the user's own
+    # additions; the live /v1/models filter (tool support, free pricing) is applied on top.
+    #
+    # The remote manifest used to REPLACE the in-repo snapshot outright, which made the snapshot dead
+    # code whenever the manifest was reachable: adding a model here changed nothing, silently. Merging
+    # is what makes a curated addition actually reach the picker.
     try:
         from hermes_cli.model_catalog import get_curated_openrouter_models
         remote = get_curated_openrouter_models()
     except Exception:
         remote = None
-    fallback = list(remote) if remote else list(OPENROUTER_MODELS)
+    fallback = _merge_openrouter_curated(remote, OPENROUTER_MODELS, _configured_openrouter_extra_models())
 
     live = _fetch_live_catalog_index(_OPENROUTER_CATALOG_URL, timeout, _urlopen_model_catalog_request)
     if live is None:

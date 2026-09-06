@@ -44,6 +44,14 @@ model:
   # Default model to use (can be overridden with --model flag)
   # Both "default" and "model" work as the key name here.
   default: "anthropic/claude-opus-4.6"
+
+  # Extra OpenRouter models to show in the picker.
+  # The picker lists a CURATED catalog, so a model OpenRouter serves but nobody
+  # curated yet is otherwise unreachable through the UI. Ids listed here are
+  # added to it. They still have to be live and advertise tool support, so a
+  # typo simply does not appear rather than failing at the first tool call.
+  # extra_openrouter_models:
+  #   - "deepseek/deepseek-v4-flash-vision-exp"
   
   # Inference provider selection:
   #   "auto"         - Auto-detect from credentials (default)

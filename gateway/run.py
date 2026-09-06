@@ -4409,6 +4409,17 @@ def _housekeeping_media_caches() -> None:
                 logger.info("%s cache cleanup: removed %d stale file(s)", name, removed)
         _housekeeping_chore(f"{cache_name} cache cleanup", _one)
 
+    # The artifact store is NOT one of the caches above and must never be pruned
+    # by age: it holds the files delivered to the user, and being old is the
+    # property that makes one worth keeping. It is bounded by total size instead,
+    # dropping the oldest only once the cap is actually exceeded.
+    def _prune_artifacts() -> None:
+        from agent.media_preservation import prune_artifacts
+        removed = prune_artifacts()
+        if removed:
+            logger.info("Artifact store over cap: removed %d oldest artifact(s)", removed)
+    _housekeeping_chore("Artifact store prune", _prune_artifacts)
+
 
 def _housekeeping_paste_sweep() -> None:
     from hermes_cli.debug import _sweep_expired_pastes

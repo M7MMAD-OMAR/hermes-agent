@@ -79,3 +79,78 @@ describe('MarkdownImage media routing', () => {
     expect(container.querySelector('audio')).toBeNull()
   })
 })
+
+// A delivered result whose file has been deleted used to render as an audio
+// player stuck at 0:00 with an "Open audio file" link that also failed, or as a
+// bare "Open chart.png" link. Nothing said the file was gone, so it read as a
+// loading bug and invited the user to keep clicking. Measured on one real
+// install: 655 of 687 delivered files were already deleted.
+// The transcript stores a delivered file as a markdown link with a `#media:`
+// href (see lib/markdown-preprocess.ts); the raw `MEDIA:` tag never reaches the
+// renderer.
+const mediaLink = (path: string) => `[${path.split('/').pop()}](#media:${encodeURIComponent(path)})`
+
+describe('a delivered result whose file is gone', () => {
+  let originalDesktop: typeof window.hermesDesktop
+
+  const desktop = (exists: boolean) => ({
+    mediaExists: vi.fn().mockResolvedValue(exists),
+    readFileDataUrl: vi.fn().mockRejectedValue(new Error('ENOENT'))
+  })
+
+  const install = (value: unknown) =>
+    Object.defineProperty(window, 'hermesDesktop', { configurable: true, value })
+
+  beforeEach(() => {
+    originalDesktop = window.hermesDesktop
+    $connection.set(null)
+  })
+
+  afterEach(() => {
+    cleanup()
+    install(originalDesktop)
+  })
+
+  it('says the file is no longer on disk instead of offering a dead link', async () => {
+    // An image resolves through the data-URL bridge, so its failure is
+    // deterministic here. Audio and video reach the same state through the
+    // media element's own `error` event, exercised below.
+    install(desktop(false))
+
+    render(<MarkdownTextContent isRunning={false} text={mediaLink('/tmp/refine_ab.jpg')} />)
+
+    expect(await screen.findByText(/no longer on disk/i)).toBeTruthy()
+  })
+
+  it('says so for audio too, once the player reports it cannot load', async () => {
+    install(desktop(false))
+
+    const { container } = render(<MarkdownTextContent isRunning={false} text={mediaLink('/tmp/cast_narrator.mp3')} />)
+
+    const player = await waitFor(() => {
+      const found = container.querySelector('audio')
+
+      expect(found).toBeTruthy()
+
+      return found as HTMLAudioElement
+    })
+
+    // jsdom never loads media, so the browser's own error event is fired here
+    // rather than waited for.
+    player.dispatchEvent(new Event('error'))
+
+    expect(await screen.findByText(/no longer on disk/i)).toBeTruthy()
+  })
+
+  it('does not claim deletion when the file is still there', async () => {
+    // The load failed but the file exists, so the honest answer is that it could
+    // not be loaded. Claiming it was deleted would send the user looking for
+    // something sitting on their own disk.
+    install(desktop(true))
+
+    render(<MarkdownTextContent isRunning={false} text={mediaLink('/tmp/refine_ab.jpg')} />)
+
+    await waitFor(() => expect(screen.queryByText(/Loading /)).toBeNull())
+    expect(screen.queryByText(/no longer on disk/i)).toBeNull()
+  })
+})

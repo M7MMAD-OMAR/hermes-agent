@@ -370,6 +370,10 @@ declare global {
       }) => void
       readDir: (path: string) => Promise<HermesReadDirResult>
       gitRoot?: (path: string) => Promise<string | null>
+      /** Does a delivered media file still exist? False for anything unreadable
+       *  or outside the allowed roots, so a caller can only ever be told less
+       *  than the truth, never more. */
+      mediaExists?: (path: string) => Promise<boolean>
       // Reveal a path in the OS file manager (Finder / Explorer).
       revealPath?: (path: string) => Promise<boolean>
       // Open a DIRECTORY (created if missing) in the OS file manager.

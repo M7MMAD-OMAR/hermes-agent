@@ -320,6 +320,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   reportRendererError: report => ipcRenderer.send('hermes:logs:renderer-error', report),
   readDir: dirPath => ipcRenderer.invoke('hermes:fs:readDir', dirPath),
   gitRoot: startPath => ipcRenderer.invoke('hermes:fs:gitRoot', startPath),
+  mediaExists: targetPath => ipcRenderer.invoke('hermes:fs:mediaExists', targetPath),
   revealPath: targetPath => ipcRenderer.invoke('hermes:fs:reveal', targetPath),
   openDir: dirPath => ipcRenderer.invoke('hermes:fs:openDir', dirPath),
   desktopPluginsRoot: () => ipcRenderer.invoke('hermes:fs:desktopPluginsRoot'),

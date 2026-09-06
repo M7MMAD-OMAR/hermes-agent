@@ -214,6 +214,49 @@ def _recover_final_from_stream(agent, final_response, interrupted, failed) -> Tu
     return final_response, False
 
 
+def _preserve_delivered_media(agent, messages, final_response):
+    """Copy every file this reply delivers into the durable artifact store and
+    repoint the reply at the copies, before anything is persisted.
+
+    Without this the transcript keeps whatever path the producer happened to
+    choose, and two common choices delete themselves: `$HERMES_HOME/cache/images`
+    is pruned hourly at 24h, and `/tmp` is tmpfs on most Linux installs. Either
+    way the row survives and the result does not, which the user meets months
+    later as a dead player with no explanation. See agent/media_preservation.py.
+
+    The already-appended assistant row is rewritten too. The streaming loop may
+    have added it with the original text, and `_close_transcript_tail` compares
+    tail content against `final_response` to decide whether to append a closing
+    row: leaving the two divergent would duplicate the whole reply.
+
+    Fail-open. Preservation is a safety net, and a net that can lose the turn is
+    worse than no net.
+    """
+    if not final_response or "MEDIA:" not in final_response:
+        return final_response
+
+    try:
+        from agent.media_preservation import preserve_response_media
+
+        preserved = preserve_response_media(
+            final_response, session_key=getattr(agent, "session_id", "") or "",
+        )
+    except Exception:
+        from agent.conversation_loop import logger as _logger
+        _logger.warning("Could not preserve delivered media; keeping original paths", exc_info=True)
+        return final_response
+
+    if preserved == final_response:
+        return final_response
+
+    for msg in reversed(messages):
+        if isinstance(msg, dict) and msg.get("role") == "assistant" and msg.get("content") == final_response:
+            msg["content"] = preserved
+            break
+
+    return preserved
+
+
 def _close_transcript_tail(agent, messages, final_response, interrupted, _recovered_from_stream) -> None:
     """Shape the transcript tail before the durable snapshot (scaffolding already dropped
     and ``final_response`` already stream-recovered by the caller)."""
@@ -478,6 +521,7 @@ def finalize_turn(
         final_response, _recovered_from_stream = _recover_final_from_stream(
             agent, final_response, interrupted, failed
         )
+        final_response = _preserve_delivered_media(agent, messages, final_response)
         _close_transcript_tail(agent, messages, final_response, interrupted, _recovered_from_stream)
         if not interrupted and not failed:
             _micro_compact_after_turn(agent, messages, final_response, logger)

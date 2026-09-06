@@ -8,7 +8,7 @@ import {
   tailBoundedRemend
 } from '@assistant-ui/react-streamdown'
 import type { code as streamdownCode } from '@streamdown/code'
-import { type ComponentProps, memo, useEffect, useMemo, useState } from 'react'
+import { type ComponentProps, memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ExpandableBlock } from '@/components/chat/expandable-block'
 import { PreviewAttachment } from '@/components/chat/preview-attachment'
@@ -26,12 +26,14 @@ import {
   isMarkdownDocumentPath,
   isRemoteGateway,
   mediaExternalUrl,
+  type MediaKind,
   mediaKind,
   mediaName,
   mediaPathFromMarkdownHref,
   resolveMediaDisplaySrc,
   resolveMediaPlaybackSrc
 } from '@/lib/media'
+import { classifyMediaFailure, type MediaFailure, mediaFailureMessage } from '@/lib/media-missing'
 import { previewTargetFromMarkdownHref } from '@/lib/preview-targets'
 import { sessionRefFromMarkdownHref } from '@/lib/session-refs'
 import { useMathPlugin } from '@/lib/use-math-plugin'
@@ -119,6 +121,22 @@ function OpenMediaFailedNote({ name }: { name: string }) {
   )
 }
 
+/** What a delivered result says once it is established that it cannot load.
+ *
+ *  A file that is GONE gets a plain statement and no action, because there is
+ *  nothing left to open and offering the button invites the user to keep
+ *  clicking something that can never work. Anything else keeps the button: the
+ *  file may well be there and only the inline player failed. */
+function MediaUnavailable({ failure, kind, path }: { failure: MediaFailure; kind: MediaKind; path: string }) {
+  const message = mediaFailureMessage(failure, path)
+
+  if (failure === 'gone') {
+    return <span className="mt-1 block text-xs text-muted-foreground">{message}</span>
+  }
+
+  return kind === 'audio' || kind === 'video' ? <OpenMediaButton kind={kind} path={path} /> : null
+}
+
 function OpenMediaButton({ kind, path }: { kind: 'audio' | 'video'; path: string }) {
   const { open, openFailed } = useOpenMediaFile(path)
 
@@ -138,20 +156,28 @@ function OpenMediaButton({ kind, path }: { kind: 'audio' | 'video'; path: string
 
 function MediaAttachment({ path }: { path: string }) {
   const [src, setSrc] = useState('')
-  const [failed, setFailed] = useState(false)
+  // `null` while the file is still believed loadable. Set once, on the first
+  // failure, from a real filesystem answer rather than a guess.
+  const [failure, setFailure] = useState<MediaFailure | null>(null)
   const { open, openFailed } = useOpenMediaFile(path)
   const kind = mediaKind(path)
   const name = mediaName(path)
+
+  // Every failure route, resolution and playback alike, goes through here so
+  // the reason shown is always a filesystem answer rather than an assumption.
+  const fail = useCallback(() => {
+    void classifyMediaFailure(path).then(setFailure)
+  }, [path])
 
   useEffect(() => {
     let cancelled = false
     let objectUrl = ''
 
-    setFailed(false)
+    setFailure(null)
     setSrc('')
 
     if (kind === 'file') {
-      setFailed(true)
+      fail()
 
       return () => {
         cancelled = true
@@ -172,7 +198,7 @@ function MediaAttachment({ path }: { path: string }) {
       })
       .catch(() => {
         if (!cancelled) {
-          setFailed(true)
+          fail()
         }
       })
 
@@ -183,7 +209,7 @@ function MediaAttachment({ path }: { path: string }) {
         URL.revokeObjectURL(objectUrl)
       }
     }
-  }, [kind, path])
+  }, [fail, kind, path])
 
   if (kind === 'image' && src) {
     return (
@@ -197,8 +223,8 @@ function MediaAttachment({ path }: { path: string }) {
     return (
       <span className="my-3 block max-w-md rounded-xl border border-(--ui-stroke-tertiary) bg-muted/35 p-3">
         <span className="mb-2 block truncate text-xs font-medium text-muted-foreground">{name}</span>
-        <audio className="block w-full" controls onError={() => setFailed(true)} preload="metadata" src={src} />
-        {failed && <OpenMediaButton kind="audio" path={path} />}
+        <audio className="block w-full" controls onError={fail} preload="metadata" src={src} />
+        {failure && <MediaUnavailable failure={failure} kind="audio" path={path} />}
       </span>
     )
   }
@@ -210,12 +236,16 @@ function MediaAttachment({ path }: { path: string }) {
         <video
           className="block max-h-112 w-full rounded-lg bg-black"
           controls
-          onError={() => setFailed(true)}
+          onError={fail}
           src={src}
         />
-        {failed && <OpenMediaButton kind="video" path={path} />}
+        {failure && <MediaUnavailable failure={failure} kind="video" path={path} />}
       </span>
     )
+  }
+
+  if (failure === 'gone') {
+    return <span className="block text-xs text-muted-foreground">{mediaFailureMessage(failure, path)}</span>
   }
 
   return (
@@ -228,7 +258,7 @@ function MediaAttachment({ path }: { path: string }) {
           open()
         }}
       >
-        {failed ? `Open ${name}` : `Loading ${name}...`}
+        {failure ? `Open ${name}` : `Loading ${name}...`}
       </a>
       {openFailed && <OpenMediaFailedNote name={name} />}
     </span>

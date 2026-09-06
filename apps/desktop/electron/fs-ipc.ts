@@ -32,6 +32,26 @@ export function registerFsIpc({
 
   ipcMain.handle('hermes:fs:gitRoot', async (_event, startPath) => gitRootForIpc(startPath))
 
+  // Does a delivered media file still exist on disk?
+  //
+  // The transcript keeps a path forever; the file does not. Without this the
+  // renderer cannot tell a deleted result from a transient read failure, so a
+  // result whose file is gone renders as an audio player stuck at 0:00 with an
+  // "Open file" link that also fails, which reads as a bug in the app rather
+  // than as what actually happened. Read-only and hardened through the same
+  // path resolver as every other fs handler.
+  ipcMain.handle('hermes:fs:mediaExists', async (_event, targetPath) => {
+    try {
+      const resolved = resolveRequestedPathForIpc(expandUserPath(String(targetPath ?? '')), {
+        purpose: 'media-exists'
+      })
+
+      return fs.statSync(resolved).isFile()
+    } catch {
+      return false
+    }
+  })
+
   // Reveal a path in the OS file manager (Finder / Explorer / Files).
   ipcMain.handle('hermes:fs:reveal', async (_event, targetPath) => {
     const target = String(targetPath || '').trim()

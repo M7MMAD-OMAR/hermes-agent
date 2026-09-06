@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useState } from 'react'
+import { type CSSProperties, useState } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
 import { resolveFastControl } from '@/app/shell/model-edit-submenu'
@@ -80,6 +80,11 @@ export function EffortPill({
   const thinkingOn = isThinkingEnabled(rawEffort, defaultEffort)
   const level = thinkingOn ? (effortValue || defaultEffort) : 'none'
   const activeIndex = REASONING_EFFORTS.indexOf(level as (typeof REASONING_EFFORTS)[number])
+  // Clamped: an unrecognised level yields -1, which would render a negative
+  // fill width and push the track's highlight off the left edge. A UNITLESS
+  // fraction, because the CSS below multiplies it by the thumb's travel
+  // (`100% - thumb`); calc() cannot divide a length by a percentage.
+  const activeFraction = Math.max(0, activeIndex) / (REASONING_EFFORTS.length - 1)
 
   const setEffort = (next: string) => {
     if (!requestGateway || next === (thinkingOn ? (effortValue || defaultEffort) : 'none')) {
@@ -154,38 +159,82 @@ export function EffortPill({
 
                 {/* One range input, not seven buttons: the scale is ordinal, so
                     it should be draggable across in a single gesture and
-                    arrow-key steppable. `step={1}` snaps to the seven levels,
-                    and the tick marks below show where they are. */}
-                <div className="relative flex flex-1 flex-col justify-center">
+                    arrow-key steppable. `step={1}` snaps to the seven levels.
+
+                    The native track is hidden (`bg-transparent`) and a real one
+                    is drawn underneath, because a bare input rendered the ticks
+                    floating in space with nothing tying them together — the
+                    control read as scattered dots rather than a slider. The
+                    input itself stays on top and keeps every native behaviour:
+                    drag, arrow keys, Home/End, and the a11y value text.
+
+                    Geometry: a native thumb is inset by half its width at both
+                    ends, so its centre travels `100% - THUMB`, not `100%`. Every
+                    layer below positions against that same expression, or the
+                    fill and the ticks drift away from the thumb at the ends. */}
+                <div
+                  className="relative flex h-5 flex-1 items-center"
+                  style={{ '--effort-thumb': '0.875rem' } as CSSProperties}
+                >
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 h-5 rounded-full bg-(--ui-bg-tertiary) ring-1 ring-(--ui-stroke-secondary)/60 ring-inset"
+                  />
+
+                  {/* Travelled portion, ending under the thumb's centre. */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute left-0 h-5 rounded-full bg-(--ui-control-hover-background) transition-[width] duration-150"
+                    style={{
+                      width: `calc(${activeFraction} * (100% - var(--effort-thumb)) + var(--effort-thumb) / 2)`
+                    }}
+                  />
+
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 h-5"
+                  >
+                    {REASONING_EFFORTS.map((step, index) => (
+                      <span
+                        className={cn(
+                          '-translate-x-1/2 -translate-y-1/2 absolute top-1/2 size-[0.1875rem] rounded-full transition-colors',
+                          index <= activeIndex ? 'bg-(--ui-text)/45' : 'bg-(--ui-text)/20'
+                        )}
+                        key={step}
+                        style={{
+                          left: `calc(${index / (REASONING_EFFORTS.length - 1)} * (100% - var(--effort-thumb)) + var(--effort-thumb) / 2)`
+                        }}
+                      />
+                    ))}
+                  </div>
+
                   <input
                     aria-label={copy.effort}
                     aria-valuetext={copy[REASONING_EFFORTS[activeIndex]]}
-                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-transparent"
+                    className={cn(
+                      'relative h-5 w-full cursor-pointer appearance-none bg-transparent',
+                      // The thumb is the only painted part of the native control.
+                      '[&::-webkit-slider-thumb]:size-(--effort-thumb) [&::-webkit-slider-thumb]:appearance-none',
+                      '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white',
+                      '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(0,0,0,0.45)]',
+                      '[&::-moz-range-thumb]:size-(--effort-thumb) [&::-moz-range-thumb]:appearance-none',
+                      '[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white',
+                      '[&::-moz-range-track]:bg-transparent'
+                    )}
                     max={REASONING_EFFORTS.length - 1}
                     min={0}
                     onChange={event => {
                       const next = REASONING_EFFORTS[Number(event.target.value)]
+
                       if (next && next !== level) {
                         triggerHaptic('selection')
                         setEffort(next)
                       }
                     }}
                     step={1}
-                    style={{ accentColor: 'var(--dt-primary)' }}
                     type="range"
                     value={activeIndex < 0 ? 0 : activeIndex}
                   />
-                  <div aria-hidden className="pointer-events-none absolute inset-x-0 flex justify-between px-[0.3125rem]">
-                    {REASONING_EFFORTS.map((step, index) => (
-                      <span
-                        className={cn(
-                          'size-[0.1875rem] rounded-full transition-colors',
-                          index <= activeIndex ? 'bg-primary/70' : 'bg-(--ui-stroke-primary)'
-                        )}
-                        key={step}
-                      />
-                    ))}
-                  </div>
                 </div>
 
                 <span className="shrink-0 text-[0.625rem] text-muted-foreground">{t.composer.effortSmarter}</span>

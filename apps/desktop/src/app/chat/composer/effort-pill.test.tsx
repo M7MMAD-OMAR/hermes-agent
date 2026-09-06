@@ -132,6 +132,73 @@ describe('EffortPill slider writes', () => {
   })
 })
 
+describe('EffortPill slider track', () => {
+  // The scale used to be a bare range input over transparent background: the
+  // ticks floated with nothing tying them together and the control did not read
+  // as a slider. A track is drawn under the native input, so the fill and the
+  // ticks now have to line up with the thumb.
+  const sliderBox = () => screen.getByRole('slider', { name: 'Effort' }).parentElement!
+
+  it('draws a track under the scale', async () => {
+    renderPill({ caps: { canDisableReasoning: false, fast: false, providerModels: [], reasoning: true } })
+    await openPopover()
+
+    const track = sliderBox().querySelector('.rounded-full.bg-\\(--ui-bg-tertiary\\)')
+
+    expect(track).not.toBeNull()
+  })
+
+  it('positions the fill and every tick on the thumb\'s travel, not on raw percent', async () => {
+    // A native thumb is inset by half its width at both ends, so its centre
+    // travels `100% - thumb`. Positioning on a raw percentage instead drifts by
+    // half a thumb at the ends — invisible in the middle, wrong where it shows.
+    renderPill(
+      { caps: { canDisableReasoning: false, fast: false, providerModels: [], reasoning: true } },
+      tileView({ $reasoningEffort: atom('high') })
+    )
+    await openPopover()
+
+    const box = sliderBox()
+    const fill = box.querySelector<HTMLElement>('[style*="width: calc"]')
+    const ticks = [...box.querySelectorAll<HTMLElement>('[style*="left: calc"]')]
+
+    expect(ticks).toHaveLength(7)
+
+    // Every position multiplies a UNITLESS fraction by the travel. calc() cannot
+    // divide a length by a percentage, so a `/ 100%` form would be dropped as
+    // invalid and collapse the fill.
+    for (const node of [fill!, ...ticks]) {
+      const value = node.getAttribute('style') ?? ''
+
+      expect(value).toContain('(100% - var(--effort-thumb))')
+      expect(value).toContain('var(--effort-thumb) / 2')
+      expect(value).not.toContain('/ 100%')
+    }
+
+    // The ends are the cases that expose a wrong formula.
+    expect(ticks[0]!.getAttribute('style')).toContain('0 * (100% - var(--effort-thumb))')
+    expect(ticks[6]!.getAttribute('style')).toContain('1 * (100% - var(--effort-thumb))')
+  })
+
+  it('never renders a negative fill for an unrecognised level', async () => {
+    // The level is normalised upstream, so this lands on the default rather
+    // than -1 — but the clamp is what guarantees that an index the scale does
+    // not contain can never push the fill off the left edge.
+    renderPill(
+      { caps: { canDisableReasoning: false, fast: false, providerModels: [], reasoning: true } },
+      tileView({ $reasoningEffort: atom('not-a-level') })
+    )
+    await openPopover()
+
+    const style = sliderBox().querySelector<HTMLElement>('[style*="width: calc"]')?.getAttribute('style') ?? ''
+    const fraction = Number(/calc\(([\d.]+) \*/.exec(style)?.[1])
+
+    expect(Number.isFinite(fraction)).toBe(true)
+    expect(fraction).toBeGreaterThanOrEqual(0)
+    expect(fraction).toBeLessThanOrEqual(1)
+  })
+})
+
 describe('EffortPill fast toggle', () => {
   it('offers the fast switch when the model takes the speed parameter and writes it', async () => {
     const { calls, request } = recordedRequest()

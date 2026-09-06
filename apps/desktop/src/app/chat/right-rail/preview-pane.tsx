@@ -46,6 +46,7 @@ import { type ConsoleEntry, consoleLevel } from './preview-console-state'
 import { previewConsoleState } from './preview-console-store'
 import { LocalFilePreview, PreviewEmptyState } from './preview-file'
 import { type PreviewInputEvent, registerPreviewInput } from './preview-input'
+import { type PreviewFindTarget, registerPreviewFind } from './preview-find'
 import { PREVIEW_BROWSER_ATTR, registerPreviewNav } from './preview-nav'
 import { PreviewPinPanel } from './preview-pin-panel'
 import { registerPreviewPageReader } from './preview-reader'
@@ -846,6 +847,32 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
 
     return registerPreviewNav(tabId, { back: goBack, forward: goForward, navigate: navigateTo, reload: reloadPreview })
   }, [goBack, goForward, isRemoteHtml, isWebPreview, navigateTo, reloadPreview, tabId])
+
+  // Publish this tab's guest as a FIND target. Cmd+F inside the browser has to
+  // reach Chromium's own find-in-page: the renderer-side walker the chat uses
+  // cannot see into a <webview>'s frame tree, and the Electron fallback
+  // searches the host window's webContents, which is a different document.
+  useEffect(() => {
+    if (!isWebPreview || !tabId) {
+      return
+    }
+
+    // A stable adapter that dereferences the ref on every call, rather than
+    // capturing the element: the <webview> is replaced on navigation and tab
+    // reuse, and a captured one would go on answering after it was gone.
+    const target: PreviewFindTarget = {
+      addEventListener: (type, listener) =>
+        (webviewRef.current as unknown as PreviewFindTarget | null)?.addEventListener?.(type, listener),
+      findInPage: (text, options) =>
+        (webviewRef.current as unknown as PreviewFindTarget | null)?.findInPage?.(text, options) ?? 0,
+      removeEventListener: (type, listener) =>
+        (webviewRef.current as unknown as PreviewFindTarget | null)?.removeEventListener?.(type, listener),
+      stopFindInPage: action =>
+        (webviewRef.current as unknown as PreviewFindTarget | null)?.stopFindInPage?.(action)
+    }
+
+    return registerPreviewFind(tabId, target)
+  }, [isWebPreview, tabId])
 
   // Publish the PAGE reader for this tab (the read_preview tool): extract the
   // rendered page's title + visible text from the webview. innerText (not

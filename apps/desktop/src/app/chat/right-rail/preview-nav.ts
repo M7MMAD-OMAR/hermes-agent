@@ -55,6 +55,15 @@ export function agentPreviewNav(sessionId: null | string): PreviewNavHandle | nu
   return (id && handles.get(id)) || null
 }
 
+/** The tab id of the browser pane holding DOM focus, or null when focus is
+ *  elsewhere in the app. The find bar asks this to decide whether Cmd+F means
+ *  "search this web page" or "search the chat". */
+export function focusedPreviewTabId(): null | string {
+  const host = document.activeElement?.closest(`[${PREVIEW_BROWSER_ATTR}]`)
+
+  return host?.getAttribute(PREVIEW_BROWSER_ATTR) || null
+}
+
 /** Run `command` on the browser pane holding DOM focus. False = focus is
  *  elsewhere in the app, so the caller falls back to the app-level meaning.
  *  Gestures only — `navigate` carries an address and has no keystroke. */

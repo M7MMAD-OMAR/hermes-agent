@@ -1,5 +1,12 @@
 import { atom } from 'nanostores'
 
+import {
+  clearPreviewSearch,
+  type PreviewFindTarget,
+  previewFindTarget,
+  searchPreview
+} from '@/app/chat/right-rail/preview-find'
+import { focusedPreviewTabId } from '@/app/chat/right-rail/preview-nav'
 import { captureFindScope, currentFindScope, performScopedFind, releaseFindScope } from '@/lib/find-in-page-scope'
 
 export interface FindInPageState {
@@ -12,6 +19,15 @@ export interface FindInPageState {
 const EMPTY: FindInPageState = { active: false, query: '', matchOrdinal: 0, matchCount: 0 }
 
 export const $findInPage = atom<FindInPageState>({ ...EMPTY })
+/** The embedded-browser page this search is bound to, or null for a chat
+ *  search. Captured at open time; see openFindBar. */
+let guest: PreviewFindTarget | null = null
+
+/** Test seam: which surface the open bar is searching. */
+export function findInPageIsSearchingGuest(): boolean {
+  return guest !== null
+}
+
 
 /**
  * Open the find bar and capture the CURRENT VIEW as the search scope.
@@ -26,8 +42,20 @@ export const $findInPage = atom<FindInPageState>({ ...EMPTY })
  */
 export function openFindBar(): void {
   $findInPage.set({ ...EMPTY, active: true })
-  captureFindScope()
+
+  // Cmd+F pressed with the embedded browser focused means "search this web
+  // page". Its content lives in a <webview> guest, which neither the
+  // renderer-side walker nor the host window's webContents can see, so the
+  // search has to be handed to Chromium inside that guest. Captured once at
+  // open time for the same reason the DOM scope is: the surface the user was
+  // looking at when they pressed the key is the one that gets searched.
+  guest = previewFindTarget(focusedPreviewTabId())
+
+  if (!guest) {
+    captureFindScope()
+  }
 }
+
 
 export function closeFindBar(): void {
   // Already closed: don't re-issue clear. Escape is a shared gesture (the
@@ -38,6 +66,16 @@ export function closeFindBar(): void {
   }
 
   $findInPage.set({ ...EMPTY })
+
+  if (guest) {
+    // Chromium owns the highlights in a guest; ask it to drop them and leave
+    // the page's selection as the user found it.
+    clearPreviewSearch(guest)
+    guest = null
+
+    return
+  }
+
   // Strip highlights and the scope marker from the DOM we previously wrapped.
   releaseFindScope()
 }
@@ -49,6 +87,22 @@ export async function setFindQuery(query: string): Promise<void> {
   // close, but a timer that already fired (or any late caller) must not
   // re-wrap matches after the user pressed Escape.
   if (!prev.active) {
+    return
+  }
+
+  if (guest) {
+    $findInPage.set({ ...prev, query })
+
+    const result = await searchPreview(guest, query, { forward: true, findNext: false })
+
+    // The bar may have closed (or re-homed to another surface) while Chromium
+    // was walking the page; a late answer must not repaint a closed bar.
+    const now = $findInPage.get()
+
+    if (now.active && now.query === query) {
+      $findInPage.set({ ...now, matchOrdinal: result.activeOrdinal, matchCount: result.count })
+    }
+
     return
   }
 
@@ -93,6 +147,18 @@ function step(forward: boolean): void {
   const { query } = $findInPage.get()
 
   if (!query) {
+    return
+  }
+
+  if (guest) {
+    void searchPreview(guest, query, { forward, findNext: true }).then(result => {
+      const now = $findInPage.get()
+
+      if (now.active && now.query === query) {
+        $findInPage.set({ ...now, matchOrdinal: result.activeOrdinal, matchCount: result.count })
+      }
+    })
+
     return
   }
 

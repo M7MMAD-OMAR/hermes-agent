@@ -318,6 +318,52 @@ describe('dispatchNativeNotification throttle', () => {
   })
 })
 
+// The documented contract of the return value is "an OS notification IS being
+// shown". `dispatchPluginNativeNotification` registers renderer closures only
+// on true, so every suppressed path returning false is what stops those leaking
+// for the window's lifetime. The existing leak test cannot see a violation: it
+// probes the FIRST call's notify id, and a wrongly-registered second call mints
+// its own, so these assert the contract directly.
+describe('dispatchNativeNotification return value', () => {
+  it('is true only when the notification reached the OS', () => {
+    const sessionId = freshSession()
+
+    expect(dispatchNativeNotification({ kind: 'approval', sessionId, title: 'ask' })).toBe(true)
+    expect(notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('is false for a kind the user muted', () => {
+    setNativeNotifyKind('approval', false)
+
+    expect(dispatchNativeNotification({ kind: 'approval', sessionId: freshSession(), title: 'ask' })).toBe(false)
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('is false with notifications switched off entirely', () => {
+    setNativeNotifyEnabled(false)
+
+    expect(dispatchNativeNotification({ kind: 'approval', sessionId: freshSession(), title: 'ask' })).toBe(false)
+  })
+
+  it('is false for a repeat inside the throttle window', () => {
+    const sessionId = freshSession()
+
+    expect(dispatchNativeNotification({ kind: 'approval', sessionId, title: 'ask' })).toBe(true)
+    expect(dispatchNativeNotification({ kind: 'approval', sessionId, title: 'ask again' })).toBe(false)
+    expect(notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('is false for a session with no surface in this window', () => {
+    expect(dispatchNativeNotification({ kind: 'turnDone', sessionId: freshSession(), title: 'done' })).toBe(false)
+  })
+
+  it('is false while the user is looking at the app', () => {
+    setWindowState({ focused: true, hidden: false })
+
+    expect(dispatchNativeNotification({ kind: 'approval', sessionId: null, title: 'ask' })).toBe(false)
+  })
+})
+
 describe('sendTestNativeNotification', () => {
   it('fires regardless of focus or active session', () => {
     setWindowState({ focused: true, hidden: false })

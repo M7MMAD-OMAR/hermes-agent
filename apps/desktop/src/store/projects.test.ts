@@ -18,6 +18,8 @@ import {
   enterProject,
   exitProjectScope,
   fetchProjectSessions,
+  moveSessionToCwd,
+  moveSessionToProject,
   openProjectCreate,
   pickProjectFolder,
   projectIdForCwd,
@@ -1019,5 +1021,129 @@ describe('tombstone pruning', () => {
     await refreshProjectTree()
 
     expect($removedSessionIds.get().has('sess-1')).toBe(false)
+  })
+})
+
+// The store half of the workspace move. Until now only the CALLERS were tested
+// (the sidebar menu and the statusbar panel both mock this module out), so the
+// primitive itself, the refusal for a folderless project and the cache mirror
+// that keeps the tree from flashing the old folder, had no test at all.
+describe('moving a session to another folder', () => {
+  const node = (over: Partial<SidebarProjectTree> & Pick<SidebarProjectTree, 'id' | 'label'>): SidebarProjectTree => ({
+    path: null,
+    repos: [],
+    sessionCount: 0,
+    ...over
+  })
+
+  const row = (over: Record<string, unknown>) =>
+    ({ cwd: '/old', git_branch: 'old-branch', git_repo_root: '/old', id: 'sess-1', ...over }) as never
+
+  const openGateway = (payload: Record<string, unknown>) => {
+    const request = vi.fn().mockResolvedValue(payload)
+    const gateway = { connectionState: 'open', request }
+
+    activeGateway.mockImplementation(() => gateway as never)
+    gatewayAtom.set(gateway as never)
+
+    return request
+  }
+
+  beforeEach(() => {
+    $projectTree.set([])
+    $sessions.set([])
+    activeGateway.mockReset()
+    gatewayAtom.set(null)
+  })
+
+  it('refuses a folder that is only whitespace, without touching the gateway', async () => {
+    const request = openGateway({})
+
+    await expect(moveSessionToCwd('sess-1', '   ')).rejects.toThrow('sidebar.projects.moveNoFolder')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('refuses an empty folder', async () => {
+    const request = openGateway({})
+
+    await expect(moveSessionToCwd('sess-1', '')).rejects.toThrow('sidebar.projects.moveNoFolder')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('sends the trimmed folder and the profile it was given', async () => {
+    const request = openGateway({})
+
+    await moveSessionToCwd('sess-1', '  /repos/api  ', 'coder')
+
+    expect(request).toHaveBeenCalledWith('session.workspace.move', {
+      cwd: '/repos/api',
+      profile: 'coder',
+      session_key: 'sess-1'
+    })
+  })
+
+  it('omits the profile key entirely when none was given', async () => {
+    const request = openGateway({})
+
+    await moveSessionToCwd('sess-1', '/repos/api')
+
+    expect(request).toHaveBeenCalledWith('session.workspace.move', { cwd: '/repos/api', session_key: 'sess-1' })
+  })
+
+  it('mirrors the folder the backend reports, not the one that was asked for', async () => {
+    // The backend may canonicalise the path (symlinks, a repo root above the
+    // folder picked). Echoing the request instead would make the sidebar show a
+    // folder the session is not actually in until the next refresh.
+    openGateway({ branch: 'main', cwd: '/repos/api/real', git_repo_root: '/repos/api' })
+    $sessions.set([row({}), row({ id: 'sess-2' })])
+
+    await moveSessionToCwd('sess-1', '/repos/api')
+
+    const [moved, untouched] = $sessions.get() as unknown as {
+      cwd: string
+      git_branch: null | string
+      git_repo_root: null | string
+    }[]
+
+    expect(moved).toMatchObject({ cwd: '/repos/api/real', git_branch: 'main', git_repo_root: '/repos/api' })
+    expect(untouched).toMatchObject({ cwd: '/old', git_branch: 'old-branch' })
+  })
+
+  it('falls back to the requested folder when the backend echoes nothing', async () => {
+    openGateway({})
+    $sessions.set([row({})])
+
+    await moveSessionToCwd('sess-1', '/repos/api')
+
+    expect(($sessions.get()[0] as unknown as { cwd: string }).cwd).toBe('/repos/api')
+    // No branch reported means no branch, not the stale one from before.
+    expect(($sessions.get()[0] as unknown as { git_branch: null | string }).git_branch).toBeNull()
+  })
+
+  it('resolves a project id to its root folder', async () => {
+    const request = openGateway({})
+    $projectTree.set([node({ id: 'p_api', label: 'API', path: '/repos/api' })])
+
+    await moveSessionToProject('sess-1', 'p_api', 'coder')
+
+    expect(request).toHaveBeenCalledWith('session.workspace.move', {
+      cwd: '/repos/api',
+      profile: 'coder',
+      session_key: 'sess-1'
+    })
+  })
+
+  it('refuses a project that has no folder to move into', async () => {
+    const request = openGateway({})
+    $projectTree.set([node({ id: 'p_home', label: 'Home', path: null })])
+
+    await expect(moveSessionToProject('sess-1', 'p_home')).rejects.toThrow('sidebar.projects.moveNoFolder')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('refuses a project id that is not in the tree at all', async () => {
+    openGateway({})
+
+    await expect(moveSessionToProject('sess-1', 'p_gone')).rejects.toThrow('sidebar.projects.moveNoFolder')
   })
 })

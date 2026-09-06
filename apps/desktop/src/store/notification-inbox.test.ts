@@ -137,6 +137,26 @@ describe('the list itself', () => {
     expect($inbox.get()).toHaveLength(1)
   })
 
+  it('stops collapsing once the dedupe window has passed', () => {
+    // The window is what separates "the same event replayed" from "it happened
+    // again". Without an expiry the second turn of a chat the user left running
+    // would never be listed, and a dedupe window that never ends looks exactly
+    // like a working one in a test that only records twice in a row.
+    const start = Date.now()
+    const now = vi.spyOn(Date, 'now')
+
+    try {
+      now.mockReturnValue(start)
+      recordInboxEntry({ kind: 'turnDone', sessionId: 'rt-1', title: 'done' })
+      now.mockReturnValue(start + 1_500)
+      recordInboxEntry({ kind: 'turnDone', sessionId: 'rt-1', title: 'done' })
+    } finally {
+      now.mockRestore()
+    }
+
+    expect($inbox.get()).toHaveLength(2)
+  })
+
   it('keeps two genuinely different events from the same chat', () => {
     recordInboxEntry({ kind: 'turnDone', sessionId: 'rt-1', title: 'done' })
     recordInboxEntry({ kind: 'turnError', sessionId: 'rt-1', title: 'failed' })

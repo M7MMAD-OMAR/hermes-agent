@@ -6,6 +6,7 @@
 // fall back to English while new keys remain type-checked.
 
 import type { TipId } from '@/lib/tips/catalog'
+import type { NativeNotificationKind } from '@/store/native-notifications'
 import type { ProviderUsageState } from '@/types/hermes'
 
 export type Locale = 'en' | 'zh' | 'zh-hant' | 'ja' | 'ar' | 'ru'
@@ -416,10 +417,12 @@ export interface Translations {
       enableAll: string
       enableAllDesc: string
       focusedHint: string
-      kinds: Record<
-        'approval' | 'backgroundDone' | 'credits' | 'input' | 'plugin' | 'turnDone' | 'turnError',
-        { label: string; description: string }
-      >
+      // Keyed off the store's own union rather than a copy of it. The settings
+      // page renders one row per NATIVE_NOTIFICATION_KINDS entry and reads
+      // `kinds[kind].label`, so a kind added to the store without copy here
+      // would crash that page at runtime. This makes it a typecheck failure in
+      // every locale instead.
+      kinds: Record<NativeNotificationKind, { label: string; description: string }>
       test: string
       testTitle: string
       testBody: string

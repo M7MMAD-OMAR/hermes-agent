@@ -17,6 +17,7 @@ import { __resetNativeNotifyBaselineForTests, markNativeNotifyBaseline } from '.
 import { $approvalRequest, setApprovalRequest } from './prompts'
 import { markSessionGone, resetBackgroundPollingGuard } from './runtime-gone'
 import { $activeSessionId, setActiveSessionId } from './session'
+import { $sessionTiles } from './session-states'
 
 const desktopWindow = window as unknown as { hermesDesktop?: Window['hermesDesktop'] }
 const initialHermesDesktop = desktopWindow.hermesDesktop
@@ -48,6 +49,9 @@ beforeEach(() => {
   }
 
   setActiveSessionId(null)
+  // Tiles decide which sessions count as open, so a leaked one from a previous
+  // test would silently change what every later assertion is measuring.
+  $sessionTiles.set([])
   resetBackgroundPollingGuard()
   setWindowState({ focused: false, hidden: true })
   __resetNativeNotifyBaselineForTests()
@@ -92,6 +96,30 @@ describe('dispatchNativeNotification focus gating', () => {
   it('suppresses a completion notification for a non-active background session (no gateway spam)', () => {
     setActiveSessionId('on-screen')
     dispatchNativeNotification({ kind: 'turnDone', sessionId: 'busy-bot-session', title: 'done' })
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('fires a completion notification for an open tile the user is not looking at', () => {
+    // The point of the whole feature: several chats open at once, one of them
+    // finishes, and it is not the selected one. Gating on the ACTIVE session
+    // meant this fired nothing, so the question "which of these is done" had no
+    // answer while the user was away.
+    const tileSession = freshSession()
+    setActiveSessionId('a-different-chat')
+    $sessionTiles.set([{ runtimeId: tileSession, storedSessionId: 'stored-tile' }])
+    setWindowState({ focused: false, hidden: false })
+    dispatchNativeNotification({ kind: 'turnDone', sessionId: tileSession, title: 'done' })
+    expect(notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays silent for an open tile while the user is looking at the app', () => {
+    // Widening WHICH sessions count must not widen WHEN they fire: on screen
+    // and awake, the tile's own spinner already says it finished.
+    const tileSession = freshSession()
+    setActiveSessionId('a-different-chat')
+    $sessionTiles.set([{ runtimeId: tileSession, storedSessionId: 'stored-tile' }])
+    setWindowState({ focused: true, hidden: false })
+    dispatchNativeNotification({ kind: 'turnDone', sessionId: tileSession, title: 'done' })
     expect(notify).not.toHaveBeenCalled()
   })
 

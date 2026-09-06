@@ -8,7 +8,7 @@ import { withinNativeNotifyBaseline } from './notify-baseline'
 import { clearApprovalRequest } from './prompts'
 import { isSessionGone, isSessionGoneForBackgroundPolling, markSessionGone } from './runtime-gone'
 import { $activeSessionId } from './session'
-import { requestForOwnedSession } from './session-states'
+import { requestForOwnedSession, runtimeHasOpenSurface } from './session-states'
 
 export type { HermesOpenTarget }
 
@@ -144,9 +144,22 @@ function shouldFire(kind: NativeNotificationKind, sessionId?: null | string, glo
     return isBackgrounded() || (Boolean(sessionId) && sessionId !== $activeSessionId.get())
   }
 
-  // Completion kinds: only the active session, only while away — so a busy
-  // gateway (messaging, kanban, cron) can't spam a toast per background session.
-  return isBackgrounded() && Boolean(sessionId) && sessionId === $activeSessionId.get()
+  // Completion kinds: only while away, and only for a session with a surface in
+  // this window (the primary view or an open tile).
+  //
+  // This used to be `sessionId === $activeSessionId`, which was too narrow to
+  // do its job. Working across several chats at once is the normal case, and a
+  // finished turn in any of them but the selected one notified nothing at all,
+  // so the one question the user actually had, "which of these is done", had no
+  // answer outside the app.
+  //
+  // The reason for the original narrowness still holds and is still honoured: a
+  // busy gateway runs sessions the user never opened (messaging, kanban, cron,
+  // delegated subagents), and one toast each would be worse than silence. Those
+  // have no surface, so they stay silent. "Open in this window" is the line
+  // between work the user is waiting on and work the machine is doing on its
+  // own.
+  return isBackgrounded() && runtimeHasOpenSurface(sessionId ?? null)
 }
 
 export interface NativeNotificationAction {

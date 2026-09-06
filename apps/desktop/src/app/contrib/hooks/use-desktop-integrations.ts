@@ -336,13 +336,18 @@ export function useDesktopIntegrations({
 
   // Native browser gestures (⌘R, a mouse's back/forward buttons, a trackpad
   // swipe) that landed on the app's own chrome rather than inside a page — main
-  // answers those against the focused guest and never asks. Only ⌘R has an
-  // app-level meaning to fall back to; an unfocused swipe is a no-op.
+  // answers those against the focused guest and never asks.
+  //
+  // With no page focused these are a NO-OP, ⌘R included. It used to fall back to
+  // `window.location.reload()`, which threw away the renderer — the composer
+  // draft, the open panes, the scroll position — and came back on the home
+  // route. That is a destructive answer to a keypress that asked to reload a
+  // page, and it fired from the composer where no page is focused at all.
+  // ⇧⌘R remains the deliberate whole-window reload, and main now serves it on
+  // every platform (see electron/preview-shortcut.ts).
   useEffect(() => {
     const unsubscribe = window.hermesDesktop?.onPreviewNav?.(command => {
-      if (!commandFocusedPreview(command) && command === 'reload') {
-        window.location.reload()
-      }
+      commandFocusedPreview(command)
     })
 
     return () => unsubscribe?.()

@@ -186,6 +186,7 @@ import {
   performFindAfterIndexingStarted,
   stopFind
 } from './find-in-page'
+import { classifyPreviewShortcut } from './preview-shortcut'
 import { createFirstRunSetupGate } from './first-run-setup-gate'
 import { registerFsIpc } from './fs-ipc'
 import {
@@ -6994,29 +6995,42 @@ function installDevToolsShortcut(window) {
 
 function installPreviewShortcut(window) {
   window.webContents.on('before-input-event', (event, input) => {
-    const key = String(input.key || '').toLowerCase()
-    const accel = (IS_MAC ? input.meta : input.control) && !input.alt
-    const isCloseTabShortcut = key === 'w' && accel && !input.shift
+    // The decision is pure and unit-tested (electron/preview-shortcut.ts); this
+    // hook only carries it out. It also gates on keyDown — before-input-event
+    // fires again on keyUp, so the previous inline version dispatched every ⌘R
+    // twice.
+    const shortcut = classifyPreviewShortcut(input, { isMac: IS_MAC })
+
+    if (!shortcut) {
+      return
+    }
+
+    event.preventDefault()
 
     // Always claim ⌘W here (the File>Close item deliberately has no
     // accelerator, so nothing else does). The renderer decides tab-vs-window
     // — no `previewShortcutActive` gate, so it works for every closeable tab.
-    if (isCloseTabShortcut) {
-      event.preventDefault()
+    if (shortcut === 'close-tab') {
       sendClosePreviewRequested()
 
       return
     }
 
-    // ⌘R rides here rather than on the View menu item for the same reason:
-    // the application menu only exists on macOS (it is set to null elsewhere,
-    // see #77845), so a menu accelerator would leave Windows and Linux with no
-    // way to reload a page at all. ⇧⌘R is left alone — that is `forceReload`,
-    // the unconditional whole-window escape hatch.
-    if (key === 'r' && accel && !input.shift) {
-      event.preventDefault()
-      sendPreviewNavCommand('reload')
+    // ⇧⌘R is the whole-window reload. It rides this hook rather than the
+    // View>forceReload menu role because that menu exists only on macOS, so on
+    // Linux/Windows the documented escape hatch was not reachable at all.
+    if (shortcut === 'reload-window') {
+      window.webContents.reloadIgnoringCache()
+
+      return
     }
+
+    // Plain ⌘R means "reload the page I am looking at", the way it does in any
+    // browser. It is answered against the focused guest and is deliberately a
+    // NO-OP when focus is in the app's own chrome: reloading the renderer from
+    // the composer discards the draft and returns to the home route, which is
+    // never what the keypress asked for.
+    sendPreviewNavCommand('reload')
   })
 }
 

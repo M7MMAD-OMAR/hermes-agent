@@ -2752,6 +2752,7 @@ export interface Translations {
   preview: {
     tab: string
     closePane: string
+    embeddedAgentTab: string
     embeddedNewTab: string
     embeddedCloseTab: string
     loading: string

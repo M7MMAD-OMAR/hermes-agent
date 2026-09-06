@@ -3230,6 +3230,7 @@ export const en: Translations = {
     openInExternal: 'Open in external',
     popIn: 'Pop in',
     popOut: 'Pop out',
+    embeddedAgentTab: 'Agent is working in this tab',
     embeddedNewTab: 'New browser tab',
     embeddedCloseTab: 'Close browser tab',
     linkHint: '⌘/Ctrl-click for preview pane',

@@ -109,11 +109,13 @@ export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
  */
 function EmbeddedTab({
   active,
+  agentLabel,
   closeLabel,
   onClose,
   tab
 }: {
   active: boolean
+  agentLabel: string
   closeLabel: string
   onClose: () => void
   tab: PreviewTab
@@ -128,9 +130,24 @@ function EmbeddedTab({
       )}
       {...middle}
     >
+      {/* Which page the agent is on. The flag already existed — it picks the
+          guest's storage partition — but nothing rendered it, so a tab the
+          agent was driving looked exactly like one the user had opened. */}
+      {tab.agent && (
+        <Tip label={agentLabel}>
+          <span
+            aria-label={agentLabel}
+            className="ml-1.5 shrink-0 text-(--ui-accent)"
+            data-agent-tab=""
+            role="img"
+          >
+            <Codicon name="hubot" size="0.6875rem" />
+          </span>
+        </Tip>
+      )}
       <button
         aria-label={browserTabLabel(tab.target)}
-        className="min-w-0 max-w-40 truncate px-2 py-0.5 text-left"
+        className={cn('min-w-0 max-w-40 truncate py-0.5 text-left', tab.agent ? 'pl-1 pr-2' : 'px-2')}
         onClick={event => {
           // ⌘-click closes, matching PaneTab — claimed before the activate so a
           // closing click can't also select the tab it just removed.
@@ -354,6 +371,7 @@ function EmbeddedBrowserBody({ sessionId }: { sessionId: string }) {
         {mine.map(tab => (
           <EmbeddedTab
             active={tab.id === active?.id}
+            agentLabel={t.preview.embeddedAgentTab}
             closeLabel={t.preview.embeddedCloseTab}
             key={tab.id}
             onClose={() => closeRightRailTab(tab.id)}

@@ -3373,6 +3373,7 @@ export const zh: Translations = {
     openInExternal: '在外部打开',
     popIn: '弹回',
     popOut: '弹出',
+    embeddedAgentTab: '助手正在此标签页中操作',
     embeddedNewTab: '新建浏览器标签页',
     embeddedCloseTab: '关闭浏览器标签页',
     linkHint: '⌘/Ctrl+点击在预览面板打开',

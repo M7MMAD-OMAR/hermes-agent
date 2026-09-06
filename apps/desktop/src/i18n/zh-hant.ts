@@ -2707,6 +2707,7 @@ export const zhHant = defineLocale({
     openInExternal: '在外部開啟',
     popIn: '彈回',
     popOut: '彈出',
+    embeddedAgentTab: '助手正在此分頁中操作',
     embeddedNewTab: '新增瀏覽器分頁',
     embeddedCloseTab: '關閉瀏覽器分頁',
     linkHint: '⌘/Ctrl+點擊在預覽窗格開啟',

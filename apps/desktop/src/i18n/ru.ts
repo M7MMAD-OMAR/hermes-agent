@@ -3193,6 +3193,7 @@ export const ru = defineLocale({
     addToChat: 'Добавить в чат'
   },
   preview: {
+    embeddedAgentTab: 'Агент работает в этой вкладке',
     tab: 'Предпросмотр',
     closePane: 'Закрыть панель предпросмотра',
     loading: 'Загрузка предпросмотра',

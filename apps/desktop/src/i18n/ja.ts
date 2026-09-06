@@ -2810,6 +2810,7 @@ export const ja = defineLocale({
     openInExternal: '外部で開く',
     popIn: 'ポップイン',
     popOut: 'ポップアウト',
+    embeddedAgentTab: 'エージェントはこのタブで作業中です',
     embeddedNewTab: '新しいブラウザタブ',
     embeddedCloseTab: 'ブラウザタブを閉じる',
     linkHint: '⌘/Ctrl+クリックでプレビューペイン',

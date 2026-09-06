@@ -1,64 +1,77 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  $threadJumpButtonVisible,
-  $threadScrolledUp,
+  $threadScrollBySession,
+  clearThreadScroll,
   onScrollToBottomRequest,
-  publishThreadAtBottom,
   requestScrollToBottom,
-  resetPublishedThreadScroll,
-  resetThreadScroll,
-  setThreadAtBottom
+  resetAllThreadScroll,
+  setThreadAtBottom,
+  threadScrollFor
 } from './thread-scroll'
 
 afterEach(() => {
-  resetThreadScroll()
+  resetAllThreadScroll()
 })
 
-describe('publishThreadAtBottom', () => {
-  it('lets the visible pane flash the jump pill when the thread leaves the bottom', () => {
-    publishThreadAtBottom(false, { paneVisible: true })
+const stateOf = (sessionId: null | string) => threadScrollFor($threadScrollBySession.get(), sessionId)
 
-    expect($threadJumpButtonVisible.get()).toBe(true)
-    expect($threadScrolledUp.get()).toBe(true)
+describe('each transcript owns its own scroll chrome', () => {
+  it('raises the jump pill for the thread that actually left the bottom', () => {
+    setThreadAtBottom('a', false)
+
+    expect(stateOf('a').jumpVisible).toBe(true)
+    expect(stateOf('a').scrolledUp).toBe(true)
   })
 
-  it('ignores stick-to-bottom misses from a hidden keep-alive pane', () => {
-    setThreadAtBottom(true)
+  it('leaves every other open chat alone', () => {
+    // The reported bug: panes sit side by side, so scrolling up in one chat
+    // raised the pill and dimmed the composer in all of them.
+    setThreadAtBottom('a', false)
 
-    publishThreadAtBottom(false, { paneVisible: false })
-
-    expect($threadJumpButtonVisible.get()).toBe(false)
-    expect($threadScrolledUp.get()).toBe(false)
+    expect(stateOf('b').jumpVisible).toBe(false)
+    expect(stateOf('b').scrolledUp).toBe(false)
   })
 
-  it("keeps the visible pane's scrolled-up chrome when a hidden pane publishes", () => {
-    publishThreadAtBottom(false, { paneVisible: true })
+  it('does not let one thread returning to the bottom clear another', () => {
+    setThreadAtBottom('a', false)
+    setThreadAtBottom('b', true)
 
-    publishThreadAtBottom(true, { paneVisible: false })
+    expect(stateOf('a').jumpVisible).toBe(true)
+  })
 
-    expect($threadJumpButtonVisible.get()).toBe(true)
-    expect($threadScrolledUp.get()).toBe(true)
+  it('reports a thread nobody has scrolled as parked at the bottom', () => {
+    expect(stateOf('never-seen').scrolledUp).toBe(false)
+  })
+
+  it('keeps the map reference stable when nothing changed', () => {
+    // Published on every scroll tick, so a no-op write would re-render every
+    // composer and status stack on screen.
+    setThreadAtBottom('a', false)
+    const settled = $threadScrollBySession.get()
+
+    setThreadAtBottom('a', false)
+    expect($threadScrollBySession.get()).toBe(settled)
   })
 })
 
-describe('resetPublishedThreadScroll', () => {
-  it('clears the jump pill when the visible pane unmounts', () => {
-    setThreadAtBottom(false)
+describe('clearThreadScroll', () => {
+  it('forgets only the transcript that unmounted', () => {
+    setThreadAtBottom('a', false)
+    setThreadAtBottom('b', false)
 
-    resetPublishedThreadScroll({ paneVisible: true })
+    clearThreadScroll('a')
 
-    expect($threadJumpButtonVisible.get()).toBe(false)
-    expect($threadScrolledUp.get()).toBe(false)
+    expect(stateOf('a').jumpVisible).toBe(false)
+    expect(stateOf('b').jumpVisible).toBe(true)
   })
 
-  it('does not clear the visible pane when a hidden list unmounts', () => {
-    setThreadAtBottom(false)
+  it('is a no-op for a transcript with no entry', () => {
+    setThreadAtBottom('a', false)
+    const settled = $threadScrollBySession.get()
 
-    resetPublishedThreadScroll({ paneVisible: false })
-
-    expect($threadJumpButtonVisible.get()).toBe(true)
-    expect($threadScrolledUp.get()).toBe(true)
+    clearThreadScroll('never-seen')
+    expect($threadScrollBySession.get()).toBe(settled)
   })
 })
 

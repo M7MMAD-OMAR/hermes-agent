@@ -22,11 +22,11 @@ import { useI18n } from '@/i18n'
 import { messagePaintWeight } from '@/lib/render-weight'
 import { cn } from '@/lib/utils'
 import {
+  clearThreadScroll,
   onScrollToBottomRequest,
   onThreadEditClose,
   onThreadEditOpen,
-  publishThreadAtBottom,
-  resetPublishedThreadScroll
+  setThreadAtBottom
 } from '@/store/thread-scroll'
 import { isSecondaryWindow } from '@/store/windows'
 
@@ -599,8 +599,8 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
     ? 'pt-[calc(var(--titlebar-height)+0.75rem)]'
     : 'pt-[calc(var(--titlebar-height)-0.5rem)]'
 
-  useEffect(() => publishThreadAtBottom(isAtBottom, { paneVisible }), [isAtBottom, paneVisible])
-  useEffect(() => () => resetPublishedThreadScroll({ paneVisible }), [paneVisible])
+  useEffect(() => setThreadAtBottom(sessionId, isAtBottom), [isAtBottom, sessionId])
+  useEffect(() => () => clearThreadScroll(sessionId), [sessionId])
 
   // Floating jump button (outside this subtree) → return to the bottom.
   useEffect(() => onScrollToBottomRequest(() => void scrollToBottom(), sessionId), [scrollToBottom, sessionId])

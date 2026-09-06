@@ -1,52 +1,80 @@
-import { atom, type WritableAtom } from 'nanostores'
+import { atom } from 'nanostores'
 
 // "Is the thread parked at the bottom" is owned by use-stick-to-bottom inside
 // ThreadMessageList (the scroll container). That state lives only in that
-// subtree, so ThreadMessageList mirrors it into these atoms for the composer,
-// status stack, and floating jump button — all of which render OUTSIDE the thread.
+// subtree, so ThreadMessageList mirrors it out here for the composer, status
+// stack, and floating jump button, all of which render OUTSIDE the thread.
 //
-// `$threadScrolledUp` dims the composer / status stack; `$threadJumpButtonVisible`
-// shows the floating jump control. Both track `!isAtBottom` today, but stay
-// separate so their thresholds can diverge again without touching consumers.
+// KEYED BY SESSION, and that is the whole point. Panes are shown side by side,
+// so several transcripts are on screen at once. While this mirror was two
+// global booleans, whichever pane published last spoke for all of them:
+// scrolling up in one chat raised the jump pill in every other open chat and
+// dimmed all their composers. Each transcript owns its own answer.
 //
-// Keep-alive tabs stay mounted with a real layout box, so only the on-screen
-// pane may publish or reset this composer-facing mirror. Jump-to-bottom
-// requests are keyed by session so a click (or an input-request snap) cannot
-// scroll every mounted transcript.
-export const $threadScrolledUp = atom(false)
-export const $threadJumpButtonVisible = atom(false)
-
-// Skip no-op writes so subscribers don't churn on every scroll tick.
-const setter = (target: WritableAtom<boolean>) => (value: boolean) => {
-  if (target.get() !== value) {
-    target.set(value)
-  }
+// `scrolledUp` dims the composer / status stack; `jumpVisible` shows the
+// floating jump control. Both track `!isAtBottom` today, but stay separate so
+// their thresholds can diverge again without touching consumers.
+export interface ThreadScrollState {
+  jumpVisible: boolean
+  scrolledUp: boolean
 }
 
-const setScrolledUp = setter($threadScrolledUp)
-const setJumpButtonVisible = setter($threadJumpButtonVisible)
+/** Draft transcripts have no session id yet and share the empty key, so two
+ *  un-persisted drafts on screen at once still mirror each other. Same
+ *  compromise the prompt store makes, and for the same reason: there is no
+ *  other identity to key on until the first turn persists. */
+const keyFor = (sessionId: null | string | undefined): string => sessionId ?? ''
 
-export const setThreadAtBottom = (isAtBottom: boolean) => {
-  setScrolledUp(!isAtBottom)
-  setJumpButtonVisible(!isAtBottom)
-}
+const AT_BOTTOM: ThreadScrollState = { jumpVisible: false, scrolledUp: false }
 
-export const resetThreadScroll = () => setThreadAtBottom(true)
+export const $threadScrollBySession = atom<Record<string, ThreadScrollState>>({})
 
-export const publishThreadAtBottom = (isAtBottom: boolean, publisher: { paneVisible: boolean }): void => {
-  if (!publisher.paneVisible) {
+/** One transcript's chrome state. Never null: an unknown session has not
+ *  scrolled, which is what a fresh pane should paint. */
+export const threadScrollFor = (
+  all: Record<string, ThreadScrollState>,
+  sessionId: null | string | undefined
+): ThreadScrollState => all[keyFor(sessionId)] ?? AT_BOTTOM
+
+export const setThreadAtBottom = (sessionId: null | string, isAtBottom: boolean): void => {
+  const key = keyFor(sessionId)
+  const all = $threadScrollBySession.get()
+  const current = all[key] ?? AT_BOTTOM
+
+  // Skip no-op writes so subscribers do not churn on every scroll tick.
+  if (current.scrolledUp === !isAtBottom && current.jumpVisible === !isAtBottom) {
     return
   }
 
-  setThreadAtBottom(isAtBottom)
+  $threadScrollBySession.set({ ...all, [key]: { jumpVisible: !isAtBottom, scrolledUp: !isAtBottom } })
 }
 
-export const resetPublishedThreadScroll = (publisher: { paneVisible: boolean }): void => {
-  if (!publisher.paneVisible) {
+/** Drop one transcript's entry when its list unmounts.
+ *
+ *  There is no `paneVisible` guard here or on the publisher any more. It existed
+ *  because a hidden keep-alive tab writing the single global would clobber the
+ *  visible pane's value; with one entry per session a hidden pane writing its
+ *  own key harms nobody, and refusing its writes is worse than allowing them: a
+ *  tab you scrolled up in and switched away from would keep a stale entry. */
+export const clearThreadScroll = (sessionId: null | string): void => {
+  const key = keyFor(sessionId)
+  const all = $threadScrollBySession.get()
+
+  if (!(key in all)) {
     return
   }
 
-  resetThreadScroll()
+  const next = { ...all }
+
+  delete next[key]
+  $threadScrollBySession.set(next)
+}
+
+/** Forget every transcript's state (gateway switch, tests). */
+export const resetAllThreadScroll = (): void => {
+  if (Object.keys($threadScrollBySession.get()).length > 0) {
+    $threadScrollBySession.set({})
+  }
 }
 
 // Cross-component bridge: the jump button lives by the composer, the viewport's

@@ -1,12 +1,13 @@
 import { useStore } from '@nanostores/react'
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
+import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
-import { $approvalRequest } from '@/store/prompts'
-import { $threadJumpButtonVisible, requestScrollToBottom } from '@/store/thread-scroll'
+import { sessionApprovalRequest } from '@/store/prompts'
+import { $threadScrollBySession, requestScrollToBottom, threadScrollFor } from '@/store/thread-scroll'
 
 /**
  * Floating "jump to bottom" control. Sits centered just above the composer,
@@ -30,8 +31,12 @@ import { $threadJumpButtonVisible, requestScrollToBottom } from '@/store/thread-
  */
 export function ScrollToBottomButton({ sessionId }: { sessionId: string | null }) {
   const { t } = useI18n()
-  const visible = useStore($threadJumpButtonVisible)
-  const request = useStore($approvalRequest)
+  // Both reads are scoped to THIS transcript. They used to be a global atom and
+  // the ACTIVE session's approval, so with panes side by side every chat raised
+  // its pill the moment any one of them scrolled up or was asked to approve
+  // something.
+  const visible = useStoreSelector($threadScrollBySession, all => threadScrollFor(all, sessionId).jumpVisible)
+  const request = useStore(useMemo(() => sessionApprovalRequest(sessionId), [sessionId]))
   // Scrolled away while an approval is pending → the inline Run/Reject bar is
   // below the fold. Relabel so the user knows the session needs them, not just
   // that there's more to read.

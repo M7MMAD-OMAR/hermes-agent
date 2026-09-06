@@ -21,8 +21,9 @@ logger = logging.getLogger("hermes_state")  # caplog tests pin the origin module
 _INSERT_MESSAGE_SQL = """INSERT INTO messages (session_id, role, content, tool_call_id,
                    tool_calls, tool_name, effect_disposition, timestamp, token_count, finish_reason,
                    reasoning, reasoning_content, reasoning_details, codex_reasoning_items,
-                   codex_message_items, platform_message_id, observed, _compressed_summary, active, api_content, display_kind, display_metadata)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+                   codex_message_items, platform_message_id, observed, _compressed_summary, active, api_content, display_kind, display_metadata,
+                   thinking_model)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
 _BUMP_GENERATION_SQL = """
             INSERT INTO conversation_generations (source, session_key, generation)
             VALUES (?, ?, 1)
@@ -247,7 +248,8 @@ class SessionMessagesMixin:
             msg.get("platform_message_id") or msg.get("message_id"),
             1 if msg.get("observed") else 0, 1 if msg.get("_compressed_summary") else 0, 1,
             _str_or_none(msg.get("api_content")), _str_or_none(msg.get("display_kind")),
-            self._encode_display_metadata(msg.get("display_metadata")))
+            self._encode_display_metadata(msg.get("display_metadata")),
+            _str_or_none(msg.get("thinking_model")))
 
     @staticmethod
     def _bump_session_counters(conn, session_id: str, inserted: int, tool_calls: int, *, unit: bool) -> None:
@@ -269,7 +271,8 @@ class SessionMessagesMixin:
         codex_message_items: Any = None, platform_message_id: str = None, observed: bool = False,
         effect_disposition: Optional[str] = None, _compressed_summary: bool = False, timestamp: Any = None,
         api_content: Optional[str] = None, display_kind: Optional[str] = None,
-        display_metadata: Optional[Dict[str, Any]] = None, compression_lock_holder: Optional[str] = None,
+        display_metadata: Optional[Dict[str, Any]] = None, thinking_model: Optional[str] = None,
+        compression_lock_holder: Optional[str] = None,
         turn_lease_holder: Optional[str] = None, turn_lease_ttl_seconds: float = 300.0) -> int:
         """Append one message; returns the row id and bumps the session counters. ``platform_message_id``:
         the platform's own id. ``api_content``: byte-fidelity sidecar, the exact string sent to the API when
@@ -816,6 +819,12 @@ class SessionMessagesMixin:
                 msg.update(
                     (col, _json_or(row[col], None, f"Failed to deserialize {col}, falling back to None"))
                     for col in ("reasoning_details", "codex_reasoning_items", "codex_message_items") if row[col])
+                # Restore the signature's producer, or a resumed chat replays a
+                # foreign signature and 400s (see thinking_model in the schema).
+                # Guarded on the key: not every caller feeds this decoder a
+                # SELECT * row, and a narrower projection must not raise here.
+                if "thinking_model" in row.keys() and row["thinking_model"]:
+                    msg["thinking_model"] = row["thinking_model"]
             if include_ancestors:
                 skip, exact_clone_key = self._dedupe_replayed_user(messages, msg, exact_user_clones)
                 if skip:

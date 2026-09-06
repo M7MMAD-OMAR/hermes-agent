@@ -363,7 +363,12 @@ CREATE TABLE IF NOT EXISTS messages (
     compacted INTEGER NOT NULL DEFAULT 0,
     api_content TEXT,
     display_kind TEXT,
-    display_metadata TEXT
+    display_metadata TEXT,
+    -- Which model MINTED the signed thinking on this turn. Anthropic validates a
+    -- thinking signature against its producer, so replaying one after a /model
+    -- switch is a guaranteed 400. Without persisting it, every cold resume
+    -- presented unstamped history and the failure came back.
+    thinking_model TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session_model_usage (

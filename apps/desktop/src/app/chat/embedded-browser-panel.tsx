@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useState } from 'react'
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useId, useMemo, useState } from 'react'
 
 import { $restartPreviewServer } from '@/app/contrib/panes'
 import { Codicon } from '@/components/ui/codicon'
@@ -13,6 +13,7 @@ import { $rightRailActiveTabId, selectRightRailTab } from '@/store/layout'
 import { $paneWidthOverride, setPaneWidthOverride } from '@/store/panes'
 import {
   $embeddedBrowserExpanded,
+  $embeddedBrowserLeadHosts,
   $embeddedBrowserSessions,
   $previewReloadRequest,
   $previewTabs,
@@ -76,8 +77,14 @@ const DEFAULT_BROWSER_FRACTION = 0.45
  * subscriptions above the bail, every chat paid for that churn forever, whether
  * or not its user had ever opened the browser.
  */
-export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
+export function EmbeddedBrowserPanel({ sessionId, surfaceId }: { sessionId: string; surfaceId?: string }) {
   const embedded = useStore($embeddedBrowserSessions)
+  const ownId = useId()
+  const hostId = surfaceId ?? ownId
+  // Of every surface showing this conversation, ONE renders its browser. The
+  // same stored chat can be on screen twice (a tile and the primary), and two
+  // panels for one tab is one page in two live guests.
+  const lead = useStore($embeddedBrowserLeadHosts).get(sessionId)
 
   // Announce that this conversation HAS somewhere to put a browser, for as long
   // as the surface is in the tree — including while it renders nothing, which is
@@ -85,9 +92,9 @@ export function EmbeddedBrowserPanel({ sessionId }: { sessionId: string }) {
   // mint a tab for a session with no host, so this registration is what decides
   // whether the globe embeds or falls back to the strip. It lives in the GATE,
   // not the body, because it must be true before the first press.
-  useEffect(() => registerEmbeddedBrowserHost(sessionId), [sessionId])
+  useEffect(() => registerEmbeddedBrowserHost(sessionId, hostId), [hostId, sessionId])
 
-  if (!embedded.has(sessionId)) {
+  if (!embedded.has(sessionId) || lead !== hostId) {
     return null
   }
 

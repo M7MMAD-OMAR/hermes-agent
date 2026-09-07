@@ -601,19 +601,69 @@ export const $embeddedBrowserSessions = atom<ReadonlySet<string>>(new Set())
  */
 export const $embeddedBrowserHosts = atom<ReadonlySet<string>>(new Set())
 
-/** How many mounted surfaces claim each session, because membership alone
- *  cannot answer "is there still one left". Two surfaces can resolve to the
- *  same key (a conversation shown as a tile and as the primary, a remount that
- *  overlaps its own unmount), and with a bare Set the FIRST to leave cleared
- *  the flag while a live panel was still rendering — after which the globe
- *  believed there was nowhere to embed and opened a strip tab instead. */
-const hostClaims = new Map<string, number>()
+/** Which mounted SURFACES claim each session, in claim order. Membership
+ *  alone cannot answer "is there still one left": two surfaces can resolve to
+ *  the same key (a conversation shown as a tile and as the primary, a remount
+ *  that overlaps its own unmount), and with a bare Set the FIRST to leave
+ *  cleared the flag while a live panel was still rendering, after which the
+ *  globe believed there was nowhere to embed and opened a strip tab instead. */
+const hostClaims = new Map<string, string[]>()
+
+/**
+ * The ONE surface that renders each embedded conversation's browser.
+ *
+ * Every chat surface hosts its own browser now, tiles included, and that is
+ * what makes a second claimant a real case rather than a remount artefact: the
+ * same stored conversation can be on screen twice. Two panels rendering one
+ * tab is one page in two live guests, an agent driving the copy the user is
+ * not looking at. So the first surface to claim a key renders it, every other
+ * claimant mounts nothing, and the lead passes on when it unmounts. The old
+ * answer to this, "only the primary column hosts a panel", put every other
+ * conversation's browser in the layout strip beside the chat instead of inside
+ * it, which is the shape the user rejected.
+ */
+export const $embeddedBrowserLeadHosts = atom<ReadonlyMap<string, string>>(new Map())
+
+function publishLeadHost(sessionId: string): void {
+  const lead = hostClaims.get(sessionId)?.[0]
+  const current = $embeddedBrowserLeadHosts.get()
+
+  if (current.get(sessionId) === lead) {
+    return
+  }
+
+  const next = new Map(current)
+
+  if (lead) {
+    next.set(sessionId, lead)
+  } else {
+    next.delete(sessionId)
+  }
+
+  $embeddedBrowserLeadHosts.set(next)
+}
+
+let anonymousSurfaceSerial = 0
 
 /** Called by the panel on mount; the returned function unregisters. Idempotent
- *  per registration: calling the returned function twice releases one claim. */
-export function registerEmbeddedBrowserHost(sessionId: string): () => void {
-  hostClaims.set(sessionId, (hostClaims.get(sessionId) ?? 0) + 1)
+ *  per registration: calling the returned function twice releases one claim.
+ *  `surfaceId` names the mounted surface so the lead can be chosen; a caller
+ *  without one gets a private id, which is every caller in a test. */
+export function registerEmbeddedBrowserHost(sessionId: string, surfaceId?: string): () => void {
+  const id = surfaceId ?? `host:${++anonymousSurfaceSerial}`
+  const claims = hostClaims.get(sessionId) ?? []
+
+  // One claim per surface. A handover (`adoptBrowserSessionKey`) carries a
+  // surface's claim to the runtime key BEFORE that surface re-renders and
+  // registers under it; a second entry would outlive the panel and hold the
+  // key hosted with nothing rendering it. React runs an effect's cleanup before
+  // its re-run, so the same surface never legitimately holds two.
+  if (!claims.includes(id)) {
+    hostClaims.set(sessionId, [...claims, id])
+  }
+
   setMembership($embeddedBrowserHosts, sessionId, true)
+  publishLeadHost(sessionId)
 
   let released = false
 
@@ -624,15 +674,17 @@ export function registerEmbeddedBrowserHost(sessionId: string): () => void {
 
     released = true
 
-    const left = (hostClaims.get(sessionId) ?? 1) - 1
+    const remaining = (hostClaims.get(sessionId) ?? []).filter(claim => claim !== id)
 
-    if (left > 0) {
-      hostClaims.set(sessionId, left)
+    if (remaining.length > 0) {
+      hostClaims.set(sessionId, remaining)
+      publishLeadHost(sessionId)
 
       return
     }
 
     hostClaims.delete(sessionId)
+    publishLeadHost(sessionId)
     setMembership($embeddedBrowserHosts, sessionId, false)
   }
 }
@@ -643,6 +695,7 @@ export function registerEmbeddedBrowserHost(sessionId: string): () => void {
 export function resetEmbeddedBrowserHosts(): void {
   hostClaims.clear()
   $embeddedBrowserHosts.set(new Set())
+  $embeddedBrowserLeadHosts.set(new Map())
 }
 
 /** The subset whose panel is expanded (visible) rather than parked. */
@@ -743,6 +796,23 @@ export function adoptBrowserSessionKey(
   // session's filter) or already embedded.
   const wasEmbedded = $embeddedBrowserSessions.get().has(from)
 
+  // The HOST moves first of all. The strip keeps a tab only while nothing
+  // hosts it, and the panel re-registers under the runtime key on a React
+  // render that lands AFTER this function returns. Membership moved without the
+  // host is one published state in which the tab is embedded, unhosted, and
+  // therefore back in the strip: a pane is registered and torn down again on
+  // the next write, and the live guest goes with it.
+  const claims = hostClaims.get(from)
+
+  if (claims) {
+    const existing = hostClaims.get(runtimeId) ?? []
+
+    hostClaims.set(runtimeId, [...existing, ...claims.filter(claim => !existing.includes(claim))])
+    hostClaims.delete(from)
+    setMembership($embeddedBrowserHosts, runtimeId, true)
+    publishLeadHost(runtimeId)
+  }
+
   if (wasEmbedded) {
     const wasExpanded = $embeddedBrowserExpanded.get().has(from)
 
@@ -775,6 +845,12 @@ export function adoptBrowserSessionKey(
 
   if (wasEmbedded) {
     setEmbeddedBrowserSession(from, false)
+  }
+
+  // The old key's host flag goes LAST, after nothing is owned under it.
+  if (claims) {
+    publishLeadHost(from)
+    setMembership($embeddedBrowserHosts, from, false)
   }
 }
 
@@ -839,19 +915,19 @@ export function closeBrowserTabsForSession(sessionId: null | string, storedSessi
  *  shows is a visibility question, answered by hiding panes
  *  (`syncBrowserSessionPanes`), which keeps them mounted. */
 export const $dockedPreviewTabs = computed(
-  [$previewTabs, $poppedBrowserTabIds, $embeddedBrowserSessions, $browserSessionId],
-  (tabs, popped, embeddedSessions, browserSessionId) => {
+  [$previewTabs, $poppedBrowserTabIds, $embeddedBrowserSessions, $embeddedBrowserHosts],
+  (tabs, popped, embeddedSessions, hosts) => {
     const notPopped = popped.size === 0 ? tabs : tabs.filter(tab => !popped.has(tab.id))
 
     // A DRAFT conversation's tabs never belong to the strip, whatever else is
     // true. The draft key exists only for the primary chat column, so its panel
-    // is the only surface that can host these — and making that structural is
+    // is the only surface that can host these, and making that structural is
     // what makes the handover safe in ANY order. Adoption and the focus sync
-    // that moves `$browserSessionId` onto the real runtime id are separate
-    // writes; whichever lands first, a draft-owned tab that were merely
-    // unfiltered here would re-enter the strip for that beat, register a pane,
-    // and lose it again to `removeTreePane` on the next write — taking the live
-    // guest with it. Excluded by ownership, there is no such beat to get right.
+    // are separate writes; whichever lands first, a draft-owned tab that were
+    // merely unfiltered here would re-enter the strip for that beat, register
+    // a pane, and lose it again to `removeTreePane` on the next write, taking
+    // the live guest with it. Excluded by ownership, there is no such beat to
+    // get right.
     //
     // The `.some()` first is the identity short-circuit `notPopped` uses one
     // line up: this computed feeds `paneMirror.sync()`, and nanostores skips
@@ -865,26 +941,29 @@ export const $dockedPreviewTabs = computed(
       return notDraft
     }
 
-    // A conversation with its browser embedded hosts its own browser tabs in
-    // the chat column, so they leave the strip while it is the conversation you
-    // are looking at (the panel's PreviewPane is the ONE surface showing them —
-    // never two live webviews for one tab). Every other tab stays: file/artifact
-    // peeks, unowned pages, and any embedded conversation that is NOT on screen
-    // — no panel renders it, so the strip is what keeps its panes alive for the
-    // agent still driving them (hidden, not dropped — see
-    // syncBrowserSessionPanes).
+    // A conversation whose browser is embedded AND has a panel mounted to
+    // render it hosts its own browser tabs in its chat column, so they leave
+    // the strip. Keyed on HOSTED, not on the focused conversation: every chat
+    // surface carries its own panel now, and a tile behind another tab keeps
+    // its panel mounted, so its page has a home whether or not it is the one
+    // on screen. Keying on focus was right when only the primary column could
+    // host, and it is what put every other chat's browser in the strip beside
+    // the conversation instead of inside it.
     //
-    // Keyed on the FOCUSED conversation, and exactly one panel may answer to
-    // that key — see the `isPrimary` gate in app/chat/index.tsx. A surface
-    // hosting a panel for some OTHER conversation would go on rendering the tab
-    // this filter has just handed back to the strip, and the page would run in
-    // two guests at once.
+    // When the LAST panel for a conversation unmounts (its tile closed, the
+    // primary navigated away) the tab returns here, so the strip keeps the
+    // page alive for the agent still driving it rather than leaving a tab that
+    // exists, is in no strip, and has no panel.
+    //
+    // Exactly one panel renders a hosted key, see `$embeddedBrowserLeadHosts`;
+    // otherwise a conversation on screen twice would run its page in two
+    // guests.
     return notDraft.filter(tab => {
-      if (tab.target.kind !== 'url' || !tab.owner || !embeddedSessions.has(tab.owner)) {
+      if (tab.target.kind !== 'url' || !tab.owner) {
         return true
       }
 
-      return tab.owner !== browserSessionId
+      return !(embeddedSessions.has(tab.owner) && hosts.has(tab.owner))
     })
   }
 )

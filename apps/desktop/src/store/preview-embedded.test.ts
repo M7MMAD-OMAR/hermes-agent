@@ -6,6 +6,7 @@ import {
   $dockedPreviewTabs,
   $embeddedBrowserExpanded,
   $embeddedBrowserHosts,
+  $embeddedBrowserLeadHosts,
   $embeddedBrowserSessions,
   $poppedBrowserTabIds,
   $previewTabs,
@@ -186,7 +187,7 @@ describe('embedded browser store', () => {
     expect($previewTabs.get().map(tab => tab.id)).toEqual([tabId])
   })
 
-  it('drops the focused conversation’s embedded browser tabs from the strip, and only theirs', () => {
+  it('drops a HOSTED conversation’s embedded browser tabs from the strip, and only theirs', () => {
     openPreview(urlTarget('https://example.com/shared'), 'manual') // unowned
     openPreview(fileTarget('/work/demo.html')) // file peek
     newBrowserTab('sess-1')
@@ -195,13 +196,15 @@ describe('embedded browser store', () => {
     // Not embedded yet: everything is docked.
     expect($dockedPreviewTabs.get()).toHaveLength(4)
 
+    // Embedded but with no panel mounted anywhere: the strip keeps the page
+    // alive rather than leaving a tab that exists and has no home.
     setEmbeddedBrowserSession('sess-1', true)
-    // While sess-1 is NOT the conversation on screen, its tabs stay docked
-    // (the strip keeps the panes alive for its agent).
     expect($dockedPreviewTabs.get()).toHaveLength(4)
 
-    // sess-1 comes on screen: ITS browser tabs move into the embedded panel…
-    $browserSessionId.set('sess-1')
+    // A panel mounts for sess-1: ITS browser tabs move into it, whether or not
+    // sess-1 is the conversation on screen (a tile behind another tab keeps
+    // its panel mounted).
+    const release = withHost('sess-1')
     const docked = $dockedPreviewTabs.get()
 
     const sess1Tabs = browserTabs($previewTabs.get())
@@ -210,19 +213,58 @@ describe('embedded browser store', () => {
 
     expect(sess1Tabs.length).toBeGreaterThan(0)
     expect(docked.map(tab => tab.id)).toEqual(expect.not.arrayContaining(sess1Tabs))
-    // …while the shared page, the file peek, and the OTHER conversation's
-    // browser stay in the strip.
+    // The shared page, the file peek, and the OTHER conversation's browser
+    // stay in the strip.
     expect(docked.some(tab => tab.target.kind === 'file')).toBe(true)
     expect(docked.some(tab => tab.target.url === 'https://example.com/shared')).toBe(true)
     expect(docked.some(tab => tab.owner === 'sess-2')).toBe(true)
 
-    // Glancing at sess-2 returns sess-1's tabs to the strip. This is only safe
-    // because exactly ONE panel can answer to the focused key — the primary
-    // column (see the isPrimary gate in app/chat/index.tsx). A second surface
-    // hosting sess-1 would still be rendering the tab the strip has just taken
-    // back, and the page would run in two guests.
+    // Focus moving elsewhere changes nothing: the panel still renders it.
     $browserSessionId.set('sess-2')
+    expect($dockedPreviewTabs.get().some(tab => tab.owner === 'sess-1')).toBe(false)
+
+    // The LAST panel unmounting returns the tab to the strip, so the page is
+    // never hosted nowhere.
+    release()
     expect($dockedPreviewTabs.get().some(tab => tab.owner === 'sess-1')).toBe(true)
+  })
+
+  // The same conversation on screen twice (a tile and the primary) is one tab
+  // that must render in ONE guest. The first surface to claim the key renders
+  // it; the lead passes on when that surface goes.
+  it('elects one lead host per conversation, and passes it on', () => {
+    const releaseA = registerEmbeddedBrowserHost('sess-1', 'surface-a')
+    const releaseB = registerEmbeddedBrowserHost('sess-1', 'surface-b')
+
+    expect($embeddedBrowserLeadHosts.get().get('sess-1')).toBe('surface-a')
+
+    releaseA()
+    expect($embeddedBrowserLeadHosts.get().get('sess-1')).toBe('surface-b')
+    expect($embeddedBrowserHosts.get().has('sess-1')).toBe(true)
+
+    releaseB()
+    expect($embeddedBrowserLeadHosts.get().has('sess-1')).toBe(false)
+    expect($embeddedBrowserHosts.get().has('sess-1')).toBe(false)
+  })
+
+  // The handover carries the HOST too, not only membership and tabs: the panel
+  // re-registers under the runtime key on a render that lands after adoption,
+  // and a tab that is embedded but unhosted for that beat is back in the strip.
+  it('moves the host claim with the tabs on adoption', () => {
+    registerEmbeddedBrowserHost(DRAFT_BROWSER_SESSION_ID, 'surface-a')
+    toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID)
+
+    adoptDraftBrowserSession('runtime-9')
+
+    expect($embeddedBrowserHosts.get().has('runtime-9')).toBe(true)
+    expect($embeddedBrowserHosts.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)
+    expect($embeddedBrowserLeadHosts.get().get('runtime-9')).toBe('surface-a')
+
+    // The panel's own re-registration under the new key is not a second claim.
+    const release = registerEmbeddedBrowserHost('runtime-9', 'surface-a')
+
+    release()
+    expect($embeddedBrowserHosts.get().has('runtime-9')).toBe(false)
   })
 
   // A second registration for the same conversation must not be able to un-host

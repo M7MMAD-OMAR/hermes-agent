@@ -430,29 +430,19 @@ const ChatViewContent = memo(function ChatViewContent({
 
   // Which conversation this surface's browser belongs to.
   //
-  // THE PRIMARY COLUMN ONLY, and that is an invariant rather than a limitation.
-  // `$dockedPreviewTabs` takes a conversation's tabs out of the layout strip
-  // while it is the FOCUSED one, on the understanding that its panel is then the
-  // single surface rendering them. Mounting a panel on session tiles broke that:
-  // a tile's panel stays mounted and expanded while you look at another chat, so
-  // its tab was back in the strip AND still rendered by the tile — one tab, two
-  // live guests, the page loaded twice and an agent driving the copy the user
-  // could not see.
+  // EVERY surface, tiles included. The browser is part of the conversation and
+  // lives inside its column; a tile whose browser opened in the layout strip
+  // beside it was the shape the user rejected outright. Two surfaces showing
+  // the same conversation resolve to the same key, and only the lead host
+  // renders it (`$embeddedBrowserLeadHosts`), so the page never runs in two
+  // guests; a tile parked behind another tab keeps its panel mounted, so its
+  // page keeps its home while it is off screen.
   //
-  // A tile's globe is not inert as a result: with no panel registered for it,
-  // `toggleEmbeddedBrowser` falls back to opening the page in the strip, which
-  // is what $embeddedBrowserHosts exists to decide.
-  //
-  // Only the primary can be a DRAFT — a tile is bound to a runtime id before it
-  // renders — so the stand-in key is scoped to it and two surfaces can never
-  // claim it at once.
-  //
-  // The STORED id is passed, and that argument is the fix for an uncloseable
-  // panel: a conversation waiting for its runtime is not a draft, and calling
-  // it one made every such conversation mount the SAME browser while the globe
-  // (which resolved that state to null) had nothing to toggle. Same function as
-  // `syncBrowserSession` calls, so the two can no longer answer differently.
-  const embeddedBrowserKey = isPrimary ? browserSessionKey(activeSessionId, storedId) : null
+  // Three binding states, one function: a runtime id, a conversation's own
+  // `stored:` stand-in while its runtime binds, and the draft for a new chat.
+  // Only the primary can be a draft; a tile always has a stored id, so a tile
+  // can never claim the draft key.
+  const embeddedBrowserKey = browserSessionKey(activeSessionId, storedId)
   const awaitingResponse = useStore(view.$awaitingResponse)
   const busy = useStore(view.$busy)
   const activeGatewayProfile = useStore($activeGatewayProfile)
@@ -850,7 +840,7 @@ const ChatViewContent = memo(function ChatViewContent({
             not be opened on an empty conversation at all. The draft key stands
             in and `adoptDraftBrowserSession` swaps the real id underneath once
             the turn mints one — the panel never unmounts across that swap. */}
-        {embeddedBrowserKey && <EmbeddedBrowserPanel sessionId={embeddedBrowserKey} />}
+        <EmbeddedBrowserPanel sessionId={embeddedBrowserKey} surfaceId={composerSurfaceId ?? undefined} />
       </div>
     </div>
   )

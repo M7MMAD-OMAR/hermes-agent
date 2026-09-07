@@ -966,6 +966,14 @@ if (!isSecondaryWindow() && !isBrowserWindow()) {
 
 export function patchSessionTile(storedSessionId: string, patch: Partial<SessionTile>) {
   saveTiles($sessionTiles.get().map(t => (t.storedSessionId === storedSessionId ? { ...t, ...patch } : t)))
+
+  // A tile's runtime just bound: hand its browser from the `stored:` stand-in
+  // to the runtime id HERE, for every tile, not only the focused one. The
+  // focus sync adopts only what is on screen, and a tile binding while another
+  // chat is focused would otherwise keep its tabs under a key no panel renders.
+  if (patch.runtimeId) {
+    adoptBrowserSessionKey(storedBrowserSessionKey(storedSessionId), patch.runtimeId, storedSessionId)
+  }
 }
 
 export function sessionTileOwnerRoute(storedSessionId: string): SessionOwnerRoute | undefined {

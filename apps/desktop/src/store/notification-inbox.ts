@@ -55,8 +55,13 @@ export const $unreadInboxCount = computed($inbox, entries => entries.filter(entr
 let counter = 0
 
 /** The chat an event belongs to, by durable id. Tiles claim their own stored
- *  id; the primary view is not a tile, so its runtime slice answers for it. */
-function storedIdForRuntimeId(runtimeId: string): null | string {
+ *  id; the primary view is not a tile, so its runtime slice answers for it.
+ *
+ *  Exported because the OS notification needs the same answer for a different
+ *  reason: the `hermes://chat/<id>` link it carries must name a chat that is
+ *  still findable minutes later, and after the app has been closed and
+ *  relaunched, which only the durable id is. */
+export function durableChatId(runtimeId: string): null | string {
   return $sessionStates.get()[runtimeId]?.storedSessionId ?? storedSessionIdForRuntimeId(runtimeId)
 }
 
@@ -90,7 +95,7 @@ export function recordInboxEntry(input: InboxRecordInput): InboxEntry | null {
     return null
   }
 
-  const storedId = runtimeId ? storedIdForRuntimeId(runtimeId) : null
+  const storedId = runtimeId ? durableChatId(runtimeId) : null
 
   const kindMatch = (entry: InboxEntry) =>
     entry.kind === input.kind && entry.title === input.title && entry.storedSessionId === storedId

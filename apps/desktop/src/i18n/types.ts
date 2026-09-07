@@ -178,6 +178,8 @@ export interface Translations {
     details: string
     copyDetail: string
     copyDetailFailed: string
+    /** Anchor text for the `hermes://chat/<id>` link inside an OS notification. */
+    openChat: string
     backendOutOfDateTitle: string
     backendOutOfDateMessage: string
     installMethodUnsupportedTitle: string

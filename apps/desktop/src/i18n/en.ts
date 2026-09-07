@@ -134,6 +134,7 @@ export const en: Translations = {
     details: 'Details',
     copyDetail: 'Copy detail',
     copyDetailFailed: 'Could not copy notification detail',
+    openChat: 'Open chat',
     backendOutOfDateTitle: 'Backend out of date',
     backendOutOfDateMessage:
       'Your Hermes backend is older than this desktop build and may not work correctly. Update to align them.',
@@ -521,7 +522,7 @@ export const en: Translations = {
       testSent: 'Test sent. If nothing appears, check your OS notification permissions and Focus/Do Not Disturb.',
       testUnsupported: 'This system does not support native notifications.',
       completionSoundTitle: 'Completion Sound',
-      completionSoundDesc: 'Plays when an agent turn finishes. Pick a preset and preview it here.',
+      completionSoundDesc: 'Plays when an agent turn finishes. Pick a preset and preview it here. Approvals, questions, errors and finished background tasks each get their own short cue, on the same mute.',
       completionSoundPreview: 'Preview'
     },
     sections: {

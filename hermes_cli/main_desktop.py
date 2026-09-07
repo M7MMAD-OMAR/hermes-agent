@@ -1516,6 +1516,19 @@ def _check_desktop_skip_build(
         print(f"→ Skipping desktop package build (--skip-build); using {packaged_executable}")
 
 
+# Only our own scheme may come in through the desktop entry's ``%u``. The entry
+# is world-readable and anything on the session bus can ask xdg-open to activate
+# it, so an unvalidated argument here would be a way to hand arbitrary argv to
+# the Electron binary.
+_DESKTOP_URL_SCHEMES = ("hermes://", "hermes-dev://")
+
+
+def desktop_activation_url(raw) -> "str | None":
+    """The ``hermes://`` URL to hand to the app, or None."""
+    url = str(raw or "").strip()
+    return url if any(url.startswith(scheme) for scheme in _DESKTOP_URL_SCHEMES) else None
+
+
 def _packaged_desktop_launch_command(packaged_executable: Path) -> list[str]:
     """``[exe, *sandbox flags]`` after the Linux sandbox fixup; exits when the sandbox can't be configured."""
     launch_command = [str(packaged_executable)]
@@ -1544,6 +1557,23 @@ def cmd_gui(args: argparse.Namespace):
         _setup_logging_gui(mode="gui")
 
     env, config_electron_flags = _desktop_launch_env(args)
+
+    # A `hermes://` URL activation (a notification body link, a browser handoff)
+    # has to reach the app NOW. Everything below installs dependencies and
+    # content-hashes the tree to decide on a rebuild, which can take minutes,
+    # and when the app is already up, the single-instance lock means the process
+    # we spawn does nothing but hand the URL over and exit. So a URL launch runs
+    # the artifact that already exists and skips the build entirely. With no
+    # artifact to run we fall through and build, carrying the URL along, because
+    # dropping the user's click would be worse than making them wait.
+    activation_url = desktop_activation_url(getattr(args, "url", None))
+    prebuilt = _desktop_packaged_executable(desktop_dir) if activation_url else None
+
+    if activation_url and prebuilt is not None:
+        command = _packaged_desktop_launch_command(prebuilt)
+        command.extend(config_electron_flags)
+        command.append(activation_url)
+        sys.exit(subprocess.run(command, cwd=desktop_dir, env=env, check=False).returncode)
 
     source_mode = getattr(args, "source", False)
     skip_build = getattr(args, "skip_build", False)
@@ -1612,6 +1642,10 @@ def cmd_gui(args: argparse.Namespace):
         launch_command.extend(config_electron_flags)
     if getattr(args, "local", False):
         launch_command.append("--local")
+    if activation_url:
+        # The fast path above found no artifact, so this launch is the one that
+        # must carry the URL. Last argument: Electron scans argv for it.
+        launch_command.append(activation_url)
     if not source_mode:
         print(f"→ Launching packaged Hermes Desktop: {' '.join(launch_command)}")
     launch_result = subprocess.run(launch_command, cwd=desktop_dir, env=env, check=False)

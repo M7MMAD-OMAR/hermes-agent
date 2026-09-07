@@ -395,9 +395,13 @@ def render_desktop_entry(exec_command: str, icon: str) -> str:
         "Name=Hermes\n"
         "GenericName=Hermes Desktop\n"
         "Comment=Launch Hermes Desktop\n"
-        f"Exec={exec_command}\n"
+        # `%u` is what lets the entry act as the hermes:// url-scheme handler:
+        # without it xdg-open drops the URL and the app opens on whatever it was
+        # last showing instead of the chat the user clicked.
+        f"Exec={exec_command} %u\n"
         f"Icon={icon}\n"
         "Terminal=false\n"
+        "MimeType=x-scheme-handler/hermes;\n"
         "Categories=Utility;\n"
         "StartupNotify=true\n"
         "StartupWMClass=Hermes\n"

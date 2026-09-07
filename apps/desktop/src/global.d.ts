@@ -1246,6 +1246,12 @@ export interface HermesNotification {
   silent?: boolean
   kind?: string
   sessionId?: string
+  /** DURABLE chat id, so main can build the `hermes://chat/<id>` body link.
+   *  Not the runtime id in `sessionId`: the link must still resolve after the
+   *  runtime is retired and after the app has been closed and relaunched. */
+  chatId?: string
+  /** Translated anchor text for that link (main is not localized). */
+  linkLabel?: string
   /** Dedupe discriminator for session-less notifications (e.g. plugin id). */
   tag?: string
   /** Absolute icon path for Electron `Notification`. */

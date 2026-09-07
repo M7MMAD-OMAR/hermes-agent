@@ -1,10 +1,12 @@
 import { atom } from 'nanostores'
 
+import { translateNow } from '@/i18n'
 import { type HermesOpenTarget, resolveHermesOpenPath } from '@/lib/hermes-open-target'
+import { playNotificationSound } from '@/lib/notification-sound'
 import { persistString, storedString } from '@/lib/storage'
 
 import { $gateway } from './gateway'
-import { recordInboxEntry } from './notification-inbox'
+import { durableChatId, recordInboxEntry } from './notification-inbox'
 import { withinNativeNotifyBaseline } from './notify-baseline'
 import { clearApprovalRequest } from './prompts'
 import { isSessionGone, isSessionGoneForBackgroundPolling, markSessionGone } from './runtime-gone'
@@ -232,18 +234,32 @@ export function dispatchNativeNotification(input: NativeNotificationInput): bool
     return false
   }
 
+  // The durable id, resolved HERE rather than on click. Main turns it into the
+  // `hermes://chat/<id>` the notification body links to, and that link has to
+  // survive the runtime id being retired and the app being restarted.
+  const chatId = input.sessionId ? durableChatId(input.sessionId) : null
+
   void window.hermesDesktop?.notify({
     actions: input.actions,
     activate: input.activate,
     body: input.body,
+    chatId: chatId ?? undefined,
     icon: input.icon,
     kind: input.kind,
+    linkLabel: translateNow('notifications.openChat'),
     notifyId: input.notifyId,
     sessionId: input.sessionId ?? undefined,
     silent: input.silent,
     tag: input.tag,
     title: input.title
   })
+
+  // Sound rides the same decision as the banner, one window per event. `silent`
+  // is the caller saying "no sound", so it suppresses ours too rather than only
+  // the daemon's (which on most Linux shells plays nothing anyway).
+  if (!input.silent) {
+    playNotificationSound(input.kind, chatId ?? input.sessionId)
+  }
 
   return true
 }

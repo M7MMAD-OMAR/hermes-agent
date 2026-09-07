@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'node:child_process'
+import { execFile, execFileSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -270,6 +270,7 @@ import {
 } from './native-oauth'
 import { runNativeLogin } from './native-oauth-login'
 import { loadNativeTokenSet, type NativeTokenStoreIo, persistNativeTokenSet } from './native-token-store'
+import { chatDeepLink, decorateNotificationBody, parseNotifyCapabilities } from './notification-body-link'
 import { serializeJsonBody, setJsonRequestHeaders } from './oauth-net-request'
 import { LEGACY_OAUTH_PARTITION, resolveOauthPartition } from './oauth-partition'
 import { createParentStartMarkerResolver, parentWatchdogEnv } from './parent-process-identity'
@@ -16622,6 +16623,51 @@ const claimedAmbientCue = createEventDeduper()
 // The first caller within the window gets true; peers get false and stay quiet.
 ipcMain.handle('hermes:ambient:claim', (_event, key) => !claimedAmbientCue(String(key ?? '')))
 
+// What the running notification daemon can render. Linux only, because it
+// decides whether a `hermes://chat/<id>` link in the body would be a clickable
+// link or literal angle brackets on screen.
+//
+// Read out-of-process with `gdbus` rather than by taking a D-Bus dependency:
+// this is one string, read once, and a missing gdbus or a missing daemon must
+// simply mean "assume nothing", which a failed spawn already gives us.
+//
+// Probed ASYNCHRONOUSLY, once, at startup. Main handles IPC serially, so a
+// synchronous probe would freeze every window for as long as a wedged session
+// bus takes to answer, and it would do it on the first notification of the
+// session, the worst possible moment. An unfinished probe simply reads as "no
+// capabilities", which is the same safe answer as a failed one.
+let _notifyCapabilities = []
+
+function probeNotifyCapabilities() {
+  if (process.platform !== 'linux') {
+    return
+  }
+
+  execFile(
+    'gdbus',
+    [
+      'call',
+      '--session',
+      '--dest',
+      'org.freedesktop.Notifications',
+      '--object-path',
+      '/org/freedesktop/Notifications',
+      '--method',
+      'org.freedesktop.Notifications.GetCapabilities'
+    ],
+    { encoding: 'utf8', timeout: 2000 },
+    (error, stdout) => {
+      if (error) {
+        // No gdbus, no daemon, or it did not answer in time.
+        return
+      }
+
+      _notifyCapabilities = parseNotifyCapabilities(stdout)
+      rememberLog(`[notify] daemon capabilities: ${_notifyCapabilities.join(', ') || 'none'}`)
+    }
+  )
+}
+
 ipcMain.handle('hermes:notify', (_event, payload) => {
   if (!Notification.isSupported()) {
     return false
@@ -16640,15 +16686,40 @@ ipcMain.handle('hermes:notify', (_event, payload) => {
   const actions = Array.isArray(payload?.actions) ? payload.actions : []
   const icon = typeof payload?.icon === 'string' && payload.icon.trim() ? payload.icon.trim() : undefined
 
+  // Give the notification something the user can actually click. Electron adds
+  // only a "default"/"View" action on Linux, and several shells bind nothing to
+  // a body click, so on those the notification is inert no matter what the app
+  // listens for. A body link is honoured wherever `body-hyperlinks` is
+  // advertised, and unlike the IPC click it still works when Hermes is closed.
+  const deepLink = chatDeepLink(payload?.chatId, HERMES_PROTOCOL)
+
+  const body = decorateNotificationBody(payload?.body || '', {
+    capabilities: _notifyCapabilities,
+    link: deepLink,
+    linkLabel: payload?.linkLabel
+  })
+
   const notification = new Notification({
     title: payload?.title || 'Hermes',
-    body: payload?.body || '',
+    body,
     silent: Boolean(payload?.silent),
     ...(icon ? { icon } : {}),
     actions: actions.map(action => ({ type: 'button', text: String(action?.text || '') }))
   })
 
   notification.on('click', () => {
+    // A chat popped out into its own window is already open somewhere; raising
+    // the main window and opening a second copy there is not what "take me to
+    // that chat" means. The registry is keyed by the durable id, which is the
+    // same id the link carries.
+    const owner = deepLinkTargetWindow(payload?.chatId)
+
+    if (owner) {
+      focusWindow(owner)
+
+      return
+    }
+
     if (!mainWindow || mainWindow.isDestroyed()) {
       return
     }
@@ -17859,6 +17930,23 @@ function _extractDeepLink(argv) {
   return argv.find(a => typeof a === 'string' && DEEPLINK_SCHEMES.some(s => a.startsWith(`${s}://`))) || null
 }
 
+/** The secondary window that already owns this chat, if any.
+ *
+ *  Declared as a hoisted function, not a const: the notification click handler
+ *  above is defined long before this section of the file, and only ever calls
+ *  it at runtime. */
+function deepLinkTargetWindow(storedSessionId) {
+  const key = typeof storedSessionId === 'string' ? storedSessionId.trim() : ''
+
+  if (!key) {
+    return null
+  }
+
+  const win = sessionWindows.get(key)
+
+  return win && !win.isDestroyed?.() ? win : null
+}
+
 function handleDeepLink(url) {
   if (!url || typeof url !== 'string') {
     return
@@ -17898,6 +17986,18 @@ function handleDeepLink(url) {
   }
 
   try {
+    // hermes://chat/<id> for a chat already popped out into its own window:
+    // raise THAT window. Delivering to the main window instead would open a
+    // second copy of a chat the user already has on screen.
+    const owner = kind === 'chat' ? deepLinkTargetWindow(name) : null
+
+    if (owner) {
+      focusWindow(owner)
+      rememberLog(`[deeplink] focused existing window for chat/${name}`)
+
+      return
+    }
+
     if (mainWindow.isMinimized()) {
       mainWindow.restore()
     }
@@ -17986,6 +18086,10 @@ app.on('open-url', (event, url) => {
 })
 
 app.whenReady().then(() => {
+  // What the notification daemon can render: it decides whether a body link is
+  // a clickable link or literal angle brackets on screen.
+  probeNotifyCapabilities()
+
   // Warm the login-shell PATH resolution immediately so it usually completes
   // before the backend start path awaits the same single-flight promise.
   void ensureLoginShellPath()

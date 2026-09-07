@@ -19,6 +19,12 @@ vi.mock('@/store/mcp-deeplink-install', () => ({
   requestMcpInstallFromDeepLink: vi.fn()
 }))
 
+// The one call a notification click and a `hermes://chat/<id>` link both make.
+// Mocked so the assertion is about WHICH call is made, not about routing.
+const { openSessionMock } = vi.hoisted(() => ({ openSessionMock: vi.fn() }))
+
+vi.mock('@/app/open-session', () => ({ openSession: openSessionMock }))
+
 vi.mock('@/store/windows', async importOriginal => {
   const actual = await importOriginal<typeof WindowsStore>()
 
@@ -47,6 +53,7 @@ describe('useDesktopIntegrations', () => {
     window.localStorage.clear()
     _resetLegacyDiscardForTests()
     vi.mocked(requestMcpInstallFromDeepLink).mockClear()
+    openSessionMock.mockClear()
     navigate = vi.fn()
     // Every test starts as a main window; only the HUD describe flips this.
     hudWindowMock.mockReturnValue(false)
@@ -547,6 +554,47 @@ describe('useDesktopIntegrations', () => {
       render({ profileReady: true, sessions: [] })
       deepLink?.({ kind: 'index-network', name: 'intent/1', params: {} })
       expect(navigate).toHaveBeenCalledWith('/index-network/intent/1')
+    })
+
+    it('opens hermes://chat/<id> as a stacked tile, never closing what is already open', () => {
+      // The whole point of arriving from outside the app: the user clicked a
+      // notification about ONE chat, and must not lose the chats they left on
+      // screen. Same call the titlebar bell makes, 'stack' and all.
+      let deepLink: ((payload: { kind: string; name: string; params: Record<string, string> }) => void) | undefined
+      desktopWindow.hermesDesktop = {
+        ...desktopWindow.hermesDesktop,
+        onDeepLink: (cb: (payload: { kind: string; name: string; params: Record<string, string> }) => void) => {
+          deepLink = cb
+
+          return () => undefined
+        },
+        signalDeepLinkReady: vi.fn()
+      } as unknown as Window['hermesDesktop']
+
+      render({ profileReady: true, sessions: [] })
+      deepLink?.({ kind: 'chat', name: '20260907_033921_9dd21e', params: {} })
+
+      expect(openSessionMock).toHaveBeenCalledWith('20260907_033921_9dd21e', navigate, 'stack')
+      expect(navigate).not.toHaveBeenCalled()
+    })
+
+    it('ignores a chat link whose id would smuggle a path', () => {
+      let deepLink: ((payload: { kind: string; name: string; params: Record<string, string> }) => void) | undefined
+      desktopWindow.hermesDesktop = {
+        ...desktopWindow.hermesDesktop,
+        onDeepLink: (cb: (payload: { kind: string; name: string; params: Record<string, string> }) => void) => {
+          deepLink = cb
+
+          return () => undefined
+        },
+        signalDeepLinkReady: vi.fn()
+      } as unknown as Window['hermesDesktop']
+
+      render({ profileReady: true, sessions: [] })
+      deepLink?.({ kind: 'chat', name: '../../settings', params: {} })
+
+      expect(openSessionMock).not.toHaveBeenCalled()
+      expect(navigate).not.toHaveBeenCalled()
     })
 
     it('routes hermes://mcp/install to the pending-install dialog, not navigation', () => {

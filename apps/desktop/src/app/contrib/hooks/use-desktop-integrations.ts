@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { closeActiveTab } from '@/app/chat/close-tab'
 import { commandFocusedPreview } from '@/app/chat/right-rail/preview-nav'
 import { openSession } from '@/app/open-session'
+import { chatSessionIdFromDeepLink } from '@/lib/chat-deep-link'
 import { resolveDeepLinkAction } from '@/lib/deeplink-routes'
 import { pathFromHermesDeepLink, resolveHermesOpenPath } from '@/lib/hermes-open-target'
 import { storedSessionIdForNotification } from '@/lib/session-ids'
@@ -274,6 +275,18 @@ export function useDesktopIntegrations({
 
       if (payload.kind === 'mcp' && payload.name === 'install') {
         requestMcpInstallFromDeepLink(payload.params || {})
+
+        return
+      }
+
+      // hermes://chat/<storedSessionId>: the OS-level address of one chat,
+      // what a notification body links to. Deliberately the SAME call the
+      // titlebar bell makes, 'stack' and all: arriving from outside the app
+      // must not cost the user the chats they already have open.
+      const chatId = chatSessionIdFromDeepLink(payload)
+
+      if (chatId) {
+        openSession(chatId, navigate, 'stack')
 
         return
       }

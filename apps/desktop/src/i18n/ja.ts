@@ -135,6 +135,7 @@ export const ja = defineLocale({
     details: '詳細',
     copyDetail: '詳細をコピー',
     copyDetailFailed: '通知の詳細をコピーできませんでした',
+    openChat: 'チャットを開く',
     backendOutOfDateTitle: 'バックエンドが古いです',
     backendOutOfDateMessage:
       'Hermes バックエンドがこのデスクトップビルドより古く、正常に動作しない場合があります。更新して揃えてください。',
@@ -342,7 +343,7 @@ export const ja = defineLocale({
         'テストを送信しました。表示されない場合は、OS の通知許可と集中モード／おやすみモードを確認してください。',
       testUnsupported: 'このシステムはネイティブ通知に対応していません。',
       completionSoundTitle: '完了サウンド',
-      completionSoundDesc: 'エージェントのターン終了時に再生されます。プリセットを選んでここで試聴できます。',
+      completionSoundDesc: 'エージェントのターン終了時に再生されます。プリセットを選んでここで試聴できます。承認、質問、エラー、完了したバックグラウンドタスクにはそれぞれ短い専用音があり、同じミュートに従います。',
       completionSoundPreview: '試聴'
     },
     sections: {

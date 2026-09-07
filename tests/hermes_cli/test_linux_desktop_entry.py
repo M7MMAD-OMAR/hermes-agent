@@ -62,6 +62,33 @@ def _parse(entry_text: str) -> dict:
     return values
 
 
+def _exec_command(entry_text: str) -> str:
+    """The Exec line WITHOUT its trailing field code.
+
+    `%u` is the url-scheme handler's argument slot, not part of the command, and
+    every assertion below is about the command. Its presence is owned by
+    test_entry_registers_the_hermes_url_scheme.
+    """
+    exec_line = _parse(entry_text)["Exec"]
+    return exec_line[: -len(" %u")] if exec_line.endswith(" %u") else exec_line
+
+
+def test_entry_registers_the_hermes_url_scheme(tmp_path, xdg_home, monkeypatch):
+    """Both halves, together, or a `hermes://chat/<id>` click reaches nothing.
+
+    MimeType is what makes this entry a candidate handler at all; `%u` is what
+    passes the URL through. With the association but no `%u`, xdg-open launches
+    Hermes and silently drops the chat the user clicked.
+    """
+    root = _make_project(tmp_path)
+    _stub_install(tmp_path, monkeypatch)
+
+    values = _parse(lde.install_desktop_entry(root).read_text(encoding="utf-8"))
+
+    assert values["Exec"].endswith(" %u")
+    assert values["MimeType"] == "x-scheme-handler/hermes;"
+
+
 def test_install_writes_entry_with_absolute_exec_and_icon(
     tmp_path, xdg_home, monkeypatch
 ):
@@ -84,7 +111,7 @@ def test_install_writes_entry_with_absolute_exec_and_icon(
 
     # Exec must be the absolute path of the resolved binary. The launcher
     # runs with a minimal PATH, so a bare `hermes` would not resolve.
-    assert values["Exec"] == f"{hermes_bin} desktop"
+    assert _exec_command(entry.read_text(encoding="utf-8")) == f"{hermes_bin} desktop"
     assert Path(values["Exec"].split(" ")[0]).is_absolute()
 
     # Icon must be an absolute path to the real icon in the checkout.
@@ -169,7 +196,7 @@ def test_exec_falls_back_to_interpreter_module(tmp_path, xdg_home, monkeypatch):
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     assert exec_line.endswith("-m hermes_cli.main desktop")
     assert Path(exec_line.split(" ")[0]).is_absolute()
@@ -198,7 +225,7 @@ def test_exec_prefixes_interpreter_for_env_shebang_python_script(
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     interpreter = os.path.abspath(sys.executable)
     assert exec_line.split(" ")[0].strip('"') == interpreter
@@ -220,7 +247,7 @@ def test_exec_leaves_shell_wrapper_launchers_alone(tmp_path, xdg_home, monkeypat
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     # A bash wrapper execs the venv python itself — no interpreter prefix.
     assert exec_line == f"{hermes_bin} desktop"
@@ -241,7 +268,7 @@ def test_exec_leaves_venv_shebang_scripts_alone(tmp_path, xdg_home, monkeypatch)
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     # Console-script with the venv's own interpreter in the shebang: correct
     # as-is, prefixing would only add noise.
@@ -289,7 +316,7 @@ def test_exec_converges_from_repo_script_argv0_to_installed_wrapper(
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     # Converged on the durable wrapper — NOT the repo script, and NOT an
     # interpreter-prefixed form pinning sys.executable.
@@ -322,7 +349,7 @@ def test_exec_never_persists_a_bare_interpreter_command(
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     first_token = exec_line.split(" ")[0].strip('"')
     assert Path(first_token) != interpreter
@@ -364,7 +391,7 @@ def test_exec_keeps_resolver_fallback_when_no_wrapper_on_path(
     monkeypatch.setattr("hermes_cli.relaunch.resolve_hermes_bin", fake_resolve)
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     # The runnable module fallback — NOT the bare repo script (its env
     # shebang would escape the venv under a DE) and NOT `<python> desktop`.
@@ -415,7 +442,7 @@ def test_exec_uses_known_wrapper_when_path_lookup_misses(
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     # The probe found the wrapper despite the PATH miss.
     assert exec_line == f"{known_wrapper} desktop"
@@ -464,7 +491,7 @@ def test_exec_rejects_known_wrapper_from_another_checkout(
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     # The foreign wrapper was rejected; the runnable module fallback won.
     assert str(foreign_wrapper) not in exec_line
@@ -657,7 +684,7 @@ def test_exec_arg_quoting_handles_spaces(tmp_path, xdg_home, monkeypatch):
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     assert exec_line == f'"{spaced}" desktop'
 
@@ -755,7 +782,7 @@ def test_exec_falls_back_to_running_interpreter_when_probe_fails(
     )
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     # Runnable module form under the RUNNING interpreter - never the
     # unprobeable ELF fake, never a bare "<python> desktop".
@@ -947,7 +974,7 @@ def test_probe_skips_wrapper_with_escaping_python_shebang(
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     assert str(broken_wrapper) not in exec_line
     assert exec_line.endswith("-m hermes_cli.main desktop")
@@ -981,7 +1008,7 @@ def test_probe_accepts_shell_launcher_wrapper(tmp_path, xdg_home, monkeypatch):
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
     assert exec_line == f"{good_wrapper} desktop"
 
 

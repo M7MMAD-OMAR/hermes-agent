@@ -142,6 +142,7 @@ export const ar = defineLocale({
     details: 'التفاصيل',
     copyDetail: 'نسخ التفاصيل',
     copyDetailFailed: 'تعذر نسخ تفاصيل الإشعار',
+    openChat: 'فتح المحادثة',
     backendOutOfDateTitle: 'الخلفية قديمة',
     backendOutOfDateMessage: 'خلفية Hermes أقدم من إصدار سطح المكتب الحالي وقد لا تعمل كما يجب. حدثهما ليتوافقا.',
     updateHermes: 'تحديث Hermes',
@@ -412,7 +413,7 @@ export const ar = defineLocale({
       testSent: 'تم إرسال التجربة. إذا لم يظهر شيء، تحقق من أذونات الإشعارات في نظام التشغيل ووضع التركيز/عدم الإزعاج.',
       testUnsupported: 'هذا النظام لا يدعم الإشعارات الأصلية.',
       completionSoundTitle: 'صوت الاكتمال',
-      completionSoundDesc: 'يُشغّل عند انتهاء دور الوكيل. اختر إعدادا مسبقا وعاينه هنا.',
+      completionSoundDesc: 'يُشغّل عند انتهاء دور الوكيل. اختر إعدادا مسبقا وعاينه هنا. وطلبات الموافقة والأسئلة والأخطاء والمهام الخلفية المنتهية لكل منها نغمة قصيرة خاصة، تخضع لنفس الكتم.',
       completionSoundPreview: 'معاينة'
     },
     sections: {

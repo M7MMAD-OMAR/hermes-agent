@@ -6,7 +6,7 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -62,6 +62,7 @@ def _ns(**kw):
         cwd=None,
         setup_tcc_identity=False,
         identity=None,
+        url=None,
     )
     defaults.update(kw)
     return argparse.Namespace(**defaults)
@@ -1133,6 +1134,54 @@ def test_gui_bridges_ozone_hint_to_launch_env(tmp_path, monkeypatch):
 
     launch_env = mock_run2.call_args_list[1].kwargs["env"]
     assert launch_env.get("ELECTRON_OZONE_PLATFORM_HINT") == "wayland"
+
+
+# --- hermes:// url activation --------------------------------------------
+
+
+def test_gui_url_activation_launches_prebuilt_app_without_building(tmp_path, monkeypatch):
+    """A notification click must not wait on npm.
+
+    Everything the normal path does before launching, installing workspace
+    dependencies and content-hashing the tree to decide on a rebuild, can take
+    minutes, and when Hermes is already up the process we spawn does nothing but
+    hand the URL to the single-instance lock and exit. So a URL launch runs the
+    artifact that already exists.
+    """
+    root = _make_desktop_tree(tmp_path)
+    monkeypatch.setattr(cli_main, "PROJECT_ROOT", root)
+    packaged = _make_packaged_executable(root, monkeypatch)
+    build_needed = MagicMock(return_value=True)
+
+    with patch("hermes_cli.main_desktop._desktop_build_needed", build_needed), \
+         patch("hermes_cli.config.load_config", return_value={}), \
+         patch("hermes_cli.main.subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as mock_run, \
+         pytest.raises(SystemExit):
+        cli_main.cmd_gui(_ns(url="hermes://chat/20260907_033921_9dd21e"))
+
+    build_needed.assert_not_called()
+    # The last run is the launch (earlier ones are the sandbox capability probe),
+    # and the launcher may be wrapped in `unshare`, so assert membership rather
+    # than pinning a position.
+    command = [str(part) for part in mock_run.call_args_list[-1].args[0]]
+    assert str(packaged) in command
+    assert command[-1] == "hermes://chat/20260907_033921_9dd21e"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["", None, "file:///etc/passwd", "http://example.com", "--inspect=9229", "javascript:alert(1)"],
+)
+def test_gui_rejects_a_url_that_is_not_ours(raw):
+    """The desktop entry is world-readable and anything on the session bus can
+    ask xdg-open to activate it, so an unvalidated `%u` would be a way to hand
+    arbitrary argv to the Electron binary."""
+    assert main_desktop.desktop_activation_url(raw) is None
+
+
+def test_gui_accepts_both_hermes_schemes():
+    assert main_desktop.desktop_activation_url("hermes://chat/s-1") == "hermes://chat/s-1"
+    assert main_desktop.desktop_activation_url("  hermes-dev://chat/s-1 ") == "hermes-dev://chat/s-1"
 
 
 # --- desktop.password_store detection & bridging (linux) ------------------

@@ -1529,6 +1529,40 @@ def desktop_activation_url(raw) -> "str | None":
     return url if any(url.startswith(scheme) for scheme in _DESKTOP_URL_SCHEMES) else None
 
 
+HERMES_DESKTOP_SLICE = "hermes.slice"
+
+
+def _desktop_slice_prefix(*, platform: str = sys.platform, which=shutil.which,
+                          unit_exists=None) -> list[str]:
+    """``systemd-run`` prefix that puts the whole desktop tree under ``hermes.slice``, or ``[]``.
+
+    A resource ceiling only works if it covers the tree: the Electron main process,
+    its zygotes and renderers, the backend it spawns, and everything the backend
+    spawns (LSP servers, MCP servers, headless browsers). Launched bare, Electron's
+    sandboxed renderers land in the login session's scope while main and the
+    backend land in an app scope, so a quota on either misses the other. A transient
+    scope inside the slice holds all of them.
+
+    Opt-in by the slice's presence: with no ``hermes.slice`` unit on the user manager
+    the launch is unchanged, so a machine that never configured one behaves exactly
+    as before. Linux only; ``--collect`` so a failed launch leaves no dead scope.
+    """
+    if not platform.startswith("linux") or which("systemd-run") is None:
+        return []
+    if unit_exists is None:
+        def unit_exists(unit: str) -> bool:
+            try:
+                out = subprocess.run(["systemctl", "--user", "show", unit, "-p", "LoadState"],
+                                     capture_output=True, text=True, timeout=5, check=False).stdout
+            except (OSError, subprocess.SubprocessError):
+                return False
+            return "LoadState=loaded" in out
+    if not unit_exists(HERMES_DESKTOP_SLICE):
+        return []
+    return ["systemd-run", "--user", "--scope", "--quiet", "--collect",
+            f"--slice={HERMES_DESKTOP_SLICE}", f"--unit=hermes-desktop-{os.getpid()}"]
+
+
 def _packaged_desktop_launch_command(packaged_executable: Path) -> list[str]:
     """``[exe, *sandbox flags]`` after the Linux sandbox fixup; exits when the sandbox can't be configured."""
     launch_command = [str(packaged_executable)]
@@ -1646,6 +1680,7 @@ def cmd_gui(args: argparse.Namespace):
         # The fast path above found no artifact, so this launch is the one that
         # must carry the URL. Last argument: Electron scans argv for it.
         launch_command.append(activation_url)
+    launch_command = [*_desktop_slice_prefix(), *launch_command]
     if not source_mode:
         print(f"→ Launching packaged Hermes Desktop: {' '.join(launch_command)}")
     launch_result = subprocess.run(launch_command, cwd=desktop_dir, env=env, check=False)

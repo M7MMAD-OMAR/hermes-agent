@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChatMessage } from '@/lib/chat-messages'
+import { type ChatMessage, toChatMessages } from '@/lib/chat-messages'
 import { $transcriptTailBySessionId, recordTranscriptTail, transcriptTailState } from '@/store/transcript-tail'
 
 import {
@@ -352,5 +352,88 @@ describe('backfillOlderTranscriptPage', () => {
 
     expect(applied).toBe(false)
     expect(transcriptBackfillAvailable('stored-1')).toBe(true)
+  })
+})
+
+// Compaction copies the protected tail into a new generation of rows: same
+// role, content and timestamp, new `messages.id`. The renderer still holds the
+// previous generation, so the refreshed page cannot be matched by row id.
+const generationCopy = (message: ChatMessage, rowId: number, id = `${message.id}~gen2`): ChatMessage => ({
+  ...message,
+  id,
+  rowId
+})
+
+const stamped = (id: string, rowId: number, timestamp: number, role: ChatMessage['role'] = 'user'): ChatMessage => ({
+  id,
+  role,
+  parts: [{ type: 'text', text: `text of ${id}` }],
+  rowId,
+  timestamp
+})
+
+describe('graftRefreshedTailOntoBackfill after an in-place compaction', () => {
+  it('anchors on a compaction generation copy and keeps the older prefix', () => {
+    const previous = [stamped('a', 1, 10), stamped('b', 2, 20), stamped('c', 3, 30), stamped('d', 4, 40)]
+
+    // The refreshed page starts at the copy of `c` (new row id 103), then `d`
+    // (104) and the turn that came after compaction.
+    const refreshed = [
+      generationCopy(previous[2], 103),
+      generationCopy(previous[3], 104),
+      stamped('e', 105, 50, 'assistant')
+    ]
+
+    const grafted = graftRefreshedTailOntoBackfill(refreshed, previous)
+
+    expect(grafted.map(m => m.id)).toEqual(['a', 'b', 'c~gen2', 'd~gen2', 'e'])
+    // The live generation's row ids win, so reactions and edits address the
+    // rows the backend now serves.
+    expect(grafted.map(m => m.rowId)).toEqual([1, 2, 103, 104, 105])
+  })
+
+  it('does not treat a row without a timestamp as a copy of anything', () => {
+    const previous = [chat('a', 1), chat('b', 2), chat('c', 3)]
+    // Same text as `c`, but a new row id, a new rendered id, and no timestamp.
+    const refreshed = [{ ...chat('c-regenerated', 300), parts: previous[2].parts }, chat('d', 4)]
+
+    expect(graftRefreshedTailOntoBackfill(refreshed, previous)).toBe(refreshed)
+  })
+
+  it('distinguishes same-text rows by timestamp and tool call ids', () => {
+    const previous = [stamped('a', 1, 10), stamped('b', 2, 20)]
+    const laterTwin = { ...stamped('b-later', 200, 21), parts: previous[1].parts }
+
+    expect(graftRefreshedTailOntoBackfill([laterTwin], previous)).toEqual([laterTwin])
+  })
+
+  it('reads the refreshed generation from stored rows exactly as hydration does', () => {
+    // Stored rows: the pre-compaction hydrate held ids 1..6; compaction copied
+    // rows 4..6 into ids 104..106 and the turn after it appended 107.
+    const stored = [1, 2, 3, 4, 5, 6].map(rowId => row(rowId, `m${rowId}`))
+    const previous = toChatMessages(stored)
+
+    const refreshedPage = toChatMessages([
+      { ...row(4, 'm4'), id: 104 },
+      { ...row(5, 'm5'), id: 105 },
+      { ...row(6, 'm6'), id: 106 },
+      { id: 107, role: 'assistant' as const, content: 'after compaction', timestamp: 1_107 }
+    ])
+
+    const grafted = graftRefreshedTailOntoBackfill(refreshedPage, previous)
+
+    expect(grafted.map(m => m.rowId)).toEqual([1, 2, 3, 104, 105, 106, 107])
+    expect(grafted.map(m => m.parts[0])).toMatchObject(
+      ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'after compaction'].map(text => ({ text }))
+    )
+  })
+})
+
+describe('mergeOlderTranscriptPage after an in-place compaction', () => {
+  it('dedupes a generation copy of a row the store already holds', () => {
+    const existing = [stamped('c', 3, 30), stamped('d', 4, 40)]
+    const older = [stamped('b', 2, 20), generationCopy(existing[0], 103)]
+
+    expect(mergeOlderTranscriptPage(existing, older).map(m => m.id)).toEqual(['b', 'c', 'd'])
   })
 })

@@ -16,7 +16,7 @@
  */
 
 import { getOlderSessionMessages } from '@/hermes'
-import { type ChatMessage, toChatMessages } from '@/lib/chat-messages'
+import { type ChatMessage, type ChatMessagePart, chatMessageText, toChatMessages } from '@/lib/chat-messages'
 import { recordTranscriptBackfillPage, type TranscriptProfileScope, transcriptTailState } from '@/store/transcript-tail'
 
 /** Older rows likely exist beyond what the in-memory store holds. */
@@ -28,8 +28,86 @@ export function transcriptBackfillAvailable(
 }
 
 /**
+ * Identity of one logical message across compaction generations.
+ *
+ * Compaction copies the protected tail into a NEW generation of rows: same
+ * role, content and timestamp, but fresh `messages.id` values, while the old
+ * copies are retired as `compacted`. The backend's display projection dedupes
+ * on exactly that (role, content, timestamp) triple, so a refreshed page names
+ * every recent row by an id the renderer has never seen. Matching by durable
+ * row id alone therefore fails right after a compaction, and the rendered ids
+ * (`timestamp-index-role`) shift with the page offset. This key is the third
+ * rung: a row without a timestamp never matches through it.
+ */
+function logicalMessageKey(message: ChatMessage): null | string {
+  if (message.timestamp === undefined) {
+    return null
+  }
+
+  const toolCallIds = message.parts
+    .filter((part): part is Extract<ChatMessagePart, { type: 'tool-call' }> => part.type === 'tool-call')
+    .map(part => part.toolCallId)
+    .join(',')
+
+  return `${message.role}\u0000${message.timestamp}\u0000${chatMessageText(message)}\u0000${toolCallIds}`
+}
+
+/** Index of the rows a store already holds, by every identity a row can carry. */
+class MessageIdentityIndex {
+  readonly #rowIds = new Set<number>()
+  readonly #ids = new Set<string>()
+  readonly #logicalKeys = new Set<string>()
+
+  constructor(messages: readonly ChatMessage[]) {
+    for (const message of messages) {
+      if (message.rowId !== undefined) {
+        this.#rowIds.add(message.rowId)
+      }
+
+      this.#ids.add(message.id)
+
+      const key = logicalMessageKey(message)
+
+      if (key !== null) {
+        this.#logicalKeys.add(key)
+      }
+    }
+  }
+
+  has(message: ChatMessage): boolean {
+    if (message.rowId !== undefined && this.#rowIds.has(message.rowId)) {
+      return true
+    }
+
+    if (this.#ids.has(message.id)) {
+      return true
+    }
+
+    const key = logicalMessageKey(message)
+
+    return key !== null && this.#logicalKeys.has(key)
+  }
+}
+
+/** The same row, by durable id, rendered id, or compaction-generation identity. */
+function sameMessage(a: ChatMessage, b: ChatMessage): boolean {
+  if (a.rowId !== undefined && b.rowId !== undefined && a.rowId === b.rowId) {
+    return true
+  }
+
+  if (a.id === b.id) {
+    return true
+  }
+
+  const key = logicalMessageKey(a)
+
+  return key !== null && key === logicalMessageKey(b)
+}
+
+/**
  * Prepend an older page onto the in-memory transcript, deduplicating rows the
- * store already holds (offset drift makes overlap normal — see module doc).
+ * store already holds (offset drift makes overlap normal, and a compaction
+ * generation copy carries a new row id for a row already on screen).
  * Preserves reference identity when nothing changes: handing React a fresh
  * array of the same messages re-renders the runtime for nothing.
  */
@@ -41,20 +119,8 @@ export function mergeOlderTranscriptPage(existing: ChatMessage[], olderPage: Cha
     return existing
   }
 
-  const existingRowIds = new Set<number>()
-  const existingIds = new Set<string>()
-
-  for (const message of existing) {
-    if (message.rowId !== undefined) {
-      existingRowIds.add(message.rowId)
-    }
-
-    existingIds.add(message.id)
-  }
-
-  const fresh = olderPage.filter(
-    message => !(message.rowId !== undefined && existingRowIds.has(message.rowId)) && !existingIds.has(message.id)
-  )
+  const held = new MessageIdentityIndex(existing)
+  const fresh = olderPage.filter(message => !held.has(message))
 
   if (fresh.length === 0) {
     return existing
@@ -69,8 +135,13 @@ export function mergeOlderTranscriptPage(existing: ChatMessage[], olderPage: Cha
  * newest page; replacing the store with that page outright would silently
  * drop everything "Show earlier" already loaded. Find where the refreshed
  * tail begins inside the previous transcript and keep the older prefix.
- * When no anchor is found (compaction rewrite, different session), the
- * refreshed tail is authoritative — same behavior as before backfill existed.
+ *
+ * The anchor accepts a compaction generation copy of a row already held (see
+ * `logicalMessageKey`): the post-compaction rehydrate used to find no anchor,
+ * replace a long transcript with its newest page, and jump the view to the
+ * bottom with every earlier turn gone. When no anchor is found at all (a
+ * different session, or a tail older than anything held), the refreshed tail
+ * is authoritative, same as before backfill existed.
  */
 export function graftRefreshedTailOntoBackfill(refreshedTail: ChatMessage[], previous: ChatMessage[]): ChatMessage[] {
   if (refreshedTail.length === 0 || previous.length === 0) {
@@ -78,12 +149,7 @@ export function graftRefreshedTailOntoBackfill(refreshedTail: ChatMessage[], pre
   }
 
   const first = refreshedTail[0]
-
-  const anchor = previous.findIndex(
-    message =>
-      (first.rowId !== undefined && message.rowId !== undefined && message.rowId === first.rowId) ||
-      message.id === first.id
-  )
+  const anchor = previous.findIndex(message => sameMessage(message, first))
 
   if (anchor <= 0) {
     return refreshedTail

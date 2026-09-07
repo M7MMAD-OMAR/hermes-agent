@@ -289,10 +289,7 @@ declare global {
       /** Device emulation for a preview webview guest. `metrics: null` clears
        *  it. Only the main process can reach a guest's webContents, and the
        *  <webview> tag exposes no emulation API of its own. */
-      previewEmulateDevice?: (payload: {
-        metrics: null | { height: number; mobile: boolean; scale: number; width: number }
-        webContentsId: number
-      }) => Promise<boolean>
+      previewEmulateDevice?: (payload: PreviewEmulatePayload) => Promise<boolean>
       /** Spell-check facts for the gesture that opened the current menu;
        *  fires shortly after the DOM contextmenu event. */
       onContextMenuSpellcheck?: (
@@ -1441,6 +1438,15 @@ export interface HermesPreviewFileChanged {
   id: string
   path: string
   url: string
+}
+
+/** One device-emulation override for the in-app browser guest. `metrics: null`
+ *  clears it. The bridge answers false when the guest is gone, mid-teardown, or
+ *  not owned by this renderer, and that answer must be honoured: see
+ *  `sendEmulation` in preview-pane.tsx. */
+export interface PreviewEmulatePayload {
+  metrics: null | { height: number; mobile: boolean; scale: number; width: number }
+  webContentsId: number
 }
 
 export interface HermesSelectPathsOptions {

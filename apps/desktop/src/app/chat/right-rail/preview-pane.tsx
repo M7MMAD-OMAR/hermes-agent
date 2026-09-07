@@ -44,6 +44,7 @@ import {
 } from './preview-console'
 import { type ConsoleEntry, consoleLevel } from './preview-console-state'
 import { previewConsoleState } from './preview-console-store'
+import { createEmulationCache } from './preview-emulation-cache'
 import { LocalFilePreview, PreviewEmptyState } from './preview-file'
 import { type PreviewFindTarget, registerPreviewFind } from './preview-find'
 import { type PreviewInputEvent, registerPreviewInput } from './preview-input'
@@ -446,17 +447,17 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       return
     }
 
-    // What the guest was last told. `apply` runs on three triggers now — pane
-    // resize, navigation, and zoom — and the emulate call is a synchronous
-    // main-process hop, so held Ctrl+ would fire one per key repeat with a
-    // byte-identical payload. Cleared on navigation, which resets the override
-    // in the guest and is the one time re-sending the same metrics is the point.
-    let emulated: null | string = null
-    // Same reason as `emulated`, for the pin directly below it: `apply` runs on
-    // pane resize, navigation and zoom change, so a sash drag calls it at layout
-    // rate — and `setZoomLevel` on a <webview> goes through the guest-view
-    // manager, i.e. a cross-process message, not a local property write. The
-    // factor almost never changes between those calls.
+    // What the guest was last told, and whether it took it. See
+    // preview-emulation-cache.ts: `apply` runs on pane resize, navigation and
+    // zoom change, so a sash drag calls it at layout rate and held Ctrl+ once
+    // per key repeat, all with a byte-identical payload; the memo is what keeps
+    // that cheap. It is dropped on navigation, which resets the override inside
+    // the guest and is the one time re-sending the same metrics is the point.
+    const emulation = createEmulationCache(window.hermesDesktop?.previewEmulateDevice)
+
+    // Same reason, for the pin below: `setZoomLevel` on a <webview> goes through
+    // the guest-view manager, a cross-process message rather than a local
+    // property write, and the factor almost never changes between calls.
     let pinned: null | number = null
 
     const apply = () => {
@@ -499,9 +500,8 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
         webview.className = 'flex h-full w-full flex-1 bg-transparent'
         setViewportScale(1)
 
-        if (typeof webContentsId === 'number' && emulated !== 'off') {
-          emulated = 'off'
-          void window.hermesDesktop?.previewEmulateDevice?.({ metrics: null, webContentsId })
+        if (typeof webContentsId === 'number' && !emulation.has('off')) {
+          emulation.send({ metrics: null, webContentsId }, 'off')
         }
 
         return
@@ -532,9 +532,8 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       const metrics = { height: viewport.height, mobile: viewport.mobile, scale, width: viewport.width }
       const sent = `${webContentsId}:${metrics.width}x${metrics.height}:${metrics.mobile}:${scale}`
 
-      if (typeof webContentsId === 'number' && sent !== emulated) {
-        emulated = sent
-        void window.hermesDesktop?.previewEmulateDevice?.({ metrics, webContentsId })
+      if (typeof webContentsId === 'number' && !emulation.has(sent)) {
+        emulation.send({ metrics, webContentsId }, sent)
       }
     }
 
@@ -544,7 +543,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
     // that might have reset the override, both get another go — from scratch,
     // because the guest has forgotten what it was told.
     const reapply = () => {
-      emulated = null
+      emulation.forget()
       // Navigation resets the guest's zoom exactly as it resets the emulation
       // override, so the pin has to be re-asserted with it — clearing one and
       // not the other would leave a navigated page at the inherited zoom.

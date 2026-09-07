@@ -16,7 +16,7 @@ import queue
 import sys
 import threading
 import time
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -182,7 +182,7 @@ def wake_phrase(cfg: Optional[Dict[str, Any]] = None) -> str:
 
 
 def resolve_capture_mode(cfg: Optional[Dict[str, Any]] = None, *, prefer_client: bool = False,
-                         force_local: bool = False) -> str:
+                         force_local: bool = False, local_input: Optional[bool] = None) -> str:
     """Return ``local`` or ``client`` capture mode for this arm. ``prefer_client`` is set by remote
     desktop; ``force_local`` keeps CLI/TUI on the process mic. Under ``auto`` a working backend input
     always wins; client is the fallback only for a preferring surface with no usable backend mic —
@@ -193,7 +193,10 @@ def resolve_capture_mode(cfg: Optional[Dict[str, Any]] = None, *, prefer_client:
     raw = str(_get(cfg, "capture") or "auto").strip().lower()
     if raw in ("client", "remote", "external"):
         return "client"
-    return "client" if raw != "local" and prefer_client and not _local_input_device_ready() else "local"
+    if raw == "local" or not prefer_client:
+        return "local"
+    ready = local_input if local_input is not None else _local_input_device_ready()
+    return "local" if ready else "client"
 
 
 def _input_channels(info: Any) -> int:
@@ -201,16 +204,17 @@ def _input_channels(info: Any) -> int:
     return int(ch or 0)
 
 
-def _local_input_device_ready() -> bool:
-    """True when PortAudio is importable and at least one input device exists."""
+def _local_input_device_ready(sd=None) -> bool:
+    """True when PortAudio is importable and at least one input device exists. Pass ``sd`` from an
+    open ``_probe_audio`` to reuse it; alone, this is one init/query/terminate cycle."""
     try:
-        with _probe_audio() as sd:
-            devices = sd.query_devices()
+        with (nullcontext(sd) if sd is not None else _probe_audio()) as probe:
+            devices = probe.query_devices()
             if isinstance(devices, dict):
                 return _input_channels(devices) > 0
             # Also accept a resolvable default input (some hosts list devices oddly).
             return (any(_input_channels(d) > 0 for d in devices)
-                    or _input_channels(sd.query_devices(None, "input")) > 0)
+                    or _input_channels(probe.query_devices(None, "input")) > 0)
     except Exception:
         return False
 
@@ -310,12 +314,9 @@ def _describe_input_device(selector: int | str | None, sd=None) -> Dict[str, Any
     authority on whether the device actually opens). Imports sounddevice unless ``sd`` is given."""
     details: Dict[str, Any] = {"selector": selector}
     try:
-        if sd is not None:
-            info = sd.query_devices(selector, "input")
-        else:
-            # A status probe, not a capture: hand PortAudio back when done.
-            with _probe_audio() as probe_sd:
-                info = probe_sd.query_devices(selector, "input")
+        # Without a caller's ``sd`` this is a status probe, not a capture: PortAudio is handed back.
+        with (nullcontext(sd) if sd is not None else _probe_audio()) as probe:
+            info = probe.query_devices(selector, "input")
     except Exception as e:
         details["error"] = str(e)
         return details
@@ -418,7 +419,18 @@ def check_wake_word_requirements(cfg: Optional[Dict[str, Any]] = None) -> Dict[s
     # The audio probe imports sounddevice + numpy — packages the lazy installer would
     # fetch — so only trust it once deps are installed; on a fresh install the engine
     # constructors' ``lazy_deps.ensure()`` + stream-open surface any real audio problem.
-    audio_ok = _audio_available() if deps_ok else False
+    # ONE PortAudio cycle for the whole report: availability, the local-input answer that
+    # decides the capture mode, and the field below all come from this probe.
+    local_input = False
+    if deps_ok:
+        try:
+            with _probe_audio() as sd:
+                local_input = _local_input_device_ready(sd)
+            audio_ok = True
+        except Exception:
+            audio_ok = False
+    else:
+        audio_ok = False
     # Loop is wake → record → STT → agent → TTS; without either end the mic hears you
     # and nothing perceptible happens — refuse with a hint.
     stt_ok, tts_ok = _stt_ready(), _tts_ready()
@@ -427,7 +439,7 @@ def check_wake_word_requirements(cfg: Optional[Dict[str, Any]] = None) -> Dict[s
     tflite_ok = (feature != "wake.openwakeword" or resolve_inference_framework(cfg) != "tflite"
                  or ensure_tflite_runtime() or lazy_deps.is_available("wake.openwakeword.tflite") or lazy_ok)
     key_ok = provider != "porcupine" or bool((os.getenv("PORCUPINE_ACCESS_KEY") or "").strip())
-    capture_mode = resolve_capture_mode(cfg)
+    capture_mode = resolve_capture_mode(cfg, local_input=local_input)
     missing = " and ".join(n for n, ok in (("speech-to-text", stt_ok), ("text-to-speech", tts_ok)) if not ok)
 
     # Ordered remediation ladder: first true predicate wins.
@@ -456,7 +468,7 @@ def check_wake_word_requirements(cfg: Optional[Dict[str, Any]] = None) -> Dict[s
     return {
         "available": key_ok and stt_ok and tts_ok and tflite_ok and mic_ok, "provider": provider,
         "deps_available": deps_ok, "audio_available": audio_ok,
-        "local_input_available": _local_input_device_ready() if deps_ok else False,
+        "local_input_available": local_input,
         "capture": capture_mode, "access_key_set": key_ok, "stt_available": stt_ok, "tts_available": tts_ok,
         "phrase": wake_phrase(cfg), "hint": hint,
     }

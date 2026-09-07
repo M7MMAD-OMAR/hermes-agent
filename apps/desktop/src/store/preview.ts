@@ -435,7 +435,7 @@ export const $browserSessionId = atom<null | string>(null)
  * بقدر افتح المتصفح إذا كانت المحادثة فارغة".
  *
  * This is a STAND-IN for the runtime id, not a second identity: one tab list,
- * one `owner` field, and `adoptDraftBrowserSession` rewrites it in place the
+ * one `owner` field, and `adoptBrowserSessionKey` rewrites it in place the
  * moment the real id lands. Rewriting an owner never removes a tab, so no pane
  * is torn down and no live page is lost — the failure mode that killed the
  * session-keyed registry in `96999b116`.
@@ -462,13 +462,22 @@ export const DRAFT_BROWSER_SESSION_ID = 'draft:new-chat'
  * runtime id the moment one binds, in place, so no tab leaves the list and no
  * live page is torn down.
  */
+const STORED_BROWSER_KEY_PREFIX = 'stored:'
+
 export function storedBrowserSessionKey(storedSessionId: string): string {
-  return `stored:${storedSessionId}`
+  return `${STORED_BROWSER_KEY_PREFIX}${storedSessionId}`
+}
+
+/** The stored session id a `stored:` key names, else null. The ONE decoder:
+ *  every consumer that needs to know what a key is goes through this or
+ *  `isProvisionalBrowserKey`, so the encoding lives in one place. */
+export function storedIdFromBrowserKey(key: null | string): null | string {
+  return key?.startsWith(STORED_BROWSER_KEY_PREFIX) ? key.slice(STORED_BROWSER_KEY_PREFIX.length) : null
 }
 
 /** Is this key a stand-in rather than a runtime id? */
-export function isProvisionalBrowserKey(key: null | string): boolean {
-  return key === DRAFT_BROWSER_SESSION_ID || Boolean(key?.startsWith('stored:'))
+export function isProvisionalBrowserKey(key: null | string): key is string {
+  return key === DRAFT_BROWSER_SESSION_ID || storedIdFromBrowserKey(key) !== null
 }
 
 /** The browser key for a surface in ANY binding state.
@@ -513,11 +522,7 @@ function ownerKeyFor(sessionId: null | string): string | undefined {
     return undefined
   }
 
-  if (sessionId.startsWith('stored:')) {
-    return sessionId.slice('stored:'.length)
-  }
-
-  return storedSessionResolver(sessionId) ?? undefined
+  return storedIdFromBrowserKey(sessionId) ?? storedSessionResolver(sessionId) ?? undefined
 }
 
 /** Is this tab part of the browser the conversation `sessionId` is showing?
@@ -587,9 +592,15 @@ const setMembership = (store: WritableAtom<ReadonlySet<string>>, id: string, mem
 export const $embeddedBrowserSessions = atom<ReadonlySet<string>>(new Set())
 
 /**
- * Conversations that currently have a panel RENDERED and able to host a page.
+ * The ONE surface that renders each embedded conversation's browser, per key.
  *
- * Not the same question as `$embeddedBrowserSessions`, which says a browser was
+ * Every chat surface hosts its own browser, tiles included, so the same stored
+ * conversation can be on screen twice; two panels rendering one tab is one page
+ * in two live guests. The first surface to claim a key renders it, every other
+ * claimant mounts nothing, and the lead passes on when it unmounts.
+ *
+ * A key with a lead is a HOSTED conversation: one with a panel rendered and
+ * able to hold a page. Not the same question as `$embeddedBrowserSessions`, which says a browser was
  * asked for. This says there is somewhere to put it. Without the distinction,
  * asking a surface that has no panel to embed mints a tab, drops it out of
  * `$dockedPreviewTabs` (the focused conversation's tabs are hidden from the
@@ -599,31 +610,34 @@ export const $embeddedBrowserSessions = atom<ReadonlySet<string>>(new Set())
  * Registered by the panel itself for as long as it is in the tree, so the store
  * never has to guess which surfaces exist.
  */
-export const $embeddedBrowserHosts = atom<ReadonlySet<string>>(new Set())
+export const $embeddedBrowserLeadHosts = atom<ReadonlyMap<string, string>>(new Map())
+
+/** Hosted means "has a lead": derived, so the two can never disagree. */
+export const $embeddedBrowserHosts = computed($embeddedBrowserLeadHosts, leads => new Set(leads.keys()))
 
 /** Which mounted SURFACES claim each session, in claim order. Membership
  *  alone cannot answer "is there still one left": two surfaces can resolve to
  *  the same key (a conversation shown as a tile and as the primary, a remount
  *  that overlaps its own unmount), and with a bare Set the FIRST to leave
  *  cleared the flag while a live panel was still rendering, after which the
- *  globe believed there was nowhere to embed and opened a strip tab instead. */
+ *  globe believed there was nowhere to embed and opened a strip tab instead.
+ *
+ *  ONE claim per surface. A handover (`adoptBrowserSessionKey`) carries a
+ *  surface's claim to the runtime key BEFORE that surface re-renders and
+ *  registers under it; a second entry would outlive the panel and hold the key
+ *  hosted with nothing rendering it. React runs an effect's cleanup before its
+ *  re-run, so the same surface never legitimately holds two. */
 const hostClaims = new Map<string, string[]>()
 
-/**
- * The ONE surface that renders each embedded conversation's browser.
- *
- * Every chat surface hosts its own browser now, tiles included, and that is
- * what makes a second claimant a real case rather than a remount artefact: the
- * same stored conversation can be on screen twice. Two panels rendering one
- * tab is one page in two live guests, an agent driving the copy the user is
- * not looking at. So the first surface to claim a key renders it, every other
- * claimant mounts nothing, and the lead passes on when it unmounts. The old
- * answer to this, "only the primary column hosts a panel", put every other
- * conversation's browser in the layout strip beside the chat instead of inside
- * it, which is the shape the user rejected.
- */
-export const $embeddedBrowserLeadHosts = atom<ReadonlyMap<string, string>>(new Map())
+function addHostClaim(sessionId: string, surfaceId: string): void {
+  const claims = hostClaims.get(sessionId) ?? []
 
+  if (!claims.includes(surfaceId)) {
+    hostClaims.set(sessionId, [...claims, surfaceId])
+  }
+}
+
+/** The first claimant leads; publish only when that changed. */
 function publishLeadHost(sessionId: string): void {
   const lead = hostClaims.get(sessionId)?.[0]
   const current = $embeddedBrowserLeadHosts.get()
@@ -643,26 +657,11 @@ function publishLeadHost(sessionId: string): void {
   $embeddedBrowserLeadHosts.set(next)
 }
 
-let anonymousSurfaceSerial = 0
-
 /** Called by the panel on mount; the returned function unregisters. Idempotent
  *  per registration: calling the returned function twice releases one claim.
- *  `surfaceId` names the mounted surface so the lead can be chosen; a caller
- *  without one gets a private id, which is every caller in a test. */
-export function registerEmbeddedBrowserHost(sessionId: string, surfaceId?: string): () => void {
-  const id = surfaceId ?? `host:${++anonymousSurfaceSerial}`
-  const claims = hostClaims.get(sessionId) ?? []
-
-  // One claim per surface. A handover (`adoptBrowserSessionKey`) carries a
-  // surface's claim to the runtime key BEFORE that surface re-renders and
-  // registers under it; a second entry would outlive the panel and hold the
-  // key hosted with nothing rendering it. React runs an effect's cleanup before
-  // its re-run, so the same surface never legitimately holds two.
-  if (!claims.includes(id)) {
-    hostClaims.set(sessionId, [...claims, id])
-  }
-
-  setMembership($embeddedBrowserHosts, sessionId, true)
+ *  `surfaceId` names the mounted surface so the lead can be chosen. */
+export function registerEmbeddedBrowserHost(sessionId: string, surfaceId: string): () => void {
+  addHostClaim(sessionId, surfaceId)
   publishLeadHost(sessionId)
 
   let released = false
@@ -674,18 +673,15 @@ export function registerEmbeddedBrowserHost(sessionId: string, surfaceId?: strin
 
     released = true
 
-    const remaining = (hostClaims.get(sessionId) ?? []).filter(claim => claim !== id)
+    const remaining = (hostClaims.get(sessionId) ?? []).filter(claim => claim !== surfaceId)
 
     if (remaining.length > 0) {
       hostClaims.set(sessionId, remaining)
-      publishLeadHost(sessionId)
-
-      return
+    } else {
+      hostClaims.delete(sessionId)
     }
 
-    hostClaims.delete(sessionId)
     publishLeadHost(sessionId)
-    setMembership($embeddedBrowserHosts, sessionId, false)
   }
 }
 
@@ -694,7 +690,6 @@ export function registerEmbeddedBrowserHost(sessionId: string, surfaceId?: strin
  *  registration would believe a surface it cannot see is still there. */
 export function resetEmbeddedBrowserHosts(): void {
   hostClaims.clear()
-  $embeddedBrowserHosts.set(new Set())
   $embeddedBrowserLeadHosts.set(new Map())
 }
 
@@ -769,15 +764,19 @@ export function adoptBrowserSessionKey(
     return
   }
 
-  const from = fromKey as string
-  // Cheap and exact: this now fires on every runtime bind, not only on session
-  // create, so the overwhelmingly common case must cost one set lookup and one
-  // scan and then leave. The order below is load-bearing and every execution of
-  // it is a chance to get it wrong; the ones that have nothing to move should
-  // never reach it.
-  const ownsTabs = $previewTabs.get().some(tab => tab.owner === from)
+  const from = fromKey
 
-  if (!ownsTabs && !$embeddedBrowserSessions.get().has(from) && $browserSessionId.get() !== from) {
+  // Cheap and exact: this fires on every runtime bind and every focus change,
+  // so the common case must cost the O(1) lookups and leave before the scan.
+  // The order below is load-bearing and every execution of it is a chance to
+  // get it wrong; the ones that have nothing to move should never reach it.
+  const ownsTabs =
+    $embeddedBrowserSessions.get().has(from) ||
+    $browserSessionId.get() === from ||
+    hostClaims.has(from) ||
+    $previewTabs.get().some(tab => tab.owner === from)
+
+  if (!ownsTabs) {
     return
   }
 
@@ -805,11 +804,11 @@ export function adoptBrowserSessionKey(
   const claims = hostClaims.get(from)
 
   if (claims) {
-    const existing = hostClaims.get(runtimeId) ?? []
+    for (const claim of claims) {
+      addHostClaim(runtimeId, claim)
+    }
 
-    hostClaims.set(runtimeId, [...existing, ...claims.filter(claim => !existing.includes(claim))])
     hostClaims.delete(from)
-    setMembership($embeddedBrowserHosts, runtimeId, true)
     publishLeadHost(runtimeId)
   }
 
@@ -826,7 +825,7 @@ export function adoptBrowserSessionKey(
 
   const tabs = $previewTabs.get()
 
-  if (ownsTabs) {
+  if (tabs.some(tab => tab.owner === from)) {
     // The durable half is stamped HERE too, not just at open: a tab opened in a
     // conversation that had no stored id yet has nothing to claim with until
     // this moment, and leaving it blank is the same as never writing it.
@@ -847,18 +846,10 @@ export function adoptBrowserSessionKey(
     setEmbeddedBrowserSession(from, false)
   }
 
-  // The old key's host flag goes LAST, after nothing is owned under it.
+  // The old key's lead goes LAST, after nothing is owned under it.
   if (claims) {
     publishLeadHost(from)
-    setMembership($embeddedBrowserHosts, from, false)
   }
-}
-
-/** The draft's browser becomes the real session's browser. The create path's
- *  name for `adoptBrowserSessionKey`, kept because that call site knows only
- *  that a NEW chat just resolved. */
-export function adoptDraftBrowserSession(runtimeId: null | string, storedSessionId: null | string = null): void {
-  adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, runtimeId, storedSessionId)
 }
 
 /**

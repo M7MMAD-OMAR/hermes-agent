@@ -1531,9 +1531,17 @@ def desktop_activation_url(raw) -> "str | None":
 
 HERMES_DESKTOP_SLICE = "hermes.slice"
 
+_USER_UNIT_DIRS = (Path.home() / ".config/systemd/user", Path("/etc/systemd/user"), Path("/usr/lib/systemd/user"))
+
+
+def _user_unit_file_exists(unit: str) -> bool:
+    """Is a user unit configured? A stat, not `systemctl`: no fork, no D-Bus round trip to a user
+    manager that this machine has seen wedge, and no dependency on the session bus env."""
+    return any((d / unit).is_file() for d in _USER_UNIT_DIRS)
+
 
 def _desktop_slice_prefix(*, platform: str = sys.platform, which=shutil.which,
-                          unit_exists=None) -> list[str]:
+                          unit_exists=_user_unit_file_exists) -> list[str]:
     """``systemd-run`` prefix that puts the whole desktop tree under ``hermes.slice``, or ``[]``.
 
     A resource ceiling only works if it covers the tree: the Electron main process,
@@ -1543,24 +1551,26 @@ def _desktop_slice_prefix(*, platform: str = sys.platform, which=shutil.which,
     backend land in an app scope, so a quota on either misses the other. A transient
     scope inside the slice holds all of them.
 
-    Opt-in by the slice's presence: with no ``hermes.slice`` unit on the user manager
-    the launch is unchanged, so a machine that never configured one behaves exactly
-    as before. Linux only; ``--collect`` so a failed launch leaves no dead scope.
+    Opt-in by the slice's presence: with no ``hermes.slice`` unit file the launch is
+    unchanged, so a machine that never configured one behaves exactly as before.
+    Linux only; ``--collect`` so a failed launch leaves no dead scope.
     """
-    if not platform.startswith("linux") or which("systemd-run") is None:
-        return []
-    if unit_exists is None:
-        def unit_exists(unit: str) -> bool:
-            try:
-                out = subprocess.run(["systemctl", "--user", "show", unit, "-p", "LoadState"],
-                                     capture_output=True, text=True, timeout=5, check=False).stdout
-            except (OSError, subprocess.SubprocessError):
-                return False
-            return "LoadState=loaded" in out
-    if not unit_exists(HERMES_DESKTOP_SLICE):
+    if not platform.startswith("linux") or which("systemd-run") is None or not unit_exists(HERMES_DESKTOP_SLICE):
         return []
     return ["systemd-run", "--user", "--scope", "--quiet", "--collect",
             f"--slice={HERMES_DESKTOP_SLICE}", f"--unit=hermes-desktop-{os.getpid()}"]
+
+
+def _desktop_launch_argv(executable: Path, electron_flags: list[str], *, local: bool = False,
+                         url: Optional[str] = None) -> list[str]:
+    """The one place a packaged launch is assembled: slice prefix, sandbox flags, config flags,
+    ``--local``, and the activation URL last (Electron scans argv for it)."""
+    argv = [*_desktop_slice_prefix(), *_packaged_desktop_launch_command(executable), *electron_flags]
+    if local:
+        argv.append("--local")
+    if url:
+        argv.append(url)
+    return argv
 
 
 def _packaged_desktop_launch_command(packaged_executable: Path) -> list[str]:
@@ -1604,9 +1614,7 @@ def cmd_gui(args: argparse.Namespace):
     prebuilt = _desktop_packaged_executable(desktop_dir) if activation_url else None
 
     if activation_url and prebuilt is not None:
-        command = _packaged_desktop_launch_command(prebuilt)
-        command.extend(config_electron_flags)
-        command.append(activation_url)
+        command = _desktop_launch_argv(prebuilt, config_electron_flags, url=activation_url)
         sys.exit(subprocess.run(command, cwd=desktop_dir, env=env, check=False).returncode)
 
     source_mode = getattr(args, "source", False)
@@ -1672,15 +1680,10 @@ def cmd_gui(args: argparse.Namespace):
             print(f"✗ Desktop package build completed but no launchable app was found at: {desktop_dir / 'release'}")
             print("  Expected an unpacked Electron app for the current OS.")
             sys.exit(1)
-        launch_command = _packaged_desktop_launch_command(packaged_executable)
-        launch_command.extend(config_electron_flags)
-    if getattr(args, "local", False):
-        launch_command.append("--local")
-    if activation_url:
         # The fast path above found no artifact, so this launch is the one that
-        # must carry the URL. Last argument: Electron scans argv for it.
-        launch_command.append(activation_url)
-    launch_command = [*_desktop_slice_prefix(), *launch_command]
+        # must carry the URL.
+        launch_command = _desktop_launch_argv(packaged_executable, config_electron_flags,
+                                              local=bool(getattr(args, "local", False)), url=activation_url)
     if not source_mode:
         print(f"→ Launching packaged Hermes Desktop: {' '.join(launch_command)}")
     launch_result = subprocess.run(launch_command, cwd=desktop_dir, env=env, check=False)

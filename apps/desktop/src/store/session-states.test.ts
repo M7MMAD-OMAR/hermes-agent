@@ -1385,7 +1385,7 @@ describe('the draft browser is not handed over by session focus', () => {
     $activeSessionId.set(null)
   })
 
-  // `adoptDraftBrowserSession` moves everything the draft opened onto a real
+  // `adoptBrowserSessionKey` moves everything the draft opened onto a real
   // runtime id, so WHEN it runs is the whole safety property. It used to run
   // from `$activeSessionId.subscribe` here, which cannot tell "this draft just
   // minted its session" from "you clicked another chat" — both hand it an id

@@ -14,9 +14,9 @@ import {
   isProvisionalBrowserKey,
   newBrowserTab,
   openPreview,
-  releaseDraftBrowserSession,
   previewTabBelongsToSession,
   registerEmbeddedBrowserHost,
+  releaseDraftBrowserSession,
   resetEmbeddedBrowserHosts,
   setStoredSessionResolver,
   storedBrowserSessionKey,
@@ -71,7 +71,7 @@ describe('browser session identity', () => {
   it('lets the globe collapse a panel mounted before the runtime bound', () => {
     const key = browserSessionKey(null, 'stored-1')
 
-    registerEmbeddedBrowserHost(key)
+    registerEmbeddedBrowserHost(key, 'surface-1')
     toggleEmbeddedBrowser(key)
     expect($embeddedBrowserSessions.get().has(key)).toBe(true)
     expect($embeddedBrowserExpanded.get().has(key)).toBe(true)
@@ -84,7 +84,7 @@ describe('browser session identity', () => {
     const a = browserSessionKey(null, 'stored-a')
     const b = browserSessionKey(null, 'stored-b')
 
-    registerEmbeddedBrowserHost(a)
+    registerEmbeddedBrowserHost(a, 'surface-2')
     toggleEmbeddedBrowser(a)
 
     expect($embeddedBrowserSessions.get().has(a)).toBe(true)
@@ -149,7 +149,7 @@ describe('an abandoned draft', () => {
   // The screenshot: a new chat opens holding a browser nobody asked it for,
   // because the draft key is one constant and the previous draft never let go.
   it('does not hand its browser to the next new chat', () => {
-    registerEmbeddedBrowserHost(DRAFT_BROWSER_SESSION_ID)
+    registerEmbeddedBrowserHost(DRAFT_BROWSER_SESSION_ID, 'surface-3')
     toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID)
 
     expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
@@ -179,7 +179,7 @@ describe('provisional handover', () => {
 
     const key = storedBrowserSessionKey('stored-1')
 
-    registerEmbeddedBrowserHost(key)
+    registerEmbeddedBrowserHost(key, 'surface-4')
     toggleEmbeddedBrowser(key)
 
     const before = $previewTabs.get()[0]?.id

@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n'
 import { guardGuestPointers } from '@/lib/guest-pointer-guard'
 import { isMetaClose, middleClickHandlers } from '@/lib/middle-click'
 import { rafCoalesce } from '@/lib/raf-coalesce'
+import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { $rightRailActiveTabId, selectRightRailTab } from '@/store/layout'
 import { $paneWidthOverride, setPaneWidthOverride } from '@/store/panes'
@@ -84,7 +85,7 @@ export function EmbeddedBrowserPanel({ sessionId, surfaceId }: { sessionId: stri
   // Of every surface showing this conversation, ONE renders its browser. The
   // same stored chat can be on screen twice (a tile and the primary), and two
   // panels for one tab is one page in two live guests.
-  const lead = useStore($embeddedBrowserLeadHosts).get(sessionId)
+  const lead = useStoreSelector($embeddedBrowserLeadHosts, leads => leads.get(sessionId))
 
   // Announce that this conversation HAS somewhere to put a browser, for as long
   // as the surface is in the tree — including while it renders nothing, which is

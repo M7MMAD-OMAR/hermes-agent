@@ -838,7 +838,7 @@ const ChatViewContent = memo(function ChatViewContent({
             NOT gated on `activeSessionId`: a new chat has no runtime id until
             its first turn, and gating here was half of why the browser could
             not be opened on an empty conversation at all. The draft key stands
-            in and `adoptDraftBrowserSession` swaps the real id underneath once
+            in and `adoptBrowserSessionKey` swaps the real id underneath once
             the turn mints one — the panel never unmounts across that swap. */}
         <EmbeddedBrowserPanel sessionId={embeddedBrowserKey} surfaceId={composerSurfaceId ?? undefined} />
       </div>

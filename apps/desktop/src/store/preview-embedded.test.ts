@@ -10,7 +10,7 @@ import {
   $embeddedBrowserSessions,
   $poppedBrowserTabIds,
   $previewTabs,
-  adoptDraftBrowserSession,
+  adoptBrowserSessionKey,
   closeBrowserTabsForSession,
   closeRightRail,
   closeRightRailTab,
@@ -63,7 +63,10 @@ describe('embedded browser store', () => {
   // it is in the tree for every chat surface. Toggling a session with NO host
   // is the black-hole case and has its own test below, so every other case has
   // to stand one up first.
-  const withHost = (sessionId: string) => registerEmbeddedBrowserHost(sessionId)
+  // Each mount is its own surface: two registrations from one surface would be
+  // one claim (the handover dedupe), which is not what two panels are.
+  let surfaceSerial = 0
+  const withHost = (sessionId: string) => registerEmbeddedBrowserHost(sessionId, `surface-${++surfaceSerial}`)
 
   // CONTRACT CHANGE (2026-09-02). This used to assert the globe does nothing
   // without a runtime id — which is precisely the reported bug: a NEW chat has
@@ -90,7 +93,7 @@ describe('embedded browser store', () => {
 
     const before = $previewTabs.get()[0].id
 
-    adoptDraftBrowserSession('runtime-9')
+    adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, 'runtime-9')
 
     // Same tab id: the pane and the live page inside it survive the handover.
     // Closing and reopening here would destroy the page the user just loaded.
@@ -117,7 +120,7 @@ describe('embedded browser store', () => {
 
     const stop = $dockedPreviewTabs.subscribe(tabs => seen.push(tabs.map(tab => tab.id)))
 
-    adoptDraftBrowserSession('runtime-9')
+    adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, 'runtime-9')
     stop()
 
     expect(seen.some(ids => ids.includes(tabId))).toBe(false)
@@ -130,7 +133,7 @@ describe('embedded browser store', () => {
 
     expect($embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)
 
-    adoptDraftBrowserSession('runtime-9')
+    adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, 'runtime-9')
 
     expect($embeddedBrowserSessions.get().has('runtime-9')).toBe(true)
     expect($embeddedBrowserExpanded.get().has('runtime-9')).toBe(false)
@@ -152,7 +155,7 @@ describe('embedded browser store', () => {
   })
 
   it('adoption is a no-op when the draft never opened a browser', () => {
-    adoptDraftBrowserSession('runtime-9')
+    adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, 'runtime-9')
 
     expect($embeddedBrowserSessions.get().size).toBe(0)
     expect($previewTabs.get()).toHaveLength(0)
@@ -254,7 +257,7 @@ describe('embedded browser store', () => {
     registerEmbeddedBrowserHost(DRAFT_BROWSER_SESSION_ID, 'surface-a')
     toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID)
 
-    adoptDraftBrowserSession('runtime-9')
+    adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, 'runtime-9')
 
     expect($embeddedBrowserHosts.get().has('runtime-9')).toBe(true)
     expect($embeddedBrowserHosts.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)

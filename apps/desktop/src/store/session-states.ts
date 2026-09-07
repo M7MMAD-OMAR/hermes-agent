@@ -2050,7 +2050,7 @@ function syncBrowserSession(): void {
   // pointed the globe at the PREVIOUS conversation's browser — it toggled a
   // panel mounted under a session that is no longer on screen, so the click
   // looked like it did nothing at all. The draft key is that conversation's
-  // stand-in until `adoptDraftBrowserSession` swaps the real id in.
+  // stand-in until `adoptBrowserSessionKey` swaps the real id in.
   //
   // But null means TWO things here, and only one of them is a draft. A session
   // tile whose runtime has not bound yet is also null, and it has a stored id —
@@ -2070,7 +2070,7 @@ function syncBrowserSession(): void {
   // runs on every focus change too, and adopting from the previous key would
   // move one chat's tabs onto the chat you just switched to.
   if (runtimeId && storedId) {
-    adoptBrowserSessionKey(storedBrowserSessionKey(storedId), runtimeId)
+    adoptBrowserSessionKey(storedBrowserSessionKey(storedId), runtimeId, storedId)
   }
 
   const next = browserSessionKey(runtimeId, storedId)

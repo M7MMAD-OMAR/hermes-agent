@@ -164,6 +164,34 @@ units measured, the risk, what it must not break.
   process. The 40-minute lifetime I saw was 900 s of idle counted from the
   last tool call, which the agent had made.
 
+## 5c. Done on 7 Sep, second pass
+
+- **Item 3, guest ceiling.** `app/chat/browser-guest-budget.ts`: over
+  `MAX_BROWSER_GUESTS` (6) the least recently shown Browser tab closes through
+  `closeRightRailTab`, never the tab on screen, never a tab whose owner is
+  mid-turn. Enforced on tab-list growth only.
+- **Item 4, trigram.** A knob, not a drop: `sessions.trigram_fts` (default on).
+  Off reclaims 205 MB at the next open and loses partial-word matches; the
+  LIKE fallback covers short CJK terms only, so this is a real trade and it is
+  the user's to make. Leave it on unless disk or write load is the complaint.
+- **Item 5, pruning.** `prune-transcripts.timer`, daily at 5:00 AM, in
+  `~/.config/systemd/user`. Dry run showed 0.2 MB to strip today.
+- **Item 6, descriptors.** `close_inherited_host_files` in `_run_serve`.
+- **Item 7, one end-session function.** Already the shape on both sides:
+  the renderer funnels through session end, the backend through
+  `_teardown_session` (agent.close). The two backend lifetimes it did not
+  cover, the audio probe and MCP servers, have their own release now
+  (`_probe_audio`) or already had one (the recycler). Nothing more to add
+  without a new leak to point at.
+
+## Not a leak: the git badge
+
+Three open chats showed the same `+4658 -419`. The badge is keyed by the
+session's cwd and probes `git status` per cwd; `state.db` shows those three
+sessions all live in `R/Projects/P/sbartube`, the fourth in `eqfez.games` and
+it shows its own numbers. The badge is the repo's working-tree diff, not the
+conversation's own edits; git cannot attribute a diff to a chat.
+
 ## 6. Suspected, unmeasured
 
 - **LSP reaper.** Same shape: leave the sbartube chat idle 11 minutes, check

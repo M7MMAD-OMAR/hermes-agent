@@ -96,6 +96,11 @@ one that matters most is the table over all four binding states asserting the
 mount key and the toggle key resolve to the same value. Pinning either alone is
 what let them drift.
 
+- `82b829ebbb` every surface hosts its own panel (tiles included), the strip
+  filter keys on HOSTED instead of focused, one lead host per key, the host
+  claim travels with the handover, and a tile's runtime bind adopts from its
+  stored stand-in for every tile.
+
 ## Still open
 
 A tab persisted by a BUILD BEFORE this one carries no `ownerKey`, because

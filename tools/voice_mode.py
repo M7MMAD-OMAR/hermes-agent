@@ -44,6 +44,11 @@ def _import_audio():
     """Lazy-import (sounddevice, numpy); raises ImportError/OSError when unavailable."""
     import sounddevice as sd
     import numpy as np
+    # The wake-word probe releases PortAudio when nothing is armed (tools/wake_word.py,
+    # `_release_portaudio_if_idle`); a later voice turn must bring it back before it
+    # opens a stream, or every call here fails with "PortAudio not initialized".
+    if getattr(sd, "_initialized", 1) == 0 and hasattr(sd, "_initialize"):
+        sd._initialize()
     return sd, np
 
 

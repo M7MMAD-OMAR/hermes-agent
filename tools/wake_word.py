@@ -16,7 +16,7 @@ import queue
 import sys
 import threading
 import time
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -204,13 +204,13 @@ def _input_channels(info: Any) -> int:
 def _local_input_device_ready() -> bool:
     """True when PortAudio is importable and at least one input device exists."""
     try:
-        sd, _ = _import_audio()
-        devices = sd.query_devices()
-        if isinstance(devices, dict):
-            return _input_channels(devices) > 0
-        # Also accept a resolvable default input (some hosts list devices oddly).
-        return (any(_input_channels(d) > 0 for d in devices)
-                or _input_channels(sd.query_devices(None, "input")) > 0)
+        with _probe_audio() as sd:
+            devices = sd.query_devices()
+            if isinstance(devices, dict):
+                return _input_channels(devices) > 0
+            # Also accept a resolvable default input (some hosts list devices oddly).
+            return (any(_input_channels(d) > 0 for d in devices)
+                    or _input_channels(sd.query_devices(None, "input")) > 0)
     except Exception:
         return False
 
@@ -256,12 +256,52 @@ def enrolled_profile_phrases() -> Dict[str, str]:
 def _import_audio():
     import numpy as np
     import sounddevice as sd
+    _ensure_portaudio(sd)
     return sd, np
+
+
+def _ensure_portaudio(sd) -> None:
+    """Re-initialise PortAudio after a probe released it (see ``_probe_audio``)."""
+    if getattr(sd, "_initialized", 1) == 0 and hasattr(sd, "_initialize"):
+        sd._initialize()
+
+
+def _release_portaudio_if_idle(sd) -> None:
+    """Terminate PortAudio when no detector holds a stream.
+
+    ``import sounddevice`` calls ``Pa_Initialize`` and nothing ever calls ``Pa_Terminate``
+    while the process lives. That is fine for a program that records; it is a
+    permanent cost for one that only ASKED whether it could: the desktop probes
+    wake-word availability at every gateway-ready (``wake.status``, then
+    ``wake.start``), the config says ``enabled=False``, and the probe leaves behind a
+    PipeWire client, a ``pw-PortAudio`` thread pair and a ``data-loop`` thread waking
+    about 100 times a second, in a backend that will never record. Measured on
+    2026-09-07: 1,037 context switches per 10 s on that one thread at idle.
+
+    Only when nothing is armed. A live detector owns the stream and its capture
+    thread, and terminating under it would tear that stream down.
+    """
+    if is_listening() or not hasattr(sd, "_terminate"):
+        return
+    while getattr(sd, "_initialized", 0) > 0:
+        sd._terminate()
+
+
+@contextmanager
+def _probe_audio():
+    """``sd`` for a read-only device query; PortAudio is released afterwards unless a listener is armed."""
+    sd, _ = _import_audio()
+    try:
+        yield sd
+    finally:
+        with suppress(Exception):
+            _release_portaudio_if_idle(sd)
 
 
 def _audio_available() -> bool:
     with suppress(ImportError, OSError):
-        return bool(_import_audio())
+        with _probe_audio():
+            return True
     return False
 
 
@@ -270,8 +310,12 @@ def _describe_input_device(selector: int | str | None, sd=None) -> Dict[str, Any
     authority on whether the device actually opens). Imports sounddevice unless ``sd`` is given."""
     details: Dict[str, Any] = {"selector": selector}
     try:
-        sd = sd or _import_audio()[0]
-        info = sd.query_devices(selector, "input")
+        if sd is not None:
+            info = sd.query_devices(selector, "input")
+        else:
+            # A status probe, not a capture: hand PortAudio back when done.
+            with _probe_audio() as probe_sd:
+                info = probe_sd.query_devices(selector, "input")
     except Exception as e:
         details["error"] = str(e)
         return details

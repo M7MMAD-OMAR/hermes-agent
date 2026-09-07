@@ -782,3 +782,54 @@ def test_feed_audio_rejects_wrong_owner(monkeypatch, tmp_path):
     ww.start_listening(lambda: None, owner=owner, config={}, external_audio=True)
     assert ww.feed_audio(owner=object(), pcm_int16=b"\x00\x00") is False
     assert ww.stop_listening(owner=owner) is True
+
+
+# ── PortAudio is released after a read-only probe ─────────────────────────────
+# `import sounddevice` runs Pa_Initialize and nothing ever ran Pa_Terminate, so the
+# desktop's gateway-ready availability probe (config enabled=False) left a PipeWire
+# client and a data-loop thread waking ~100 times a second in a backend that never
+# records. A probe must hand PortAudio back; an armed listener must keep it.
+
+class _CountingSoundDevice:
+    def __init__(self):
+        self._initialized = 1
+
+    def _initialize(self):
+        self._initialized += 1
+
+    def _terminate(self):
+        assert self._initialized > 0
+        self._initialized -= 1
+
+    def query_devices(self, device=None, kind=None):
+        if device is None and kind is None:
+            return [{"name": "mic", "max_input_channels": 1}]
+        return {"name": "mic", "max_input_channels": 1, "default_samplerate": 16000.0, "hostapi": 0}
+
+
+def test_probe_releases_portaudio_when_nothing_is_armed(monkeypatch):
+    fake_sd = _CountingSoundDevice()
+    monkeypatch.setattr(ww, "_import_audio", lambda: (fake_sd, None))
+    monkeypatch.setattr(ww, "is_listening", lambda: False)
+
+    assert ww._local_input_device_ready() is True
+    assert fake_sd._initialized == 0
+
+    assert ww._describe_input_device(None).get("name") == "mic"
+    assert fake_sd._initialized == 0
+
+
+def test_probe_keeps_portaudio_while_a_listener_is_armed(monkeypatch):
+    fake_sd = _CountingSoundDevice()
+    monkeypatch.setattr(ww, "_import_audio", lambda: (fake_sd, None))
+    monkeypatch.setattr(ww, "is_listening", lambda: True)
+
+    assert ww._local_input_device_ready() is True
+    assert fake_sd._initialized == 1
+
+
+def test_ensure_portaudio_reinitialises_after_a_release():
+    fake_sd = _CountingSoundDevice()
+    fake_sd._initialized = 0
+    ww._ensure_portaudio(fake_sd)
+    assert fake_sd._initialized == 1

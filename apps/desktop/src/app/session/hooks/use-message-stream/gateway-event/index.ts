@@ -7,6 +7,7 @@ import {
   resolveGatewayEventSessionId,
   UNSCOPED_STREAM_EVENT_TYPES
 } from '@/lib/gateway-events'
+import { installSubagentTraceSwitch, traceSubagent } from '@/lib/subagent-trace'
 import { reconcileSessionCompacting } from '@/store/compaction'
 import { $gateway, activeGatewayConnectionId } from '@/store/gateway'
 import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
@@ -170,6 +171,23 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
       }
 
       const sessionId = route.sessionId
+
+      installSubagentTraceSwitch()
+
+      // TEMPORARY, see lib/subagent-trace.ts. Only the events that can become a
+      // subagent row are traced, so the log stays readable: what the frame
+      // carried, and what the router decided.
+      if (event.type?.startsWith('subagent.') || event.type?.startsWith('tool.')) {
+        traceSubagent('route', {
+          drop: route.drop,
+          eventType: event.type,
+          frameSessionId: explicitSid || null,
+          pinned: route.pinned,
+          resolvedSessionId: sessionId,
+          toolName: typeof payload?.name === 'string' ? payload.name : null,
+          unscopedPin: unscopedStreamSessionIdRef.current
+        })
+      }
 
       // Late stragglers: an unscoped stream event attributed via the
       // active-session fallback (no pin) to a session that has no live turn

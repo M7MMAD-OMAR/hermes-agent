@@ -1,5 +1,6 @@
 import { atom } from 'nanostores'
 
+import { traceSubagent } from '@/lib/subagent-trace'
 import { capitalize } from '@/lib/text'
 
 export type SubagentStatus = 'completed' | 'failed' | 'interrupted' | 'queued' | 'running'
@@ -270,6 +271,16 @@ export function pruneDelegateFallbackSubagents(sid: string) {
 }
 
 export function upsertSubagent(sid: string, payload: SubagentPayload, createIfMissing = true, eventType?: string) {
+  // TEMPORARY, see lib/subagent-trace.ts. Records the session a row is written
+  // under, so a row landing under several sessions is visible.
+  traceSubagent('write', {
+    childSessionId: payload.child_session_id ?? null,
+    eventType: eventType ?? null,
+    subagentId: idOf(payload),
+    tool: payload.tool_name ?? null,
+    writtenUnderSessionId: sid
+  })
+
   const map = $subagentsBySession.get()
   const list = map[sid] ?? []
   const id = idOf(payload)

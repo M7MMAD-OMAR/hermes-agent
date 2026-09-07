@@ -30,6 +30,7 @@ import {
   $browserPages,
   $browserSessionId,
   $dockedPreviewTabs,
+  $embeddedBrowserSessions,
   $previewTabs,
   adoptPersistedBrowserTab,
   type BrowserPage,
@@ -245,6 +246,15 @@ export function watchPreviewTiles(): void {
   syncBrowserSessionPanes()
   $browserSessionId.listen(syncBrowserSessionPanes)
   $previewTabs.listen(syncBrowserSessionPanes)
+  // Everything it READS, or the hides it computes go stale without anything
+  // recomputing them. The stored id moves on its own (a conversation focused
+  // before its runtime binds leaves `$browserSessionId` untouched), which is
+  // exactly the state a RESTORED tab is judged in: the half of the claim that
+  // survives a restart was being read at a moment nothing re-ran.
+  $focusedStoredSessionId.listen(syncBrowserSessionPanes)
+  // Embedding moves a tab between the strip and the chat column without
+  // changing either atom above.
+  $embeddedBrowserSessions.listen(syncBrowserSessionPanes)
 
   window.hermesDesktop?.onBrowserPopoutClosed?.(tabId => {
     adoptPersistedBrowserTab(tabId)

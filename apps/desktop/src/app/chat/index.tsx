@@ -446,7 +446,13 @@ const ChatViewContent = memo(function ChatViewContent({
   // Only the primary can be a DRAFT — a tile is bound to a runtime id before it
   // renders — so the stand-in key is scoped to it and two surfaces can never
   // claim it at once.
-  const embeddedBrowserKey = isPrimary ? browserSessionKey(activeSessionId) : null
+  //
+  // The STORED id is passed, and that argument is the fix for an uncloseable
+  // panel: a conversation waiting for its runtime is not a draft, and calling
+  // it one made every such conversation mount the SAME browser while the globe
+  // (which resolved that state to null) had nothing to toggle. Same function as
+  // `syncBrowserSession` calls, so the two can no longer answer differently.
+  const embeddedBrowserKey = isPrimary ? browserSessionKey(activeSessionId, storedId) : null
   const awaitingResponse = useStore(view.$awaitingResponse)
   const busy = useStore(view.$busy)
   const activeGatewayProfile = useStore($activeGatewayProfile)

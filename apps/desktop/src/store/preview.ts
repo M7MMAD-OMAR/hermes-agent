@@ -445,9 +445,79 @@ export const $browserSessionId = atom<null | string>(null)
  */
 export const DRAFT_BROWSER_SESSION_ID = 'draft:new-chat'
 
-/** The browser key for a surface that may still be a draft. */
-export function browserSessionKey(runtimeId: null | string): string {
-  return runtimeId || DRAFT_BROWSER_SESSION_ID
+/**
+ * A conversation that EXISTS but whose runtime has not bound yet.
+ *
+ * The middle rung, and its absence is what put an uncloseable browser on
+ * screen. There are three binding states, not two: a live runtime, a stored
+ * conversation waiting for one (a chat you reopened, anything before its first
+ * turn resolves), and a genuine new chat. Collapsing the middle one into the
+ * draft made every unbound conversation answer to the SAME key, so a browser
+ * opened in one appeared in the next, and collapsing it into `null` on the
+ * other side left the globe with nothing to toggle. Both happened at once:
+ * the panel mounted under the draft key while the globe resolved to null, and
+ * no gesture could reach the panel that was on screen.
+ *
+ * Provisional, like the draft: `adoptBrowserSessionKey` rewrites it to the
+ * runtime id the moment one binds, in place, so no tab leaves the list and no
+ * live page is torn down.
+ */
+export function storedBrowserSessionKey(storedSessionId: string): string {
+  return `stored:${storedSessionId}`
+}
+
+/** Is this key a stand-in rather than a runtime id? */
+export function isProvisionalBrowserKey(key: null | string): boolean {
+  return key === DRAFT_BROWSER_SESSION_ID || Boolean(key?.startsWith('stored:'))
+}
+
+/** The browser key for a surface in ANY binding state.
+ *
+ *  ONE function for every consumer. The panel's mount key and the key the
+ *  globe toggles are the same question, and they were two expressions in two
+ *  files; they disagreed in the middle state above, which is a drift only a
+ *  test over all three states can catch (`browser-session-key.test.ts`). */
+export function browserSessionKey(runtimeId: null | string, storedSessionId: null | string = null): string {
+  if (runtimeId) {
+    return runtimeId
+  }
+
+  return storedSessionId ? storedBrowserSessionKey(storedSessionId) : DRAFT_BROWSER_SESSION_ID
+}
+
+/** The STORED session id a browser key claims, when it names one.
+ *
+ *  Runtime ids are resolved through `storedSessionResolver`; the preview store
+ *  cannot import `session-states` (that module imports this one), so the
+ *  lookup is injected rather than reached for. */
+let storedSessionResolver: (runtimeId: string) => null | string = () => null
+
+/** Wired once by `session-states`, which owns the runtime-to-stored map. */
+export function setStoredSessionResolver(resolve: (runtimeId: string) => null | string): void {
+  storedSessionResolver = resolve
+}
+
+/**
+ * The restart-durable half of an ownership claim, for any browser key.
+ *
+ * `owner` is a runtime id and the encoder strips it, so `ownerKey` is the ONLY
+ * claim that can survive a restart. It used to be stamped by exactly one
+ * caller, the agent's tool-result path, which meant every tab a PERSON opened
+ * came back from storage owned by nobody. Unowned is everyone's by design, so
+ * on the next launch those tabs appeared in every conversation at once. That
+ * is the reported "no state is saved": the restore side was right all along
+ * and the write side never filled the field.
+ */
+function ownerKeyFor(sessionId: null | string): string | undefined {
+  if (!sessionId || sessionId === DRAFT_BROWSER_SESSION_ID) {
+    return undefined
+  }
+
+  if (sessionId.startsWith('stored:')) {
+    return sessionId.slice('stored:'.length)
+  }
+
+  return storedSessionResolver(sessionId) ?? undefined
 }
 
 /** Is this tab part of the browser the conversation `sessionId` is showing?
@@ -626,17 +696,31 @@ export function toggleEmbeddedBrowser(sessionId: null | string = $browserSession
 }
 
 /**
- * The draft's browser becomes the real session's browser.
+ * A PROVISIONAL browser becomes the real session's browser.
  *
- * Called when a new chat's first turn mints a runtime id. Everything the user
- * already opened — tabs, the mounted panel, whether it was expanded — moves to
- * the real id by REWRITING the owner, never by closing and reopening: a tab
- * that leaves `$previewTabs` takes its pane and its live page with it.
+ * Called when a runtime id binds under a stand-in key: a new chat's first turn
+ * (`draft:new-chat`), or a conversation that existed before its runtime did
+ * (`stored:<id>`). Everything already opened, tabs, the mounted panel, whether
+ * it was expanded, moves to the real id by REWRITING the owner, never by
+ * closing and reopening: a tab that leaves `$previewTabs` takes its pane and
+ * its live page with it.
  *
- * A no-op when the draft opened no browser, which is the common case.
+ * A no-op when the stand-in owns nothing, which is the common case.
  */
-export function adoptDraftBrowserSession(runtimeId: null | string): void {
-  if (!runtimeId || runtimeId === DRAFT_BROWSER_SESSION_ID) {
+export function adoptBrowserSessionKey(fromKey: null | string, runtimeId: null | string): void {
+  if (!runtimeId || !isProvisionalBrowserKey(fromKey) || fromKey === runtimeId) {
+    return
+  }
+
+  const from = fromKey as string
+  // Cheap and exact: this now fires on every runtime bind, not only on session
+  // create, so the overwhelmingly common case must cost one set lookup and one
+  // scan and then leave. The order below is load-bearing and every execution of
+  // it is a chance to get it wrong; the ones that have nothing to move should
+  // never reach it.
+  const ownsTabs = $previewTabs.get().some(tab => tab.owner === from)
+
+  if (!ownsTabs && !$embeddedBrowserSessions.get().has(from) && $browserSessionId.get() !== from) {
     return
   }
 
@@ -653,28 +737,44 @@ export function adoptDraftBrowserSession(runtimeId: null | string): void {
   // So: move the MEMBERSHIP first, rewrite the owners last. Every intermediate
   // state then has the tab either owned by the draft (invisible to the runtime
   // session's filter) or already embedded.
-  const wasEmbedded = $embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)
+  const wasEmbedded = $embeddedBrowserSessions.get().has(from)
 
   if (wasEmbedded) {
-    const wasExpanded = $embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)
+    const wasExpanded = $embeddedBrowserExpanded.get().has(from)
 
     setEmbeddedBrowserSession(runtimeId, true)
     setMembership($embeddedBrowserExpanded, runtimeId, wasExpanded)
   }
 
-  if ($browserSessionId.get() === DRAFT_BROWSER_SESSION_ID) {
+  if ($browserSessionId.get() === from) {
     $browserSessionId.set(runtimeId)
   }
 
   const tabs = $previewTabs.get()
 
-  if (tabs.some(tab => tab.owner === DRAFT_BROWSER_SESSION_ID)) {
-    $previewTabs.set(tabs.map(tab => (tab.owner === DRAFT_BROWSER_SESSION_ID ? { ...tab, owner: runtimeId } : tab)))
+  if (ownsTabs) {
+    // The durable half is stamped HERE too, not just at open: a tab opened in a
+    // conversation that had no stored id yet has nothing to claim with until
+    // this moment, and leaving it blank is the same as never writing it.
+    const ownerKey = ownerKeyFor(runtimeId)
+
+    $previewTabs.set(
+      // Never DOWN to undefined: a tab that already carries a claim keeps it if
+      // the resolver cannot answer yet. Adoption is a handover, not a reset.
+      tabs.map(tab => (tab.owner === from ? { ...tab, owner: runtimeId, ownerKey: tab.ownerKey ?? ownerKey } : tab))
+    )
   }
 
   if (wasEmbedded) {
-    setEmbeddedBrowserSession(DRAFT_BROWSER_SESSION_ID, false)
+    setEmbeddedBrowserSession(from, false)
   }
+}
+
+/** The draft's browser becomes the real session's browser. The create path's
+ *  name for `adoptBrowserSessionKey`, kept because that call site knows only
+ *  that a NEW chat just resolved. */
+export function adoptDraftBrowserSession(runtimeId: null | string): void {
+  adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, runtimeId)
 }
 
 /** The conversation ended — its browser ends with it. Closes every Browser tab
@@ -877,7 +977,14 @@ export function openPreview(
   // later session — `browserTabId` only returns a tab this session already
   // owns, so reaching here with a different owner means the user opened it.
   const owner = owned ? (current[index]?.owner ?? sessionId ?? undefined) : undefined
-  const ownerKey = owned ? (current[index]?.ownerKey ?? options.ownerKey ?? undefined) : undefined
+
+  // Resolved here rather than only from `options`, which one caller passed and
+  // every other left empty. A claim that exists only in memory is not a claim:
+  // `owner` never reaches storage, so a tab whose `ownerKey` was skipped comes
+  // back belonging to nobody and shows in every conversation. See `ownerKeyFor`.
+  const ownerKey = owned
+    ? (current[index]?.ownerKey ?? options.ownerKey ?? ownerKeyFor(owner ?? sessionId) ?? undefined)
+    : undefined
 
   const tab: PreviewTab = owned ? { agent: true, id, owner, ownerKey, target: resolved } : { id, target: resolved }
 
@@ -945,7 +1052,13 @@ export function openBrowserTab(
 export function newBrowserTab(sessionId: null | string = $browserSessionId.get()) {
   const id = mintBrowserTabId()
 
-  $previewTabs.set([...$previewTabs.get(), { agent: true, id, owner: sessionId ?? undefined, target: blankPage() }])
+  $previewTabs.set([
+    ...$previewTabs.get(),
+    // BOTH halves of the claim, as everywhere else. This path is the one a
+    // person takes (the strip's "+", the panel's "+", the globe's first press),
+    // and it was the one writing a runtime owner and nothing durable.
+    { agent: true, id, owner: sessionId ?? undefined, ownerKey: ownerKeyFor(sessionId), target: blankPage() }
+  ])
   selectRightRailTab(id)
 }
 

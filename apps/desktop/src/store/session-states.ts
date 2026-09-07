@@ -37,7 +37,13 @@ import { readJson, writeJson } from '@/lib/storage'
 import type { SessionInfo } from '@/types/hermes'
 
 import { forgetSessionSuggestions } from './composer-suggestions'
-import { $browserSessionId, DRAFT_BROWSER_SESSION_ID } from './preview'
+import {
+  $browserSessionId,
+  adoptBrowserSessionKey,
+  browserSessionKey,
+  setStoredSessionResolver,
+  storedBrowserSessionKey
+} from './preview'
 import { $activeGatewayProfile, normalizeProfileKey } from './profile'
 import { clearAllProviderWaits, clearSessionProviderWait } from './provider-wait'
 import {
@@ -1127,6 +1133,11 @@ export function storedSessionIdForRuntimeId(sessionId: string): null | string {
   return mirrored || null
 }
 
+// The preview store stamps the restart-durable half of every ownership claim
+// and cannot import this module (this one imports it), so the lookup is handed
+// over instead of reached for.
+setStoredSessionResolver(storedSessionIdForRuntimeId)
+
 const BOT_CHAT_SCOPE_KEY = 'hermes.desktop.botChatSessions.v1'
 
 /** Stored ids last opened as a bot's chat. A tile carries `workspaceMode`, but
@@ -2037,10 +2048,24 @@ function syncBrowserSession(): void {
   // tile whose runtime has not bound yet is also null, and it has a stored id —
   // handing it the draft sentinel pointed its globe at the PRIMARY's new chat,
   // so pressing it opened the page in a column the user was not looking at.
-  // A stored id present with no runtime is "not resolved yet", which is a null
-  // browser, not a draft one.
+  //
+  // That conversation gets its OWN provisional key rather than a null one.
+  // Null was correct about what it was not, and wrong about what it was: with
+  // no key, `toggleEmbeddedBrowser` had nothing to collapse, so a panel mounted
+  // in that state could not be closed by the button that opens it. Its own key
+  // is both: never the draft's, and never nothing.
   const runtimeId = $focusedRuntimeId.get()
-  const next = runtimeId ?? ($focusedStoredSessionId.get() ? null : DRAFT_BROWSER_SESSION_ID)
+  const storedId = $focusedStoredSessionId.get()
+
+  // The handover, keyed on the conversation's OWN provisional id rather than on
+  // "whatever the key was a moment ago". Sequence is not identity here: this
+  // runs on every focus change too, and adopting from the previous key would
+  // move one chat's tabs onto the chat you just switched to.
+  if (runtimeId && storedId) {
+    adoptBrowserSessionKey(storedBrowserSessionKey(storedId), runtimeId)
+  }
+
+  const next = browserSessionKey(runtimeId, storedId)
 
   if (next !== $browserSessionId.get()) {
     $browserSessionId.set(next)

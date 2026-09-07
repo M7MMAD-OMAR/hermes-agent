@@ -2,6 +2,7 @@ import { useStore } from '@nanostores/react'
 import { atom, computed } from 'nanostores'
 import type { CSSProperties, ReactElement, PointerEvent as ReactPointerEvent } from 'react'
 
+import { watchBrowserGuestBudget } from '@/app/chat/browser-guest-budget'
 import { SessionDraftTitle } from '@/app/chat/session-draft-title'
 import { SessionStatusDot } from '@/app/chat/session-status-dot'
 import { PALETTE_AREA, type PaletteContribution, paletteToggle } from '@/app/command-palette/contrib'
@@ -463,6 +464,7 @@ if (!isBrowserWindow() && !isHudWindow()) {
   startUnrestoredTileTitleBackfill()
   watchRouteTiles()
   watchPreviewTiles()
+  watchBrowserGuestBudget()
 }
 
 // Composer pop-out state is keyed by layout zone, so drop entries for zones the
@@ -505,7 +507,7 @@ const syncWorkspaceTitle = () => {
       // tiles render, so the main tab never disagrees with its sidebar row. A
       // fresh draft has no session to key by, which IS its status: the dot
       // resolves to `draft` and marks the tab rather than leaving a hole.
-      tabLead: () => <SessionStatusDot session={stored} storedSessionId={selected} />,
+      tabLead: () => <SessionStatusDot chip session={stored} storedSessionId={selected} />,
       // A draft's name lives in its composer, not in any session row, so the
       // label subscribes to it directly — typing renames the tab without
       // re-registering the pane.

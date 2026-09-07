@@ -764,7 +764,7 @@ export const watchSessionTiles = paneMirror<SessionTile>({
   // two surfaces. Self-subscribing (live state + resolved color), so the strip
   // needn't re-sync when it changes.
   tabLead: storedSessionId => (
-    <SessionStatusDot session={tileStoredRow(storedSessionId)} storedSessionId={storedSessionId} />
+    <SessionStatusDot chip session={tileStoredRow(storedSessionId)} storedSessionId={storedSessionId} />
   ),
   // Until the first turn lists a row there is no title to register, so the tab
   // takes its name from the composer instead — live, without re-registering.

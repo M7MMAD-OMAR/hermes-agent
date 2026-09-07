@@ -92,7 +92,24 @@ const DOT_VARIANTS: Record<SessionDotState, DotVariant> = {
  *  of its own (it inherits the project's), so callers supply one. */
 export const sessionDotClassName = (state: SessionDotState): string => DOT_VARIANTS[state].className
 
+/** The chip text a state earns on a TAB, none for the quiet states. Color
+ *  and fill on a 6 px dot tell states apart to someone who already knows the
+ *  code; a strip of eight tabs has to be read cold, mid-task, by someone who
+ *  wants to know which chats are running, which are waiting on them, and which
+ *  finished while they were elsewhere. A word answers that; a dot does not.
+ *  Idle and draft stay wordless so a quiet strip is quiet. */
+const CHIP_VARIANTS: Partial<Record<SessionDotState, { className: string; label: (r: Translations['sidebar']['row']) => string }>> = {
+  'needs-input': { className: 'bg-amber-500/15 text-amber-500', label: r => r.chipNeedsInput },
+  working: { className: 'bg-(--ui-accent)/12 text-(--ui-accent)', label: r => r.chipWorking },
+  stalled: { className: 'border border-(--ui-accent)/40 text-(--ui-accent)', label: r => r.chipWorking },
+  background: { className: 'border border-(--ui-text-tertiary)/40 text-(--ui-text-tertiary)', label: r => r.chipBackground },
+  unread: { className: 'bg-(--ui-success)/15 text-(--ui-success)', label: r => r.chipDone }
+}
+
 export interface SessionStatusDotProps {
+  /** Draw the state's word beside the dot. Tabs pass this; sidebar rows, which
+   *  already carry a running arc and a subtitle, do not. */
+  chip?: boolean
   /** The STORED session id — the key every live-state atom (working /
    *  attention / stalled / unread / background) is keyed by, on BOTH surfaces:
    *  the sidebar row's `session.id` and a pane tile's `storedSessionId` are the
@@ -122,7 +139,7 @@ export interface SessionStatusDotProps {
  * An idle session shows its project color; the active states own the dot with
  * their semantic color so an attention cue is never masked by the tint.
  */
-export function SessionStatusDot({ storedSessionId, session, branchStem, className }: SessionStatusDotProps) {
+export function SessionStatusDot({ storedSessionId, session, branchStem, chip, className }: SessionStatusDotProps) {
   const { t } = useI18n()
   const r = t.sidebar.row
 
@@ -159,6 +176,17 @@ export function SessionStatusDot({ storedSessionId, session, branchStem, classNa
           title={variant.title?.(r)}
         />
       )}
+      {chip && CHIP_VARIANTS[dotState] ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'ml-1 shrink-0 rounded px-1 text-[0.625rem] font-medium uppercase leading-4 tracking-wide',
+            CHIP_VARIANTS[dotState]!.className
+          )}
+        >
+          {CHIP_VARIANTS[dotState]!.label(r)}
+        </span>
+      ) : null}
     </span>
   )
 }

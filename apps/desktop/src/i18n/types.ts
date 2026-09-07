@@ -2108,6 +2108,11 @@ export interface Translations {
       needsInput: string
       waitingForAnswer: string
       finishedUnread: string
+      /** Short chips drawn ON the tab beside the dot, so a glance at the strip says which chats are running, which wait on you, and which finished unseen. */
+      chipWorking: string
+      chipNeedsInput: string
+      chipDone: string
+      chipBackground: string
       backgroundRunning: string
       draftSession: string
       handoffOrigin: (platform: string) => string

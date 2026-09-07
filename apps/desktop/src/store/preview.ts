@@ -707,7 +707,11 @@ export function toggleEmbeddedBrowser(sessionId: null | string = $browserSession
  *
  * A no-op when the stand-in owns nothing, which is the common case.
  */
-export function adoptBrowserSessionKey(fromKey: null | string, runtimeId: null | string): void {
+export function adoptBrowserSessionKey(
+  fromKey: null | string,
+  runtimeId: null | string,
+  storedSessionId: null | string = null
+): void {
   if (!runtimeId || !isProvisionalBrowserKey(fromKey) || fromKey === runtimeId) {
     return
   }
@@ -756,7 +760,11 @@ export function adoptBrowserSessionKey(fromKey: null | string, runtimeId: null |
     // The durable half is stamped HERE too, not just at open: a tab opened in a
     // conversation that had no stored id yet has nothing to claim with until
     // this moment, and leaving it blank is the same as never writing it.
-    const ownerKey = ownerKeyFor(runtimeId)
+    // Told, not looked up, wherever the caller already knows. The create path
+    // knows the stored id it just minted; asking the resolver there would make
+    // the durable claim depend on when the runtime-to-stored map happens to be
+    // published, and a claim that is written late enough is never written.
+    const ownerKey = storedSessionId ?? ownerKeyFor(runtimeId)
 
     $previewTabs.set(
       // Never DOWN to undefined: a tab that already carries a claim keeps it if
@@ -773,8 +781,28 @@ export function adoptBrowserSessionKey(fromKey: null | string, runtimeId: null |
 /** The draft's browser becomes the real session's browser. The create path's
  *  name for `adoptBrowserSessionKey`, kept because that call site knows only
  *  that a NEW chat just resolved. */
-export function adoptDraftBrowserSession(runtimeId: null | string): void {
-  adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, runtimeId)
+export function adoptDraftBrowserSession(runtimeId: null | string, storedSessionId: null | string = null): void {
+  adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, runtimeId, storedSessionId)
+}
+
+/**
+ * The draft was abandoned, so its browser is abandoned with it.
+ *
+ * `DRAFT_BROWSER_SESSION_ID` is one constant for the whole renderer, which is
+ * enough only because one surface can be a draft at a time. It is NOT enough
+ * across time: a draft that opened a browser and was then replaced by another
+ * new chat left its panel and its page mounted under a key the next new chat
+ * also answers to, so a conversation nobody had touched opened holding someone
+ * else's page. Adoption releases the key when a draft BECOMES a session; this
+ * is the other exit, and without it the key is only ever released by luck.
+ *
+ * Tabs are closed rather than orphaned: the conversation they belonged to never
+ * existed, so there is nothing to go back to. Same reasoning as
+ * `closeBrowserTabsForSession`, which is what a real conversation's ending
+ * calls.
+ */
+export function releaseDraftBrowserSession(): void {
+  closeBrowserTabsForSession(DRAFT_BROWSER_SESSION_ID)
 }
 
 /** The conversation ended — its browser ends with it. Closes every Browser tab

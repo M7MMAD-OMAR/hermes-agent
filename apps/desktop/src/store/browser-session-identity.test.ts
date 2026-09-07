@@ -14,6 +14,7 @@ import {
   isProvisionalBrowserKey,
   newBrowserTab,
   openPreview,
+  releaseDraftBrowserSession,
   previewTabBelongsToSession,
   registerEmbeddedBrowserHost,
   resetEmbeddedBrowserHosts,
@@ -141,6 +142,34 @@ describe('ownership survives a restart', () => {
   })
 })
 
+describe('an abandoned draft', () => {
+  beforeEach(reset)
+  afterEach(reset)
+
+  // The screenshot: a new chat opens holding a browser nobody asked it for,
+  // because the draft key is one constant and the previous draft never let go.
+  it('does not hand its browser to the next new chat', () => {
+    registerEmbeddedBrowserHost(DRAFT_BROWSER_SESSION_ID)
+    toggleEmbeddedBrowser(DRAFT_BROWSER_SESSION_ID)
+
+    expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
+    expect($previewTabs.get()).toHaveLength(1)
+
+    releaseDraftBrowserSession()
+
+    expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)
+    expect($embeddedBrowserExpanded.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(false)
+    expect($previewTabs.get()).toHaveLength(0)
+  })
+
+  it('leaves pages that belong to nobody alone', () => {
+    openPreview({ kind: 'url', label: 'x', source: 'https://x.test', url: 'https://x.test' })
+    releaseDraftBrowserSession()
+
+    expect($previewTabs.get()).toHaveLength(1)
+  })
+})
+
 describe('provisional handover', () => {
   beforeEach(reset)
   afterEach(reset)
@@ -164,6 +193,16 @@ describe('provisional handover', () => {
     expect(after?.ownerKey).toBe('stored-1')
     expect($embeddedBrowserSessions.get().has('runtime-1')).toBe(true)
     expect($embeddedBrowserSessions.get().has(key)).toBe(false)
+  })
+
+  it('takes the stored id from the caller rather than a resolver that may be late', () => {
+    // The create path knows the id it just minted. Depending on the map being
+    // published first is how a claim gets skipped in the one sequence that
+    // matters most: new chat, open browser, send, restart.
+    newBrowserTab(DRAFT_BROWSER_SESSION_ID)
+    adoptBrowserSessionKey(DRAFT_BROWSER_SESSION_ID, 'runtime-1', 'stored-1')
+
+    expect($previewTabs.get()[0]?.ownerKey).toBe('stored-1')
   })
 
   it('never adopts from a runtime id, so switching chats cannot steal tabs', () => {

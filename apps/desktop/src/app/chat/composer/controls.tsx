@@ -274,10 +274,10 @@ export function ComposerSendControl({
 function BrowserButton({ disabled }: { disabled: boolean }) {
   const { t } = useI18n()
   const label = t.shell.statusbar.showBrowser
-  // The atom as it stands, NOT null-coalesced to the draft key: a new chat is
-  // already published here as DRAFT_BROWSER_SESSION_ID by the focus sync, so a
-  // null at this point means the focused conversation has not resolved a
-  // runtime yet. Inventing the draft key from it made this button read (and
+  // The atom as it stands, NOT null-coalesced to anything: the focus sync
+  // publishes a key for every binding state now (a runtime id, a conversation's
+  // own `stored:` stand-in, or the draft), so whatever arrives here is already
+  // this conversation's. Inventing a key would make this button read (and
   // toggle) the PRIMARY new chat's browser from a tile that is not it.
   const sessionId = useStore($browserSessionId)
   const tabs = useStore($previewTabs)

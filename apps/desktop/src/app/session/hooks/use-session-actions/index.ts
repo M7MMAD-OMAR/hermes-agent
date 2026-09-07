@@ -38,7 +38,7 @@ import {
 import { $gatewaySwitching } from '@/store/gateway-switch'
 import { $pinnedSessionIds } from '@/store/layout'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
-import { adoptDraftBrowserSession } from '@/store/preview'
+import { adoptDraftBrowserSession, releaseDraftBrowserSession } from '@/store/preview'
 import {
   $activeGatewayProfile,
   $gatewaySwapTarget,
@@ -488,6 +488,10 @@ export function useSessionActions({
       activeSessionIdRef.current = null
       setSelectedStoredSessionId(null)
       selectedStoredSessionIdRef.current = null
+      // The draft standing here is being replaced, and a browser it opened
+      // would otherwise be inherited by the chat taking its place: the draft
+      // key is one constant, so the next new chat answers to it too.
+      releaseDraftBrowserSession()
       setMessages([])
       setCurrentUsage({
         calls: 0,
@@ -674,7 +678,7 @@ export function useSessionActions({
         // none — and adopting on the wrong one drags the draft's browser into a
         // conversation that never opened it. Hand the browser over before
         // anything downstream re-reads ownership.
-        adoptDraftBrowserSession(created.session_id)
+        adoptDraftBrowserSession(created.session_id, stored)
         setActiveSessionId(created.session_id)
         setSelectedStoredSessionId(stored)
         setSessionStartedAt(Date.now())

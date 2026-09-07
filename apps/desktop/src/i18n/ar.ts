@@ -2608,6 +2608,7 @@ export const ar = defineLocale({
       thoughtBriefly: 'فكّر قليلاً',
       thoughtFor: duration => `فكّر لمدة ${duration}`,
       turnDuration: duration => `استغرقت هذه الجولة ${duration}`,
+      turnDigestNotes: count => (count === 1 ? 'ملاحظة واحدة' : `${count} ملاحظات`),
       today: time => `اليوم ${time}`,
       yesterday: time => `أمس ${time}`,
       copy: 'نسخ',

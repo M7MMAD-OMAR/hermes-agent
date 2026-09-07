@@ -3569,6 +3569,7 @@ export const zh: Translations = {
       thoughtBriefly: '思考了片刻',
       thoughtFor: duration => `思考了 ${duration}`,
       turnDuration: duration => `本轮耗时 ${duration}`,
+      turnDigestNotes: count => `${count} 条说明`,
       today: time => `今天，${time}`,
       yesterday: time => `昨天，${time}`,
       copy: '复制',

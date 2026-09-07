@@ -522,7 +522,9 @@ describe('assistant-ui streaming renderer', () => {
       />
     )
 
-    // Interim commentary stays visible…
+    // The settled working folds under the turn digest; open it to read the
+    // interim commentary back.
+    fireEvent.click(container.querySelector('[data-turn-digest] button')!)
     expect(container.textContent).toContain('Let me check the files.')
     expect(container.textContent).toContain('Now applying the patch.')
     expect(container.textContent).toContain('All done — patch applied.')

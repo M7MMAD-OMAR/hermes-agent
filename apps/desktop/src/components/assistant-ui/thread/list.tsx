@@ -33,6 +33,7 @@ import { isSecondaryWindow } from '@/store/windows'
 import { MessageRenderBoundary } from '../message-render-boundary'
 
 import { resolveShowEarlierAction, useTranscriptWindow } from './transcript-window'
+import { TurnDigest } from './turn-digest'
 
 type ThreadMessageComponents = ComponentProps<typeof ThreadPrimitive.MessageByIndex>['components']
 
@@ -375,9 +376,8 @@ const TurnRow = memo(function TurnRow({ components, group, resetKey, virtualized
             className="composer-human-ai-pair-container relative flex min-w-0 flex-col gap-(--conversation-turn-gap)"
             data-slot="aui_turn-pair"
           >
-            {group.indices.map(index => (
-              <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
-            ))}
+            <ThreadPrimitive.MessageByIndex components={components} index={group.indices[0]} />
+            <TurnDigest components={components} indices={group.indices.slice(1)} turnId={group.id} />
           </div>
         ) : (
           <ThreadPrimitive.MessageByIndex components={components} index={group.index} />

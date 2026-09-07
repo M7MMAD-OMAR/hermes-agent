@@ -2958,6 +2958,8 @@ export interface Translations {
       thoughtBriefly: string
       thoughtFor: (duration: string) => string
       turnDuration: (duration: string) => string
+      /** Header of a folded turn with no tool calls, counting its sealed notes. */
+      turnDigestNotes: (count: number) => string
       today: (time: string) => string
       yesterday: (time: string) => string
       copy: string

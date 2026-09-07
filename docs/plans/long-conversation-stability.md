@@ -49,3 +49,34 @@ Remaining candidates need a live reproduction: a dictation client typing into
 whichever composer holds keyboard focus after a tab switch, or the shared view
 painting a background session's optimistic message. Neither is fixed here
 because neither is shown.
+
+## Turn digest: what a long turn looks like once it is over
+
+Asked for 2026-09-07: while a turn runs, show what it is doing; when it ends,
+fold the working away and leave the reply and any question for the user.
+
+Hermes already folded each run of tool calls under its own summary line with a
+one-line ticker while live (`ToolRun` in `tool/fallback.tsx`). What stayed on
+screen after a turn was every sealed interim paragraph ("Now the navigation
+block") and one header per run, so a two-hour turn read as a wall of working
+above a reply.
+
+`thread/turn-digest.tsx` folds at the turn level. A turn is the user message
+plus the assistant messages that follow it (`buildGroups` in `list.tsx`); every
+assistant message before the last one folds under one header. The header is
+the whole turn's tool summary in the past tense ("Edited 12 files, ran 30
+commands"), or the count of sealed notes when no tool ran, with the timeline
+range on the right. Settled, the header is a toggle remembered per turn
+(`turn-digest:<user message id>` in the tool disclosure store). Live, the
+header shimmers and cannot be opened; the tail message below it is the live
+ticker and current step, unchanged.
+
+Never folded: the tail (so an approval, clarify or MCP setup card, which only
+exists on a pending tool, is never behind the header), and a message that
+ended in an error, which also stops the fold so the messages after it render
+in place. Inside the reply, tool runs keep their own per-run folding as before.
+
+Chosen over folding inside a single message because the live view and the
+rehydrated view both shape a turn as several assistant messages (one per
+assistant row), so a message-level fold is the same code for both and needs no
+per-part rendering hooks in assistant-ui.

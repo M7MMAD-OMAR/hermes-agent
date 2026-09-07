@@ -2044,6 +2044,13 @@ DEFAULT_CONFIG = {
         # index matches instead of LIKE scans. True = use when present (inert otherwise); False =
         # never load/serve it. Bridged to HERMES_CJK_FTS.
         "cjk_fts": True,
+        # Trigram substring index (messages_fts_trigram). Serves partial-word and 1-2 char
+        # matches that the base word index cannot. It is a SECOND full copy of every message:
+        # measured 2026-09-07 at 205 MB of a 631 MB state.db (the base index was 116 MB), and a
+        # share of every write. False drops the table and its triggers at the next start; whole-word
+        # and prefix search keep working on the base index, partial-word matches ("idempot" for
+        # "idempotency") stop. Bridged to HERMES_TRIGRAM_FTS.
+        "trigram_fts": True,
         # Slow session-search threshold (ms): searches at/above it log one INFO line with the
         # routing path (fts_cjk / fts5 / trigram / like_scan). 0 logs every search. Bridged to
         # HERMES_SEARCH_SLOW_MS.

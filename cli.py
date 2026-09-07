@@ -372,6 +372,8 @@ def _mirror_config_to_env(defaults, _file_has_terminal_config):
     if isinstance(sessions_config, dict):
         if "cjk_fts" in sessions_config:
             os.environ["HERMES_CJK_FTS"] = str(sessions_config["cjk_fts"])
+        if "trigram_fts" in sessions_config:
+            os.environ["HERMES_TRIGRAM_FTS"] = str(sessions_config["trigram_fts"])
         if "search_slow_ms" in sessions_config:
             os.environ["HERMES_SEARCH_SLOW_MS"] = str(sessions_config["search_slow_ms"])
 

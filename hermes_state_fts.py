@@ -104,6 +104,11 @@ def _cjk_fts_config_enabled() -> bool:
     return os.getenv("HERMES_CJK_FTS", "1").strip().lower() not in ("0", "false", "off", "no")
 
 
+def trigram_fts_config_enabled() -> bool:
+    """config.yaml ``sessions.trigram_fts`` (default on), via its env bridge."""
+    return os.getenv("HERMES_TRIGRAM_FTS", "1").strip().lower() not in ("0", "false", "off", "no")
+
+
 def load_fts5_cjk_extension(conn: sqlite3.Connection) -> bool:
     """Best-effort load of the cjk_unicode61 tokenizer; False (never raises) when
     the .so is absent, ``sessions.cjk_fts`` is off, or loading is compiled out."""

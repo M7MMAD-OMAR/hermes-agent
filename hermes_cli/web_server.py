@@ -16,6 +16,7 @@ import os
 import re
 import secrets
 import subprocess
+import stat
 import sys
 import sysconfig
 import threading
@@ -1282,6 +1283,48 @@ def _on_server_started(
     _hb_loop.call_later(_hb_interval, _loop_heartbeat, _hb_loop.time() + _hb_interval)
 
 
+# Cache and dictionary files an Electron parent leaves open without CLOEXEC; these
+# are the only inherited regular files a backend has ever been seen holding.
+_INHERITED_HOST_FILE_MARKERS = ("Cache", "Dictionaries", "Partitions", "Local Storage", "Session Storage")
+
+
+def close_inherited_host_files(hermes_desktop_dir: str | None = None) -> int:
+    """Close regular-file descriptors the desktop host leaked into this process; returns how many.
+
+    The Electron main process opens its GPU shader caches and spell-check dictionaries without
+    CLOEXEC, so ``spawn`` hands them to the backend it starts. Measured on 2026-09-07: twelve
+    descriptors on ``DawnGraphiteCache``, ``DawnWebGPUCache``, ``GPUCache`` and a ``.bdic`` in a
+    backend that never reads them. Harmless in size, and exactly the kind of handle that keeps a
+    cache file undeletable and a directory unmovable for the life of the backend.
+
+    Surgical on purpose: only regular files, only under a directory named ``Hermes`` (the host's
+    userData) and only in its cache-like subtrees. Sockets, pipes, the readiness channel and
+    anything the backend opened itself are never touched. POSIX only; a no-op elsewhere.
+    """
+    if sys.platform == "win32" or not os.path.isdir("/proc/self/fd"):
+        return 0
+    marker_dir = f"{os.sep}{hermes_desktop_dir or 'Hermes'}{os.sep}"
+    closed = 0
+    for name in os.listdir("/proc/self/fd"):
+        try:
+            fd = int(name)
+            if fd <= 2:
+                continue
+            target = os.readlink(f"/proc/self/fd/{fd}")
+        except (OSError, ValueError):
+            continue
+        if marker_dir not in target or not any(m in target for m in _INHERITED_HOST_FILE_MARKERS):
+            continue
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                continue
+            os.close(fd)
+            closed += 1
+        except OSError:
+            continue
+    return closed
+
+
 def _run_serve(serve, config, host: str, port: int) -> None:
     """Drive ``serve()`` on the loop uvicorn expects.
 
@@ -1291,6 +1334,9 @@ def _run_serve(serve, config, host: str, port: int) -> None:
     loop factory there (hand-installed selector policy for uvicorn < 0.36).
     Ctrl+C -> clean return; probe-to-bind port race -> sentinel + exit code.
     """
+    leaked = close_inherited_host_files()
+    if leaked:
+        logger.debug("closed %d file descriptors inherited from the desktop host", leaked)
     runner = asyncio.run
     runner_kwargs: dict = {}
     if sys.platform == "win32":

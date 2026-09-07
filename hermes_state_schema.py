@@ -11,6 +11,8 @@ import logging
 import json
 import os
 import sqlite3
+
+from hermes_state_fts import trigram_fts_config_enabled
 import tempfile
 import time
 import uuid
@@ -587,6 +589,16 @@ class SessionSchemaMixin:
         logger.warning("Rebuilt stale state.db FTS indexes from canonical messages and restored sync triggers.")
         return True
 
+    @staticmethod
+    def _drop_trigram_fts(cursor: sqlite3.Cursor) -> None:
+        """Remove the trigram index and its sync triggers (``sessions.trigram_fts: false``).
+
+        Idempotent and cheap when nothing is there. The base index and the CJK index are untouched,
+        and canonical ``messages`` rows are never involved: this only deletes derived data."""
+        for trigger in _FTS_TRIGRAM_TRIGGERS:
+            cursor.execute(f"DROP TRIGGER IF EXISTS {trigger}")
+        cursor.execute("DROP TABLE IF EXISTS messages_fts_trigram")
+
     # ── Declarative column reconciliation ──────────────────────────────────
 
     @staticmethod
@@ -1040,8 +1052,14 @@ class SessionSchemaMixin:
             trigram_triggers_missing = self._fts_triggers_missing(cursor, _FTS_TRIGRAM_TRIGGERS)
             self._fts_enabled = self._ensure_fts_schema(cursor, "messages_fts", base_sql)
             if self._fts_enabled:
-                # Trigram is optional; without it CJK search falls back to LIKE.
-                trigram_enabled = self._ensure_fts_schema(cursor, "messages_fts_trigram", trigram_sql)
+                # Trigram is optional; without it CJK search falls back to LIKE. Also a config
+                # choice (`sessions.trigram_fts`): the index is a second full copy of every
+                # message, and a user who turns it off gets the space back at this open.
+                if trigram_fts_config_enabled():
+                    trigram_enabled = self._ensure_fts_schema(cursor, "messages_fts_trigram", trigram_sql)
+                else:
+                    self._drop_trigram_fts(cursor)
+                    trigram_enabled = False
                 self._trigram_available = trigram_enabled
                 if base_triggers_missing or (trigram_enabled and trigram_triggers_missing):
                     self._run_admitted_startup_rebuild(

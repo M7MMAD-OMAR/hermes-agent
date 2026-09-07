@@ -82,3 +82,24 @@ hides are stale after a panel opens or closes.
 Ownership stays one field on one tab list. Nothing filters
 `$dockedPreviewTabs` further, nothing keys on `$focusedRuntimeId`, unowned tabs
 stay everyone's, and both halves of the claim keep their existing roles.
+
+## What shipped
+
+- `32e3f4af70` one key function for every consumer, the `stored:` rung, the
+  identity-keyed handover, `ownerKey` at every write, and the missing
+  subscriptions.
+- `1757b38eef` the abandoned draft releases its browser, and adoption is told
+  the stored id instead of asking for it.
+
+Tests: `apps/desktop/src/store/browser-session-identity.test.ts`, 18 cases. The
+one that matters most is the table over all four binding states asserting the
+mount key and the toggle key resolve to the same value. Pinning either alone is
+what let them drift.
+
+## Still open
+
+A tab persisted by a BUILD BEFORE this one carries no `ownerKey`, because
+nothing ever wrote one. It restores unowned, and unowned is everyone's by
+design, so it keeps showing in every conversation until it is closed once. New
+tabs are claimed from now on. There is no migration that could fix an old tab:
+the id it needed was never written down.

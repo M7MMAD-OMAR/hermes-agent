@@ -97,8 +97,8 @@ telling about the spawn: no `close_fds`.
 | Per-tab registries (find, input, nav, reader, script, console, page title) | pane mount | `forgetPreviewTab` on close | only console and page title are forgotten by the store; find/input/nav/reader/script release in their own pane unmount effects | Sound as long as the pane unmounts; the two module maps are the ones a bulk closer could miss and they are covered |
 | Subagents per session | delegation | `clearSessionSubagents(sid)` | called from session end | Sound |
 | LSP servers (tsserver etc.) | first LSP tool use in a project | idle reaper, `DEFAULT_IDLE_TIMEOUT = 600` s | reaper is started when enabled | **Unverified**: the sbartube tsserver pair (555 MB) was 9 minutes old at inventory; recheck after 10 minutes of no use |
-| MCP servers (chrome-devtools-mcp) | backend start, per `config.yaml` | `idle_timeout_seconds: 900` | `_last_tool_call_at` is stamped at connect, so a server that is never called counts as idle from connect | The 146 MB node process was 15 minutes old at first inventory and still alive at 40 minutes with no tool call. **Suspected leak**, recycler logic not yet traced |
-| Audio stream in the backend | `tools/wake_word.py` or `tools/voice_mode.py` (both import sounddevice lazily) | on voice mode end | a `pw-PortAudio` pair and a `data-loop.0` thread are alive at idle, 100 wakeups a second | **Suspected**: the backend holds a live PipeWire capture stream with no voice session on screen. `config.yaml` has no `wake_word:` section, so the opener is not configured there |
+| MCP servers (chrome-devtools-mcp) | backend start, per `config.yaml` | `idle_timeout_seconds: 900` | `_wait_for_lifecycle_event` recycles at the deadline and the process is gone (agent.log shows recycles at 09:31 and 10:21; pid 631164 no longer exists) | Sound. Cleared after tracing |
+| Audio stream in the backend | the desktop's gateway-ready wake probe (`wake.status`, `wake.start`), which imports sounddevice | never | a `pw-PortAudio` pair and a `data-loop.0` thread at idle, 100 wakeups a second, with `enabled=False` | **Confirmed and fixed**: `import sounddevice` runs Pa_Initialize and nothing ran Pa_Terminate. Probes now release PortAudio unless a listener is armed (`tools/wake_word.py`, `_probe_audio`). Takes effect at the next backend start |
 | Renderer subscriptions | tab open/close/navigate/title tick | n/a | `EmbeddedBrowserPanel` gates 8 subscriptions behind one atom; `publishSessionState` skips identical heartbeats; stream flush is a 33 ms adaptive floor with rAF avoided on purpose; background windows are re-throttled 5 s after the last turn | Sound. The 20 % idle-CPU bug from `backgroundThrottling: false` is already fixed by `stream-throttle.ts` |
 
 ## 5. Ranked plan
@@ -149,16 +149,23 @@ units measured, the risk, what it must not break.
    `end_session(session_id)` in the backend that every close path calls, so a
    release is one function and not a step each path remembers.
 
+## 5b. Done on 7 Sep
+
+- **Item 1, the ceiling.** `~/.config/systemd/user/hermes.slice` with
+  `CPUQuota=600%`. The launcher (`hermes_cli/main_desktop.py`) wraps the
+  binary in a transient scope inside it when the unit exists. The running
+  backend, Electron main, the LSP and MCP children were moved into the slice
+  live (`hermes-desktop-live.scope`); the renderer and GPU process could not
+  be: they sit in `session-3.scope`, outside the user manager's subtree, and the
+  kernel refuses the move. They join at the next launch through the launcher.
+- **Item 2, the audio thread.** Confirmed and fixed, see the lifetimes table.
+  The live backend keeps its thread until it is restarted.
+- **Item 2, the MCP server.** Cleared: the recycler works and kills the
+  process. The 40-minute lifetime I saw was 900 s of idle counted from the
+  last tool call, which the agent had made.
+
 ## 6. Suspected, unmeasured
 
-- **The audio capture stream at idle.** Reproduce: with no voice mode active,
-  `ls /proc/$(pgrep -f 'hermes_cli.main --profile')/task/*/comm | xargs cat |
-  grep -c PortAudio` should be 0; it is 2, and `data-loop.0` shows ~100
-  wakeups a second. Owner not yet traced (wake_word.py or voice_mode.py, or
-  the `nemo_relay` native library which is also loaded).
-- **MCP idle recycling never fires for a server that is never called.**
-  Reproduce: restart the backend, call no browser tool, check
-  `pgrep -a chrome-devtools-mcp` after 16 minutes; the config says 900 s.
 - **LSP reaper.** Same shape: leave the sbartube chat idle 11 minutes, check
   `pgrep -a tsserver`.
 - **13 MB per 4 minutes of idle writes.** Attributed to state.db by

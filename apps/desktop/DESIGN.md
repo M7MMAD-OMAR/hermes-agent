@@ -368,3 +368,14 @@ The detailed state contract lives in the scoped
 - [ ] `cursor-pointer`, focus ring, and `Esc`-to-close behave?
 - [ ] Touched a primitive, token, or variant? Its named-contract entry in this
       file is updated in the same change.
+
+### Project source folders
+
+Project actions expose Edit project, with a single draft for the name and source
+folders. Changing a folder path reconnects saved task workspace metadata after an
+external move; it does not move files. The first folder is primary, with an explicit
+control to promote another folder. Add and remove stay local until Save. Cancel
+writes nothing, and a failed save keeps the draft visible with an inline error.
+At least one unique source folder is required. Running tasks prevent relocation
+of their workspace until they finish. Removing a source only removes its project
+membership; it never deletes files or conversation history.

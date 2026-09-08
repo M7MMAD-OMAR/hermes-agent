@@ -2043,6 +2043,10 @@ export interface Translations {
     noSessions: string
     noFilterMatches: string
     projects: {
+      editTitle: string
+      editDesc: string
+      changeFolder: string
+      makePrimary: string
       sectionLabel: string
       home: string
       newButton: string

@@ -888,3 +888,63 @@ def test_projects_without_a_profile_stay_on_the_launch_home(monkeypatch, tmp_pat
     assert not (Path(os.environ["HERMES_HOME"]) / "projects.db").exists()
 
 
+
+
+def test_edit_project_reconnects_history_and_keeps_other_folders(tmp_path):
+    from hermes_state import SessionDB
+
+    home = tmp_path / "profile"
+    old, new, references = tmp_path / "old", tmp_path / "renamed", tmp_path / "references"
+    old.mkdir()
+    (old / "child").mkdir()
+    references.mkdir()
+    project = _create_project(home, "Before", old)
+    _create_session(home, "moved", old / "child")
+    _create_session(home, "sibling", tmp_path / "old-other")
+    old.rename(new)
+    token = set_hermes_home_override(home)
+    try:
+        result = _call("projects.edit", {"id": project["id"], "name": "After", "folders": [
+            {"path": str(references)}, {"path": str(new), "original_path": str(old)}]})["project"]
+        assert result["id"] == project["id"]
+        assert result["name"] == "After"
+        assert result["primary_path"] == str(references)
+        assert {f["path"] for f in result["folders"]} == {str(new), str(references)}
+        with contextlib.closing(SessionDB(db_path=home / "state.db")) as db:
+            assert db.get_session("moved")["cwd"] == str(new / "child")
+            assert db.get_session("sibling")["cwd"] == str(tmp_path / "old-other")
+            assert db.get_messages("moved")[0]["content"] == "hello from moved"
+        assert _call("projects.for_cwd", {"cwd": str(new / "child")})["project"]["id"] == project["id"]
+    finally:
+        reset_hermes_home_override(token)
+
+
+def test_invalid_project_edit_leaves_name_and_folders_unchanged(tmp_path):
+    home, folder = tmp_path / "profile", tmp_path / "source"
+    folder.mkdir()
+    project = _create_project(home, "Keep", folder)
+    token = set_hermes_home_override(home)
+    try:
+        for folders in ([], [{"path": ""}], [{"path": str(tmp_path / "missing")}],
+                        [{"path": str(folder)}, {"path": str(folder)}]):
+            response = server._methods["projects.edit"](1, {"id": project["id"], "name": "Wrong", "folders": folders})
+            assert "error" in response
+            assert _call("projects.get", {"id": project["id"]})["project"] == project
+    finally:
+        reset_hermes_home_override(token)
+
+
+def test_edit_project_refuses_running_relocation_without_changing_project(monkeypatch, tmp_path):
+    home, old, new = tmp_path / "profile", tmp_path / "old", tmp_path / "new"
+    new.mkdir()
+    project = _create_project(home, "Keep", old)
+    token = set_hermes_home_override(home)
+    monkeypatch.setattr(server, "_sessions", {"live": {
+        "profile_home": str(home), "cwd": str(old), "running": True}})
+    try:
+        response = server._methods["projects.edit"](1, {"id": project["id"], "name": "Changed", "folders": [
+            {"path": str(new), "original_path": str(old)}]})
+        assert "running" in response["error"]["message"]
+        assert _call("projects.get", {"id": project["id"]})["project"] == project
+    finally:
+        reset_hermes_home_override(token)

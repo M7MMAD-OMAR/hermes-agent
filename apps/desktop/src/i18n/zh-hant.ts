@@ -366,7 +366,8 @@ export const zhHant = defineLocale({
       testSent: '測試已傳送。若沒有出現，請檢查系統通知權限與專注模式／勿擾模式。',
       testUnsupported: '此系統不支援原生通知。',
       completionSoundTitle: '完成提示音',
-      completionSoundDesc: '代理回合結束時播放。可在此選擇預設並預覽。核准、提問、錯誤與已完成的背景工作各有一段簡短提示音，遵循同一靜音開關。',
+      completionSoundDesc:
+        '代理回合結束時播放。可在此選擇預設並預覽。核准、提問、錯誤與已完成的背景工作各有一段簡短提示音，遵循同一靜音開關。',
       completionSoundPreview: '預覽'
     },
     sections: {
@@ -1991,6 +1992,10 @@ export const zhHant = defineLocale({
     noSessions: '尚無工作階段',
     noFilterMatches: '沒有工作階段符合這些篩選條件',
     projects: {
+      editTitle: '編輯專案',
+      editDesc: '管理來源資料夾。變更路徑會重新連結現有任務，不會移動檔案。新任務使用主要資料夾。',
+      changeFolder: '變更資料夾路徑',
+      makePrimary: '設為主要資料夾',
       sectionLabel: '專案',
       home: '主頁',
       newButton: '新增專案',

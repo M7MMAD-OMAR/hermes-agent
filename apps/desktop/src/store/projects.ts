@@ -516,9 +516,7 @@ async function refreshProjectTreeAcrossProfiles(): Promise<void> {
 // last good snapshot" — so a view starved of every response looked exactly like
 // a view that was already current.
 export type ProjectSessionsResult =
-  | { error: unknown; status: 'failed' }
-  | { project: SidebarProjectTree | null; status: 'ok' }
-  | { status: 'superseded' }
+  { error: unknown; status: 'failed' } | { project: SidebarProjectTree | null; status: 'ok' } | { status: 'superseded' }
 
 // At most one `projects.project_sessions` read in flight per (profile, project):
 // a caller arriving mid-flight joins the pending read instead of starting a
@@ -628,11 +626,7 @@ export async function moveSessionToProject(
   projectId: string,
   profile?: null | string
 ): Promise<void> {
-  return moveSessionToCwd(
-    sessionId,
-    projectRootCwd($projectTree.get().find(node => node.id === projectId)),
-    profile
-  )
+  return moveSessionToCwd(sessionId, projectRootCwd($projectTree.get().find(node => node.id === projectId)), profile)
 }
 
 export interface RepoDiscoveryPolicy {
@@ -999,6 +993,26 @@ export async function renameProject(id: string, name: string): Promise<void> {
 // Patch top-level project fields (name / appearance). Optimistic: the cached
 // tree + list update instantly so a color/icon/name change has no round-trip
 // lag; only a failed write reconciles from the server.
+export interface ProjectFolderDraft {
+  path: string
+  original_path?: string
+}
+
+export async function editProject(id: string, name: string, folders: ProjectFolderDraft[]): Promise<void> {
+  const context = await activeProjectsContext()
+
+  const result = await gatewayRequestOn<{ project: ProjectInfo }>(
+    context.gateway,
+    'projects.edit',
+    projectParams({ id, name, folders }, context.profile)
+  )
+
+  if (stillOnProjectsContext(context)) {
+    $projects.set($projects.get().map(project => (project.id === id ? result.project : project)))
+    reconcileProjects()
+  }
+}
+
 export async function updateProject(
   id: string,
   patch: { name?: string; color?: null | string; icon?: null | string }
@@ -1162,9 +1176,10 @@ export async function setActiveProject(id: null | string): Promise<void> {
 // menu can open create / rename / add-folder flows without prop threading
 // (mirrors $profileCreateRequest).
 export interface ProjectDialogState {
-  mode: 'add-folder' | 'create' | 'rename'
+  mode: 'add-folder' | 'create' | 'rename' | 'edit'
   projectId?: string
   name?: string
+  folders?: ProjectFolderDraft[]
 }
 
 export const $projectDialog = atom<null | ProjectDialogState>(null)
@@ -1186,6 +1201,31 @@ export function openProjectCreate(): void {
  *  plain-click create can never inherit a stale arm. */
 export function clearNewProjectDropPlacement(): void {
   $newProjectDropPlacement.set(null)
+}
+
+export async function openProjectEdit(project: { id: string; name: string }): Promise<void> {
+  try {
+    const context = await activeProjectsContext()
+
+    const { project: saved } = await gatewayRequestOn<{ project: ProjectInfo }>(
+      context.gateway,
+      'projects.get',
+      projectParams({ id: project.id }, context.profile)
+    )
+
+    if (!stillOnProjectsContext(context)) {
+      return
+    }
+
+    $projectDialog.set({
+      mode: 'edit',
+      name: saved.name,
+      projectId: saved.id,
+      folders: saved.folders.map(folder => ({ path: folder.path, original_path: folder.path }))
+    })
+  } catch (error) {
+    notify({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
+  }
 }
 
 export function openProjectRename(project: { id: string; name: string }): void {

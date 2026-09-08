@@ -27,8 +27,10 @@ import {
   clearNewProjectDropPlacement,
   closeProjectDialog,
   createProject,
+  editProject,
   generateProjectIdea,
   pickProjectFolder,
+  type ProjectFolderDraft,
   renameProject
 } from '@/store/projects'
 
@@ -43,11 +45,12 @@ export function ProjectDialog() {
   const mode = state?.mode ?? 'create'
 
   const [name, setName] = useState('')
-  const [folders, setFolders] = useState<string[]>([])
+  const [folders, setFolders] = useState<ProjectFolderDraft[]>([])
   const [idea, setIdea] = useState('')
   const [templates, setTemplates] = useState<ProjectIdeaTemplate[]>([])
   const [generatingIdea, setGeneratingIdea] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
 
   // A "New project" DRAG arms where the project should start (tab-strip slot /
@@ -69,17 +72,18 @@ export function ProjectDialog() {
   useEffect(() => {
     if (open) {
       setName(state?.name ?? '')
-      setFolders([])
+      setFolders(state?.folders ?? [])
       setIdea('')
       setTemplates(randomIdeaTemplates())
       setGeneratingIdea(false)
       setSubmitting(false)
+      setError('')
 
       if (mode !== 'add-folder') {
         window.setTimeout(() => nameRef.current?.select(), 0)
       }
     }
-  }, [open, mode, state?.name])
+  }, [open, mode, state])
 
   const onOpenChange = (next: boolean) => {
     if (!next) {
@@ -98,13 +102,15 @@ export function ProjectDialog() {
     }
 
     setSubmitting(true)
+    setError('')
 
     try {
       await write()
       onSuccess?.()
       closeProjectDialog()
     } catch (err) {
-      notifyError(err, p.createFailed)
+      setError(err instanceof Error ? err.message : t.common.error)
+      notifyError(err, mode === 'edit' ? p.editTitle : p.createFailed)
     } finally {
       setSubmitting(false)
     }
@@ -126,7 +132,7 @@ export function ProjectDialog() {
         return
       }
 
-      setFolders(prev => (prev.includes(dir) ? prev : [...prev, dir]))
+      setFolders(prev => (prev.some(folder => folder.path === dir) ? prev : [...prev, { path: dir }]))
     } catch (err) {
       notifyError(err, p.createFailed)
     }
@@ -135,6 +141,12 @@ export function ProjectDialog() {
   const submit = async () => {
     const trimmed = name.trim()
     const projectId = state?.projectId
+
+    if (mode === 'edit' && projectId && trimmed && folders.length) {
+      await runSubmit(() => editProject(projectId, trimmed, folders))
+
+      return
+    }
 
     if (mode === 'rename' && projectId) {
       if (trimmed) {
@@ -151,7 +163,14 @@ export function ProjectDialog() {
       // create leaves the dialog open for a retry that still lands where it
       // was dropped; the open-state effect discards it on cancel/teardown.
       await runSubmit(
-        () => createProject({ dropPlacement, folders, idea: idea.trim() || undefined, name: trimmed, use: true }),
+        () =>
+          createProject({
+            dropPlacement,
+            folders: folders.map(folder => folder.path),
+            idea: idea.trim() || undefined,
+            name: trimmed,
+            use: true
+          }),
         clearNewProjectDropPlacement
       )
     }
@@ -175,14 +194,25 @@ export function ProjectDialog() {
     }
   }
 
-  const title = mode === 'rename' ? p.renameTitle : mode === 'add-folder' ? p.addFolderTitle : p.createTitle
+  const title =
+    mode === 'edit'
+      ? p.editTitle
+      : mode === 'rename'
+        ? p.renameTitle
+        : mode === 'add-folder'
+          ? p.addFolderTitle
+          : p.createTitle
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-w-md" onInteractOutside={event => event.preventDefault()}>
+      <DialogContent
+        className="max-h-[85dvh] max-w-lg overflow-y-auto"
+        onInteractOutside={event => event.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {mode === 'create' && <DialogDescription>{p.createDesc}</DialogDescription>}
+          {mode === 'edit' && <DialogDescription>{p.editDesc}</DialogDescription>}
         </DialogHeader>
 
         {mode !== 'add-folder' && (
@@ -204,7 +234,7 @@ export function ProjectDialog() {
           />
         )}
 
-        {mode === 'create' && (
+        {(mode === 'create' || mode === 'edit') && (
           <div className="flex flex-col gap-1.5">
             <span className="text-[0.6875rem] font-medium text-(--ui-text-tertiary)">{p.foldersLabel}</span>
             {folders.length === 0 ? (
@@ -216,12 +246,54 @@ export function ProjectDialog() {
                     className={cn(
                       'flex items-center gap-2 rounded-md bg-(--ui-control-hover-background) px-2 py-1 text-[0.75rem]'
                     )}
-                    key={folder}
+                    key={folder.original_path ?? folder.path}
                   >
                     <Codicon className="shrink-0 text-(--ui-text-tertiary)" name="folder" size="0.75rem" />
-                    <span className="min-w-0 flex-1 truncate" title={folder}>
-                      {folder}
+                    <span className="min-w-0 flex-1 truncate" title={folder.path}>
+                      {folder.path}
                     </span>
+                    {mode === 'edit' && (
+                      <Tip label={p.changeFolder}>
+                        <Button
+                          aria-label={p.changeFolder}
+                          disabled={submitting}
+                          onClick={async () => {
+                            try {
+                              const path = await pickProjectFolder()
+
+                              if (path) {
+                                setFolders(prev =>
+                                  prev.flatMap((item, i) =>
+                                    i === index ? [{ ...item, path }] : item.path === path ? [] : [item]
+                                  )
+                                )
+                              }
+                            } catch (err) {
+                              notifyError(err, p.createFailed)
+                            }
+                          }}
+                          size="icon-xs"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Codicon name="edit" size="0.75rem" />
+                        </Button>
+                      </Tip>
+                    )}
+                    {index > 0 && (
+                      <Tip label={p.makePrimary}>
+                        <Button
+                          aria-label={p.makePrimary}
+                          disabled={submitting}
+                          onClick={() => setFolders(prev => [prev[index]!, ...prev.filter((_, i) => i !== index)])}
+                          size="icon-xs"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Codicon name="target" size="0.75rem" />
+                        </Button>
+                      </Tip>
+                    )}
                     {index === 0 && (
                       <span className="shrink-0 text-[0.625rem] uppercase text-(--ui-text-quaternary)">
                         {p.primaryBadge}
@@ -231,6 +303,7 @@ export function ProjectDialog() {
                       <Button
                         aria-label={p.removeFolder}
                         className="size-5 shrink-0 text-(--ui-text-quaternary) hover:text-foreground"
+                        disabled={submitting}
                         onClick={() => setFolders(prev => prev.filter(f => f !== folder))}
                         size="icon-xs"
                         type="button"
@@ -314,17 +387,27 @@ export function ProjectDialog() {
           </Button>
         )}
 
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
         {mode !== 'add-folder' && (
           <DialogFooter>
             <Button disabled={submitting} onClick={() => onOpenChange(false)} type="button" variant="ghost">
               {t.common.cancel}
             </Button>
             <Button
-              disabled={submitting || !name.trim() || (mode === 'create' && folders.length === 0)}
+              disabled={
+                submitting ||
+                !name.trim() ||
+                ((mode === 'create' || mode === 'edit') &&
+                  (folders.length === 0 || new Set(folders.map(folder => folder.path)).size !== folders.length))
+              }
               onClick={() => void submit()}
               type="button"
             >
-              {mode === 'rename' ? t.common.save : p.create}
+              {mode === 'rename' || mode === 'edit' ? t.common.save : p.create}
             </Button>
           </DialogFooter>
         )}

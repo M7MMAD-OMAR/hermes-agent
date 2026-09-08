@@ -17,6 +17,10 @@ vi.mock('@/i18n', () => ({
           createDesc: 'Create a new project',
           createFailed: 'Failed to create project',
           createTitle: 'New project',
+          editTitle: 'Edit project',
+          editDesc: 'Manage source folders',
+          changeFolder: 'Change folder path',
+          makePrimary: 'Use as primary',
           foldersLabel: 'Folders',
           ideaGenerate: 'Generate',
           ideaGenerating: 'Generating…',
@@ -44,7 +48,12 @@ const { $newProjectDropPlacement, $projectDialog } = vi.hoisted(() => {
   return {
     // Where a "New project" DRAG armed its drop (null = plain click).
     $newProjectDropPlacement: atom<{ anchor: string; before?: null | string; dir: string } | null>(null),
-    $projectDialog: atom<{ mode: 'create' | 'rename' | 'add-folder'; name?: string; projectId?: string } | null>({
+    $projectDialog: atom<{
+      mode: 'create' | 'rename' | 'add-folder' | 'edit'
+      name?: string
+      projectId?: string
+      folders?: { path: string; original_path?: string }[]
+    } | null>({
       mode: 'create'
     })
   }
@@ -57,6 +66,7 @@ vi.mock('@/store/projects', () => ({
   clearNewProjectDropPlacement: vi.fn(),
   closeProjectDialog: vi.fn(),
   createProject: vi.fn(),
+  editProject: vi.fn(),
   generateProjectIdea: vi.fn(),
   pickProjectFolder: vi.fn(async () => '/Users/test/my-folder'),
   renameProject: vi.fn()
@@ -156,4 +166,52 @@ describe('ProjectDialog', () => {
 
     expect(createProject.mock.calls[0]?.[0]).toMatchObject({ dropPlacement: undefined })
   })
+})
+
+it('saves a relocated folder and added source together with the selected primary', async () => {
+  const { editProject, pickProjectFolder } = vi.mocked(await import('@/store/projects'))
+  $projectDialog.set({
+    mode: 'edit',
+    projectId: 'p1',
+    name: 'Sdeira',
+    folders: [
+      { path: '/old', original_path: '/old' },
+      { path: '/renamed', original_path: '/renamed' }
+    ]
+  })
+  pickProjectFolder.mockResolvedValueOnce('/renamed').mockResolvedValueOnce('/references')
+  render(<ProjectDialog />)
+  fireEvent.click(screen.getAllByRole('button', { name: 'Change folder path' })[0]!)
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Change folder path' })).toHaveLength(1))
+  fireEvent.click(screen.getByRole('button', { name: 'Add folder' }))
+  await screen.findByText('/references')
+  fireEvent.click(screen.getByRole('button', { name: 'Use as primary' }))
+  expect(editProject).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() =>
+    expect(editProject).toHaveBeenCalledWith('p1', 'Sdeira', [
+      { path: '/references' },
+      { path: '/renamed', original_path: '/old' }
+    ])
+  )
+})
+
+it('keeps an unsuccessful edit available for retry and cancel makes no write', async () => {
+  const { editProject, closeProjectDialog } = vi.mocked(await import('@/store/projects'))
+  editProject.mockClear().mockRejectedValueOnce(new Error('Folder unavailable'))
+  closeProjectDialog.mockClear()
+  $projectDialog.set({
+    mode: 'edit',
+    projectId: 'p1',
+    name: 'Sdeira',
+    folders: [{ path: '/source', original_path: '/source' }]
+  })
+  render(<ProjectDialog />)
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(editProject).toHaveBeenCalledOnce())
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false))
+  expect(closeProjectDialog).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(closeProjectDialog).toHaveBeenCalledOnce()
+  expect(editProject).toHaveBeenCalledOnce()
 })

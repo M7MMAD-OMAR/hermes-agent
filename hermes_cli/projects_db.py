@@ -309,6 +309,84 @@ def _execute_rowcount(conn: sqlite3.Connection, sql: str, params) -> int:
     return cur.rowcount
 
 
+def prepare_project_edit(conn, project_id: str, name: str, folders: list) -> tuple[list, dict]:
+    """Validate the entire draft before writing. Original paths identify relocated folders."""
+    project = get_project(conn, project_id)
+    if project is None:
+        raise ValueError("no such project")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("project name must not be empty")
+    if not isinstance(folders, list) or not folders:
+        raise ValueError("keep at least one source folder")
+    previous = {f.path: f for f in project.folders}
+    prepared, moves, seen, originals = [], {}, set(), set()
+    for entry in folders:
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str) or not entry["path"].strip():
+            raise ValueError("folder path must not be empty")
+        path = _normalize_path(entry["path"])
+        original = entry.get("original_path")
+        if original is not None:
+            original = _normalize_path(original)
+            if original not in previous or original in originals:
+                raise ValueError("source folders changed; reopen the project editor")
+            originals.add(original)
+        if path in seen:
+            raise ValueError("source folders must be unique")
+        seen.add(path)
+        # An unchanged missing directory must not prevent repairing another row.
+        if path != original and not os.path.isdir(path):
+            raise ValueError(f"folder does not exist: {path}")
+        if original and path != original:
+            moves[original] = path
+        old = previous.get(original or path)
+        prepared.append((path, old.label if old else None, old.added_at if old else _now()))
+    return prepared, moves
+
+
+def relocated_path(path: Optional[str], moves: dict) -> Optional[str]:
+    """Match complete path components, most specific root first, exactly once."""
+    if not path:
+        return path
+    for old in sorted(moves, key=len, reverse=True):
+        if path == old or path.startswith(old.rstrip(os.sep) + os.sep):
+            return moves[old] + path[len(old):]
+    return path
+
+
+def save_project_edit(conn, project_id: str, name: str, prepared: list, moves: dict, *, state_db_path=None) -> None:
+    """Save the draft and session workspace references in one SQLite transaction.
+
+    Only metadata changes. Folder contents and conversation messages are untouched.
+    The caller initializes the session schema before attaching it.
+    """
+    attached = bool(moves and state_db_path)
+    if attached:
+        conn.execute("ATTACH DATABASE ? AS project_sessions", (str(state_db_path),))
+    try:
+        with write_txn(conn):
+            conn.execute("UPDATE projects SET name = ?, primary_path = ? WHERE id = ?",
+                         (name.strip(), prepared[0][0], project_id))
+            conn.execute("DELETE FROM project_folders WHERE project_id = ?", (project_id,))
+            conn.executemany(
+                "INSERT INTO project_folders (project_id, path, label, is_primary, added_at) VALUES (?, ?, ?, ?, ?)",
+                [(project_id, path, label, int(i == 0), added) for i, (path, label, added) in enumerate(prepared)])
+            if attached:
+                rows = conn.execute("SELECT id, cwd, git_repo_root FROM project_sessions.sessions").fetchall()
+                for row in rows:
+                    cwd = relocated_path(row["cwd"], moves)
+                    repo = relocated_path(row["git_repo_root"], moves)
+                    if cwd != row["cwd"] or repo != row["git_repo_root"]:
+                        conn.execute(
+                            "UPDATE project_sessions.sessions SET cwd = ?, git_repo_root = ?, "
+                            "git_metadata_generation = COALESCE(git_metadata_generation, 0) + 1 WHERE id = ?",
+                            (cwd, repo, row["id"]))
+            for old in moves:
+                conn.execute("DELETE FROM discovered_repos WHERE root = ?", (old,))
+    finally:
+        if attached:
+            conn.execute("DETACH DATABASE project_sessions")
+
+
 def add_folder(conn: sqlite3.Connection, project_id: str, path: str, *, label: Optional[str] = None, is_primary: bool = False) -> str:
     """Add a folder to a project. Returns the normalized path."""
     norm = _normalize_path(path)

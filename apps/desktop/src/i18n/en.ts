@@ -556,7 +556,8 @@ export const en: Translations = {
       testSent: 'Test sent. If nothing appears, check your OS notification permissions and Focus/Do Not Disturb.',
       testUnsupported: 'This system does not support native notifications.',
       completionSoundTitle: 'Completion Sound',
-      completionSoundDesc: 'Plays when an agent turn finishes. Pick a preset and preview it here. Approvals, questions, errors and finished background tasks each get their own short cue, on the same mute.',
+      completionSoundDesc:
+        'Plays when an agent turn finishes. Pick a preset and preview it here. Approvals, questions, errors and finished background tasks each get their own short cue, on the same mute.',
       completionSoundPreview: 'Preview'
     },
     sections: {
@@ -2394,6 +2395,11 @@ export const en: Translations = {
     noSessions: 'No sessions yet',
     noFilterMatches: 'No sessions match these filters',
     projects: {
+      editTitle: 'Edit project',
+      editDesc:
+        'Manage source folders. Changing a path reconnects existing tasks without moving files. The primary folder is used for new tasks.',
+      changeFolder: 'Change folder path',
+      makePrimary: 'Use as primary',
       sectionLabel: 'Projects',
       home: 'Home',
       newButton: 'New project',

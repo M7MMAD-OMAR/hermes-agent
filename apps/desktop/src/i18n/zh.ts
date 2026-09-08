@@ -540,7 +540,8 @@ export const zh: Translations = {
       testSent: '测试已发送。如果没有出现，请检查系统通知权限和专注模式／勿扰模式。',
       testUnsupported: '此系统不支持原生通知。',
       completionSoundTitle: '完成提示音',
-      completionSoundDesc: '智能体回合结束时播放。可在此选择预设并预览。审批、提问、错误和已完成的后台任务各有一段简短提示音，遵循同一静音开关。',
+      completionSoundDesc:
+        '智能体回合结束时播放。可在此选择预设并预览。审批、提问、错误和已完成的后台任务各有一段简短提示音，遵循同一静音开关。',
       completionSoundPreview: '预览'
     },
     sections: {
@@ -2558,6 +2559,10 @@ export const zh: Translations = {
     noSessions: '暂无会话',
     noFilterMatches: '没有会话符合这些筛选条件',
     projects: {
+      editTitle: '编辑项目',
+      editDesc: '管理源文件夹。更改路径会重新关联现有任务，不会移动文件。新任务使用主文件夹。',
+      changeFolder: '更改文件夹路径',
+      makePrimary: '设为主文件夹',
       sectionLabel: '项目',
       home: '主页',
       newButton: '新建项目',

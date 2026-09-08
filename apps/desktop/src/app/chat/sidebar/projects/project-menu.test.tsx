@@ -34,6 +34,7 @@ vi.mock('@/i18n', () => ({
           menuAppearance: 'Appearance',
           menuDelete: 'Delete',
           menuRename: 'Rename',
+          editTitle: 'Edit project',
           menuSetActive: 'Set active',
           noColor: 'No color',
           removeFromSidebar: 'Remove from sidebar',
@@ -61,7 +62,7 @@ vi.mock('@/store/projects', () => ({
   copyPath: vi.fn(),
   deleteProject: vi.fn(),
   openProjectAddFolder: vi.fn(),
-  openProjectRename: vi.fn(),
+  openProjectEdit: vi.fn(),
   revealPath: vi.fn(),
   setActiveProject: vi.fn(),
   setProjectAppearance: vi.fn().mockResolvedValue(false)

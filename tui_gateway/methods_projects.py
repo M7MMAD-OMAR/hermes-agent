@@ -78,6 +78,43 @@ _register_project_mutator("remove_folder", "remove_folder", True, lambda p: {})
 _register_project_mutator("set_primary", "set_primary", True, lambda p: {})
 
 
+@_projects_method("projects.edit")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_constants import get_hermes_home
+    from hermes_state_registry import acquire
+
+    project = _require_project(pdb, conn, params)
+    name = params.get("name")
+    prepared, moves = pdb.prepare_project_edit(conn, project.id, name, params.get("folders"))
+    home = get_hermes_home()
+    # Keep live workspace changes ordered with registry mutations. Never re-home
+    # a running task while its tools are still using the previous directory.
+    with _sessions_lock:
+        affected = []
+        for sid, session in _sessions.items():
+            session_home = Path(session.get("profile_home") or _hermes_home)
+            if session_home.resolve() != home.resolve():
+                continue
+            old = session.get("cwd")
+            cwd = pdb.relocated_path(old, moves)
+            if cwd != old:
+                if session.get("running"):
+                    raise ValueError("A task in this folder is running. Save after it finishes.")
+                if not os.path.isdir(cwd):
+                    raise ValueError(f"task working directory does not exist: {cwd}")
+                affected.append((sid, session, cwd))
+        if moves:
+            with contextlib.closing(acquire(home / "state.db")) as db:
+                pdb.save_project_edit(conn, project.id, name, prepared, moves, state_db_path=db.db_path)
+        else:
+            pdb.save_project_edit(conn, project.id, name, prepared, moves)
+        for sid, session, cwd in affected:
+            _set_session_cwd(session, cwd)
+            _emit("session.info", sid, _cwd_info(session, cwd))
+    git_probe.invalidate()
+    return _ok(rid, {"project": pdb.get_project(conn, project.id).to_dict(), "relocated_paths": moves})
+
+
 @_projects_method("projects.list")
 def _(rid, params, pdb, conn) -> dict:
     return _ok(rid, _projects_payload(conn))

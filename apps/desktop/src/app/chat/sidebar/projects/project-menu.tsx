@@ -26,7 +26,7 @@ import {
   copyPath,
   deleteProject,
   openProjectAddFolder,
-  openProjectRename,
+  openProjectEdit,
   revealPath,
   setActiveProject,
   setProjectAppearance
@@ -79,7 +79,7 @@ function useProjectActions({
   const identityItems: ActionItemSpec[] = project.isAuto
     ? []
     : [
-        { icon: 'edit', key: 'rename', label: p.menuRename, onSelect: () => openProjectRename(target) },
+        { icon: 'edit', key: 'rename', label: p.editTitle, onSelect: () => openProjectEdit(target) },
         {
           icon: 'new-folder',
           key: 'add-folder',

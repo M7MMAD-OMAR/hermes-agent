@@ -64,6 +64,38 @@ def _pick(params: dict, *keys: str) -> dict:
     return {k: params.get(k) for k in keys}
 
 
+@_projects_method("projects.results.refresh")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_results import refresh_index
+    return _ok(rid, refresh_index(conn))
+
+
+@_projects_method("projects.results.list")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_results import list_results
+    return _ok(rid, list_results(conn, project_id=params.get("project_id"),
+        before=params.get("before"), limit=params.get("limit", 100)))
+
+
+@_projects_method("projects.results.versions")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_results import result_versions
+    return _ok(rid, {"versions": result_versions(conn, str(params.get("result_id") or ""))})
+
+
+@_projects_method("projects.results.capture")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_results import capture_version
+    return _ok(rid, {"version": capture_version(conn, str(params.get("result_id") or ""))})
+
+
+@_projects_method("projects.results.review")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_results import review_version
+    return _ok(rid, {"version": review_version(conn,
+        str(params.get("version_id") or ""), params.get("state"))})
+
+
 def _register_project_mutator(suffix: str, fn_name: str, takes_path: bool, kwargs_of) -> None:
     """``projects.<suffix>``: resolve ``params['id']`` (5062 when missing), call
     ``pdb.<fn_name>(conn, id[, path], **kwargs_of(params))``, answer with the refreshed project."""

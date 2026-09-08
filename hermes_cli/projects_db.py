@@ -56,6 +56,32 @@ CREATE TABLE IF NOT EXISTS project_meta (
     value  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS project_results (
+    id TEXT PRIMARY KEY,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    session_id TEXT NOT NULL,
+    session_title TEXT NOT NULL,
+    message_id INTEGER NOT NULL,
+    value TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    label TEXT NOT NULL,
+    reported_at REAL NOT NULL,
+    UNIQUE(session_id, value)
+);
+CREATE INDEX IF NOT EXISTS idx_project_results_project ON project_results(project_id, reported_at);
+
+CREATE TABLE IF NOT EXISTS project_result_versions (
+    id TEXT PRIMARY KEY,
+    result_id TEXT NOT NULL REFERENCES project_results(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    snapshot_path TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    captured_at REAL NOT NULL,
+    review_state TEXT NOT NULL DEFAULT 'unreviewed',
+    UNIQUE(result_id, number)
+);
+
 -- Git repos found by scanning the filesystem (desktop "repo-first" discovery).
 -- Cached here so the overview is instant after the first scan instead of
 -- re-walking the disk every time the Projects view opens.

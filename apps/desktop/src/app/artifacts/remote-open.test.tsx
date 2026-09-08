@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router'
 import { afterEach, expect, it, vi } from 'vitest'
 
+import { $activeGatewayProfile } from '@/store/profile'
 import { $connection } from '@/store/session'
 
 import { ArtifactsView } from './index'
@@ -18,24 +19,37 @@ const paths = vi.hoisted(() => [
   '/srv/absolute.txt'
 ])
 
-vi.mock('@/hermes', async () => ({
-  ...(await vi.importActual('@/hermes')),
-  listAllProfileSessions: async () => ({
-    sessions: [{ id: 'artifact-session', title: 'Fixture', profile: 'origin-profile' }]
-  }),
-  getAllSessionMessages: async () => ({
-    messages: [
-      {
-        role: 'assistant',
-        timestamp: 1000,
-        content: paths.map(path => `MEDIA:${path}`).join(' ') + ' https://example.com/report.txt'
-      }
-    ]
-  })
+vi.mock('@/store/gateway', async () => ({
+  ...(await vi.importActual('@/store/gateway')),
+  requestGatewayForAgent: async (_connection: string, _profile: string, method: string) => {
+    if (method === 'projects.list') {
+      return { projects: [] }
+    }
+
+    if (method === 'projects.results.refresh') {
+      return { has_more: false }
+    }
+
+    return {
+      next_cursor: null,
+      results: [...paths, 'https://example.com/report.txt'].map((path, index) => ({
+        id: `result-${index}`,
+        value: path,
+        kind: path.startsWith('https:') ? 'link' : 'file',
+        label: path.split(/[\\/]/).pop(),
+        session_id: 'artifact-session',
+        session_title: 'Fixture',
+        reported_at: 1000,
+        project_id: null,
+        version_count: 0
+      }))
+    }
+  }
 }))
 afterEach(() => {
   cleanup()
   $connection.set(null)
+  $activeGatewayProfile.set('default')
   vi.unstubAllGlobals()
 })
 
@@ -55,6 +69,7 @@ it('keeps discovered file paths and originating session scope intact through rem
     token: '',
     wsUrl: ''
   })
+  $activeGatewayProfile.set('origin-profile')
   render(
     <MemoryRouter>
       <ArtifactsView />

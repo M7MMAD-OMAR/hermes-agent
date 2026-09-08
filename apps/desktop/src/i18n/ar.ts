@@ -1682,6 +1682,21 @@ export const ar = defineLocale({
     createAction: 'إنشاء'
   },
   artifacts: {
+    profileResults: profile => `نتائج ${profile}`,
+    projectFilter: 'تصفية حسب المشروع',
+    allProjects: 'كل المشاريع',
+    skippedMessages: count => `تم تجاوز ${count} رسالة كبيرة الحجم، وقد لا تظهر نتائجها.`,
+    versions: 'النسخ المحفوظة',
+    captureVersion: 'حفظ الملف الحالي كنسخة',
+    captureHint:
+      'يحفظ الملف كما هو الآن، بحجم أقصى 25 ميبيبايت. تحتفظ كل نسخة بحالة مراجعتها حتى لو تغيّر الملف الأصلي أو حُذف.',
+    noVersions: 'لا توجد نسخ محفوظة بعد.',
+    versionNumber: number => `النسخة ${number}`,
+    reviewState: 'حالة المراجعة',
+    unreviewed: 'لم تُراجع',
+    approved: 'معتمدة',
+    changesRequested: 'تحتاج تعديلات',
+    openVersion: 'فتح الملف المحفوظ',
     search: 'بحث',
     refresh: 'تحديث',
     refreshing: 'جار التحديث...',

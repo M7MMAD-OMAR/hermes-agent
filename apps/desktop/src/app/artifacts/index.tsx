@@ -1,3 +1,4 @@
+import { useStore } from '@nanostores/react'
 import type * as React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
@@ -17,8 +18,8 @@ import {
   PaginationPrevious
 } from '@/components/ui/pagination'
 import { RowButton } from '@/components/ui/row-button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tip } from '@/components/ui/tooltip'
-import { getAllSessionMessages, listAllProfileSessions } from '@/hermes'
 import { type Translations, useI18n } from '@/i18n'
 import { resolveBrandIcon } from '@/lib/brand-icon'
 import {
@@ -34,7 +35,11 @@ import { downloadGatewayMediaFile, isArtifactFilePath, isRemoteGateway } from '@
 import { normalize } from '@/lib/text'
 import { fmtDayTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import { notify, notifyError } from '@/store/notifications'
+import { $activeConnectionId } from '@/store/connections'
+import { requestGatewayForAgent } from '@/store/gateway'
+import { notifyError } from '@/store/notifications'
+import { $activeGatewayProfile } from '@/store/profile'
+import type { ProjectInfo } from '@/types/hermes'
 
 import { useRefreshHotkey } from '../hooks/use-refresh-hotkey'
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
@@ -42,13 +47,9 @@ import { openSession } from '../open-session'
 import { PageSearchShell } from '../page-search-shell'
 import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 
-import {
-  ARTIFACT_FILTERS,
-  type ArtifactFilter,
-  artifactImageSrc,
-  type ArtifactRecord,
-  loadArtifactsForSessions
-} from './artifact-utils'
+import { ARTIFACT_FILTERS, type ArtifactFilter, artifactImageSrc, type ArtifactRecord } from './artifact-utils'
+import { refreshResultIndex, resultArtifact, type ResultsRequest } from './result-index'
+import { ResultVersionsDialog } from './result-versions-dialog'
 
 function formatArtifactTime(timestamp: number): string {
   return fmtDayTime.format(new Date(timestamp))
@@ -94,6 +95,7 @@ function paginationItems(page: number, pageCount: number): Array<number | 'ellip
 type CellCtx = {
   onOpen: (artifact: ArtifactRecord) => void | Promise<void>
   onOpenChat: (sessionId: string) => void
+  onVersions: (artifact: ArtifactRecord) => void
 }
 
 interface ArtifactColumn {
@@ -111,7 +113,21 @@ interface ArtifactsViewProps extends React.ComponentProps<'section'> {
   setStatusbarItemGroup?: SetStatusbarItemGroup
 }
 
-export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, ...props }: ArtifactsViewProps) {
+export function ArtifactsView(props: ArtifactsViewProps) {
+  const connectionId = useStore($activeConnectionId)
+  const profile = useStore($activeGatewayProfile)
+
+  return (
+    <ScopedArtifactsView {...props} connectionId={connectionId} key={`${connectionId}:${profile}`} profile={profile} />
+  )
+}
+
+function ScopedArtifactsView({
+  connectionId,
+  profile,
+  setStatusbarItemGroup: _setStatusbarItemGroup,
+  ...props
+}: ArtifactsViewProps & { connectionId: string | null; profile: string }) {
   const { t } = useI18n()
   const a = t.artifacts
   const navigate = useNavigate()
@@ -125,68 +141,74 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
   const [filePage, setFilePage] = useState(1)
 
   const [refreshing, setRefreshing] = useState(false)
-  const refreshInFlightRef = useRef(false)
+  const [skipped, setSkipped] = useState(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [projects, setProjects] = useState<ProjectInfo[]>([])
+  const [projectId, setProjectId] = useState('all')
+  const [selectedResult, setSelectedResult] = useState<ArtifactRecord | null>(null)
+  const refreshRef = useRef<AbortController | null>(null)
+
+  const request = useCallback<ResultsRequest>(
+    (method, params = {}) => requestGatewayForAgent(connectionId, profile, method, params),
+    [connectionId, profile]
+  )
 
   const refreshArtifacts = useCallback(async () => {
-    if (refreshInFlightRef.current) {
+    if (refreshRef.current && !refreshRef.current.signal.aborted) {
       return
     }
 
-    refreshInFlightRef.current = true
+    const controller = new AbortController()
+    refreshRef.current = controller
     setRefreshing(true)
+    setLoadError(null)
 
     try {
-      const sessions = (await listAllProfileSessions(30, 1)).sessions
-
-      const { artifacts: nextArtifacts, failures } = await loadArtifactsForSessions(
-        sessions,
-        async session => (await getAllSessionMessages(session.id, session.profile)).messages
+      await refreshResultIndex(
+        request,
+        controller.signal,
+        rows => setArtifacts(rows.map(row => resultArtifact(row, profile))),
+        setSkipped
       )
-
-      if (failures.length > 0) {
-        const safeLimitFailures = failures.filter(({ error }) =>
-          String(error instanceof Error ? error.message : error).includes('safe-load limit')
-        ).length
-
-        const otherFailures = failures.length - safeLimitFailures
-
-        const detail = [
-          safeLimitFailures ? `${safeLimitFailures} exceeded the safe transcript load limit.` : '',
-          otherFailures ? `${otherFailures} could not be read.` : ''
-        ]
-          .filter(Boolean)
-          .join(' ')
-
-        notify({
-          id: 'artifacts-partial-load',
-          kind: 'warning',
-          title: a.failedLoad,
-          message: `Skipped ${failures.length} of ${sessions.length} recent sessions while indexing artifacts.`,
-          detail,
-          durationMs: 10_000
-        })
-      }
-
-      setArtifacts(nextArtifacts.sort((left, right) => right.timestamp - left.timestamp))
     } catch (err) {
-      notifyError(err, a.failedLoad)
-      setArtifacts([])
+      if (!controller.signal.aborted) {
+        setLoadError(err instanceof Error ? err.message : String(err))
+        setArtifacts(current => current ?? [])
+      }
     } finally {
-      refreshInFlightRef.current = false
-      setRefreshing(false)
+      if (!controller.signal.aborted) {
+        refreshRef.current = null
+        setRefreshing(false)
+      }
     }
-  }, [a])
+  }, [request, profile])
 
   useRefreshHotkey(refreshArtifacts)
-
   useEffect(() => {
+    let active = true
     void refreshArtifacts()
-  }, [refreshArtifacts])
+    void request<{ projects: ProjectInfo[] }>('projects.list')
+      .then(result => {
+        if (active) {
+          setProjects(result.projects)
+        }
+      })
+      .catch(err => {
+        if (active) {
+          notifyError(err, a.failedLoad)
+        }
+      })
+
+    return () => {
+      active = false
+      refreshRef.current?.abort()
+    }
+  }, [refreshArtifacts, request, a.failedLoad])
 
   useEffect(() => {
     setImagePage(1)
     setFilePage(1)
-  }, [artifacts, kindFilter, query])
+  }, [artifacts, kindFilter, query, projectId])
 
   const visibleArtifacts = useMemo(() => {
     if (!artifacts) {
@@ -196,6 +218,10 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
     const q = normalize(query)
 
     return artifacts.filter(artifact => {
+      if (projectId !== 'all' && artifact.projectId !== projectId) {
+        return false
+      }
+
       if (kindFilter !== 'all' && artifact.kind !== kindFilter) {
         return false
       }
@@ -210,7 +236,7 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
         artifact.sessionTitle.toLowerCase().includes(q)
       )
     })
-  }, [artifacts, kindFilter, query])
+  }, [artifacts, kindFilter, query, projectId])
 
   const visibleImageArtifacts = useMemo(
     () => visibleArtifacts.filter(artifact => artifact.kind === 'image'),
@@ -312,16 +338,62 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
   // every artifact cell re-render whenever the page did — and a link cell's
   // async title fetch re-rendered the page repeatedly. openArtifact is already
   // a useCallback; navigate is stable, so onOpenChat can be too.
-  const openChat = useCallback((sessionId: string) => openSession(sessionId, navigate), [navigate])
-  const cellCtx: CellCtx = useMemo(() => ({ onOpen: openArtifact, onOpenChat: openChat }), [openArtifact, openChat])
+  const openChat = useCallback(
+    (sessionId: string) =>
+      openSession(sessionId, navigate, 'in-place', {
+        workspaceMode: 'sessions',
+        ownerRoute: { connectionId: connectionId || 'local', profile }
+      }),
+    [navigate, connectionId, profile]
+  )
+
+  const cellCtx: CellCtx = useMemo(
+    () => ({ onOpen: openArtifact, onOpenChat: openChat, onVersions: setSelectedResult }),
+    [openArtifact, openChat]
+  )
 
   return (
     <PageSearchShell
       {...props}
       activeTab={kindFilter}
+      filters={
+        <>
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <span className="text-xs text-muted-foreground">{a.profileResults(profile)}</span>
+            <Select onValueChange={setProjectId} value={projectId}>
+              <SelectTrigger aria-label={a.projectFilter} className="w-auto max-w-72">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{a.allProjects}</SelectItem>
+                {projects.map(project => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {refreshing && (
+              <span className="text-xs text-muted-foreground" role="status">
+                {a.indexing}
+              </span>
+            )}
+          </div>
+          {loadError && (
+            <div className="px-3 pb-2 text-xs text-destructive" role="alert">
+              {a.failedLoad}: {loadError}
+            </div>
+          )}
+          {skipped > 0 && (
+            <div className="px-3 pb-2 text-xs text-muted-foreground" role="status">
+              {a.skippedMessages(skipped)}
+            </div>
+          )}
+        </>
+      }
       onSearchChange={setQuery}
       onTabChange={id => setKindFilter(id as typeof kindFilter)}
-      searchHidden={counts.all === 0}
+      searchHidden={false}
       searchHints={searchHints}
       searchPlaceholder={a.search}
       searchTrailingAction={
@@ -346,6 +418,14 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
         { id: 'link', label: a.tabLinks, meta: artifacts ? counts.link : null }
       ]}
     >
+      {selectedResult && (
+        <ResultVersionsDialog
+          artifact={selectedResult}
+          onClose={() => setSelectedResult(null)}
+          onOpen={openArtifact}
+          request={request}
+        />
+      )}
       {!artifacts ? (
         <PageLoader label={a.indexing} />
       ) : visibleArtifacts.length === 0 ? (
@@ -377,7 +457,8 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
                       failedImage={failedImageIds.has(artifact.id)}
                       key={artifact.id}
                       onImageError={markImageFailed}
-                      onOpenChat={sessionId => openSession(sessionId, navigate)}
+                      onOpenChat={openChat}
+                      onVersions={setSelectedResult}
                     />
                   ))}
                 </div>
@@ -466,9 +547,10 @@ interface ArtifactImageCardProps {
   failedImage: boolean
   onImageError: (id: string) => void
   onOpenChat: (sessionId: string) => void
+  onVersions: (artifact: ArtifactRecord) => void
 }
 
-function ArtifactImageCard({ artifact, failedImage, onImageError, onOpenChat }: ArtifactImageCardProps) {
+function ArtifactImageCard({ artifact, failedImage, onImageError, onOpenChat, onVersions }: ArtifactImageCardProps) {
   const { t } = useI18n()
   const a = t.artifacts
   const kindLabel = artifact.kind === 'image' ? a.kindImage : artifact.kind === 'file' ? a.kindFile : a.kindLink
@@ -541,6 +623,11 @@ function ArtifactImageCard({ artifact, failedImage, onImageError, onOpenChat }: 
             <FolderOpen className="size-3" />
             {a.chat}
           </Button>
+          {artifact.resultId && (
+            <Button onClick={() => onVersions(artifact)} size="xs" variant="textStrong">
+              {a.versions}
+            </Button>
+          )}
         </div>
       </div>
     </article>
@@ -608,7 +695,7 @@ const PrimaryCell = memo(function PrimaryCell({ artifact, ctx }: { artifact: Art
   )
 })
 
-const LocationCell = memo(function LocationCell({ artifact }: { artifact: ArtifactRecord; ctx: CellCtx }) {
+const LocationCell = memo(function LocationCell({ artifact, ctx }: { artifact: ArtifactRecord; ctx: CellCtx }) {
   const { t } = useI18n()
   const isLink = artifact.kind === 'link'
   const value = isLink ? hostPathLabel(artifact.value) : artifact.value
@@ -626,6 +713,11 @@ const LocationCell = memo(function LocationCell({ artifact }: { artifact: Artifa
           {value}
         </div>
       </Tip>
+      {artifact.resultId && !isLink && (
+        <Button onClick={() => ctx.onVersions(artifact)} size="xs" variant="textStrong">
+          {t.artifacts.versions}
+        </Button>
+      )}
       <CopyButton
         appearance="icon"
         buttonSize="icon-xs"

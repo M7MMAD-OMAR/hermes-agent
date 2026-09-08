@@ -1982,10 +1982,26 @@ export const ja = defineLocale({
   },
 
   artifacts: {
+    profileResults: profile => `${profile} の成果物`,
+    projectFilter: 'プロジェクトで絞り込む',
+    allProjects: 'すべてのプロジェクト',
+    skippedMessages: count =>
+      `大きすぎるメッセージを ${count} 件スキップしました。成果物が表示されない場合があります。`,
+    versions: '保存済みバージョン',
+    captureVersion: '現在のファイルをバージョンとして保存',
+    captureHint:
+      '現在のファイルを最大25 MiBまで保存します。元のファイルが変更または削除されても、各バージョンの確認状態は保持されます。',
+    noVersions: '保存済みバージョンはありません。',
+    versionNumber: number => `バージョン ${number}`,
+    reviewState: '確認状態',
+    unreviewed: '未確認',
+    approved: '承認済み',
+    changesRequested: '修正が必要',
+    openVersion: '保存済みファイルを開く',
     search: 'アーティファクトを検索...',
     refresh: 'アーティファクトを更新',
     refreshing: 'アーティファクトを更新中',
-    indexing: '最近のセッションのアーティファクトをインデックス中',
+    indexing: '会話の成果物をインデックス中',
     tabAll: 'すべて',
     tabImages: '画像',
     tabFiles: 'ファイル',

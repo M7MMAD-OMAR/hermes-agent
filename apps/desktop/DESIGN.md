@@ -393,3 +393,18 @@ errors and repeated actions. A subsequent edit makes the previous check stale.
 Starting a background command is not a successful check. Shell commands that
 mask failures and echoed test names do not earn success indicators. The receipt
 is presentation of tool evidence, not an assertion that the whole task is done.
+
+### Durable result files
+
+The Artifacts page follows the active connection and profile, states that scope
+in its filter row, and offers project filtering. It paints the persisted result
+index before indexing further transcript batches. Search and filtering never
+require reopening a conversation. Partial indexing failures keep existing rows
+visible and show an inline error with the refresh action still available.
+
+Saved versions live in a Dialog reached from a file row or image card. Capture
+is explicit and records the file at that moment, up to 25 MiB. Each version has
+its own review state. Opening a saved version uses its immutable snapshot path,
+not the source file. Source-task navigation carries the owning profile and
+connection. Switching owners unmounts the result view and cancels publication
+of pending responses from the previous owner.

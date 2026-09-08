@@ -1965,6 +1965,20 @@ export interface Translations {
   }
 
   artifacts: {
+    profileResults: (profile: string) => string
+    projectFilter: string
+    allProjects: string
+    skippedMessages: (count: number) => string
+    versions: string
+    captureVersion: string
+    captureHint: string
+    noVersions: string
+    versionNumber: (number: number) => string
+    reviewState: string
+    unreviewed: string
+    approved: string
+    changesRequested: string
+    openVersion: string
     search: string
     refresh: string
     refreshing: string

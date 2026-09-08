@@ -25,7 +25,7 @@ def test_index_batches_all_history_and_survives_restart(tmp_path):
     db, folder, pid = seed(tmp_path)
     try:
         db.append_message("source-task", "user", "[Do not index](https://private.example)")
-        db.append_message("source-task", "assistant", "[العرض](./عرض.docx) and [site](https://example.com)")
+        db.append_message("source-task", "assistant", "[العرض](./عرض.docx) and [site](https://example.com/report.pdf)")
         db.append_message("source-task", "tool", json.dumps({"files_written": [str(folder / "deck.pptx")]}), tool_name="write_file")
         with projects_db.connect_closing() as conn:
             first = refresh_index(conn, batch_size=1)
@@ -39,7 +39,8 @@ def test_index_batches_all_history_and_survives_restart(tmp_path):
             rest = list_results(conn, project_id=pid, before=results["next_cursor"])["results"]
             all_rows = results["results"] + rest
             assert len(all_rows) == 3
-            assert {r["value"] for r in all_rows} == {str(folder / "عرض.docx"), str(folder / "deck.pptx"), "https://example.com"}
+            assert {r["value"] for r in all_rows} == {str(folder / "عرض.docx"), str(folder / "deck.pptx"), "https://example.com/report.pdf"}
+            assert next(r for r in all_rows if r["value"].startswith("https:"))["kind"] == "link"
             assert all(r["session_id"] == "source-task" and r["version_count"] == 0 for r in all_rows)
             assert refresh_index(conn)["scanned"] == 0
             assert not (get_hermes_home() / "result-snapshots").exists()

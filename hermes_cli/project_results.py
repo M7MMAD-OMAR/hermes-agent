@@ -102,7 +102,7 @@ def _artifact(value, cwd):
                 return None
             local = Path(cwd) / local
         value = os.path.abspath(local)
-    return value, "image" if ext in _IMAGE_EXTS else "file" if ext in _FILE_EXTS else "link", Path(path).name or value
+    return value, "image" if ext in _IMAGE_EXTS else "link" if remote else "file", Path(path).name or value
 
 
 def refresh_index(conn, *, batch_size=128):

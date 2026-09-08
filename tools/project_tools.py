@@ -56,12 +56,22 @@ def _resolve(conn, token: str):
     return None
 
 
+def _project_summary(proj) -> dict:
+    """Expose registered source roots on demand without expanding the tool schema."""
+    return {
+        "id": proj.id, "slug": proj.slug, "name": proj.name,
+        "primary_path": _primary_path(proj),
+        "folders": [
+            {"path": folder.path, "is_primary": folder.is_primary,
+             **({"label": folder.label} if folder.label else {})}
+            for folder in proj.folders],
+    }
+
+
 def _activated(proj, task_id: Optional[str]) -> str:
     primary = _primary_path(proj)
     _apply_workspace(task_id, primary, proj.name)
-    return json.dumps({
-        "success": True, "id": proj.id, "slug": proj.slug, "name": proj.name,
-        "primary_path": primary})
+    return json.dumps({"success": True, **_project_summary(proj)})
 
 
 def project_list(task_id: Optional[str] = None) -> str:
@@ -72,9 +82,7 @@ def project_list(task_id: Optional[str] = None) -> str:
     return json.dumps({
         "active_id": active,
         "projects": [
-            {
-                "id": p.id, "slug": p.slug, "name": p.name,
-                "primary_path": _primary_path(p), "active": p.id == active}
+            {**_project_summary(p), "active": p.id == active}
             for p in projects]})
 
 

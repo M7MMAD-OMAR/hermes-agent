@@ -69,6 +69,19 @@ The bar along the bottom of the chat shows live session state and exposes quick 
 
 Chatting against a Hermes instance on another machine instead of the bundled local backend? See [Connecting to a remote backend](#connecting-to-a-remote-backend) below — and for the full picture of how the remote-hosted dashboard connection works (the auth gate, the `/api/ws` chat socket, and WebSocket close-code triage), see [Web Dashboard → Connecting Hermes Desktop to a remote backend](./features/web-dashboard.md#connecting-hermes-desktop-to-a-remote-backend).
 
+#### Project source folders
+
+Use **Edit project** in an explicit project's menu to rename it, reconnect a moved
+folder, add or remove source folders, and choose the primary folder. Save applies
+the draft; Cancel leaves it unchanged. Reconnecting a folder updates saved task
+workspace paths without moving files or deleting conversation history. Finish any
+running tasks in that folder before reconnecting it.
+
+The agent's `desktop_project` tool returns every registered source folder when
+listing or switching projects, including its label and primary status. Switching
+still uses the primary folder as the working directory. A source folder is not
+a read-only permission boundary.
+
 #### Repository discovery
 
 Hermes Desktop discovers local Git repositories for the Projects sidebar by scanning your home directory to a bounded depth. You can change this per profile in **Settings → Workspace**, or in `config.yaml`:

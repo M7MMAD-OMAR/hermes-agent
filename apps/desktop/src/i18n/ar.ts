@@ -1769,6 +1769,11 @@ export const ar = defineLocale({
     noSessions: 'لا توجد جلسات بعد',
     noFilterMatches: 'لا توجد جلسات تطابق عوامل التصفية هذه',
     projects: {
+      folderNeedsAttention: 'مجلدات المصادر تحتاج مراجعة',
+      folderMissing: 'المجلد غير موجود',
+      folderUnavailable: 'تعذر الوصول إلى المجلد',
+      folderNotDirectory: 'هذا المسار يشير إلى ملف وليس مجلداً',
+      reconnectFolder: 'إعادة الربط',
       editTitle: 'تعديل المشروع',
       editDesc:
         'أضف مجلدات المصادر أو غيّر مسارها لربط المهام السابقة بمكانها الجديد. لا يتم نقل الملفات. تبدأ المهام الجديدة في المجلد الأساسي.',

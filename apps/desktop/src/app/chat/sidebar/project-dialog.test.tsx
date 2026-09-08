@@ -18,6 +18,8 @@ vi.mock('@/i18n', () => ({
           createFailed: 'Failed to create project',
           createTitle: 'New project',
           editTitle: 'Edit project',
+          folderMissing: 'Folder not found',
+          reconnectFolder: 'Reconnect',
           editDesc: 'Manage source folders',
           changeFolder: 'Change folder path',
           makePrimary: 'Use as primary',
@@ -52,7 +54,7 @@ const { $newProjectDropPlacement, $projectDialog } = vi.hoisted(() => {
       mode: 'create' | 'rename' | 'add-folder' | 'edit'
       name?: string
       projectId?: string
-      folders?: { path: string; original_path?: string }[]
+      folders?: { path: string; original_path?: string; health?: 'missing'; suggested_paths?: string[] }[]
     } | null>({
       mode: 'create'
     })
@@ -214,4 +216,27 @@ it('keeps an unsuccessful edit available for retry and cancel makes no write', a
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
   expect(closeProjectDialog).toHaveBeenCalledOnce()
   expect(editProject).toHaveBeenCalledOnce()
+})
+
+it('reconnects a missing folder to a verified suggestion without saving until requested', async () => {
+  const { editProject } = vi.mocked(await import('@/store/projects'))
+
+  editProject.mockReset()
+  $projectDialog.set({
+    mode: 'edit',
+    projectId: 'p1',
+    name: 'Client',
+    folders: [
+      { path: '/old/Client', original_path: '/old/Client', health: 'missing', suggested_paths: ['/new/Client'] }
+    ]
+  })
+  render(<ProjectDialog />)
+  expect(screen.getByText('Folder not found')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Reconnect: /new/Client' }))
+  expect(screen.queryByText('Folder not found')).toBeNull()
+  expect(editProject).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() =>
+    expect(editProject).toHaveBeenCalledWith('p1', 'Client', [{ path: '/new/Client', original_path: '/old/Client' }])
+  )
 })

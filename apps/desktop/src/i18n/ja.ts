@@ -2067,6 +2067,11 @@ export const ja = defineLocale({
     noSessions: 'セッションはまだありません',
     noFilterMatches: 'このフィルターに一致するセッションはありません',
     projects: {
+      folderNeedsAttention: 'ソースフォルダーを確認してください',
+      folderMissing: 'フォルダーが見つかりません',
+      folderUnavailable: 'フォルダーにアクセスできません',
+      folderNotDirectory: 'このパスはフォルダーではなくファイルです',
+      reconnectFolder: '再接続',
       editTitle: 'プロジェクトを編集',
       editDesc:
         'ソースフォルダーを管理します。パスの変更で既存のタスクを再接続します。ファイルは移動しません。新しいタスクにはメインフォルダーを使用します。',

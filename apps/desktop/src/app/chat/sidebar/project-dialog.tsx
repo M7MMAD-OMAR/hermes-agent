@@ -34,6 +34,8 @@ import {
   renameProject
 } from '@/store/projects'
 
+import { ProjectFolderHealth } from './projects/project-health'
+
 // Single dialog mounted once in the sidebar; it renders create / rename /
 // add-folder flows driven by the $projectDialog atom. Folders are chosen via
 // the native directory picker (reused from the default-project-dir setting).
@@ -136,6 +138,23 @@ export function ProjectDialog() {
     } catch (err) {
       notifyError(err, p.createFailed)
     }
+  }
+
+  const reconnectFolder = (index: number, path: string) => {
+    setFolders(prev =>
+      prev.flatMap((item, i) => {
+        if (i === index) {
+          const updated = { ...item, path }
+
+          delete updated.health
+          delete updated.suggested_paths
+
+          return [updated]
+        }
+
+        return item.path === path ? [] : [item]
+      })
+    )
   }
 
   const submit = async () => {
@@ -251,6 +270,11 @@ export function ProjectDialog() {
                     <Codicon className="shrink-0 text-(--ui-text-tertiary)" name="folder" size="0.75rem" />
                     <span className="min-w-0 flex-1 truncate" title={folder.path}>
                       {folder.path}
+                      <ProjectFolderHealth
+                        disabled={submitting}
+                        folder={folder}
+                        onReconnect={path => reconnectFolder(index, path)}
+                      />
                     </span>
                     {mode === 'edit' && (
                       <Tip label={p.changeFolder}>
@@ -262,11 +286,7 @@ export function ProjectDialog() {
                               const path = await pickProjectFolder()
 
                               if (path) {
-                                setFolders(prev =>
-                                  prev.flatMap((item, i) =>
-                                    i === index ? [{ ...item, path }] : item.path === path ? [] : [item]
-                                  )
-                                )
+                                reconnectFolder(index, path)
                               }
                             } catch (err) {
                               notifyError(err, p.createFailed)

@@ -1992,6 +1992,11 @@ export const zhHant = defineLocale({
     noSessions: '尚無工作階段',
     noFilterMatches: '沒有工作階段符合這些篩選條件',
     projects: {
+      folderNeedsAttention: '請檢查來源資料夾',
+      folderMissing: '找不到資料夾',
+      folderUnavailable: '無法存取資料夾',
+      folderNotDirectory: '此路徑是檔案，不是資料夾',
+      reconnectFolder: '重新連結',
       editTitle: '編輯專案',
       editDesc: '管理來源資料夾。變更路徑會重新連結現有任務，不會移動檔案。新任務使用主要資料夾。',
       changeFolder: '變更資料夾路徑',

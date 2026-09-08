@@ -2395,6 +2395,11 @@ export const en: Translations = {
     noSessions: 'No sessions yet',
     noFilterMatches: 'No sessions match these filters',
     projects: {
+      folderNeedsAttention: 'Source folders need attention',
+      folderMissing: 'Folder not found',
+      folderUnavailable: 'Folder is unavailable',
+      folderNotDirectory: 'This path is a file, not a folder',
+      reconnectFolder: 'Reconnect',
       editTitle: 'Edit project',
       editDesc:
         'Manage source folders. Changing a path reconnects existing tasks without moving files. The primary folder is used for new tasks.',

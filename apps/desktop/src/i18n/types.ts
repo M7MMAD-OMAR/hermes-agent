@@ -2043,6 +2043,11 @@ export interface Translations {
     noSessions: string
     noFilterMatches: string
     projects: {
+      folderNeedsAttention: string
+      folderMissing: string
+      folderUnavailable: string
+      folderNotDirectory: string
+      reconnectFolder: string
       editTitle: string
       editDesc: string
       changeFolder: string

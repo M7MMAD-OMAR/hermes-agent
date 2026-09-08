@@ -21,6 +21,7 @@ import {
 } from '../chrome'
 
 import { latestProjectSessions, PROJECT_PREVIEW_COUNT, useWorkspaceNodeOpen } from './model'
+import { ProjectHealthIndicator } from './project-health'
 import { ProjectContextMenu, ProjectMenu } from './project-menu'
 import type { SidebarProjectTree } from './workspace-groups'
 import { WorkspaceAddButton } from './workspace-header'
@@ -141,6 +142,7 @@ export function ProjectOverviewRow({
               delete — but it still starts sessions: a null path is the "no
               folder" chat. New session sits outermost: it's the one you reach
               for. */}
+          {!project.isNoProject && <ProjectHealthIndicator id={project.id} name={project.label} />}
           {!project.isNoProject && <ProjectMenu anchorRef={rowRef} isActive={isActive} project={project} />}
           {onNewSession && (
             <WorkspaceAddButton

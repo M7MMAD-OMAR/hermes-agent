@@ -379,3 +379,8 @@ writes nothing, and a failed save keeps the draft visible with an inline error.
 At least one unique source folder is required. Running tasks prevent relocation
 of their workspace until they finish. Removing a source only removes its project
 membership; it never deletes files or conversation history.
+
+Project health is loaded with the profile-scoped project list and refreshed when
+opening Edit project. An unavailable source has a visible warning and recovery
+control. Nearby verified candidates are suggestions, never automatic relocations.
+Selecting a candidate updates the draft; only Save changes workspace metadata.

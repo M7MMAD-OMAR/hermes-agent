@@ -32,7 +32,7 @@ import {
   workspaceCwdForNewSession
 } from '@/store/session'
 import { $removedSessionIds, $sessionMutationsInFlight } from '@/store/session-removal'
-import type { ProjectInfo, ProjectsPayload } from '@/types/hermes'
+import type { ProjectFolder, ProjectInfo, ProjectsPayload } from '@/types/hermes'
 
 // First-class, per-profile Projects (named, multi-folder workspaces). State is
 // served by the live gateway's `projects.*` JSON-RPC methods, which wrap the
@@ -358,7 +358,7 @@ export async function refreshProjects(): Promise<void> {
     const payload = await gatewayRequestOn<ProjectsPayload>(
       context.gateway,
       'projects.list',
-      projectParams({}, context.profile)
+      projectParams({ include_health: true }, context.profile)
     )
 
     if (generation !== projectsRefreshGeneration || !stillOnProjectsContext(context)) {
@@ -994,6 +994,8 @@ export async function renameProject(id: string, name: string): Promise<void> {
 // tree + list update instantly so a color/icon/name change has no round-trip
 // lag; only a failed write reconciles from the server.
 export interface ProjectFolderDraft {
+  health?: ProjectFolder['health']
+  suggested_paths?: string[]
   path: string
   original_path?: string
 }
@@ -1210,7 +1212,7 @@ export async function openProjectEdit(project: { id: string; name: string }): Pr
     const { project: saved } = await gatewayRequestOn<{ project: ProjectInfo }>(
       context.gateway,
       'projects.get',
-      projectParams({ id: project.id }, context.profile)
+      projectParams({ id: project.id, include_health: true }, context.profile)
     )
 
     if (!stillOnProjectsContext(context)) {
@@ -1221,7 +1223,12 @@ export async function openProjectEdit(project: { id: string; name: string }): Pr
       mode: 'edit',
       name: saved.name,
       projectId: saved.id,
-      folders: saved.folders.map(folder => ({ path: folder.path, original_path: folder.path }))
+      folders: saved.folders.map(folder => ({
+        path: folder.path,
+        original_path: folder.path,
+        health: folder.health,
+        suggested_paths: folder.suggested_paths
+      }))
     })
   } catch (error) {
     notify({ kind: 'error', message: error instanceof Error ? error.message : String(error) })

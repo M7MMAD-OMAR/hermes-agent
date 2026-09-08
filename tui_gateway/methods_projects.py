@@ -17,11 +17,18 @@ class _NoProject(Exception):
     """Raised inside a projects handler when ``params['id']`` resolves to None."""
 
 
-def _projects_payload(conn) -> dict:
+def _projects_payload(conn, *, include_health=False) -> dict:
     from hermes_cli import projects_db as pdb
     return {
-        "projects": [p.to_dict() for p in pdb.list_projects(conn, include_archived=True)],
+        "projects": [_project_payload(p, include_health) for p in pdb.list_projects(conn, include_archived=True)],
         "active_id": pdb.get_active_id(conn)}
+
+
+def _project_payload(project, include_health=False) -> dict:
+    if include_health:
+        from hermes_cli.projects_health import project_with_health
+        return project_with_health(project)
+    return project.to_dict()
 
 
 def _projects_method(name: str):
@@ -117,12 +124,12 @@ def _(rid, params, pdb, conn) -> dict:
 
 @_projects_method("projects.list")
 def _(rid, params, pdb, conn) -> dict:
-    return _ok(rid, _projects_payload(conn))
+    return _ok(rid, _projects_payload(conn, include_health=bool(params.get("include_health"))))
 
 
 @_projects_method("projects.get")
 def _(rid, params, pdb, conn) -> dict:
-    return _ok(rid, {"project": _require_project(pdb, conn, params).to_dict()})
+    return _ok(rid, {"project": _project_payload(_require_project(pdb, conn, params), bool(params.get("include_health")))})
 
 
 @_projects_method("projects.create")

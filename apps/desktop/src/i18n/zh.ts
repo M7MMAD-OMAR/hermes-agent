@@ -2559,6 +2559,11 @@ export const zh: Translations = {
     noSessions: '暂无会话',
     noFilterMatches: '没有会话符合这些筛选条件',
     projects: {
+      folderNeedsAttention: '请检查源文件夹',
+      folderMissing: '未找到文件夹',
+      folderUnavailable: '无法访问文件夹',
+      folderNotDirectory: '此路径是文件，不是文件夹',
+      reconnectFolder: '重新关联',
       editTitle: '编辑项目',
       editDesc: '管理源文件夹。更改路径会重新关联现有任务，不会移动文件。新任务使用主文件夹。',
       changeFolder: '更改文件夹路径',

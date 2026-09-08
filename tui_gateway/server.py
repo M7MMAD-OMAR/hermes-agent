@@ -173,7 +173,7 @@ _LONG_HANDLERS = frozenset({
     "process.list", "profiles.configure", "profiles.create", "profiles.describe", "profiles.get_asset",
     "profiles.list", "profiles.set_asset", "bot_relay.roster.sync", "bot_relay.outbox.drain",
     "bot_relay.deliver", "bot_relay.reply", "image.generate", "projects.discover_repos",
-    "projects.edit", "projects.record_repos", "projects.for_cwd", "projects.tree", "projects.project_sessions",
+    "projects.list", "projects.get", "projects.edit", "projects.record_repos", "projects.for_cwd", "projects.tree", "projects.project_sessions",
     "setup.runtime_check", "setup.status", "voice.toggle", "voice.record", "voice.tts", "wake.start",
     "wake.status", "session.active_list", "session.branch", "session.compress",
     "session.context_breakdown", "session.list",

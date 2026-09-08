@@ -162,7 +162,7 @@ describe('projects RPC profile forwarding', () => {
     await refreshProjectTree()
     await fetchProjectSessions('p_123')
 
-    expect(request).toHaveBeenNthCalledWith(1, 'projects.list', { profile: 'coder' })
+    expect(request).toHaveBeenNthCalledWith(1, 'projects.list', { include_health: true, profile: 'coder' })
     expect(request).toHaveBeenNthCalledWith(2, 'projects.tree', { preview_limit: 3, profile: 'coder' })
     expect(request).toHaveBeenNthCalledWith(3, 'projects.project_sessions', {
       profile: 'coder',

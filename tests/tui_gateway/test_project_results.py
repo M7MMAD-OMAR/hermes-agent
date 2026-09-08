@@ -30,7 +30,7 @@ def test_index_batches_all_history_and_survives_restart(tmp_path):
         with projects_db.connect_closing() as conn:
             first = refresh_index(conn, batch_size=1)
             assert first["has_more"]
-            assert list_results(conn)["results"] == []
+            assert [r["value"] for r in list_results(conn)["results"]] == [str(folder / "deck.pptx")]
             assert refresh_index(conn, batch_size=1)["has_more"]
         with projects_db.connect_closing() as conn:
             assert not refresh_index(conn)["has_more"]
@@ -130,6 +130,7 @@ def test_profiles_keep_indexes_and_approval_separate(tmp_path, monkeypatch):
         rid = server._methods["projects.results.list"](2, {})["result"]["results"][0]["id"]
         version = server._methods["projects.results.capture"](3, {"result_id": rid})["result"]["version"]
         assert server._methods["projects.results.list"](4, {"profile": "second"})["result"]["results"] == []
+        assert "error" in server._methods["projects.results.preview"](8, {"profile": "second", "version_id": version["id"]})
         assert "error" in server._methods["projects.results.capture"](5, {"profile": "second", "result_id": rid})
         assert "error" in server._methods["projects.results.review"](6, {"profile": "second", "version_id": version["id"], "state": "approved"})
         assert server._methods["projects.results.versions"](7, {"result_id": rid})["result"]["versions"][0]["review_state"] == "unreviewed"
@@ -180,5 +181,90 @@ def test_results_are_not_limited_to_thirty_recent_sessions(tmp_path):
             rows = list_results(conn, project_id=pid)["results"]
             assert len(rows) == 36
             assert any(row["session_id"] == "source-task" for row in rows)
+    finally:
+        db.close()
+
+
+def test_generated_documents_are_saved_and_versioned_without_opening_chat(tmp_path):
+    db, folder, pid = seed(tmp_path)
+    first = '<!doctype html><html><head><title>Client dashboard</title></head><body>' + 'First edition. ' * 20 + '</body></html>'
+    second = first.replace('First edition.', 'Revised edition.')
+    try:
+        db.append_message("source-task", "assistant", "```html\n" + first + "\n```")
+        db.append_message("source-task", "assistant", "```html\n" + second + "\n```")
+        db.append_message("source-task", "assistant", "```html\n" + second + "\n```")
+        with projects_db.connect_closing() as conn:
+            while refresh_index(conn, batch_size=2)["has_more"]:
+                pass
+            results = list_results(conn, project_id=pid)["results"]
+            generated = next(r for r in results if r["origin"] == "message")
+            assert generated["label"] == "Client dashboard.html"
+            versions = result_versions(conn, generated["id"])
+            assert len(versions) == 2
+            assert Path(versions[1]["snapshot_path"]).read_text() == first
+            assert Path(versions[0]["snapshot_path"]).read_text() == second
+            assert generated["value"] == versions[0]["snapshot_path"]
+            review_version(conn, versions[1]["id"], "approved")
+            # An explicit capture cannot copy a made-up logical path or create
+            # another version of already persisted message content.
+            assert capture_version(conn, generated["id"])["id"] == versions[0]["id"]
+            conn.execute("DELETE FROM project_meta WHERE key='results_index_version'")
+            conn.commit()
+            while refresh_index(conn, batch_size=2)["has_more"]:
+                pass
+            assert len(result_versions(conn, generated["id"])) == 2
+            assert result_versions(conn, generated["id"])[1]["review_state"] == "approved"
+    finally:
+        db.close()
+
+
+def test_recent_file_fast_path_does_not_regress_during_backfill(tmp_path):
+    db, _, _ = seed(tmp_path)
+    try:
+        for stamp in range(1, 8):
+            db.append_message("source-task", "assistant", "[Delivery](./report.pdf)", timestamp=stamp)
+        with projects_db.connect_closing() as conn:
+            assert refresh_index(conn, batch_size=2)["has_more"]
+            newest = list_results(conn)["results"][0]
+            assert newest["reported_at"] == 7
+            while refresh_index(conn, batch_size=2)["has_more"]:
+                assert list_results(conn)["results"][0]["reported_at"] == 7
+            assert list_results(conn)["results"][0]["id"] == newest["id"]
+    finally:
+        db.close()
+
+
+def test_only_complete_substantial_fences_become_generated_results():
+    from hermes_cli.result_fences import generated_results
+    assert list(generated_results('```html\n<p>Small example</p>\n```')) == []
+    assert list(generated_results('```python\n' + 'print(1)\n' * 60)) == []
+    assert list(generated_results('```markdown\n' + 'Some prose.\n' * 60 + '```')) == []
+    code = '# report.py\n' + 'print(1)\n' * 60
+    result = list(generated_results('~~~~python\n' + code + '~~~~'))
+    assert len(result) == 1 and result[0].label == 'report.py'
+    svg = '<svg xmlns="http://www.w3.org/2000/svg"><title>Map</title>' + '<circle r="10"/>' * 150 + '</svg>'
+    assert list(generated_results('```svg\n' + svg + '\n```'))[0].kind == 'image'
+
+
+def test_preview_reads_verified_snapshot_and_refuses_tampering(tmp_path):
+    from hermes_cli.project_results import preview_version
+    db, folder, _ = seed(tmp_path)
+    path = folder / "proposal.md"
+    path.write_text("Original version for review")
+    try:
+        db.append_message("source-task", "assistant", "[proposal](./proposal.md)")
+        with projects_db.connect_closing() as conn:
+            refresh_index(conn)
+            rid = list_results(conn)["results"][0]["id"]
+            version = capture_version(conn, rid)
+            path.write_text("Changed original")
+            assert preview_version(conn, version["id"])["text"] == "Original version for review"
+            Path(version["snapshot_path"]).write_text("Tampered snapshot")
+            with pytest.raises(ValueError, match="integrity"):
+                preview_version(conn, version["id"])
+            conn.execute("UPDATE project_result_versions SET snapshot_path=? WHERE id=?", (str(path), version["id"]))
+            conn.commit()
+            with pytest.raises(ValueError, match="outside"):
+                preview_version(conn, version["id"])
     finally:
         db.close()

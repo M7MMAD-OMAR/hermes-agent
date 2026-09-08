@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS project_results (
     kind TEXT NOT NULL,
     label TEXT NOT NULL,
     reported_at REAL NOT NULL,
+    origin TEXT NOT NULL DEFAULT 'file',
     UNIQUE(session_id, value)
 );
 CREATE INDEX IF NOT EXISTS idx_project_results_project ON project_results(project_id, reported_at);
@@ -159,6 +160,9 @@ def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
             for col in _OPTIONAL_PROJECT_COLUMNS:
                 if col not in cols:
                     _add_column_if_missing(conn, "projects", col, f"{col} TEXT")
+            result_columns = {row["name"] for row in conn.execute("PRAGMA table_info(project_results)")}
+            if "origin" not in result_columns:
+                _add_column_if_missing(conn, "project_results", "origin", "origin TEXT NOT NULL DEFAULT 'file'")
             _INITIALIZED_PATHS.add(resolved)
     except Exception:
         conn.close()

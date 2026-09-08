@@ -2474,6 +2474,9 @@ export const zh: Translations = {
   },
 
   artifacts: {
+    fromConversation: '直接从助手消息保存。每个版本保留生成内容及其审核状态。',
+    previewVersion: '预览',
+    previewUnavailable: '此文件类型或大小不支持预览。请打开已保存文件。',
     profileResults: profile => `${profile} 的成果`,
     projectFilter: '按项目筛选',
     allProjects: '所有项目',

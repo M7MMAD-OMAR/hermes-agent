@@ -1965,6 +1965,9 @@ export interface Translations {
   }
 
   artifacts: {
+    fromConversation: string
+    previewVersion: string
+    previewUnavailable: string
     profileResults: (profile: string) => string
     projectFilter: string
     allProjects: string

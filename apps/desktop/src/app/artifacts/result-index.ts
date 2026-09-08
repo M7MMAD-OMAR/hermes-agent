@@ -13,6 +13,7 @@ export interface IndexedResult {
   label: string
   reported_at: number
   version_count: number
+  origin?: 'file' | 'message'
 }
 
 export interface ResultVersion {
@@ -34,6 +35,7 @@ export function resultArtifact(row: IndexedResult, profile: string): ArtifactRec
     resultId: row.id,
     projectId: row.project_id,
     versionCount: row.version_count,
+    origin: row.origin,
     sessionId: row.session_id,
     sessionTitle: row.session_title,
     profile,
@@ -90,7 +92,7 @@ export async function refreshResultIndex(
     more = result.has_more
     progress(result.skipped_oversized_total ?? 0)
 
-    if (++batches % 8 === 0 || !more) {
+    if (++batches % 8 === 0 || batches === 1 || !more) {
       const rows = await readResultIndex(request, signal)
       signal.throwIfAborted()
       publish(rows)

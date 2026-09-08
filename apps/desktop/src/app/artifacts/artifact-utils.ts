@@ -10,6 +10,7 @@ export interface ArtifactRecord {
   resultId?: string
   projectId?: string | null
   versionCount?: number
+  origin?: 'file' | 'message'
   kind: ArtifactKind
   value: string
   href: string

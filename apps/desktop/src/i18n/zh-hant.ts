@@ -1907,6 +1907,9 @@ export const zhHant = defineLocale({
   },
 
   artifacts: {
+    fromConversation: '直接從助理訊息儲存。每個版本保留產生內容及其審核狀態。',
+    previewVersion: '預覽',
+    previewUnavailable: '此檔案類型或大小不支援預覽。請開啟已儲存檔案。',
     profileResults: profile => `${profile} 的成果`,
     projectFilter: '依專案篩選',
     allProjects: '所有專案',

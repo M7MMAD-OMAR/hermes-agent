@@ -83,6 +83,12 @@ def _(rid, params, pdb, conn) -> dict:
     return _ok(rid, {"versions": result_versions(conn, str(params.get("result_id") or ""))})
 
 
+@_projects_method("projects.results.preview")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_results import preview_version
+    return _ok(rid, preview_version(conn, str(params.get("version_id") or "")))
+
+
 @_projects_method("projects.results.capture")
 def _(rid, params, pdb, conn) -> dict:
     from hermes_cli.project_results import capture_version

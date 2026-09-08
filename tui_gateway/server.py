@@ -164,7 +164,7 @@ _DETAIL_MODES = frozenset({"hidden", "collapsed", "expanded"})
 # snapshot it may write goes through utils.atomic_json_write.
 _LONG_HANDLERS = frozenset({
     "projects.results.refresh", "projects.results.list", "projects.results.versions",
-    "projects.results.capture", "projects.results.review",
+    "projects.results.capture", "projects.results.review", "projects.results.preview",
     "session.foreign.list", "session.foreign.preview", "session.foreign.import",
     "billing.state", "subscription.state", "subscription.preview", "subscription.change",
     "subscription.resume", "subscription.upgrade", "usage.bars", "session.usage", "billing.step_up",

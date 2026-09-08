@@ -408,3 +408,15 @@ its own review state. Opening a saved version uses its immutable snapshot path,
 not the source file. Source-task navigation carries the owning profile and
 connection. Switching owners unmounts the result view and cancels publication
 of pending responses from the previous owner.
+
+Substantial, complete HTML/SVG/code fences also enter the durable result shelf.
+Their versions preserve the actual message content automatically, so their
+version dialog explains the message origin and does not offer another capture.
+Recent reported file results populate first during an initial historical index;
+inline versions follow message order so numbering preserves their chronology.
+
+The version dialog names the selected preview version. Snapshot previews verify
+content hashes in the owning backend and reuse the existing artifact sandbox and
+source viewer. Text previews are bounded to 512 KiB; image/PDF previews to 8 MiB.
+Unsupported types and larger files retain the saved-file open action. A snapshot
+captures one file's bytes, not a website's linked assets or external resources.

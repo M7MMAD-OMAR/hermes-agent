@@ -79,7 +79,7 @@ async function openHtmlInBrowser(content: string): Promise<void> {
  * form submission out of the frame. The parent app is unreachable. SVG is
  * DOMPurify-sanitized with the same profile as the inline ```svg embed.
  */
-function ArtifactLiveView({ content, kind, title }: { content: string; kind: ArtifactKind; title: string }) {
+export function ArtifactLiveView({ content, kind, title }: { content: string; kind: ArtifactKind; title: string }) {
   const svgClean = useMemo(
     () => (kind === 'svg' ? DOMPurify.sanitize(content, { USE_PROFILES: { svg: true, svgFilters: true } }) : ''),
     [content, kind]

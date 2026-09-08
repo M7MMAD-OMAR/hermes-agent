@@ -120,27 +120,34 @@ def refresh_index(conn, *, batch_size=128):
         source_id = f"{identity.st_dev}:{identity.st_ino}"
         previous_source = conn.execute("SELECT value FROM project_meta WHERE key='results_source'").fetchone()
         cursor_row = conn.execute("SELECT value FROM project_meta WHERE key='results_cursor'").fetchone()
-        same_source = previous_source and previous_source[0] == source_id
+        index_version = conn.execute("SELECT value FROM project_meta WHERE key='results_index_version'").fetchone()
+        same_source = previous_source and previous_source[0] == source_id and index_version and index_version[0] == "2"
         cursor = int(cursor_row[0]) if cursor_row and same_source else 0
         previous_skipped = conn.execute("SELECT value FROM project_meta WHERE key='results_skipped'").fetchone()
         skipped_total = int(previous_skipped[0]) if previous_skipped and same_source else 0
         source = sqlite3.connect(state_path.as_uri() + "?mode=ro", uri=True)
         try:
             source.row_factory = sqlite3.Row
-            rows = source.execute("""SELECT m.id, m.session_id, m.role, m.tool_name,
+            select = """SELECT m.id, m.session_id, m.role, m.tool_name,
                 CASE WHEN length(m.content) <= ? THEN m.content END AS content,
                 length(m.content) > ? AS oversized, m.timestamp, s.title, s.cwd,
                 m.active, m._compressed_summary
                 FROM messages m JOIN sessions s ON s.id=m.session_id
-                WHERE m.id > ? ORDER BY m.id LIMIT ?""",
+                WHERE m.id > ? ORDER BY m.id {order} LIMIT ?"""
+            rows = source.execute(select.format(order="ASC"),
                 (_MAX_MESSAGE_CHARS, _MAX_MESSAGE_CHARS, cursor, batch_size + 1)).fetchall()
+            recent = source.execute(select.format(order="DESC"),
+                (_MAX_MESSAGE_CHARS, _MAX_MESSAGE_CHARS, 0, batch_size)).fetchall() if not same_source else []
         finally:
             source.close()
         has_more = len(rows) > batch_size
         rows = rows[:batch_size]
         skipped = 0
-        for row in rows:
-            skipped += int(row["oversized"] or 0)
+        historical_ids = {row["id"] for row in rows}
+        combined = {row["id"]: row for row in [*reversed(recent), *rows]}
+        for row in combined.values():
+            if row["id"] in historical_ids:
+                skipped += int(row["oversized"] or 0)
             if not row["active"] or row["_compressed_summary"] or not row["content"]:
                 continue
             project = projects_db.project_for_path(conn, row["cwd"], include_archived=True)
@@ -155,10 +162,18 @@ def refresh_index(conn, *, batch_size=128):
                     ON CONFLICT(session_id, value) DO UPDATE SET
                     message_id=excluded.message_id, reported_at=excluded.reported_at,
                     session_title=excluded.session_title,
-                    project_id=COALESCE(project_results.project_id, excluded.project_id)""",
+                    project_id=COALESCE(project_results.project_id, excluded.project_id)
+                    WHERE excluded.message_id >= project_results.message_id""",
                     ("r_" + secrets.token_hex(12), project.id if project else None,
                      row["session_id"], row["title"] or row["session_id"], row["id"], value,
                      kind, label, row["timestamp"]))
+        # Generated versions follow historical message order. The recent file
+        # fast path must not number a newer inline version before its ancestors.
+        for row in rows:
+            if row["active"] and not row["_compressed_summary"] and row["role"] == "assistant" and row["content"]:
+                project = projects_db.project_for_path(conn, row["cwd"], include_archived=True)
+                _index_generated(conn, row, project)
+        conn.execute("INSERT OR REPLACE INTO project_meta(key,value) VALUES ('results_index_version','2')")
         if rows:
             conn.execute("INSERT OR REPLACE INTO project_meta(key,value) VALUES ('results_cursor',?)", (str(rows[-1]["id"]),))
         conn.execute("INSERT OR REPLACE INTO project_meta(key,value) VALUES ('results_source',?)", (source_id,))
@@ -186,6 +201,11 @@ def list_results(conn, *, project_id=None, before=None, limit=100):
         " ORDER BY r.reported_at DESC, r.id DESC LIMIT ?", [*args, limit + 1]).fetchall()
     more = len(rows) > limit
     records = [dict(row) for row in rows[:limit]]
+    for record in records:
+        if record["origin"] == "message":
+            latest = conn.execute("SELECT snapshot_path FROM project_result_versions WHERE result_id=? ORDER BY number DESC LIMIT 1", (record["id"],)).fetchone()
+            if latest:
+                record["value"] = latest[0]
     return {"results": records, "next_cursor": [records[-1]["reported_at"], records[-1]["id"]] if more else None}
 
 
@@ -200,6 +220,11 @@ def capture_version(conn, result_id):
     row = conn.execute("SELECT * FROM project_results WHERE id=?", (result_id,)).fetchone()
     if row is None:
         raise ValueError("No such result")
+    if row["origin"] == "message":
+        versions = result_versions(conn, result_id)
+        if not versions:
+            raise ValueError("Generated result has no saved content")
+        return versions[0]
     if row["value"].startswith(("http://", "https://")):
         raise ValueError("Only local files can be captured")
     path = Path(row["value"]).resolve()
@@ -217,20 +242,7 @@ def capture_version(conn, result_id):
         after = os.fstat(source.fileno())
     if len(data) > _MAX_CAPTURE_BYTES or (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
         raise ValueError("File changed during capture; retry when writing has finished")
-    digest = hashlib.sha256(data).hexdigest()
-    directory = get_hermes_home() / "result-snapshots"
-    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    target = directory / (digest + path.suffix.lower())
-    temp_fd, temp_name = tempfile.mkstemp(dir=directory)
-    try:
-        with os.fdopen(temp_fd, "wb") as output:
-            output.write(data)
-            output.flush()
-            os.fsync(output.fileno())
-        os.replace(temp_name, target)
-    finally:
-        if os.path.exists(temp_name):
-            os.unlink(temp_name)
+    digest, target = _snapshot_bytes(data, path.suffix.lower())
     with write_txn(conn):
         last = conn.execute("SELECT * FROM project_result_versions WHERE result_id=? ORDER BY number DESC LIMIT 1", (result_id,)).fetchone()
         if last and last["sha256"] == digest:
@@ -250,3 +262,84 @@ def review_version(conn, version_id, state):
         if not conn.execute("UPDATE project_result_versions SET review_state=? WHERE id=?", (state, version_id)).rowcount:
             raise ValueError("No such result version")
         return dict(conn.execute("SELECT * FROM project_result_versions WHERE id=?", (version_id,)).fetchone())
+
+
+def _snapshot_bytes(data, extension):
+    digest = hashlib.sha256(data).hexdigest()
+    directory = get_hermes_home() / "result-snapshots"
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    target = directory / (digest + extension)
+    temp_fd, temp_name = tempfile.mkstemp(dir=directory)
+    try:
+        with os.fdopen(temp_fd, "wb") as output:
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temp_name, target)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+    return digest, target
+
+
+def _index_generated(conn, row, project):
+    from hermes_cli.result_fences import generated_results
+    try:
+        decoded = json.loads(row["content"])
+    except (ValueError, TypeError, RecursionError):
+        decoded = None
+    for generated in generated_results(_text(decoded) or row["content"]):
+        rid = "r_" + secrets.token_hex(12)
+        conn.execute("""INSERT INTO project_results
+            (id,project_id,session_id,session_title,message_id,value,kind,label,reported_at,origin)
+            VALUES (?,?,?,?,?,?,?,?,?,'message')
+            ON CONFLICT(session_id,value) DO UPDATE SET message_id=excluded.message_id,
+            reported_at=excluded.reported_at,session_title=excluded.session_title
+            WHERE excluded.message_id >= project_results.message_id""",
+            (rid, project.id if project else None, row["session_id"], row["title"] or row["session_id"],
+             row["id"], generated.key, generated.kind, generated.label, row["timestamp"]))
+        rid = conn.execute("SELECT id FROM project_results WHERE session_id=? AND value=?", (row["session_id"], generated.key)).fetchone()[0]
+        data = generated.content.encode("utf-8")
+        digest = hashlib.sha256(data).hexdigest()
+        if conn.execute("SELECT 1 FROM project_result_versions WHERE result_id=? AND sha256=?", (rid, digest)).fetchone():
+            continue
+        digest, target = _snapshot_bytes(data, generated.extension)
+        number = conn.execute("SELECT COALESCE(MAX(number),0)+1 FROM project_result_versions WHERE result_id=?", (rid,)).fetchone()[0]
+        conn.execute("""INSERT INTO project_result_versions
+            (id,result_id,number,sha256,snapshot_path,size_bytes,captured_at)
+            VALUES (?,?,?,?,?,?,?)""", ("v_" + secrets.token_hex(12), rid, number, digest,
+             str(target), len(data), time.time()))
+
+
+def preview_version(conn, version_id):
+    """Read only a verified snapshot owned by this profile, never a client path."""
+    import base64
+    row = conn.execute("SELECT * FROM project_result_versions WHERE id=?", (version_id,)).fetchone()
+    if row is None:
+        raise ValueError("No such result version")
+    path = Path(row["snapshot_path"]).resolve()
+    if path.parent != (get_hermes_home() / "result-snapshots").resolve():
+        raise ValueError("Snapshot is outside the result store")
+    ext = path.suffix.lower()
+    text_extensions = {".html", ".svg", ".md", ".txt", ".json", ".csv", ".js", ".ts", ".tsx",
+                       ".jsx", ".py", ".css", ".rs", ".go", ".sql", ".sh", ".yaml"}
+    image_types = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                   ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp"}
+    if ext not in text_extensions and ext not in image_types and ext != ".pdf":
+        return {"kind": "unsupported"}
+    limit = 512 * 1024 if ext in text_extensions else 8 * 1024 * 1024
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0))
+    with os.fdopen(fd, "rb") as source:
+        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+            raise ValueError("Snapshot is not a regular file")
+        data = source.read(limit + 1)
+    if len(data) > limit:
+        return {"kind": "too_large"}
+    if hashlib.sha256(data).hexdigest() != row["sha256"]:
+        raise ValueError("Saved version failed its content integrity check")
+    if ext in text_extensions:
+        return {"kind": "html" if ext == ".html" else "svg" if ext == ".svg" else "text",
+                "text": data.decode("utf-8", errors="replace"), "extension": ext}
+    mime = image_types.get(ext, "application/pdf")
+    return {"kind": "pdf" if ext == ".pdf" else "image",
+            "data_url": f"data:{mime};base64," + base64.b64encode(data).decode("ascii")}

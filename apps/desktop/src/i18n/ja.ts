@@ -1982,6 +1982,9 @@ export const ja = defineLocale({
   },
 
   artifacts: {
+    fromConversation: 'アシスタントのメッセージから直接保存しました。各バージョンは生成内容と確認状態を保持します。',
+    previewVersion: 'プレビュー',
+    previewUnavailable: 'この種類またはサイズはプレビューできません。保存済みファイルを開いてください。',
     profileResults: profile => `${profile} の成果物`,
     projectFilter: 'プロジェクトで絞り込む',
     allProjects: 'すべてのプロジェクト',

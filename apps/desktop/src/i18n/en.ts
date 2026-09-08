@@ -2310,6 +2310,10 @@ export const en: Translations = {
   },
 
   artifacts: {
+    fromConversation:
+      'Saved directly from the assistant message. Each version preserves the generated content and its own review status.',
+    previewVersion: 'Preview',
+    previewUnavailable: 'Preview is unavailable for this file type or size. Open the saved file to view it.',
     profileResults: profile => `Results for ${profile}`,
     projectFilter: 'Filter by project',
     allProjects: 'All projects',

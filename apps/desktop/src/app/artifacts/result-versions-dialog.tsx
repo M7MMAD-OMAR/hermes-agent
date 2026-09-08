@@ -9,6 +9,7 @@ import { fmtDayTime } from '@/lib/time'
 
 import type { ArtifactRecord } from './artifact-utils'
 import type { ResultsRequest, ResultVersion } from './result-index'
+import { ResultVersionPreview } from './result-version-preview'
 
 export function ResultVersionsDialog({
   artifact,
@@ -27,6 +28,8 @@ export function ResultVersionsDialog({
   const [pending, setPending] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const alive = useRef(true)
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const previewVersion = versions.find(version => version.id === previewId)
 
   // eslint-disable-next-line no-restricted-syntax -- Async lifecycle flag, not a mirror of reactive state.
   useEffect(() => {
@@ -120,20 +123,22 @@ export function ResultVersionsDialog({
       }}
       open
     >
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {a.versions}: {artifact.label}
           </DialogTitle>
-          <DialogDescription>{a.captureHint}</DialogDescription>
+          <DialogDescription>{artifact.origin === 'message' ? a.fromConversation : a.captureHint}</DialogDescription>
         </DialogHeader>
         <div className="min-w-0 space-y-3">
           <p className="break-all text-xs text-muted-foreground" dir="auto">
             {artifact.value}
           </p>
-          <Button disabled={pending} onClick={() => void capture()}>
-            {a.captureVersion}
-          </Button>
+          {artifact.origin !== 'message' && (
+            <Button disabled={pending} onClick={() => void capture()}>
+              {a.captureVersion}
+            </Button>
+          )}
           {error && (
             <p className="text-xs text-destructive" role="alert">
               {error}
@@ -170,6 +175,14 @@ export function ResultVersionsDialog({
                   </SelectContent>
                 </Select>
                 <Button
+                  aria-pressed={previewId === version.id}
+                  onClick={() => setPreviewId(current => (current === version.id ? null : version.id))}
+                  size="sm"
+                  variant="textStrong"
+                >
+                  {a.previewVersion}
+                </Button>
+                <Button
                   onClick={() =>
                     void onOpen({
                       ...artifact,
@@ -185,6 +198,19 @@ export function ResultVersionsDialog({
               </li>
             ))}
           </ol>
+          {previewVersion && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">
+                {a.previewVersion}: {a.versionNumber(previewVersion.number)}
+              </p>
+              <ResultVersionPreview
+                key={previewVersion.id}
+                label={artifact.label}
+                request={request}
+                versionId={previewVersion.id}
+              />
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

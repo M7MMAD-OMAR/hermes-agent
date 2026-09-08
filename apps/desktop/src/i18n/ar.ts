@@ -1682,6 +1682,9 @@ export const ar = defineLocale({
     createAction: 'إنشاء'
   },
   artifacts: {
+    fromConversation: 'محفوظة مباشرة من رسالة المساعد. تحتفظ كل نسخة بالمحتوى الذي تم إنشاؤه وبحالة مراجعتها.',
+    previewVersion: 'معاينة',
+    previewUnavailable: 'المعاينة غير متاحة لهذا النوع أو الحجم. افتح الملف المحفوظ لعرضه.',
     profileResults: profile => `نتائج ${profile}`,
     projectFilter: 'تصفية حسب المشروع',
     allProjects: 'كل المشاريع',

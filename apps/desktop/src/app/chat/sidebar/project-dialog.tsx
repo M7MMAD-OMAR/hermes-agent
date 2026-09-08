@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import type { NewSessionPlacement } from '@/app/chat/new-session-drag'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Codicon } from '@/components/ui/codicon'
 import {
   Dialog,
@@ -256,6 +257,7 @@ export function ProjectDialog() {
         {(mode === 'create' || mode === 'edit') && (
           <div className="flex flex-col gap-1.5">
             <span className="text-[0.6875rem] font-medium text-(--ui-text-tertiary)">{p.foldersLabel}</span>
+            {mode === 'edit' && <p className="text-xs text-muted-foreground">{p.readOnlyHint}</p>}
             {folders.length === 0 ? (
               <span className="text-[0.75rem] text-(--ui-text-quaternary)">{p.noFolders}</span>
             ) : (
@@ -276,6 +278,22 @@ export function ProjectDialog() {
                         onReconnect={path => reconnectFolder(index, path)}
                       />
                     </span>
+                    {mode === 'edit' && (
+                      <label className="flex shrink-0 items-center gap-1 text-xs" title={p.readOnlyHint}>
+                        <Checkbox
+                          checked={Boolean(folder.read_only)}
+                          disabled={submitting}
+                          onCheckedChange={checked =>
+                            setFolders(current =>
+                              current.map((value, i) =>
+                                i === index ? { ...value, read_only: checked === true } : value
+                              )
+                            )
+                          }
+                        />
+                        {p.readOnly}
+                      </label>
+                    )}
                     {mode === 'edit' && (
                       <Tip label={p.changeFolder}>
                         <Button

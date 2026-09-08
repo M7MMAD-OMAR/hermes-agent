@@ -82,14 +82,23 @@ def _action(conn, project_id, action_id):
     return dict(row)
 
 
-def list_actions(conn, project_id):
+def list_actions(conn, project_id, *, before=None, limit=50):
     project = _project(conn, project_id)
+    limit = max(1, min(int(limit), 100))
+    sql = "SELECT * FROM project_actions WHERE project_id=?"
+    args = [project.id]
+    if before:
+        cursor = _action(conn, project.id, before)
+        sql += " AND (created_at<? OR (created_at=? AND id>?))"
+        args.extend([cursor["created_at"], cursor["created_at"], cursor["id"]])
+    rows = conn.execute(sql + " ORDER BY created_at DESC,id LIMIT ?", (*args, limit + 1)).fetchall()
     actions = []
-    for row in conn.execute("SELECT * FROM project_actions WHERE project_id=? ORDER BY created_at DESC,id", (project.id,)):
+    for row in rows[:limit]:
         action = dict(row)
         action["citation"] = reference_citation(conn, project.id, row["citation_id"])
         actions.append(action)
-    return {"actions": actions, "board": project.board_slug or "default"}
+    return {"actions": actions, "board": project.board_slug or "default",
+            "next_before": actions[-1]["id"] if len(rows) > limit else None}
 
 
 def edit_action(conn, project_id, action_id, *, title, owner=None, due_text=None):

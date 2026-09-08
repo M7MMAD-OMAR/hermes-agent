@@ -90,6 +90,11 @@ def _spawn(process_registry, *, env, env_type, command, cwd, effective_task_id, 
     common = dict(command=command, cwd=cwd, task_id=effective_task_id,
                   owner_task_id=task_id or effective_task_id, session_key=session_key)
     if env_type == "local":
+        if getattr(env, "readonly_roots", ()):
+            import shlex
+            from tools.environments.local import _find_bash
+            from tools.environments.project_readonly import readonly_argv
+            common["command"] = shlex.join(readonly_argv([_find_bash(), "-c", command], env.readonly_roots))
         return process_registry.spawn_local(
             env_vars=env.env if hasattr(env, 'env') else None, use_pty=effective_pty, **common)
     return process_registry.spawn_via_env(env=env, **common)

@@ -111,7 +111,7 @@ def _(rid, params, pdb, conn) -> dict:
 @_projects_method("projects.actions.list")
 def _(rid, params, pdb, conn) -> dict:
     from hermes_cli.project_actions import list_actions
-    return _ok(rid, list_actions(conn, params.get("id")))
+    return _ok(rid, list_actions(conn, params.get("id"), before=params.get("before")))
 
 
 @_projects_method("projects.actions.draft")

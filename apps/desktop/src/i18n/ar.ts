@@ -1879,6 +1879,9 @@ export const ar = defineLocale({
       renameTitle: 'إعادة تسمية المشروع',
       addFolderTitle: 'إضافة مجلد',
       namePlaceholder: 'مثال: Skunkworks',
+      readOnly: 'للقراءة فقط',
+      readOnlyHint:
+        'يحمي هذا المجلد في الطرفيات المحلية الجديدة على لينكس. الطرفيات المشغّلة مسبقاً تحتفظ بصلاحياتها السابقة.',
       foldersLabel: 'المجلدات',
       ideaLabel: 'الفكرة',
       ideaPlaceholder: 'ما موضوع هذا المشروع؟ (يُحفظ في IDEA.md)',

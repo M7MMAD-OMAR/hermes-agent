@@ -1,9 +1,12 @@
+import { useStore } from '@nanostores/react'
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { $pluginRecords } from '@/contrib/plugins-store'
 import { useI18n } from '@/i18n'
 import { $activeConnectionId } from '@/store/connections'
 import { $activeGatewayProfile, $profileScope, ALL_PROFILES } from '@/store/profile'
@@ -38,10 +41,16 @@ interface Props {
   request: ResultsRequest
 }
 
+interface ActionsPage {
+  actions: ActionProposal[]
+  board: string
+  next_before: string | null
+}
+
 export function ProjectActions({ projectId, files, request }: Props) {
   const { t, locale } = useI18n()
   const a = t.projectActions
-  const [data, setData] = useState<{ actions: ActionProposal[]; board: string } | null>(null)
+  const [data, setData] = useState<ActionsPage | null>(null)
   const [source, setSource] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -52,7 +61,7 @@ export function ProjectActions({ projectId, files, request }: Props) {
   useEffect(() => {
     alive.current = true
     let active = true
-    void request<{ actions: ActionProposal[]; board: string }>('projects.actions.list', { id: projectId })
+    void request<ActionsPage>('projects.actions.list', { id: projectId })
       .then(value => {
         if (active) {
           setData(value)
@@ -69,6 +78,41 @@ export function ProjectActions({ projectId, files, request }: Props) {
       alive.current = false
     }
   }, [projectId, request, revision])
+
+  async function loadMore() {
+    if (!data?.next_before) {
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+
+    try {
+      const page = await request<ActionsPage>('projects.actions.list', { id: projectId, before: data.next_before })
+
+      if (alive.current) {
+        setData(current =>
+          current
+            ? {
+                ...page,
+                actions: [
+                  ...current.actions,
+                  ...page.actions.filter(action => !current.actions.some(existing => existing.id === action.id))
+                ]
+              }
+            : page
+        )
+      }
+    } catch (err) {
+      if (alive.current) {
+        setError(String(err))
+      }
+    } finally {
+      if (alive.current) {
+        setBusy(false)
+      }
+    }
+  }
 
   async function change(method: string, fields: Record<string, unknown>) {
     setBusy(true)
@@ -175,6 +219,11 @@ export function ProjectActions({ projectId, files, request }: Props) {
       {data?.actions.map(action => (
         <ActionRow action={action} busy={busy} change={change} key={action.id} />
       ))}
+      {data?.next_before && (
+        <Button disabled={busy} onClick={() => void loadMore()} size="sm" variant="outline">
+          {t.sidebar.loadMore}
+        </Button>
+      )}
     </section>
   )
 }
@@ -189,6 +238,8 @@ function ActionRow({
   change: (method: string, fields: Record<string, unknown>) => Promise<void>
 }) {
   const { t } = useI18n()
+  const navigate = useNavigate()
+  const plugins = useStore($pluginRecords)
   const a = t.projectActions
   const [title, setTitle] = useState(action.title)
   const [owner, setOwner] = useState(action.owner || '')
@@ -265,6 +316,17 @@ function ActionRow({
         <p className="break-all text-xs">
           {a.task}: {action.task_id} · {a.board}: {action.board}
         </p>
+      )}
+      {action.task_id && plugins.kanban?.status === 'loaded' && (
+        <Button
+          onClick={() =>
+            navigate(`/kanban?${new URLSearchParams({ board: action.board || 'default', task: action.task_id || '' })}`)
+          }
+          size="sm"
+          variant="outline"
+        >
+          {a.task}: {action.task_id}
+        </Button>
       )}
       <div className="flex flex-wrap gap-2">
         {editable && (

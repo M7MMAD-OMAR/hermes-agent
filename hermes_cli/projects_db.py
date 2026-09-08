@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS project_actions (
     last_error TEXT,
     UNIQUE(project_id, fingerprint)
 );
+CREATE INDEX IF NOT EXISTS idx_project_actions_page ON project_actions(project_id,created_at DESC,id);
 
 CREATE TABLE IF NOT EXISTS project_result_versions (
     id TEXT PRIMARY KEY,
@@ -220,6 +221,9 @@ def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
                 if col not in cols:
                     _add_column_if_missing(conn, "projects", col, f"{col} TEXT")
             result_columns = {row["name"] for row in conn.execute("PRAGMA table_info(project_results)")}
+            folder_columns = {row["name"] for row in conn.execute("PRAGMA table_info(project_folders)")}
+            if "read_only" not in folder_columns:
+                _add_column_if_missing(conn, "project_folders", "read_only", "read_only INTEGER NOT NULL DEFAULT 0")
             if "origin" not in result_columns:
                 _add_column_if_missing(conn, "project_results", "origin", "origin TEXT NOT NULL DEFAULT 'file'")
             _INITIALIZED_PATHS.add(resolved)
@@ -247,9 +251,10 @@ class ProjectFolder:
     label: Optional[str] = None
     is_primary: bool = False
     added_at: int = 0
+    read_only: bool = False
 
     def to_dict(self) -> dict:
-        return {"path": self.path, "label": self.label, "is_primary": bool(self.is_primary), "added_at": self.added_at}
+        return {"path": self.path, "label": self.label, "is_primary": bool(self.is_primary), "added_at": self.added_at, "read_only": self.read_only}
 
 
 @dataclass
@@ -275,13 +280,13 @@ def _load_project(conn: sqlite3.Connection, row: sqlite3.Row) -> Project:
     """Materialize a ``projects`` row together with its folders."""
     keys = row.keys()
     folders = conn.execute(
-        "SELECT path, label, is_primary, added_at FROM project_folders WHERE project_id = ? ORDER BY is_primary DESC, added_at ASC",
+        "SELECT path, label, is_primary, added_at, read_only FROM project_folders WHERE project_id = ? ORDER BY is_primary DESC, added_at ASC",
         (row["id"],),
     ).fetchall()
     return Project(
         id=row["id"], slug=row["slug"], name=row["name"], created_at=row["created_at"],
         archived=bool(row["archived"]) if "archived" in keys else False,
-        folders=[ProjectFolder(r["path"], r["label"], bool(r["is_primary"]), r["added_at"]) for r in folders],
+        folders=[ProjectFolder(r["path"], r["label"], bool(r["is_primary"]), r["added_at"], bool(r["read_only"])) for r in folders],
         **{f: row[f] for f in _OPTIONAL_ROW_FIELDS if f in keys},
     )
 
@@ -428,7 +433,10 @@ def prepare_project_edit(conn, project_id: str, name: str, folders: list) -> tup
         if original and path != original:
             moves[original] = path
         old = previous.get(original or path)
-        prepared.append((path, old.label if old else None, old.added_at if old else _now()))
+        read_only = entry.get("read_only", old.read_only if old else False)
+        if not isinstance(read_only, bool):
+            raise ValueError("read_only must be a boolean")
+        prepared.append((path, old.label if old else None, old.added_at if old else _now(), read_only))
     return prepared, moves
 
 
@@ -457,8 +465,8 @@ def save_project_edit(conn, project_id: str, name: str, prepared: list, moves: d
                          (name.strip(), prepared[0][0], project_id))
             conn.execute("DELETE FROM project_folders WHERE project_id = ?", (project_id,))
             conn.executemany(
-                "INSERT INTO project_folders (project_id, path, label, is_primary, added_at) VALUES (?, ?, ?, ?, ?)",
-                [(project_id, path, label, int(i == 0), added) for i, (path, label, added) in enumerate(prepared)])
+                "INSERT INTO project_folders (project_id, path, label, is_primary, added_at, read_only) VALUES (?, ?, ?, ?, ?, ?)",
+                [(project_id, path, label, int(i == 0), added, int(read_only)) for i, (path, label, added, read_only) in enumerate(prepared)])
             if attached:
                 rows = conn.execute("SELECT id, cwd, git_repo_root FROM project_sessions.sessions").fetchall()
                 for row in rows:

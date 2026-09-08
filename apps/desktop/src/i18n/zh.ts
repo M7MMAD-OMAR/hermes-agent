@@ -2667,6 +2667,8 @@ export const zh: Translations = {
       renameTitle: '重命名项目',
       addFolderTitle: '添加文件夹',
       namePlaceholder: '例如 Skunkworks',
+      readOnly: '只读',
+      readOnlyHint: '在新的本地 Linux 终端中保护此文件夹。已运行的终端保留原有权限。',
       foldersLabel: '文件夹',
       ideaLabel: '想法',
       ideaPlaceholder: '这个项目是关于什么的？（保存到 IDEA.md）',

@@ -995,6 +995,7 @@ export async function renameProject(id: string, name: string): Promise<void> {
 // tree + list update instantly so a color/icon/name change has no round-trip
 // lag; only a failed write reconciles from the server.
 export interface ProjectFolderDraft {
+  read_only?: boolean
   health?: ProjectFolder['health']
   suggested_paths?: string[]
   path: string
@@ -1227,6 +1228,7 @@ export async function openProjectEdit(project: { id: string; name: string }): Pr
       folders: saved.folders.map(folder => ({
         path: folder.path,
         original_path: folder.path,
+        read_only: folder.read_only,
         health: folder.health,
         suggested_paths: folder.suggested_paths
       }))

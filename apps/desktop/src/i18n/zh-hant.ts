@@ -2100,6 +2100,8 @@ export const zhHant = defineLocale({
       renameTitle: '重新命名專案',
       addFolderTitle: '新增資料夾',
       namePlaceholder: '例如 Skunkworks',
+      readOnly: '唯讀',
+      readOnlyHint: '在新的本機 Linux 終端機中保護此資料夾。執行中的終端機保留原有權限。',
       foldersLabel: '資料夾',
       ideaLabel: '想法',
       ideaPlaceholder: '這個專案是關於什麼的？（儲存到 IDEA.md）',

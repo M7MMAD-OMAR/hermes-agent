@@ -2137,6 +2137,8 @@ export interface Translations {
       renameTitle: string
       addFolderTitle: string
       namePlaceholder: string
+      readOnly: string
+      readOnlyHint: string
       foldersLabel: string
       ideaLabel: string
       ideaPlaceholder: string

@@ -2511,6 +2511,9 @@ export const ru = defineLocale({
       renameTitle: 'Переименовать проект',
       addFolderTitle: 'Добавить папку',
       namePlaceholder: 'например, Skunkworks',
+      readOnly: 'Только чтение',
+      readOnlyHint:
+        'Защищает папку в новых локальных терминалах Linux. Уже работающие терминалы сохраняют прежние разрешения.',
       foldersLabel: 'Папки',
       ideaLabel: 'Идея',
       ideaPlaceholder: 'О чём этот проект? (сохраняется в IDEA.md)',

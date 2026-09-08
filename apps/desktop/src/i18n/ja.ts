@@ -2178,6 +2178,9 @@ export const ja = defineLocale({
       renameTitle: 'プロジェクト名を変更',
       addFolderTitle: 'フォルダを追加',
       namePlaceholder: '例: Skunkworks',
+      readOnly: '読み取り専用',
+      readOnlyHint:
+        '新しいローカル Linux ターミナルでこのフォルダを保護します。実行中のターミナルは元の権限を保持します。',
       foldersLabel: 'フォルダ',
       ideaLabel: 'アイデア',
       ideaPlaceholder: 'このプロジェクトは何ですか？（IDEA.md に保存）',

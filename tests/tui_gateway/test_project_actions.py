@@ -151,3 +151,25 @@ def test_cli_evidence_to_proposal_and_rpc_review(source, tmp_path):
     assert accepted["state"] == "accepted"
     with connect_closing(board="default") as tasks:
         assert kanban_db.get_task(tasks, accepted["task_id"]).title == "Reviewed title"
+
+
+def test_history_pages_are_complete_without_cross_project_cursors(source):
+    pid, proposal = source
+    with projects_db.connect_closing() as conn:
+        ids = propose_actions(conn, pid, [{**proposal, "title": f"Action {n}"} for n in range(5)])["ids"]
+        # Tied timestamps exercise the id tie-breaker, not just wall time.
+        conn.execute("UPDATE project_actions SET created_at=1 WHERE project_id=?", (pid,))
+        conn.commit()
+        seen = []
+        cursor = None
+        while True:
+            page = list_actions(conn, pid, before=cursor, limit=2)
+            assert len(page["actions"]) <= 2
+            seen.extend(row["id"] for row in page["actions"])
+            cursor = page["next_before"]
+            if cursor is None:
+                break
+        assert sorted(seen) == sorted(ids)
+        other = projects_db.create_project(conn, name="Unrelated")
+        with pytest.raises(ValueError):
+            list_actions(conn, other, before=ids[0])

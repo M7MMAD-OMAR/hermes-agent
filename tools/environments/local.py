@@ -704,6 +704,8 @@ class LocalEnvironment(BaseEnvironment):
             if isinstance(name, str) and _matches_terminal_first_party_prefix(name)))
 
     def __init__(self, cwd: str = "", timeout: int = 60, env: dict = None):
+        from tools.environments.project_readonly import project_readonly_roots
+        self.readonly_roots = project_readonly_roots(cwd or os.getcwd())
         super().__init__(cwd=_resolve_local_initial_cwd(cwd), timeout=timeout, env=env)
         self.init_session()
 
@@ -778,6 +780,8 @@ class LocalEnvironment(BaseEnvironment):
         if login:
             cmd_string = _prepend_shell_init(cmd_string, _resolve_shell_init_files())
         args = [bash, *(["-l"] if login else []), "-c", cmd_string]
+        from tools.environments.project_readonly import readonly_argv
+        args = readonly_argv(args, self.readonly_roots)
         self._recover_cwd()
         proc = subprocess.Popen(
             args, text=True, env=_make_run_env(self.env), encoding="utf-8", errors="replace",

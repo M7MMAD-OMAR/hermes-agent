@@ -216,6 +216,10 @@ def _create_environment(env_type: str, image: str, cwd: str, timeout: int,
     the host dir bound into Docker when cwd mounting is enabled. ``probe_only`` asks ssh for a throwaway
     connection with no remote setup/sync (the prompt-time probe). Unknown types fall through to plugin backends."""
     builder = _ENV_BUILDERS.get(env_type, _build_plugin_env)
+    if env_type != "local":
+        from tools.environments.project_readonly import project_readonly_roots
+        if project_readonly_roots(host_cwd or cwd):
+            raise RuntimeError("This project has read-only references. Use the local Linux backend; reference protection is not supported by this backend.")
     return builder(env_type=env_type, image=image, cwd=cwd, timeout=timeout, cc=container_config or {},
                    task_id=task_id, ssh_config=ssh_config, host_cwd=host_cwd, probe_only=probe_only)
 

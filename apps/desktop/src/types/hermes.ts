@@ -1051,6 +1051,7 @@ export interface ProfileDesktopOverlay {
 // A first-class, per-profile, human-named workspace spanning one or more
 // folders. Mirrors hermes_cli/projects_db.Project.to_dict().
 export interface ProjectFolder {
+  read_only?: boolean
   health?: 'available' | 'missing' | 'unavailable' | 'not_directory'
   suggested_paths?: string[]
   path: string

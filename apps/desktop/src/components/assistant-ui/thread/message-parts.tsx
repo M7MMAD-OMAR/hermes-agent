@@ -22,7 +22,6 @@ import { SCAFFOLD_LABEL_CLASS, SCAFFOLD_META_CLASS, ScaffoldRow } from '@/compon
 import { useI18n } from '@/i18n'
 import { generatedImageFromResult } from '@/lib/generated-images'
 import { separateGluedReasoningBlocks } from '@/lib/reasoning-blocks'
-import { isTodoToolName } from '@/lib/todos'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
 import { $reasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
@@ -64,11 +63,6 @@ const DelegateToolPart: FC<TimelineToolCallProps> = props => {
 }
 
 const ChainToolFallback: FC<TimelineToolCallProps> = props => {
-  // todo parts are hoisted to a dedicated panel above the message content.
-  if (isTodoToolName(props.toolName)) {
-    return null
-  }
-
   // An inter-agent delivery run through the terminal tool renders as the
   // compact "Messaged X" / "Message from X" notices, not a transcript row
   // (Grok-bots parity; the receiving side already renders notices via

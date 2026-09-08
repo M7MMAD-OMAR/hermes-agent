@@ -23,9 +23,9 @@ describe('isCardTool', () => {
 
 describe('isSilentTool', () => {
   it('names the rows that render nothing in the transcript', () => {
-    // `todo` is hoisted to its own panel; a reaction's UI is the emoji on the
-    // bubble. The render budget must not charge for either.
-    expect(isSilentTool('todo')).toBe(true)
+    // Only reactions have no transcript row; task receipts remain readable.
+    expect(isSilentTool('todo')).toBe(false)
+    expect(isSilentTool('todo_list')).toBe(false)
     expect(isSilentTool('react_to_message')).toBe(true)
     expect(isSilentTool('terminal')).toBe(false)
   })

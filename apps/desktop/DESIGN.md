@@ -236,6 +236,9 @@ Sizes: `default`, `xs`, `overlay` (titlebar glyph counts).
   from the chip to the floating pill; leaving both dismisses it.
 - A tool result may expose an inline action that opens a preview. It must not
   open the rail automatically.
+- Conversation and tool summaries remain expandable while work is running.
+  Preserve the user's open state as new activity arrives and the turn finishes.
+  Task updates keep a readable receipt in history after the progress panel clears.
 - Install, onboarding, connecting, boot failure, and reauthentication are
   distinct states with shared visual primitives. Preserve their recovery
   semantics when unifying appearance.

@@ -87,23 +87,85 @@ describe('turn digest', () => {
     expect($toolDisclosureStates.get()['turn-digest:user-1']).toBe(true)
   })
 
-  it('narrates a live turn in the present tense and cannot be opened yet', async () => {
+  it('keeps live history expandable through new activity and completion', async () => {
     const running = assistant(
       'tail-live',
       [{ type: 'text', text: 'Typecheck next.' }, tool('term-2', 'terminal', { command: 'bun run typecheck' }, false)],
       { type: 'running' }
     )
 
-    const { container } = render(<Harness messages={[userMessage(), interimOne(), interimTwo(), running]} />)
+    const { container, rerender } = render(<Harness messages={[userMessage(), interimOne(), interimTwo(), running]} />)
 
     await waitFor(() => expect(container.querySelector('[data-turn-digest-live]')).not.toBeNull())
 
     const header = container.querySelector('[data-turn-digest]')!
     expect(header.textContent).toContain('Explored nav.tsx, ran 1 command')
     expect(header.querySelector('.shimmer')).not.toBeNull()
-    expect(header.querySelector('button')?.hasAttribute('disabled')).toBe(true)
+    expect(header.querySelector('button')?.hasAttribute('disabled')).toBe(false)
     expect(container.textContent).toContain('Typecheck next.')
     expect(container.textContent).not.toContain('Now the navigation block.')
+    fireEvent.click(header.querySelector('button')!)
+    await waitFor(() => expect(container.textContent).toContain('Now the navigation block.'))
+
+    const next = assistant('next-live', [tool('read-2', 'read_file', { path: '/repo/result.ts' }, false)], {
+      type: 'running'
+    })
+
+    const sealed = { ...running, status: { type: 'complete', reason: 'stop' } } as ThreadMessage
+    rerender(<Harness messages={[userMessage(), interimOne(), interimTwo(), sealed, next]} />)
+    await waitFor(() =>
+      expect(container.querySelector('[data-turn-digest-body]')?.textContent).toContain('Typecheck next.')
+    )
+    expect(container.textContent).toContain('Now the navigation block.')
+
+    rerender(<Harness messages={[userMessage(), interimOne(), interimTwo(), sealed, reply()]} />)
+    await waitFor(() => expect(container.textContent).toContain('All done, both files updated.'))
+    expect(container.querySelector('[data-turn-digest-body]')?.textContent).toContain('Now the navigation block.')
+    fireEvent.click(container.querySelector('[data-turn-digest] button')!)
+    await waitFor(() => expect(container.querySelector('[data-turn-digest-body]')).toBeNull())
+  })
+
+  it('opens earlier tool results while a later call runs and preserves task receipts', async () => {
+    const todos = [{ id: 'repair', content: 'Repair conversation history', status: 'completed' }]
+    const task = { ...tool('todo-1', 'todo_list', { todos }), result: { todos } }
+
+    const calls = [
+      { ...tool('first-read', 'read_file', { path: '/repo/first.ts' }), result: { content: 'Earlier saved result' } },
+      task,
+      tool('second-read', 'read_file', { path: '/repo/second.ts' }, false)
+    ]
+
+    const { container, rerender } = render(
+      <Harness messages={[userMessage(), assistant('live-tools', calls, { type: 'running' })]} />
+    )
+
+    const header = container.querySelector('[data-tool-summary] button')!
+    expect(header.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(header)
+    await waitFor(() => expect(header.getAttribute('aria-expanded')).toBe('true'))
+    expect(container.querySelector('[data-tool-ticker]')).toBeNull()
+
+    const taskButton = Array.from(container.querySelectorAll('button')).find(button =>
+      button.textContent?.includes('Updated todos')
+    )!
+
+    expect(taskButton, container.textContent ?? '').toBeTruthy()
+    fireEvent.click(taskButton)
+    await waitFor(() => expect(container.textContent).toContain('Repair conversation history'))
+    rerender(
+      <Harness
+        messages={[
+          userMessage(),
+          assistant('live-tools', [...calls, tool('third-read', 'read_file', { path: '/repo/third.ts' }, false)], {
+            type: 'running'
+          })
+        ]}
+      />
+    )
+    await waitFor(() =>
+      expect(container.querySelector('[data-tool-summary] button')?.getAttribute('aria-expanded')).toBe('true')
+    )
+    expect(container.textContent).toContain('Repair conversation history')
   })
 
   it('leaves a single-message turn alone', async () => {
@@ -135,7 +197,11 @@ describe('turn digest', () => {
       reply()
     ]
 
-    const digest = computeTurnDigest({ thread: { isRunning: false, messages: notes } }, [1, 2, 3], count => `${count} notes`)
+    const digest = computeTurnDigest(
+      { thread: { isRunning: false, messages: notes } },
+      [1, 2, 3],
+      count => `${count} notes`
+    )
 
     expect(digest.summary).toBe('2 notes')
     expect(digest.folded).toEqual([1, 2])

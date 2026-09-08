@@ -801,7 +801,7 @@ export function splitRunItems(toolNames: readonly string[]): RunItem[] {
  */
 // The one grey line that stands in for a run of tool calls — "Explored 3
 // files, ran 5 commands". Live, it narrates in the present tense above the
-// ticker and offers no toggle, since there is nothing settled to unfold yet.
+// ticker. The disclosure stays available while further calls are running.
 function ToolRunHeader({
   completedAt,
   live,
@@ -957,7 +957,7 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
   // settles and the row can be reached through the summary instead.
   const blocked = Boolean(approval) && pendingApprovalTool
   const unfurled = blocked || rowOpen
-  const expanded = live ? unfurled : (persistedOpen ?? false)
+  const expanded = (live && unfurled) || (persistedOpen ?? false)
 
   return (
     <div
@@ -969,12 +969,12 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
       <ToolRunHeader
         completedAt={completedAt}
         live={live}
-        onToggle={live ? undefined : () => setToolDisclosureOpen(disclosureId, !expanded)}
+        onToggle={() => setToolDisclosureOpen(disclosureId, !expanded)}
         open={expanded}
         startedAt={startedAt}
         summary={summary}
       />
-      {live && !unfurled && <ToolRunTicker>{children}</ToolRunTicker>}
+      {live && !expanded && <ToolRunTicker>{children}</ToolRunTicker>}
       {expanded && <div className="grid min-w-0 max-w-full gap-(--tool-row-gap)">{children}</div>}
     </div>
   )

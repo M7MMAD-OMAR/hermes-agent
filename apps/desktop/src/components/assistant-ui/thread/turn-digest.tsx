@@ -205,10 +205,9 @@ export const TurnDigest: FC<{
     )
   }
 
-  // Live, the header narrates in the present tense and the working stays
-  // folded: the tail below it is already showing the current step. Settled,
-  // the header is a toggle and remembers its state per turn.
-  const expanded = digest.live ? false : (persistedOpen ?? false)
+  // Folding is a presentation preference, never a lock on live history.
+  // Preserve the user's choice as new messages arrive and the turn settles.
+  const expanded = persistedOpen ?? false
 
   return (
     <>
@@ -219,7 +218,7 @@ export const TurnDigest: FC<{
         data-turn-digest-live={digest.live ? 'true' : undefined}
       >
         <ScaffoldRow
-          onToggle={digest.live ? undefined : () => setToolDisclosureOpen(disclosureId, !expanded)}
+          onToggle={() => setToolDisclosureOpen(disclosureId, !expanded)}
           open={expanded}
           trailing={<TimelineTimestamp completedAt={digest.completedAt} timestamp={digest.startedAt} />}
         >

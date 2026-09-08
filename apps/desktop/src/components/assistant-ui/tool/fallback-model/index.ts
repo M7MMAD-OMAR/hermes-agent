@@ -2,6 +2,7 @@ import { type ToolTitleKey, translateNow } from '@/i18n'
 import { normalizeExternalUrl } from '@/lib/external-link'
 import { summarizeShellCommand } from '@/lib/summarize-command'
 import { capitalize, firstStringField, normalize } from '@/lib/text'
+import { isTodoToolName, parseTodos } from '@/lib/todos'
 import { isCardTool, isFileEditTool, isSilentTool } from '@/lib/tool-render-class'
 import { extractToolErrorMessage, formatToolResultSummary } from '@/lib/tool-result-summary'
 
@@ -237,6 +238,8 @@ const PREFIX_META: { icon?: string; labelKey: string; prefix: string; tone: Tool
 ]
 
 function toolMeta(name: string): ToolMeta {
+  name = name === 'todo_list' ? 'todo' : name
+
   if (isToolTitleKey(name)) {
     const meta = TOOL_META[name]
 
@@ -1070,6 +1073,21 @@ function toolDetailText(
   argsRecord: Record<string, unknown>,
   resultRecord: Record<string, unknown>
 ): string {
+  if (isTodoToolName(part.toolName)) {
+    const todos = parseTodos(part.result) ?? parseTodos(part.args)
+
+    if (todos?.length) {
+      return todos
+        .map(todo => {
+          const text = todo.status === 'cancelled' ? `~~${todo.content}~~` : todo.content
+          const progress = todo.status === 'in_progress' ? ` (${translateNow('statusStack.running')})` : ''
+
+          return `- [${todo.status === 'completed' ? 'x' : ' '}] ${text}${progress}`
+        })
+        .join('\n')
+    }
+  }
+
   if (part.toolName === 'browser_snapshot') {
     const snapshot = firstStringField(resultRecord, ['snapshot'])
 

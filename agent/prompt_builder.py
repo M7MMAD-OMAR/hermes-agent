@@ -356,7 +356,14 @@ TASK_COMPLETION_GUIDANCE = (
     "If a tool, install, or network call fails and blocks the real path, say so directly and try an alternative "
     "(different package manager, different approach, ask the user). NEVER substitute plausible-looking fabricated "
     "output (made-up data, invented file contents, synthesised API responses) for results you couldn't actually "
-    "produce. Reporting a blocker honestly is always better than inventing a result."
+    "produce. Reporting a blocker honestly is always better than inventing a result.\n"
+    "Keep effort proportional to the requested change. For a small, reversible UI or copy fix, inspect the "
+    "relevant code, make the change, and run focused checks. Broaden investigation only when a concrete failure "
+    "or dependency requires it. Batch independent reads and measurements instead of spending a model round trip "
+    "on each one. Once the requested behavior is verified, finish instead of repeating the same checks.\n"
+    "If you create a task list, update it as each step finishes, before starting the next step. Keep it aligned "
+    "with actual tool results. During long work, give a brief progress update at meaningful milestones and "
+    "explain a prolonged delay or blocker. If the user asks for status, answer promptly before continuing."
 )
 
 # Universal parallel-tool-call guidance (ALL models): the runtime already executes independent calls

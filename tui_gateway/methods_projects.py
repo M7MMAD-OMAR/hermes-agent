@@ -108,6 +108,37 @@ def _(rid, params, pdb, conn) -> dict:
     return _ok(rid, refresh_index(conn))
 
 
+@_projects_method("projects.actions.list")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_actions import list_actions
+    return _ok(rid, list_actions(conn, params.get("id")))
+
+
+@_projects_method("projects.actions.draft")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_actions import extraction_draft
+    return _ok(rid, extraction_draft(conn, params.get("id"), params.get("file_id")))
+
+
+@_projects_method("projects.actions.edit")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_actions import edit_action
+    return _ok(rid, edit_action(conn, params.get("id"), params.get("action_id"),
+        **_pick(params, "title", "owner", "due_text")))
+
+
+@_projects_method("projects.actions.dismiss")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_actions import dismiss_action
+    return _ok(rid, dismiss_action(conn, params.get("id"), params.get("action_id")))
+
+
+@_projects_method("projects.actions.accept")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_actions import accept_action
+    return _ok(rid, accept_action(conn, params.get("id"), params.get("action_id")))
+
+
 @_projects_method("projects.results.list")
 def _(rid, params, pdb, conn) -> dict:
     from hermes_cli.project_results import list_results

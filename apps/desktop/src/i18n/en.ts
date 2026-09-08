@@ -2336,6 +2336,27 @@ export const en: Translations = {
       thorough: 'Thorough'
     }
   },
+  projectActions: {
+    title: 'Document actions',
+    hint: 'Review cited proposals before saving tasks. Accepted tasks wait for manual scheduling on the shared board.',
+    source: 'Select an indexed document',
+    extract: 'Prepare extraction task',
+    refresh: 'Refresh proposals',
+    empty: 'No proposals yet',
+    owner: 'Owner, if known',
+    due: 'Due date as written, if known',
+    save: 'Save edits',
+    accept: 'Save as task',
+    dismiss: 'Dismiss',
+    pending: 'Pending review',
+    accepting: 'Retry saving task',
+    accepted: 'Saved task',
+    dismissed: 'Dismissed',
+    task: 'Task',
+    board: 'Shared board',
+    edited: 'Fields edited by you',
+    quote: 'Source evidence'
+  },
   projectBrief: {
     retry: 'Retry',
     openSource: 'Open current source file',

@@ -2008,6 +2008,27 @@ export const ja = defineLocale({
       thorough: '詳細'
     }
   },
+  projectActions: {
+    title: '文書のアクション',
+    hint: '引用付きの提案を確認してからタスクを保存します。承認したタスクは共有ボードで手動の予定設定を待ちます。',
+    source: '索引済みの文書を選択',
+    extract: '抽出タスクを準備',
+    refresh: '提案を更新',
+    empty: '提案はまだありません',
+    owner: '担当者（判明している場合）',
+    due: '出典に記載された期限（判明している場合）',
+    save: '変更を保存',
+    accept: 'タスクとして保存',
+    dismiss: '却下',
+    pending: '確認待ち',
+    accepting: 'タスクの保存を再試行',
+    accepted: '保存済みタスク',
+    dismissed: '却下済み',
+    task: 'タスク',
+    board: '共有ボード',
+    edited: 'ユーザーが編集した項目',
+    quote: '出典の引用'
+  },
   projectBrief: {
     retry: '再試行',
     openSource: '現在のソースファイルを開く',

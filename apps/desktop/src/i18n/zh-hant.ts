@@ -1933,6 +1933,27 @@ export const zhHant = defineLocale({
       thorough: '深入'
     }
   },
+  projectActions: {
+    title: '文件行動項目',
+    hint: '儲存任務前請審核附有引用的建議。已接受的任務將在共用看板等待手動安排。',
+    source: '選擇已建立索引的文件',
+    extract: '準備擷取任務',
+    refresh: '重新整理建議',
+    empty: '尚無建議',
+    owner: '負責人（如已知）',
+    due: '來源中寫明的期限（如已知）',
+    save: '儲存修改',
+    accept: '儲存為任務',
+    dismiss: '忽略',
+    pending: '等待審核',
+    accepting: '重試儲存任務',
+    accepted: '已儲存任務',
+    dismissed: '已忽略',
+    task: '任務',
+    board: '共用看板',
+    edited: '你修改過的欄位',
+    quote: '來源引文'
+  },
   projectBrief: {
     retry: '重試',
     openSource: '開啟目前來源檔案',

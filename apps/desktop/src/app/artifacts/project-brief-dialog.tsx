@@ -9,6 +9,7 @@ import { useI18n } from '@/i18n'
 import { fmtDayTime } from '@/lib/time'
 import type { ProjectInfo } from '@/types/hermes'
 
+import { ProjectActions } from './project-actions'
 import type { ResultsRequest } from './result-index'
 
 interface ReferenceHit {
@@ -36,13 +37,7 @@ interface ProjectBriefDialogProps {
   onOpenSource: (path: string) => void
 }
 
-export function ProjectBriefDialog({
-  projectId,
-  request,
-  onClose,
-  onOpenChat,
-  onOpenSource
-}: ProjectBriefDialogProps) {
+export function ProjectBriefDialog({ projectId, request, onClose, onOpenChat, onOpenSource }: ProjectBriefDialogProps) {
   const { t } = useI18n()
   const a = t.projectBrief
   const [brief, setBrief] = useState<Brief | null>(null)
@@ -283,6 +278,7 @@ export function ProjectBriefDialog({
                 </details>
               )}
             </div>
+            <ProjectActions files={brief.files} projectId={projectId} request={request} />
             {brief.approved_results.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">{a.approved}</h3>

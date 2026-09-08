@@ -112,6 +112,24 @@ END;
 
 CREATE INDEX IF NOT EXISTS idx_project_results_project ON project_results(project_id, reported_at);
 
+CREATE TABLE IF NOT EXISTS project_actions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    citation_id INTEGER NOT NULL REFERENCES project_reference_chunks(id),
+    fingerprint TEXT NOT NULL,
+    title TEXT NOT NULL,
+    quote TEXT NOT NULL,
+    owner TEXT,
+    due_text TEXT,
+    user_edited INTEGER NOT NULL DEFAULT 0,
+    state TEXT NOT NULL DEFAULT 'pending',
+    created_at REAL NOT NULL,
+    board TEXT,
+    task_id TEXT,
+    last_error TEXT,
+    UNIQUE(project_id, fingerprint)
+);
+
 CREATE TABLE IF NOT EXISTS project_result_versions (
     id TEXT PRIMARY KEY,
     result_id TEXT NOT NULL REFERENCES project_results(id) ON DELETE CASCADE,

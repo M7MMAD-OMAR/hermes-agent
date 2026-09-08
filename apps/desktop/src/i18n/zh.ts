@@ -2500,6 +2500,27 @@ export const zh: Translations = {
       thorough: '深入'
     }
   },
+  projectActions: {
+    title: '文档行动项',
+    hint: '保存任务前请审核带引用的建议。已接受的任务将在共享看板等待手动安排。',
+    source: '选择已索引的文档',
+    extract: '准备提取任务',
+    refresh: '刷新建议',
+    empty: '暂无建议',
+    owner: '负责人（如已知）',
+    due: '来源中写明的截止日期（如已知）',
+    save: '保存修改',
+    accept: '保存为任务',
+    dismiss: '忽略',
+    pending: '等待审核',
+    accepting: '重试保存任务',
+    accepted: '已保存任务',
+    dismissed: '已忽略',
+    task: '任务',
+    board: '共享看板',
+    edited: '你修改过的字段',
+    quote: '来源引文'
+  },
   projectBrief: {
     retry: '重试',
     openSource: '打开当前来源文件',

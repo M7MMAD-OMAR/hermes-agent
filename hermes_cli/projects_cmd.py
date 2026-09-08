@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import json
 import sys
 
 from hermes_cli import projects_db as pdb
@@ -40,6 +41,12 @@ def build_parser(parent_subparsers: argparse._SubParsersAction) -> argparse.Argu
         return sp
 
     project_sub("show", "Show a project's details")
+    project_sub("sources", "List indexed source documents and their status")
+    p_evidence = project_sub("evidence", "Read cited evidence from one indexed document")
+    p_evidence.add_argument("file_id", help="Source ID from sources")
+    p_evidence.add_argument("--after", type=int, default=0, help="Citation cursor from next_after")
+    p_propose = project_sub("propose-actions", "Save cited proposals for human review")
+    p_propose.add_argument("--input", required=True, help="UTF-8 JSON file containing a proposal array")
     p_add = project_sub("add-folder", "Add a folder to a project")
     p_add.add_argument("path", help="Folder path")
     p_add.add_argument("--label", default=None)
@@ -225,7 +232,36 @@ def _cmd_bind_board(args, conn, proj) -> str:
     return f"Bound {proj.slug} -> board {args.board}"
 
 
+@_with_project
+def _cmd_sources(args, conn, proj):
+    from hermes_cli.project_references import project_brief
+    return json.dumps({"files": project_brief(conn, proj.id)["files"]}, ensure_ascii=False)
+
+
+@_with_project
+def _cmd_evidence(args, conn, proj):
+    from hermes_cli.project_references import source_evidence
+    return json.dumps(source_evidence(conn, proj.id, args.file_id, after=args.after), ensure_ascii=False)
+
+
+@_with_project
+def _cmd_propose_actions(args, conn, proj):
+    from hermes_cli.project_actions import propose_actions
+    try:
+        with open(args.input, encoding="utf-8") as source:
+            raw = source.read(1_000_001)
+        if len(raw) > 1_000_000:
+            raise ValueError("Proposal input exceeds 1 MB")
+        proposals = json.loads(raw)
+    except (OSError, UnicodeError) as exc:
+        raise ValueError(f"Cannot read proposal input: {exc}") from exc
+    return json.dumps(propose_actions(conn, proj.id, proposals), ensure_ascii=False)
+
+
 _HANDLERS = {
+    "sources": _cmd_sources,
+    "evidence": _cmd_evidence,
+    "propose-actions": _cmd_propose_actions,
     "create": _cmd_create,
     "list": _cmd_list,
     "ls": _cmd_list,

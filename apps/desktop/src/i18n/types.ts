@@ -1977,6 +1977,27 @@ export interface Translations {
     descriptions: Record<'quick-ui' | 'client-delivery' | 'research' | 'weekly-review', string>
     approaches: Record<'quick' | 'standard' | 'thorough', string>
   }
+  projectActions: {
+    title: string
+    hint: string
+    source: string
+    extract: string
+    refresh: string
+    empty: string
+    owner: string
+    due: string
+    save: string
+    accept: string
+    dismiss: string
+    pending: string
+    accepting: string
+    accepted: string
+    dismissed: string
+    task: string
+    board: string
+    edited: string
+    quote: string
+  }
   projectBrief: {
     retry: string
     openSource: string

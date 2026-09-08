@@ -165,6 +165,7 @@ _DETAIL_MODES = frozenset({"hidden", "collapsed", "expanded"})
 _LONG_HANDLERS = frozenset({
     "projects.brief", "projects.workflow", "projects.references.scan", "projects.references.index",
     "projects.references.search", "projects.references.citation",
+    "projects.actions.list", "projects.actions.draft", "projects.actions.edit", "projects.actions.dismiss", "projects.actions.accept",
     "projects.results.refresh", "projects.results.list", "projects.results.versions",
     "projects.results.capture", "projects.results.review", "projects.results.preview",
     "session.foreign.list", "session.foreign.preview", "session.foreign.import",

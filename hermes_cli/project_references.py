@@ -194,11 +194,28 @@ def search_references(conn, project_id, query, *, include_history=False, limit=2
 
 
 def reference_citation(conn, project_id, citation_id):
-    _project(conn, project_id)
-    row = conn.execute(_CITATION_SELECT + " WHERE f.project_id=? AND c.id=?", (project_id, int(citation_id))).fetchone()
+    project = _project(conn, project_id)
+    if isinstance(citation_id, bool) or not isinstance(citation_id, int):
+        raise ValueError("Citation ID must be an integer")
+    row = conn.execute(_CITATION_SELECT + " WHERE f.project_id=? AND c.id=?", (project.id, citation_id)).fetchone()
     if row is None:
         raise ValueError("No such source citation")
     return dict(row)
+
+
+def source_evidence(conn, project_id, file_id, *, after=0, limit=20):
+    """Read bounded saved evidence from one current indexed document."""
+    project = _project(conn, project_id)
+    if not conn.execute("SELECT 1 FROM project_reference_files WHERE id=? AND project_id=?",
+                        (file_id, project.id)).fetchone():
+        raise ValueError("No such project source")
+    limit = max(1, min(int(limit), 20))
+    rows = [dict(row) for row in conn.execute(_CITATION_SELECT + """
+        WHERE f.project_id=? AND f.id=? AND v.sha256=f.current_hash
+        AND f.status IN ('ready','partial') AND c.id>?
+        ORDER BY c.id LIMIT ?""", (project.id, file_id, int(after), limit + 1))]
+    return {"citations": rows[:limit],
+            "next_after": rows[limit - 1]["citation_id"] if len(rows) > limit else None}
 
 
 def project_brief(conn, project_id):

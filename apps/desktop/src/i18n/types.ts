@@ -1964,6 +1964,19 @@ export interface Translations {
     }
   }
 
+  projectWorkflows: {
+    title: string
+    hint: string
+    workflow: string
+    approach: string
+    approachHint: string
+    task: string
+    preparing: string
+    openDraft: string
+    names: Record<'quick-ui' | 'client-delivery' | 'research' | 'weekly-review', string>
+    descriptions: Record<'quick-ui' | 'client-delivery' | 'research' | 'weekly-review', string>
+    approaches: Record<'quick' | 'standard' | 'thorough', string>
+  }
   projectBrief: {
     retry: string
     openSource: string

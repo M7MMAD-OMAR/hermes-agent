@@ -20,6 +20,7 @@ import { notify } from '@/store/notifications'
 import {
   $activeGatewayProfile,
   $profileScope,
+  type AgentProfileRoute,
   ALL_PROFILES,
   normalizeProfileKey,
   requestFreshSession
@@ -1348,6 +1349,7 @@ export async function switchBranchInRepo(repoPath: string, branch: string): Prom
 // effect even if the path repeats.
 export interface StartWorkSessionRequest {
   draft?: string
+  route?: AgentProfileRoute
   /** Stack the fresh session as a tab when main already holds a chat (palette/⌘O opens-from-nowhere). */
   openTab?: boolean
   path: string
@@ -1402,7 +1404,11 @@ export function closeWorktreeDialog(): void {
 
 let startWorkToken = 0
 
-export function requestStartWorkSession(path: string, draft?: string, options?: { openTab?: boolean }): void {
+export function requestStartWorkSession(
+  path: string,
+  draft?: string,
+  options?: { openTab?: boolean; route?: AgentProfileRoute }
+): void {
   const target = path.trim()
 
   if (!target) {
@@ -1413,6 +1419,7 @@ export function requestStartWorkSession(path: string, draft?: string, options?: 
   $startWorkSessionRequest.set({
     draft: draft?.trim() || undefined,
     openTab: options?.openTab || undefined,
+    route: options?.route,
     path: target,
     token: startWorkToken
   })

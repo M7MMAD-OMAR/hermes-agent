@@ -2309,6 +2309,33 @@ export const en: Translations = {
     }
   },
 
+  projectWorkflows: {
+    title: 'Project workflows',
+    hint: 'Prepare a new task draft in this project. Review and send it from the composer.',
+    workflow: 'Workflow',
+    approach: 'Task approach',
+    approachHint: 'Guides the scope and checks. Keeps your model settings and never imposes a stop timer.',
+    task: 'Describe the result you need',
+    preparing: 'Preparing draft…',
+    openDraft: 'Open task draft',
+    names: {
+      'quick-ui': 'Quick UI fix',
+      'client-delivery': 'Client delivery',
+      research: 'Project research',
+      'weekly-review': 'Weekly review'
+    },
+    descriptions: {
+      'quick-ui': 'Fix the affected interface and verify it in the browser.',
+      'client-delivery': 'Prepare and verify the delivery files before sharing.',
+      research: 'Research with sources and explicit unknowns.',
+      'weekly-review': 'Review this project and propose next week’s priorities.'
+    },
+    approaches: {
+      quick: 'Quick',
+      standard: 'Standard',
+      thorough: 'Thorough'
+    }
+  },
   projectBrief: {
     retry: 'Retry',
     openSource: 'Open current source file',

@@ -1,6 +1,6 @@
 import { useStore } from '@nanostores/react'
 import type * as React from 'react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 
 import {
   type ActionItemSpec,
@@ -35,6 +35,10 @@ import {
 import { ProjectAppearancePicker } from './project-appearance'
 import type { SidebarProjectTree } from './workspace-groups'
 
+const ProjectWorkflowDialog = lazy(() =>
+  import('./project-workflow-dialog').then(module => ({ default: module.ProjectWorkflowDialog }))
+)
+
 // Shared per-project state + handlers, so the kebab dropdown and the row's
 // right-click menu drive the exact same actions. Modeled on git GUIs (GitHub
 // Desktop / GitKraken): reveal in the file manager, copy path, and "Remove from
@@ -56,6 +60,7 @@ function useProjectActions({
   const p = t.sidebar.projects
   const target = { id: project.id, name: project.label }
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [workflowOpen, setWorkflowOpen] = useState(false)
 
   const removeAuto = () => {
     dismissAutoProject(project.id)
@@ -95,6 +100,16 @@ function useProjectActions({
         }
       ]
 
+  if (!project.isAuto) {
+    identityItems.push({
+      icon: 'play',
+      key: 'workflow',
+      label: t.projectWorkflows.title,
+      disabled: !project.path,
+      onSelect: () => setWorkflowOpen(true)
+    })
+  }
+
   const pathItems: ActionItemSpec[] = [
     {
       disabled: !project.path,
@@ -122,19 +137,26 @@ function useProjectActions({
         variant: 'destructive'
       }
 
-  const confirmDialog = (
-    <ConfirmDialog
-      confirmLabel={p.menuDelete}
-      description={p.deleteConfirm}
-      destructive
-      onClose={() => setConfirmDeleteOpen(false)}
-      onConfirm={confirmDelete}
-      open={confirmDeleteOpen}
-      title={`${p.menuDelete} "${project.label}"?`}
-    />
+  const dialogs = (
+    <>
+      {workflowOpen && (
+        <Suspense fallback={null}>
+          <ProjectWorkflowDialog onClose={() => setWorkflowOpen(false)} project={target} />
+        </Suspense>
+      )}
+      <ConfirmDialog
+        confirmLabel={p.menuDelete}
+        description={p.deleteConfirm}
+        destructive
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={confirmDelete}
+        open={confirmDeleteOpen}
+        title={`${p.menuDelete} "${project.label}"?`}
+      />
+    </>
   )
 
-  return { confirmDialog, dangerItem, identityItems, pathItems }
+  return { dialogs, dangerItem, identityItems, pathItems }
 }
 
 // Per-project actions. The kebab keeps its row-anchored Appearance popover; the
@@ -166,7 +188,7 @@ export function ProjectMenu({
   // when the panes are flipped (sidebar on the right).
   const panesFlipped = useStore($panesFlipped)
 
-  const { confirmDialog, dangerItem, identityItems, pathItems } = useProjectActions({
+  const { dialogs, dangerItem, identityItems, pathItems } = useProjectActions({
     isActive,
     onExitScope,
     project,
@@ -268,7 +290,7 @@ export function ProjectMenu({
           onIcon={icon => void applyAppearance({ icon })}
         />
       </PopoverContent>
-      {confirmDialog}
+      {dialogs}
     </Popover>
   )
 }
@@ -294,7 +316,7 @@ export function ProjectContextMenu({
   const { t } = useI18n()
   const p = t.sidebar.projects
 
-  const { confirmDialog, dangerItem, identityItems, pathItems } = useProjectActions({
+  const { dialogs, dangerItem, identityItems, pathItems } = useProjectActions({
     isActive,
     onExitScope,
     project,
@@ -339,7 +361,7 @@ export function ProjectContextMenu({
       <ActionsContextMenu ariaLabel={p.menu} contentClassName="w-48" items={items}>
         {children}
       </ActionsContextMenu>
-      {confirmDialog}
+      {dialogs}
     </>
   )
 }

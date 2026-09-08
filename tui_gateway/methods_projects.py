@@ -70,6 +70,13 @@ def _(rid, params, pdb, conn) -> dict:
     return _ok(rid, project_brief(conn, params.get("id")))
 
 
+@_projects_method("projects.workflow")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_workflows import workflow_draft
+    return _ok(rid, workflow_draft(conn, params.get("id"), params.get("workflow"),
+        params.get("approach", "standard"), params.get("task")))
+
+
 @_projects_method("projects.references.scan")
 def _(rid, params, pdb, conn) -> dict:
     from hermes_cli.project_references import scan_references

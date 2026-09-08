@@ -1681,6 +1681,33 @@ export const ar = defineLocale({
     saveChanges: 'حفظ التغييرات',
     createAction: 'إنشاء'
   },
+  projectWorkflows: {
+    title: 'قوالب عمل المشروع',
+    hint: 'جهّز مسودة مهمة جديدة ضمن المشروع، ثم راجعها وأرسلها من المحادثة.',
+    workflow: 'نوع العمل',
+    approach: 'طريقة التنفيذ',
+    approachHint: 'تحدد نطاق العمل والفحوصات، دون تغيير إعدادات النموذج أو إيقاف المهمة بمؤقت.',
+    task: 'صف النتيجة التي تحتاجها',
+    preparing: 'جارٍ تجهيز المسودة…',
+    openDraft: 'فتح مسودة المهمة',
+    names: {
+      'quick-ui': 'تعديل واجهة سريع',
+      'client-delivery': 'تسليم للعميل',
+      research: 'بحث للمشروع',
+      'weekly-review': 'مراجعة أسبوعية'
+    },
+    descriptions: {
+      'quick-ui': 'عدّل الواجهة المطلوبة وتحقق منها في المتصفح.',
+      'client-delivery': 'جهّز ملفات التسليم وتحقق منها قبل المشاركة.',
+      research: 'ابحث بمصادر واضحة وبيّن ما لم يتم التأكد منه.',
+      'weekly-review': 'راجع هذا المشروع واقترح أولويات الأسبوع القادم.'
+    },
+    approaches: {
+      quick: 'سريعة',
+      standard: 'متوازنة',
+      thorough: 'معمقة'
+    }
+  },
   projectBrief: {
     retry: 'إعادة المحاولة',
     openSource: 'فتح ملف المصدر الحالي',

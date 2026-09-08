@@ -24,6 +24,7 @@ beforeAll(() => {
 vi.mock('@/i18n', () => ({
   useI18n: () => ({
     t: {
+      projectWorkflows: { title: 'Project workflows' },
       common: { cancel: 'Cancel', confirm: 'Confirm', done: 'Done', loading: 'Loading…' },
       sidebar: {
         projects: {

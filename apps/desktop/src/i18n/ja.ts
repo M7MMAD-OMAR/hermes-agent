@@ -1981,6 +1981,33 @@ export const ja = defineLocale({
     }
   },
 
+  projectWorkflows: {
+    title: 'プロジェクトの作業テンプレート',
+    hint: '新しいタスクの下書きを準備します。入力欄で確認して送信してください。',
+    workflow: '作業の種類',
+    approach: '進め方',
+    approachHint: '作業範囲と確認を調整します。モデル設定や停止タイマーは変更しません。',
+    task: '必要な結果を記入',
+    preparing: '下書きを準備中…',
+    openDraft: 'タスクの下書きを開く',
+    names: {
+      'quick-ui': '簡単なUI修正',
+      'client-delivery': '顧客への納品',
+      research: 'プロジェクト調査',
+      'weekly-review': '週次レビュー'
+    },
+    descriptions: {
+      'quick-ui': '対象のUIを修正してブラウザーで検証します。',
+      'client-delivery': '共有前に納品ファイルを準備して確認します。',
+      research: '出典と不明点を明示して調査します。',
+      'weekly-review': 'このプロジェクトを振り返り翌週の優先事項を提案します。'
+    },
+    approaches: {
+      quick: '簡潔',
+      standard: '標準',
+      thorough: '詳細'
+    }
+  },
   projectBrief: {
     retry: '再試行',
     openSource: '現在のソースファイルを開く',

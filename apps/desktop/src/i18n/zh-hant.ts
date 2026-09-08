@@ -1906,6 +1906,33 @@ export const zhHant = defineLocale({
     }
   },
 
+  projectWorkflows: {
+    title: '專案工作範本',
+    hint: '準備新任務草稿，在輸入框中檢查後傳送。',
+    workflow: '工作類型',
+    approach: '執行方式',
+    approachHint: '調整範圍與檢查，不變更模型設定或強制定時停止。',
+    task: '描述需要的結果',
+    preparing: '正在準備草稿…',
+    openDraft: '開啟任務草稿',
+    names: {
+      'quick-ui': '快速介面修復',
+      'client-delivery': '客戶交付',
+      research: '專案研究',
+      'weekly-review': '每週回顧'
+    },
+    descriptions: {
+      'quick-ui': '修復目標介面並在瀏覽器中驗證。',
+      'client-delivery': '分享前準備並驗證交付檔案。',
+      research: '根據來源研究並明確列出未知事項。',
+      'weekly-review': '回顧此專案並建議下週優先事項。'
+    },
+    approaches: {
+      quick: '快速',
+      standard: '標準',
+      thorough: '深入'
+    }
+  },
   projectBrief: {
     retry: '重試',
     openSource: '開啟目前來源檔案',

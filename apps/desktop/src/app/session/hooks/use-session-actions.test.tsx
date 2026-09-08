@@ -4101,6 +4101,30 @@ describe('openNewSessionTile workspace target', () => {
     vi.restoreAllMocks()
   })
 
+  it('seeds a workflow draft only on the newly created durable session', async () => {
+    const stored = 'workflow-draft-target'
+    stashSessionDraft('existing-chat', 'Keep my unfinished message', [])
+    clearSessionDraft(stored)
+
+    const requestGateway = async () =>
+      ({
+        info: { cwd: '/client', model: 'test-model', tools: {}, skills: {} },
+        session_id: RUNTIME_SESSION_ID,
+        stored_session_id: stored
+      }) as never
+
+    let handle: HarnessHandle | null = null
+    render(<Harness onReady={value => (handle = value)} requestGateway={requestGateway} />)
+    await waitFor(() => expect(handle).not.toBeNull())
+    await act(async () => {
+      await handle!.openNewSessionTile('center', { cwd: '/client', listed: false, draft: 'Verify the mobile tabs' })
+    })
+    expect(takeSessionDraft(stored).text).toBe('Verify the mobile tabs')
+    expect(takeSessionDraft('existing-chat').text).toBe('Keep my unfinished message')
+    clearSessionDraft(stored)
+    clearSessionDraft('existing-chat')
+  })
+
   it('omits cwd for a Home tile even when project scope resolves to a repo', async () => {
     $projectScope.set('p_voice')
     $projectTree.set([

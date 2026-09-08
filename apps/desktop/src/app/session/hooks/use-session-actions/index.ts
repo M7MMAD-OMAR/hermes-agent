@@ -26,7 +26,7 @@ import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { recoverInFlightTurnJournal } from '@/lib/inflight-turn-journal'
 import { setSessionYolo } from '@/lib/yolo-session'
 import { $clarifyRequests } from '@/store/clarify'
-import { migrateSessionDraft } from '@/store/composer'
+import { migrateSessionDraft, stashSessionDraft } from '@/store/composer'
 import { clearQueuedPrompts, migrateQueuedPrompts } from '@/store/composer-queue'
 import { forgetSessionSuggestions } from '@/store/composer-suggestions'
 import {
@@ -749,6 +749,7 @@ export function useSessionActions({
         anchor?: string
         before?: null | string
         cwd?: null | string
+        draft?: string
         listed?: boolean
         profile?: string
         route?: AgentProfileRoute | null
@@ -840,6 +841,10 @@ export function useSessionActions({
         // (#76696). Split/side tiles deliberately stay isolated.
         const runtimeInfo = applyRuntimeInfo(created.info, { foreground: false })
         updateSessionState(created.session_id, state => (runtimeInfo ? { ...state, ...runtimeInfo } : state), stored)
+
+        if (options?.draft) {
+          stashSessionDraft(stored, options.draft, [])
+        }
 
         openSessionTile(stored, dir, options?.anchor, options?.before, workspaceScope)
         patchSessionTile(stored, { runtimeId: created.session_id })

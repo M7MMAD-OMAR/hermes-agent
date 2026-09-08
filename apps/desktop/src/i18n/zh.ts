@@ -2473,6 +2473,33 @@ export const zh: Translations = {
     }
   },
 
+  projectWorkflows: {
+    title: '项目工作模板',
+    hint: '准备新任务草稿，在输入框中检查后发送。',
+    workflow: '工作类型',
+    approach: '执行方式',
+    approachHint: '调整范围与检查，不更改模型设置或强制定时停止。',
+    task: '描述需要的结果',
+    preparing: '正在准备草稿…',
+    openDraft: '打开任务草稿',
+    names: {
+      'quick-ui': '快速界面修复',
+      'client-delivery': '客户交付',
+      research: '项目研究',
+      'weekly-review': '每周回顾'
+    },
+    descriptions: {
+      'quick-ui': '修复目标界面并在浏览器中验证。',
+      'client-delivery': '分享前准备并验证交付文件。',
+      research: '根据来源研究并明确未知事项。',
+      'weekly-review': '回顾此项目并建议下周优先事项。'
+    },
+    approaches: {
+      quick: '快速',
+      standard: '标准',
+      thorough: '深入'
+    }
+  },
   projectBrief: {
     retry: '重试',
     openSource: '打开当前来源文件',

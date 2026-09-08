@@ -52,6 +52,7 @@ import {
   $activeGatewayProfile,
   $freshSessionRequest,
   $profileScope,
+  type AgentProfileRoute,
   ALL_PROFILES,
   ensureGatewayProfile,
   newSessionInProfile,
@@ -87,7 +88,6 @@ import { isAuxiliaryWindow, isBrowserWindow, isHudWindow } from '@/store/windows
 import { useSkinCommand } from '@/themes/use-skin-command'
 
 import { closeWorkspaceTab } from '../chat/close-tab'
-import { requestComposerInsert } from '../chat/composer/focus'
 import { useComposerActions } from '../chat/hooks/use-composer-actions'
 import { CommandPalette } from '../command-palette'
 import { triggerAndRefreshCronJobs } from '../cron/cron-actions'
@@ -558,14 +558,17 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   //
   // `openTab` is the sidebar "+" behavior: once a chat is loaded, stack a new
   // tab instead of replacing it (see mainChatOccupied). The composer's
-  // "branch off into a new worktree" flow keeps the fresh-draft path — it
-  // prefills the MAIN composer right after, so it has to own that surface.
+  // A supplied draft belongs to a fresh durable session, so seed it before
+  // mounting that tile instead of broadcasting text to the current composer.
   const startSessionInWorkspace = useCallback(
-    (path: null | string, options?: { openTab?: boolean }) => {
+    (path: null | string, options?: { openTab?: boolean; draft?: string; route?: AgentProfileRoute }) => {
       setWorkspaceScope('sessions')
 
-      if (options?.openTab && mainChatOccupied(activeSessionIdRef.current, $selectedStoredSessionId.get())) {
-        void openNewSessionTile('center', { cwd: path, listed: false })
+      if (
+        options?.draft ||
+        (options?.openTab && mainChatOccupied(activeSessionIdRef.current, $selectedStoredSessionId.get()))
+      ) {
+        void openNewSessionTile('center', { cwd: path, listed: false, draft: options.draft, route: options.route })
 
         return
       }
@@ -594,11 +597,20 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     }
 
     lastStartWorkTokenRef.current = startWorkSessionRequest.token
-    startSessionInWorkspace(startWorkSessionRequest.path, { openTab: startWorkSessionRequest.openTab })
+    const owner = startWorkSessionRequest.route
 
-    if (startWorkSessionRequest.draft) {
-      requestComposerInsert(startWorkSessionRequest.draft, { target: 'main' })
+    if (
+      owner &&
+      (owner.connectionId !== ($activeConnectionId.get() || 'local') || owner.profile !== $activeGatewayProfile.get())
+    ) {
+      return
     }
+
+    startSessionInWorkspace(startWorkSessionRequest.path, {
+      openTab: startWorkSessionRequest.openTab,
+      draft: startWorkSessionRequest.draft,
+      route: owner
+    })
   }, [startSessionInWorkspace, startWorkSessionRequest])
 
   // "New project" DRAG completion: the dialog created a project that was

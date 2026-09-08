@@ -432,3 +432,16 @@ Historical versions are opt-in and distinguishable from the current indexed
 version. Only current sources expose the source-file open action; old citations
 remain readable and copyable. Profile or connection changes close the scoped
 dialog, and failed requests retain editable content with a retry path.
+
+### Project workflow drafts
+
+Explicit project menus offer four task templates: focused UI change, client
+delivery, cited research and on-demand weekly review. The dialog collects the
+requested outcome and task approach, then opens a reviewable composer draft.
+Quick/standard/thorough guide scope and verification; they do not change model
+settings or impose an execution timer. Existing installed skill commands expand
+only on normal submission. Missing skills are explicit in the draft.
+Draft text is seeded on the newly created durable session before its tile
+mounts, never broadcast into the previous conversation. Profile/connection
+switches discard pending workflow responses. No workflow auto-sends a prompt,
+publishes a delivery, approves a result or schedules a recurring task.

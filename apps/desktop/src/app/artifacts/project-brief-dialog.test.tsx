@@ -10,6 +10,10 @@ it('retries a failed load and preserves the edited summary when saving fails', a
   let attempts = 0
 
   const request: ResultsRequest = async <T,>(method: string) => {
+    if (method === 'projects.actions.list') {
+      return { actions: [], next_before: null } as T
+    }
+
     if (method === 'projects.brief') {
       attempts++
 
@@ -54,6 +58,10 @@ it('ignores an older search response after a newer query finishes', async () => 
   let resolveOld: ((value: unknown) => void) | undefined
 
   const request: ResultsRequest = async <T,>(method: string, params?: Record<string, unknown>) => {
+    if (method === 'projects.actions.list') {
+      return { actions: [], next_before: null } as T
+    }
+
     if (method === 'projects.brief') {
       return { project: { name: 'Client', description: '', folders: [] }, files: [], approved_results: [] } as T
     }

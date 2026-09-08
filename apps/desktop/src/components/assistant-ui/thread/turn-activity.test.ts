@@ -48,8 +48,8 @@ describe('toolNarratesWait', () => {
     expect(toolNarratesWait([text('working'), call('terminal', true)])).toBe(false)
   })
 
-  it('does not defer to silent tools, which render nothing to narrate with', () => {
-    expect(toolNarratesWait([call('todo', false)])).toBe(false)
+  it('lets visible task updates narrate while reactions remain silent', () => {
+    expect(toolNarratesWait([call('todo', false)])).toBe(true)
     expect(toolNarratesWait([call('react_to_message', false)])).toBe(false)
   })
 

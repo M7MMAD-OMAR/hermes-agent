@@ -481,6 +481,9 @@ export const en: Translations = {
         sources: { bundled: 'bundled', user: 'user', git: 'git', project: 'project', entrypoint: 'pip' }
       },
       installModal: {
+        installFromGit: 'Install from Git',
+        reviewRepository: 'Review repository',
+        repoPlaceholder: 'https://github.com/owner/repo',
         title: 'Install plugin',
         description: 'Review what this repository contains before installing anything.',
         repoLabel: 'Repository',
@@ -932,6 +935,11 @@ export const en: Translations = {
       },
       cloudRefresh: 'Refresh',
       cloudConnect: 'Connect',
+      cloudSavedTitle: 'Saved Cloud gateways',
+      cloudSavedDesc:
+        'Use a saved gateway without changing your default. Sign in below to add instances. Manage names and sign-in in the saved connections list.',
+      cloudUseSaved: 'Use gateway',
+      cloudActive: 'Active in this window',
       cloudConnecting: 'Connecting…',
       cloudDiscoverFailed: 'Could not load your Hermes Cloud agents',
       cloudConnectFailed: 'Could not connect to that agent',
@@ -1595,6 +1603,10 @@ export const en: Translations = {
     resetToMine: 'Back to my map'
   },
   agents: {
+    extendedTranscript: 'Extended transcript',
+    transcriptTruncated: 'Showing the latest 16 KiB',
+    transcriptUnavailable: 'Live transcript unavailable',
+
     close: 'Close agents',
     title: 'Spawn tree',
     subtitle: 'Live subagent activity for the current turn.',
@@ -1606,6 +1618,14 @@ export const en: Translations = {
     streaming: 'Streaming',
     files: 'Files',
     moreFiles: count => `+${count} more files`,
+    moreAgents: count => `+${count} more agents`,
+    queued: 'Queued',
+    waitingActivity: 'Waiting for activity',
+    steer: 'Steer',
+    steerPlaceholder: 'Instructions for this subagent',
+    steerQueued: 'Queued for the next checkpoint',
+    stopRequested: 'Stop requested',
+    requestRejected: 'The subagent did not accept the request',
     delegation: index => `Delegation ${index}`,
     workers: count => `${count} workers`,
     workersActive: count => `${count} active`,
@@ -2458,6 +2478,17 @@ export const en: Translations = {
   },
 
   sidebar: {
+    gatewayGroups: {
+      grouping: 'Gateway & profile',
+      rename: 'Rename group',
+      aliasLabel: 'Display name',
+      aliasHint: 'Display name only; gateway and profile names stay unchanged.',
+      resetName: 'Reset name',
+      moveUp: 'Move up',
+      moveDown: 'Move down',
+      reorder: 'Reorder group',
+      actions: 'Group actions'
+    },
     nav: {
       'new-session': 'New session',
       skills: 'Capabilities',

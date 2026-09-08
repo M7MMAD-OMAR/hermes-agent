@@ -482,14 +482,18 @@ describe('live tool run', () => {
     })
   })
 
-  it('cannot be collapsed while a tool is still running', async () => {
+  it('can expand live history without hiding running activity', async () => {
     const { container } = render(<GroupHarness message={groupedPendingMessage()} />)
 
     await waitFor(() => {
       expect(container.querySelector('[data-tool-summary]')).not.toBeNull()
     })
 
-    expect(container.querySelector('[data-tool-summary] button[aria-expanded]')).toBeNull()
+    const disclosure = container.querySelector<HTMLButtonElement>('[data-tool-summary] button[aria-expanded]')
+    expect(disclosure).not.toBeNull()
+    fireEvent.click(disclosure!)
+    expect(disclosure?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelectorAll('[data-tool-row]').length).toBeGreaterThan(0)
   })
 
   // Liveness used to also require an unresolved call, which is false for the
@@ -501,7 +505,11 @@ describe('live tool run', () => {
 
     expect(await screen.findByText('Running 2 commands')).toBeTruthy()
     expect(container.querySelector('[data-tool-ticker]')).not.toBeNull()
-    expect(container.querySelector('[data-tool-summary] button[aria-expanded]')).toBeNull()
+    const disclosure = container.querySelector<HTMLButtonElement>('[data-tool-summary] button[aria-expanded]')
+    expect(disclosure).not.toBeNull()
+    fireEvent.click(disclosure!)
+    expect(disclosure?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelectorAll('[data-tool-row]').length).toBeGreaterThan(0)
   })
 
   // The ticker is a one-line window, so a row opened inside it had its output

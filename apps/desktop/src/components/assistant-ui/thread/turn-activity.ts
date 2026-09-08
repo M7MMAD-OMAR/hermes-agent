@@ -48,10 +48,9 @@ export function activitySignature(content: readonly ActivityPart[]): string {
  * Whether a tool call is already narrating this wait.
  *
  * A call in flight renders its own row, with its own timer, so a second
- * spinner under it would count the same seconds twice. Silent tools don't:
- * `todo` is hoisted to its own panel and a reaction's UI is the emoji landing
- * on the bubble, so neither leaves anything on screen to time — a wait on one
- * of those is as unnarrated as a wait on nothing at all.
+ * spinner under it would count the same seconds twice. Task updates retain
+ * a visible transcript row. A silent reaction only changes the bubble emoji
+ * and cannot narrate the wait.
  */
 export function toolNarratesWait(content: readonly ActivityPart[]): boolean {
   return content.some(

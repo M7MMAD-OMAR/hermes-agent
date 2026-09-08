@@ -102,6 +102,7 @@ export function useComposerQueue({
 
   const prevQueueKeyRef = useRef(activeQueueSessionKey)
   const drainingQueueRef = useRef(false)
+  const [drainRetryTick, setDrainRetryTick] = useState(0)
 
   const beginQueuedEdit = (entry: QueuedPromptEntry) => {
     if (!activeQueueSessionKey || queueEdit) {
@@ -337,7 +338,7 @@ export function useComposerQueue({
   // Edge-independent auto-drain: send the head whenever the session is idle and
   // the queue is non-empty, bounding retries so a thrown/rejected onSubmit (e.g.
   // a stale-session 404) can't strand the entry permanently nor spin-loop. The
-  // drain lock serializes sends; a remount/reconnect resets the failure counts.
+  // drain lock serializes sends; shared failure counts survive composer remounts.
   const autoDrainNext = useCallback(() => {
     if (busy || queueParked || drainingQueueRef.current || !activeQueueSessionKey) {
       return
@@ -348,6 +349,9 @@ export function useComposerQueue({
     if (!entry || hasExhaustedDrain(entry.id)) {
       return
     }
+
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
 
     const attempt = () => {
       void runDrain(() => entry)
@@ -360,7 +364,12 @@ export function useComposerQueue({
     }
 
     const onFail = () => {
-      if (noteDrainFailure(entry.id) < MAX_AUTO_DRAIN_ATTEMPTS) {
+      if (cancelled) {return}
+      const failures = noteDrainFailure(entry.id)
+
+      if (failures < MAX_AUTO_DRAIN_ATTEMPTS) {
+        retryTimer = setTimeout(() => setDrainRetryTick(tick => tick + 1), 750 * failures)
+
         return
       }
 
@@ -384,6 +393,12 @@ export function useComposerQueue({
     }
 
     attempt()
+
+    // A rejected send must not schedule retries after its composer changes scope.
+    return () => {
+      cancelled = true
+      clearTimeout(retryTimer)
+    }
   }, [activeQueueSessionKey, busy, pickDrainHead, queueParked, queuedPrompts, runDrain, t])
 
   // Re-key on a runtime session-id change. A stable stored id (queueSessionKey)
@@ -408,9 +423,9 @@ export function useComposerQueue({
   // for the user. To cancel queued turns, the user deletes them from the panel.
   useEffect(() => {
     if (shouldAutoDrain({ isBusy: busy, parked: queueParked, queueLength: queuedPrompts.length })) {
-      autoDrainNext()
+      return autoDrainNext()
     }
-  }, [autoDrainNext, busy, queueParked, queuedPrompts.length])
+  }, [autoDrainNext, busy, drainRetryTick, queueParked, queuedPrompts.length])
 
   // Queue-edit cleanup: on session swap the scope effect already stashed the
   // edit snapshot; only restore into the composer when still on the same scope.

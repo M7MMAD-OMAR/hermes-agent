@@ -10,6 +10,8 @@ import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 import { $toolDisclosureOpen, setToolDisclosureOpen } from '@/store/tool-view'
 
+import { TurnProgress } from './turn-progress'
+
 type ThreadMessageComponents = ComponentProps<typeof ThreadPrimitive.MessageByIndex>['components']
 
 /**
@@ -198,6 +200,7 @@ export const TurnDigest: FC<{
   if (digest.folded.length === 0) {
     return (
       <>
+        <TurnProgress indices={indices} />
         {digest.visible.map(index => (
           <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
         ))}
@@ -211,6 +214,7 @@ export const TurnDigest: FC<{
 
   return (
     <>
+      <TurnProgress indices={indices} />
       <div
         className="grid min-w-0 max-w-full gap-(--tool-row-gap)"
         data-conversation-scaffold=""

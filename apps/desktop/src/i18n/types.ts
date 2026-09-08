@@ -3093,6 +3093,13 @@ export interface Translations {
       turnDuration: (duration: string) => string
       /** Header of a folded turn with no tool calls, counting its sealed notes. */
       turnDigestNotes: (count: number) => string
+      progressTitle: string
+      progressTask: string
+      progressEdit: string
+      progressCheck: string
+      progressCheckOutdated: string
+      progressError: string
+      progressRepeated: string
       today: (time: string) => string
       yesterday: (time: string) => string
       copy: string

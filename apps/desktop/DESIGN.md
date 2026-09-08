@@ -384,3 +384,12 @@ Project health is loaded with the profile-scoped project list and refreshed when
 opening Edit project. An unavailable source has a visible warning and recovery
 control. Nearby verified candidates are suggestions, never automatic relocations.
 Selecting a candidate updates the draft; only Save changes workspace metadata.
+
+### Live task progress evidence
+
+A running turn keeps a compact progress receipt outside folded history. It shows
+recorded file edits, explicitly successful checks, the active todo, reported
+errors and repeated actions. A subsequent edit makes the previous check stale.
+Starting a background command is not a successful check. Shell commands that
+mask failures and echoed test names do not earn success indicators. The receipt
+is presentation of tool evidence, not an assertion that the whole task is done.

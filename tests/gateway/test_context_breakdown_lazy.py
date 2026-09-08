@@ -47,7 +47,8 @@ def test_lazy_breakdown_prefers_measured_usage_when_present():
         out = _lazy(session, {"context_max": 200_000, "context_used": 50_000})
     assert out == {
         "categories": [], "context_max": 200_000, "context_percent": 25, "context_used": 50_000,
-        "estimated_total": 50_000, "model": "m"}
+        "estimated_total": 50_000, "model": "m",
+        "context_estimated": False, "context_source": "provider_usage"}
 
 
 def test_lazy_breakdown_survives_metadata_failure():

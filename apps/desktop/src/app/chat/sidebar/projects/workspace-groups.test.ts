@@ -14,6 +14,7 @@ import {
   overlayLiveLanes,
   overlayLivePreviews,
   reconcileEnteredProjectSessions,
+  sessionMatchesProjectFilter,
   sessionProjectColor,
   type SidebarProjectTree,
   type SidebarSessionGroup,
@@ -1279,6 +1280,8 @@ describe('a session with no recorded branch', () => {
   // into it. On screen the repo's lane then looked like it had lost today's
   // work. Same class as the backend fix in tui_gateway/project_tree.py.
   const laneWithOldRow = (): SidebarProjectTree => ({
+    path: '/repo',
+    sessionCount: 1,
     id: 'p1',
     label: 'repo',
     repos: [
@@ -1308,5 +1311,21 @@ describe('a session with no recorded branch', () => {
 
     expect(lanes.map(lane => lane.label)).toEqual(['master'])
     expect(lanes[0].sessions.map(session => session.id)).toEqual(['fresh', 'old'])
+  })
+})
+
+describe('project filter row rule (#97762)', () => {
+  const projects = [makeProject('p_app', ['/www/app'])]
+  const appRow = makeCwdSession('/www/app/src', { git_repo_root: '/www/app' })
+  const homeRow = makeCwdSession(null)
+
+  it('filtering to Home keeps the detached Home rows', () => {
+    expect(sessionMatchesProjectFilter(homeRow, [NO_PROJECT_ID], projects)).toBe(true)
+    expect(sessionMatchesProjectFilter(appRow, [NO_PROJECT_ID], projects)).toBe(false)
+  })
+
+  it('a live id still narrows', () => {
+    expect(sessionMatchesProjectFilter(appRow, ['p_app'], projects)).toBe(true)
+    expect(sessionMatchesProjectFilter(homeRow, ['p_app'], projects)).toBe(false)
   })
 })

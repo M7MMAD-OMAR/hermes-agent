@@ -24,6 +24,7 @@ import {
   setSessions,
   setSessionsLoading
 } from '@/store/session'
+import { clearAllSessionControl } from '@/store/session-control'
 import { resetSessionPinMirror } from '@/store/session-pin-sync'
 import { clearAllSessionStates } from '@/store/session-states'
 import { clearTranscriptTails } from '@/store/transcript-tail-cache'
@@ -210,6 +211,9 @@ export function wipeSessionListsForGatewaySwitch(): void {
   // The backend that produced these offers is gone; its suggestions and its
   // declined ledger must not outlive it.
   resetComposerSuggestions()
+  // Structured goal/loop/heartbeat entries are keyed by runtime id, which the
+  // next backend re-mints, so a full wipe is exact (and stale-response-safe).
+  clearAllSessionControl()
   resetLiveRuntimeTracking()
   resetLiveSync()
   $unreadFinishedSessionIds.set([])

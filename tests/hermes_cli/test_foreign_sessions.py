@@ -538,3 +538,18 @@ def test_list_kimi_sessions_falls_back_to_file_mtime(tmp_path):
     listed = _list_sessions("kimi", tmp_path / ".kimi-code" / "sessions")
     assert len(listed) == 1
     assert listed[0].mtime == f.stat().st_mtime
+def test_whitespace_only_user_turn_does_not_break_discovery(tmp_path):
+    """A blank user message (image-only / tool-only turn) must not crash listing; the title
+    comes from the first non-blank user line and the blank turn is dropped."""
+    project = tmp_path / ".claude" / "projects" / "p"
+    project.mkdir(parents=True)
+    f = project / "blank.jsonl"
+    lines = [
+        {"type": "user", "sessionId": "w", "message": {"role": "user", "content": "   \n  "}},
+        {"type": "assistant", "sessionId": "w", "message": {"role": "assistant", "content": "hi"}},
+        {"type": "user", "sessionId": "w", "message": {"role": "user", "content": "real question"}},
+    ]
+    f.write_text("\n".join(json.dumps(line) for line in lines) + "\n", encoding="utf-8")
+    listed = _list_sessions("claude", project.parent)
+    assert [s.title_guess for s in listed] == ["real question"]
+    assert listed[0].turn_count == 3  # leading assistant reply gets the user stub

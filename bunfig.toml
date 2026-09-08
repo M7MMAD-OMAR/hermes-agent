@@ -1,0 +1,3 @@
+[install]
+# Workspace tests and build tools resolve shared dependencies from the root.
+linker = "hoisted"

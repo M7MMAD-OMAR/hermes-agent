@@ -42,3 +42,25 @@ def test_closes_only_host_cache_files(tmp_path):
 
 def test_is_a_no_op_with_nothing_leaked():
     assert close_inherited_host_files() == 0
+
+
+def test_serve_starts_after_closing_inherited_cache(tmp_path):
+    from hermes_cli.web_server import _run_serve
+
+    cache = tmp_path / "Hermes" / "GPUCache"
+    cache.mkdir(parents=True)
+    fd = os.open(str(cache / "data_0"), os.O_CREAT | os.O_RDWR)
+    original = os.fstat(fd)
+    started = []
+
+    async def serve():
+        if _fd_open(fd):
+            assert os.fstat(fd).st_ino != original.st_ino
+        started.append(True)
+
+    try:
+        _run_serve(serve, None, "127.0.0.1", 0)
+        assert started == [True]
+    finally:
+        if _fd_open(fd):
+            os.close(fd)

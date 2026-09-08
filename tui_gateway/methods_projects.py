@@ -64,6 +64,37 @@ def _pick(params: dict, *keys: str) -> dict:
     return {k: params.get(k) for k in keys}
 
 
+@_projects_method("projects.brief")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_references import project_brief
+    return _ok(rid, project_brief(conn, params.get("id")))
+
+
+@_projects_method("projects.references.scan")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_references import scan_references
+    return _ok(rid, scan_references(conn, params.get("id")))
+
+
+@_projects_method("projects.references.index")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_references import index_references
+    return _ok(rid, index_references(conn, params.get("id")))
+
+
+@_projects_method("projects.references.search")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_references import search_references
+    return _ok(rid, search_references(conn, params.get("id"), params.get("query"),
+        include_history=bool(params.get("include_history"))))
+
+
+@_projects_method("projects.references.citation")
+def _(rid, params, pdb, conn) -> dict:
+    from hermes_cli.project_references import reference_citation
+    return _ok(rid, reference_citation(conn, params.get("id"), params.get("citation_id")))
+
+
 @_projects_method("projects.results.refresh")
 def _(rid, params, pdb, conn) -> dict:
     from hermes_cli.project_results import refresh_index

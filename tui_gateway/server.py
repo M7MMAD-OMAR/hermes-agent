@@ -163,6 +163,8 @@ _DETAIL_MODES = frozenset({"hidden", "collapsed", "expanded"})
 # build_system_prompt_parts touches the agent only via an idempotent bot-mode flag, and the skills
 # snapshot it may write goes through utils.atomic_json_write.
 _LONG_HANDLERS = frozenset({
+    "projects.brief", "projects.references.scan", "projects.references.index",
+    "projects.references.search", "projects.references.citation",
     "projects.results.refresh", "projects.results.list", "projects.results.versions",
     "projects.results.capture", "projects.results.review", "projects.results.preview",
     "session.foreign.list", "session.foreign.preview", "session.foreign.import",

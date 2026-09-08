@@ -420,3 +420,15 @@ content hashes in the owning backend and reuse the existing artifact sandbox and
 source viewer. Text previews are bounded to 512 KiB; image/PDF previews to 8 MiB.
 Unsupported types and larger files retain the saved-file open action. A snapshot
 captures one file's bytes, not a website's linked assets or external resources.
+
+### Project brief and cited references
+
+Artifacts exposes the selected project's brief and references in a dialog. The
+brief edits the existing project description. Source folder health, extraction
+coverage and approved result links provide context without synthesizing claims.
+Reference refresh is explicit and bounded. Search cites saved source text with
+PDF pages, Word paragraphs/comments or text lines and a source version hash.
+Historical versions are opt-in and distinguishable from the current indexed
+version. Only current sources expose the source-file open action; old citations
+remain readable and copyable. Profile or connection changes close the scoped
+dialog, and failed requests retain editable content with a retry path.

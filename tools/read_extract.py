@@ -24,7 +24,7 @@ from typing import Any, Callable, Iterator, Optional
 from xml.etree import ElementTree as ET
 
 __all__ = ["EXTRACTABLE_EXTENSIONS", "ExtractionError", "extract_document_bytes",
-           "extract_document_text", "is_extractable_document"]
+           "extract_document_text", "extract_document_sections", "extract_document_sections_bytes", "is_extractable_document"]
 
 EXTRACTABLE_EXTENSIONS = frozenset({".ipynb", ".docx", ".xlsx"})
 ANYDOC_EXTENSIONS = frozenset({
@@ -459,17 +459,78 @@ def _zip_xml(zf: zipfile.ZipFile, name: str, optional: bool = False) -> Any:
         ) from exc
 
 
-def _extract_docx(path: str) -> str:
+def _docx_paragraphs(path: str) -> list[str]:
     with _open_zip(path, "DOCX") as zf:
+        try:
+            info = zf.getinfo("word/document.xml")
+        except KeyError as exc:
+            raise ExtractionError("Missing word/document.xml") from exc
+        _check_size(info.file_size, MAX_DOCUMENT_BYTES)
         root = _zip_xml(zf, "word/document.xml")
     w = f"{{{_NS_W}}}"
     breaks = {f"{w}tab": "\t", f"{w}br": "\n", f"{w}cr": "\n"}
-    lines: list[str] = []
-    for para in root.iter(f"{w}p"):
-        text = "".join(
-            (n.text or "") if n.tag == f"{w}t" else breaks.get(n.tag, "") for n in para.iter())
-        lines.extend(text.split("\n"))
+    return ["".join((n.text or "") if n.tag == f"{w}t" else breaks.get(n.tag, "")
+                    for n in para.iter()) for para in root.iter(f"{w}p")]
+
+
+def _extract_docx(path: str) -> str:
+    lines = [line for paragraph in _docx_paragraphs(path) for line in paragraph.split("\n")]
     return _joined(lines, "DOCX contains no extractable text")
+
+
+def extract_document_sections_bytes(data: bytes, path: str) -> dict:
+    """Extract the exact bytes used for a reference version's content hash."""
+    _check_size(len(data), MAX_DOCUMENT_BYTES)
+    with _temp_copy(data, Path(path).suffix.lower()) as copy:
+        return extract_document_sections(copy)
+
+
+def extract_document_sections(path: str) -> dict:
+    """Local-only reference extraction with original page/paragraph provenance.
+
+    Word has no reliable page numbers without layout, so cite paragraphs. PDF
+    pages without text stay explicit coverage gaps, never invented OCR output.
+    This path never installs converters or calls a hosted extraction service.
+    """
+    _check_size(Path(path).stat().st_size, MAX_DOCUMENT_BYTES)
+    ext = Path(path).suffix.lower()
+    if ext == ".docx":
+        paragraphs = _docx_paragraphs(path)
+        sections = [{"text": text, "locator": "paragraph", "start": i + 1, "end": i + 1}
+                    for i, text in enumerate(paragraphs) if text.strip()]
+        with _open_zip(path, "DOCX") as zf:
+            if "word/comments.xml" in zf.namelist():
+                _check_size(zf.getinfo("word/comments.xml").file_size, MAX_DOCUMENT_BYTES)
+                comments = _zip_xml(zf, "word/comments.xml")
+                w = f"{{{_NS_W}}}"
+                for i, comment in enumerate(comments.iter(f"{w}comment")):
+                    text = " ".join(n.text or "" for n in comment.iter(f"{w}t"))
+                    if not text.strip():
+                        continue
+                    attribution = "; ".join(value for value in [comment.get(f"{w}author"), comment.get(f"{w}date")] if value)
+                    sections.append({"text": (attribution + "\n" if attribution else "") + text,
+                                     "locator": "comment", "start": i + 1, "end": i + 1})
+        return {"extractor": "docx-xml-v1", "sections": sections, "missing_pages": []}
+    if ext == ".pdf":
+        if shutil.which("pdftotext") is None:
+            raise ExtractionError("PDF text extraction unavailable; pdftotext is required")
+        pages = _pdf_page_texts(path)
+        if pages is None:
+            raise ExtractionError("Could not extract PDF text; it may be encrypted or invalid")
+        return {"extractor": "pdftotext-v1", "sections": [
+            {"text": text, "locator": "page", "start": i + 1, "end": i + 1}
+            for i, text in enumerate(pages) if text.strip()],
+            "missing_pages": [i + 1 for i, text in enumerate(pages) if not text.strip()]}
+    if ext in {".md", ".txt"}:
+        lines = Path(path).read_text(encoding="utf-8-sig").splitlines()
+        sections = []
+        for start in range(0, len(lines), 30):
+            text = "\n".join(lines[start:start + 30])
+            if text.strip():
+                sections.append({"text": text, "locator": "line", "start": start + 1,
+                                 "end": min(start + 30, len(lines))})
+        return {"extractor": "utf8-lines-v1", "sections": sections, "missing_pages": []}
+    raise ExtractionError("Reference indexing supports Markdown, text, PDF and Word files")
 
 
 def _extract_xlsx(path: str) -> str:

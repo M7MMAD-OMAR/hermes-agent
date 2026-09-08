@@ -1906,6 +1906,32 @@ export const zhHant = defineLocale({
     }
   },
 
+  projectBrief: {
+    retry: '重試',
+    openSource: '開啟目前來源檔案',
+    title: '專案概覽與參考資料',
+    hint: '搜尋帶有已儲存來源引用的專案文件。變更檔案後請重新整理。',
+    summary: '專案概覽',
+    save: '儲存概覽',
+    sources: '來源資料夾',
+    unavailable: '無法使用',
+    refresh: '重新整理參考資料',
+    scanLimit: '掃描已達到檔案數量上限。請縮小來源資料夾範圍。',
+    approved: '已核准的成果',
+    search: '搜尋阿拉伯語或英語參考資料',
+    history: '包含歷史版本',
+    noMatches: '沒有符合的已索引資料。請使用具體關鍵字或重新整理來源。',
+    page: '頁',
+    paragraph: '段落',
+    comment: '註解',
+    line: '行',
+    current: '目前索引版本',
+    previous: '歷史版本或無法使用的來源',
+    copy: '複製引用',
+    indexed: (ready, total) => `已索引 ${ready}/${total} 個檔案`,
+    pending: count => `${count} 個檔案等待索引`,
+    issues: count => `${count} 個檔案需要處理`
+  },
   artifacts: {
     fromConversation: '直接從助理訊息儲存。每個版本保留產生內容及其審核狀態。',
     previewVersion: '預覽',

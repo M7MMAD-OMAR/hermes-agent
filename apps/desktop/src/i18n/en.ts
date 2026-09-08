@@ -2309,6 +2309,32 @@ export const en: Translations = {
     }
   },
 
+  projectBrief: {
+    retry: 'Retry',
+    openSource: 'Open current source file',
+    title: 'Project brief & references',
+    hint: 'Search project documents with saved source citations. Refresh after changing source files.',
+    summary: 'Project summary',
+    save: 'Save summary',
+    sources: 'Source folders',
+    unavailable: 'Unavailable',
+    refresh: 'Refresh references',
+    scanLimit: 'The scan reached its file limit. Narrow the source folders to cover the rest.',
+    approved: 'Approved results',
+    search: 'Search Arabic or English references',
+    history: 'Include previous versions',
+    noMatches: 'No matching indexed references. Try specific words or refresh sources.',
+    page: 'Page',
+    paragraph: 'Paragraph',
+    comment: 'Comment',
+    line: 'Lines',
+    current: 'Current indexed version',
+    previous: 'Previous or unavailable source',
+    copy: 'Copy citation',
+    indexed: (ready, total) => `${ready} of ${total} files indexed`,
+    pending: count => `${count} files awaiting indexing`,
+    issues: count => `${count} files need attention`
+  },
   artifacts: {
     fromConversation:
       'Saved directly from the assistant message. Each version preserves the generated content and its own review status.',

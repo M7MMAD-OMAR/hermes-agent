@@ -1964,6 +1964,32 @@ export interface Translations {
     }
   }
 
+  projectBrief: {
+    retry: string
+    openSource: string
+    title: string
+    hint: string
+    summary: string
+    save: string
+    sources: string
+    unavailable: string
+    refresh: string
+    scanLimit: string
+    approved: string
+    search: string
+    history: string
+    noMatches: string
+    page: string
+    paragraph: string
+    comment: string
+    line: string
+    current: string
+    previous: string
+    copy: string
+    indexed: (ready: number, total: number) => string
+    pending: (count: number) => string
+    issues: (count: number) => string
+  }
   artifacts: {
     fromConversation: string
     previewVersion: string

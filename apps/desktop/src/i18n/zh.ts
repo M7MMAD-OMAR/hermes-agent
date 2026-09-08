@@ -2473,6 +2473,32 @@ export const zh: Translations = {
     }
   },
 
+  projectBrief: {
+    retry: '重试',
+    openSource: '打开当前来源文件',
+    title: '项目概览与参考资料',
+    hint: '搜索带有已保存来源引用的项目文档。更改文件后请刷新。',
+    summary: '项目概览',
+    save: '保存概览',
+    sources: '来源文件夹',
+    unavailable: '不可用',
+    refresh: '刷新参考资料',
+    scanLimit: '扫描已达到文件数量上限。请缩小来源文件夹范围。',
+    approved: '已批准的成果',
+    search: '搜索阿拉伯语或英语参考资料',
+    history: '包含历史版本',
+    noMatches: '没有匹配的已索引资料。请使用具体关键词或刷新来源。',
+    page: '页',
+    paragraph: '段落',
+    comment: '批注',
+    line: '行',
+    current: '当前索引版本',
+    previous: '历史版本或不可用来源',
+    copy: '复制引用',
+    indexed: (ready, total) => `已索引 ${ready}/${total} 个文件`,
+    pending: count => `${count} 个文件等待索引`,
+    issues: count => `${count} 个文件需要处理`
+  },
   artifacts: {
     fromConversation: '直接从助手消息保存。每个版本保留生成内容及其审核状态。',
     previewVersion: '预览',

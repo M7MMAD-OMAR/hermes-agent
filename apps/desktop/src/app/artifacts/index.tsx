@@ -31,7 +31,7 @@ import {
   useLinkTitle
 } from '@/lib/external-link'
 import { FileImage, FileText, FolderOpen, Link2 } from '@/lib/icons'
-import { downloadGatewayMediaFile, isArtifactFilePath, isRemoteGateway } from '@/lib/media'
+import { downloadGatewayMediaFile, isArtifactFilePath, isRemoteGateway, mediaExternalUrl } from '@/lib/media'
 import { normalize } from '@/lib/text'
 import { fmtDayTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -48,6 +48,7 @@ import { PageSearchShell } from '../page-search-shell'
 import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 
 import { ARTIFACT_FILTERS, type ArtifactFilter, artifactImageSrc, type ArtifactRecord } from './artifact-utils'
+import { ProjectBriefDialog } from './project-brief-dialog'
 import { refreshResultIndex, resultArtifact, type ResultsRequest } from './result-index'
 import { ResultVersionsDialog } from './result-versions-dialog'
 
@@ -146,6 +147,7 @@ function ScopedArtifactsView({
   const [projects, setProjects] = useState<ProjectInfo[]>([])
   const [projectId, setProjectId] = useState('all')
   const [selectedResult, setSelectedResult] = useState<ArtifactRecord | null>(null)
+  const [briefProjectId, setBriefProjectId] = useState<string | null>(null)
   const refreshRef = useRef<AbortController | null>(null)
 
   const request = useCallback<ResultsRequest>(
@@ -373,6 +375,11 @@ function ScopedArtifactsView({
                 ))}
               </SelectContent>
             </Select>
+            {projectId !== 'all' && (
+              <Button onClick={() => setBriefProjectId(projectId)} size="sm" variant="ghost">
+                {t.projectBrief.title}
+              </Button>
+            )}
             {refreshing && (
               <span className="text-xs text-muted-foreground" role="status">
                 {a.indexing}
@@ -418,6 +425,31 @@ function ScopedArtifactsView({
         { id: 'link', label: a.tabLinks, meta: artifacts ? counts.link : null }
       ]}
     >
+      {briefProjectId && (
+        <ProjectBriefDialog
+          key={briefProjectId}
+          onClose={() => setBriefProjectId(null)}
+          onOpenChat={sessionId => {
+            setBriefProjectId(null)
+            openChat(sessionId)
+          }}
+          onOpenSource={path =>
+            void openArtifact({
+              id: path,
+              kind: 'file',
+              value: path,
+              href: mediaExternalUrl(path),
+              label: path,
+              sessionId: '',
+              sessionTitle: '',
+              timestamp: 0,
+              profile
+            })
+          }
+          projectId={briefProjectId}
+          request={request}
+        />
+      )}
       {selectedResult && (
         <ResultVersionsDialog
           artifact={selectedResult}

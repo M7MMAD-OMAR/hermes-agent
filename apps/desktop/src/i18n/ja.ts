@@ -1981,6 +1981,32 @@ export const ja = defineLocale({
     }
   },
 
+  projectBrief: {
+    retry: '再試行',
+    openSource: '現在のソースファイルを開く',
+    title: 'プロジェクト概要と参考資料',
+    hint: '保存した出典付きで資料を検索します。ファイル変更後は更新してください。',
+    summary: 'プロジェクト概要',
+    save: '概要を保存',
+    sources: 'ソースフォルダー',
+    unavailable: '利用不可',
+    refresh: '参考資料を更新',
+    scanLimit: 'ファイル数の上限に達しました。対象フォルダーを絞ってください。',
+    approved: '承認済みの成果物',
+    search: 'アラビア語または英語の資料を検索',
+    history: '過去の版を含める',
+    noMatches: '一致する資料はありません。キーワードを変えるか更新してください。',
+    page: 'ページ',
+    paragraph: '段落',
+    comment: 'コメント',
+    line: '行',
+    current: '現在の索引版',
+    previous: '過去の版または利用不可の出典',
+    copy: '引用をコピー',
+    indexed: (ready, total) => `${total} 件中 ${ready} 件を索引済み`,
+    pending: count => `${count} 件が索引待ち`,
+    issues: count => `${count} 件の確認が必要です`
+  },
   artifacts: {
     fromConversation: 'アシスタントのメッセージから直接保存しました。各バージョンは生成内容と確認状態を保持します。',
     previewVersion: 'プレビュー',

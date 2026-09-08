@@ -69,6 +69,47 @@ CREATE TABLE IF NOT EXISTS project_results (
     origin TEXT NOT NULL DEFAULT 'file',
     UNIQUE(session_id, value)
 );
+CREATE TABLE IF NOT EXISTS project_reference_files (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error TEXT,
+    mtime_ns INTEGER,
+    size_bytes INTEGER,
+    current_hash TEXT,
+    checked_at REAL,
+    UNIQUE(project_id, path)
+);
+CREATE TABLE IF NOT EXISTS project_reference_versions (
+    id TEXT PRIMARY KEY,
+    file_id TEXT NOT NULL REFERENCES project_reference_files(id) ON DELETE CASCADE,
+    sha256 TEXT NOT NULL,
+    indexed_at REAL NOT NULL,
+    extractor TEXT NOT NULL,
+    missing_pages TEXT NOT NULL DEFAULT '[]',
+    UNIQUE(file_id, sha256)
+);
+CREATE TABLE IF NOT EXISTS project_reference_chunks (
+    id INTEGER PRIMARY KEY,
+    version_id TEXT NOT NULL REFERENCES project_reference_versions(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    locator TEXT NOT NULL,
+    start INTEGER NOT NULL,
+    end INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    search_text TEXT NOT NULL
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS project_reference_fts USING fts5(
+    search_text, content='project_reference_chunks', content_rowid='id', tokenize='unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS reference_chunks_insert AFTER INSERT ON project_reference_chunks BEGIN
+    INSERT INTO project_reference_fts(rowid,search_text) VALUES (new.id,new.search_text);
+END;
+CREATE TRIGGER IF NOT EXISTS reference_chunks_delete AFTER DELETE ON project_reference_chunks BEGIN
+    INSERT INTO project_reference_fts(project_reference_fts,rowid,search_text) VALUES ('delete',old.id,old.search_text);
+END;
+
 CREATE INDEX IF NOT EXISTS idx_project_results_project ON project_results(project_id, reported_at);
 
 CREATE TABLE IF NOT EXISTS project_result_versions (

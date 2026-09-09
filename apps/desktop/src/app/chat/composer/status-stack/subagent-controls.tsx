@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useI18n } from '@/i18n'
 import { requestForOwnedSession } from '@/store/session-states'
+import { recordSubagentSteer } from '@/store/subagents'
 
 interface SubagentControlsProps {
   sessionId: string
@@ -42,6 +43,9 @@ export function SubagentControls({ sessionId, subagentId, text, setText }: Subag
       setFeedback(action === 'steer' ? t.agents.steerQueued : t.agents.stopRequested)
 
       if (action === 'steer') {
+        // Only after the gateway confirmed the queue: the roster must never show
+        // an instruction the child was not actually going to receive.
+        recordSubagentSteer(sessionId, subagentId, text)
         setText('')
       }
     } catch {

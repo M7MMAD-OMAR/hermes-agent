@@ -9,6 +9,7 @@ import {
   failedSubagentCount,
   pruneDelegateFallbackSubagents,
   pruneFinishedSessionSubagents,
+  recordSubagentSteer,
   upsertSubagent
 } from './subagents'
 
@@ -333,5 +334,48 @@ describe('subagent store', () => {
     upsertSubagent('s1', { goal: 'task', status: 'running', subagent_id: 'late1', task_index: 0, text: 'late' })
 
     expect(listFor('s1')[0]?.status).toBe('failed')
+  })
+
+  describe('recordSubagentSteer', () => {
+    it('records a delivered instruction on the live worker and marks it as activity', () => {
+      upsertSubagent('s1', { goal: 'task', status: 'running', subagent_id: 'w1', task_index: 0 })
+      const before = listFor('s1')[0]?.updatedAt ?? 0
+
+      expect(recordSubagentSteer('s1', 'w1', '  prefer the cached path  ')).toBe(true)
+
+      const entry = listFor('s1')[0]?.stream.at(-1)
+      expect(entry?.kind).toBe('steer')
+      expect(entry?.text).toBe('prefer the cached path')
+      expect(listFor('s1')[0]?.updatedAt).toBeGreaterThanOrEqual(before)
+    })
+
+    it('leaves no phantom instruction for an unknown, settled, or empty target', () => {
+      upsertSubagent('s1', { goal: 'task', status: 'running', subagent_id: 'w1', task_index: 0 })
+      upsertSubagent(
+        's1',
+        { goal: 'task', status: 'completed', subagent_id: 'done', summary: 'ok', task_index: 1 },
+        true,
+        'subagent.complete'
+      )
+      const settledStream = listFor('s1').find(item => item.id === 'done')?.stream.length ?? 0
+
+      expect(recordSubagentSteer('s1', 'absent', 'go')).toBe(false)
+      expect(recordSubagentSteer('other-session', 'w1', 'go')).toBe(false)
+      expect(recordSubagentSteer('s1', 'done', 'go')).toBe(false)
+      expect(recordSubagentSteer('s1', 'w1', '   ')).toBe(false)
+
+      expect(listFor('s1').find(item => item.id === 'w1')?.stream.some(e => e.kind === 'steer')).toBe(false)
+      expect(listFor('s1').find(item => item.id === 'done')?.stream.length).toBe(settledStream)
+    })
+
+    // Streamed child output collapses consecutive duplicates; a repeated
+    // instruction is two real deliveries and must stay countable.
+    it('keeps a repeated instruction as two entries where streamed output would collapse', () => {
+      upsertSubagent('s1', { goal: 'task', status: 'running', subagent_id: 'w1', task_index: 0 })
+      recordSubagentSteer('s1', 'w1', 'again')
+      recordSubagentSteer('s1', 'w1', 'again')
+
+      expect(listFor('s1')[0]?.stream.filter(e => e.kind === 'steer').length).toBe(2)
+    })
   })
 })

@@ -13,6 +13,8 @@ vi.stubGlobal(
     observe() {}
   }
 )
+// Roster rows carry a one-shot enter animation; jsdom has no Web Animations API.
+Element.prototype.animate = vi.fn(() => ({ cancel() {} }) as Animation)
 
 afterEach(() => {
   cleanup()

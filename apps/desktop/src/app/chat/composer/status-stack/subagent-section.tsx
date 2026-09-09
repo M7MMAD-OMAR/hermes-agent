@@ -7,6 +7,7 @@ import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { useViewedInterval } from '@/hooks/use-viewed-interval'
 import { useI18n } from '@/i18n'
+import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { useSessionSlice } from '@/lib/use-session-slice'
 import { $subagentsBySession, type SubagentProgress } from '@/store/subagents'
 
@@ -15,6 +16,52 @@ import { SubagentTranscript } from './subagent-transcript'
 
 interface SubagentSectionProps {
   sessionId: string
+}
+
+/**
+ * One worker in the composer roster. A component rather than an inline render
+ * so each row owns a one-shot enter animation, keyed by worker id: a fan-out
+ * settles in instead of snapping into place, and a row already on screen never
+ * replays when a sibling's progress re-renders the list.
+ */
+function RosterRow({
+  expanded,
+  fallbackText,
+  item,
+  nowMs,
+  onToggle,
+  statusLabel
+}: {
+  expanded: boolean
+  fallbackText: string
+  item: SubagentProgress
+  nowMs: number
+  onToggle: () => void
+  statusLabel: string
+}) {
+  const enterRef = useEnterAnimation(true, `composer-subagent:${item.id}`)
+
+  return (
+    <button
+      aria-expanded={expanded}
+      className="flex w-full min-w-0 items-start gap-2 px-2 py-1 text-left"
+      onClick={onToggle}
+      ref={enterRef}
+      type="button"
+    >
+      <GlyphSpinner ariaLabel={statusLabel} className="mt-0.5 shrink-0 text-(--ui-purple)" spinner="braille" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs text-(--ui-text-primary)">{item.goal}</span>
+        <span className="block truncate text-[0.68rem] text-(--ui-text-tertiary)">
+          {item.stream.at(-1)?.text || fallbackText}
+        </span>
+      </span>
+      <ActivityTimerText
+        className="shrink-0 text-[0.65rem]"
+        seconds={Math.max(0, Math.floor((nowMs - item.startedAt) / 1000))}
+      />
+    </button>
+  )
 }
 
 /** A composer-local roster: never borrow the global Agents panel's scope. */
@@ -34,29 +81,15 @@ export function SubagentSection({ sessionId }: SubagentSectionProps) {
   }
 
   const row = (item: SubagentProgress) => (
-    <button
-      aria-expanded={selected === item.id}
-      className="flex w-full min-w-0 items-start gap-2 px-2 py-1 text-left"
+    <RosterRow
+      expanded={selected === item.id}
+      fallbackText={item.status === 'queued' ? t.agents.queued : t.agents.waitingActivity}
+      item={item}
       key={item.id}
-      onClick={() => setSelected(selected === item.id ? null : item.id)}
-      type="button"
-    >
-      <GlyphSpinner
-        ariaLabel={item.status === 'queued' ? t.agents.queued : t.agents.running}
-        className="mt-0.5 shrink-0 text-(--ui-purple)"
-        spinner="braille"
-      />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs text-(--ui-text-primary)">{item.goal}</span>
-        <span className="block truncate text-[0.68rem] text-(--ui-text-tertiary)">
-          {item.stream.at(-1)?.text || (item.status === 'queued' ? t.agents.queued : t.agents.waitingActivity)}
-        </span>
-      </span>
-      <ActivityTimerText
-        className="shrink-0 text-[0.65rem]"
-        seconds={Math.max(0, Math.floor((nowMs - item.startedAt) / 1000))}
-      />
-    </button>
+      nowMs={nowMs}
+      onToggle={() => setSelected(selected === item.id ? null : item.id)}
+      statusLabel={item.status === 'queued' ? t.agents.queued : t.agents.running}
+    />
   )
 
   const detail = live.find(item => item.id === selected)

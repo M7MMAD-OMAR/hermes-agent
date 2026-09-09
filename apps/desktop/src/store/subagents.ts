@@ -4,7 +4,7 @@ import { traceSubagent } from '@/lib/subagent-trace'
 import { capitalize } from '@/lib/text'
 
 export type SubagentStatus = 'completed' | 'failed' | 'interrupted' | 'queued' | 'running'
-export type SubagentStreamKind = 'progress' | 'summary' | 'thinking' | 'tool'
+export type SubagentStreamKind = 'progress' | 'steer' | 'summary' | 'thinking' | 'tool'
 
 export interface SubagentStreamEntry {
   at: number
@@ -254,6 +254,46 @@ export function reconcileSubagentSnapshot(sid: string, children: SubagentPayload
   if (next.length !== previous.length || next.some((item, index) => item !== previous[index])) {
     $subagentsBySession.set({ ...map, [sid]: next })
   }
+}
+
+/**
+ * Record an instruction the parent successfully delivered to a live child, so
+ * the roster keeps *what was said to whom* instead of dropping it behind a
+ * one-line "queued" toast. The backend appends a steer to the child's next tool
+ * result inside the model-facing message array only, and emits no event for it,
+ * so this local record is the sole surface where the exchange is legible.
+ *
+ * Returns true when the entry landed. Deliberately no-ops on an unknown id or a
+ * settled child: a steer the backend refused must not leave a phantom message.
+ * Unlike streamed child output, repeats are NOT collapsed -- sending the same
+ * instruction twice is two real deliveries.
+ */
+export function recordSubagentSteer(sid: string, subagentId: string, text: string): boolean {
+  const body = text.trim()
+
+  if (!body) {
+    return false
+  }
+
+  const map = $subagentsBySession.get()
+  const list = map[sid]
+  const index = list?.findIndex(item => item.id === subagentId) ?? -1
+  const target = index >= 0 ? list?.[index] : undefined
+
+  if (!list || !target || TERMINAL.has(target.status)) {
+    return false
+  }
+
+  const at = Date.now()
+  const next = [...list]
+  next[index] = {
+    ...target,
+    stream: [...target.stream, { at, kind: 'steer' as const, text: body }].slice(-MAX_STREAM),
+    updatedAt: at
+  }
+  $subagentsBySession.set({ ...map, [sid]: next })
+
+  return true
 }
 
 export function clearSessionSubagents(sid: string) {

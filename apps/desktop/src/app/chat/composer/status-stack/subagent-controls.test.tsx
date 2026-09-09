@@ -49,6 +49,38 @@ it('sends steer and stop to the child parent owner, never the active gateway or 
   expect($subagentsBySession.get().parent?.[0]?.status).toBe('running')
 })
 
+it('surfaces a delivered instruction in the worker roster instead of only a queued toast', async () => {
+  vi.spyOn(gateway, 'requestGatewayForAgent').mockResolvedValue({ status: 'queued', found: true })
+  setSessionOwnerHint('parent', { connectionId: 'remote-owner', profile: 'research' })
+  upsertSubagent('parent', { subagent_id: 'worker', goal: 'Owned work' })
+  const view = render(<SubagentSection sessionId="parent" />)
+  fireEvent.click(screen.getByRole('button', { name: /Owned work/ }))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Skip the flaky fixture' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
+
+  // The instruction outlives the cleared input: it is the only record of what
+  // this worker was told, so it has to be readable in the detail afterwards.
+  await waitFor(() =>
+    expect(
+      view.container.querySelector('[data-slot="composer-subagent-detail"]')?.textContent
+    ).toContain('Skip the flaky fixture')
+  )
+  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('')
+})
+
+it('records nothing when the gateway refuses the steer', async () => {
+  vi.spyOn(gateway, 'requestGatewayForAgent').mockResolvedValue({ status: 'rejected' })
+  setSessionOwnerHint('parent', { connectionId: 'remote-owner', profile: 'research' })
+  upsertSubagent('parent', { subagent_id: 'worker', goal: 'Owned work' })
+  render(<SubagentSection sessionId="parent" />)
+  fireEvent.click(screen.getByRole('button', { name: /Owned work/ }))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Never delivered' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
+
+  await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+  expect($subagentsBySession.get().parent?.[0]?.stream.some(entry => entry.kind === 'steer')).toBe(false)
+})
+
 it('keeps rejected steer text and does not retarget when the owner is unknown', async () => {
   const request = vi.spyOn(gateway, 'requestGatewayForAgent').mockResolvedValue({ status: 'rejected' })
   upsertSubagent('unknown', { subagent_id: 'worker', goal: 'Unbound work' })

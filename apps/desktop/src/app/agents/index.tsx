@@ -9,7 +9,7 @@ import { FadeText } from '@/components/ui/fade-text'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { type Translations, useI18n } from '@/i18n'
 import { compactNumber } from '@/lib/format'
-import { AlertCircle, CheckCircle2 } from '@/lib/icons'
+import { AlertCircle, CheckCircle2, SteeringWheel } from '@/lib/icons'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
 import {
@@ -45,6 +45,9 @@ function statusGlyph(status: SubagentStatus, a: Translations['agents']): ReactNo
 
 const STREAM_TONE: Record<SubagentStreamEntry['kind'], string> = {
   progress: 'text-muted-foreground/75',
+  // An instruction the operator sent INTO this worker, not output it produced.
+  // Kept at full weight so the exchange reads as a conversation, not a log.
+  steer: 'text-foreground/90',
   summary: 'text-foreground/85',
   thinking: 'text-muted-foreground/80',
   tool: 'text-foreground/85'
@@ -53,6 +56,10 @@ const STREAM_TONE: Record<SubagentStreamEntry['kind'], string> = {
 function streamGlyph(entry: SubagentStreamEntry): ReactNode {
   if (entry.isError) {
     return <AlertCircle aria-hidden className="mt-0.5 size-3 shrink-0 text-destructive" />
+  }
+
+  if (entry.kind === 'steer') {
+    return <SteeringWheel aria-hidden className="mt-0.5 size-3 shrink-0 text-(--ui-purple)" />
   }
 
   if (entry.kind === 'tool') {

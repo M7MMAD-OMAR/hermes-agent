@@ -10,7 +10,7 @@ import { useViewedInterval } from '@/hooks/use-viewed-interval'
 import { useI18n } from '@/i18n'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { useSessionSlice } from '@/lib/use-session-slice'
-import { $subagentsBySession, type SubagentProgress } from '@/store/subagents'
+import { $subagentsBySession, lastWorkerActivity, type SubagentProgress } from '@/store/subagents'
 import { openSessionInNewWindow } from '@/store/windows'
 
 import { SubagentControls } from './subagent-controls'
@@ -55,7 +55,7 @@ function RosterRow({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs text-(--ui-text-primary)">{item.goal}</span>
         <span className="block truncate text-[0.68rem] text-(--ui-text-tertiary)">
-          {item.stream.at(-1)?.text || fallbackText}
+          {lastWorkerActivity(item) || fallbackText}
         </span>
       </span>
       <ActivityTimerText

@@ -7,6 +7,7 @@ import {
   buildSubagentTree,
   clearSessionSubagents,
   failedSubagentCount,
+  lastWorkerActivity,
   pruneDelegateFallbackSubagents,
   pruneFinishedSessionSubagents,
   recordSubagentSteer,
@@ -337,16 +338,34 @@ describe('subagent store', () => {
   })
 
   describe('recordSubagentSteer', () => {
-    it('records a delivered instruction on the live worker and marks it as activity', () => {
+    it('records a delivered instruction without claiming the worker did something', () => {
       upsertSubagent('s1', { goal: 'task', status: 'running', subagent_id: 'w1', task_index: 0 })
-      const before = listFor('s1')[0]?.updatedAt ?? 0
+      const before = listFor('s1')[0]?.updatedAt
 
       expect(recordSubagentSteer('s1', 'w1', '  prefer the cached path  ')).toBe(true)
 
       const entry = listFor('s1')[0]?.stream.at(-1)
       expect(entry?.kind).toBe('steer')
       expect(entry?.text).toBe('prefer the cached path')
-      expect(listFor('s1')[0]?.updatedAt).toBeGreaterThanOrEqual(before)
+      // "updated Ns ago" tracks the child, so operator input must not reset it.
+      expect(listFor('s1')[0]?.updatedAt).toBe(before)
+    })
+
+    it('keeps the worker-activity line on the last thing the child did', () => {
+      upsertSubagent('s1', { goal: 'task', status: 'running', subagent_id: 'w1', task_index: 0 })
+      upsertSubagent('s1', { subagent_id: 'w1', text: 'Reading actual source' }, false, 'subagent.progress')
+      recordSubagentSteer('s1', 'w1', 'try the other fixture')
+
+      const item = listFor('s1')[0]!
+      expect(item.stream.at(-1)?.kind).toBe('steer')
+      expect(lastWorkerActivity(item)).toBe('Reading actual source')
+    })
+
+    it('reports no worker activity when only instructions have been sent', () => {
+      upsertSubagent('s1', { goal: 'task', status: 'running', subagent_id: 'w1', task_index: 0 })
+      recordSubagentSteer('s1', 'w1', 'start with the smallest case')
+
+      expect(lastWorkerActivity(listFor('s1')[0]!)).toBe('')
     })
 
     it('leaves no phantom instruction for an unknown, settled, or empty target', () => {

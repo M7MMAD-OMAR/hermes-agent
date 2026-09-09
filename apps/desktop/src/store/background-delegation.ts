@@ -1,7 +1,7 @@
 import { computed } from 'nanostores'
 
 import { $activeSessionId, $busy } from './session'
-import { $subagentsBySession, type SubagentProgress } from './subagents'
+import { $subagentsBySession, lastWorkerActivity, type SubagentProgress } from './subagents'
 
 export interface BackgroundResume {
   /** Latest live activity from the primary child (its newest stream line), or
@@ -41,7 +41,7 @@ export const $backgroundResume = computed(
       return null
     }
 
-    const activity = (running[0]!.stream.at(-1)?.text ?? '').trim() || null
+    const activity = lastWorkerActivity(running[0]!).trim() || null
 
     return { activity, count: running.length }
   }

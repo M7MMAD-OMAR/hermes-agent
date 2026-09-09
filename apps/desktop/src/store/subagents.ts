@@ -267,6 +267,10 @@ export function reconcileSubagentSnapshot(sid: string, children: SubagentPayload
  * settled child: a steer the backend refused must not leave a phantom message.
  * Unlike streamed child output, repeats are NOT collapsed -- sending the same
  * instruction twice is two real deliveries.
+ *
+ * `updatedAt` is deliberately left alone. It means "when this worker last did
+ * something" and surfaces as "updated Ns ago"; operator input is not worker
+ * activity, and bumping it would reset that clock on every steer.
  */
 export function recordSubagentSteer(sid: string, subagentId: string, text: string): boolean {
   const body = text.trim()
@@ -284,17 +288,23 @@ export function recordSubagentSteer(sid: string, subagentId: string, text: strin
     return false
   }
 
-  const at = Date.now()
   const next = [...list]
   next[index] = {
     ...target,
-    stream: [...target.stream, { at, kind: 'steer' as const, text: body }].slice(-MAX_STREAM),
-    updatedAt: at
+    stream: [...target.stream, { at: Date.now(), kind: 'steer' as const, text: body }].slice(-MAX_STREAM)
   }
   $subagentsBySession.set({ ...map, [sid]: next })
 
   return true
 }
+
+/**
+ * The newest thing the WORKER did, skipping instructions sent into it. Roster
+ * subtitles answer "what is this child doing", so an operator steer must not
+ * take that slot and echo the instruction back as if it were progress.
+ */
+export const lastWorkerActivity = (item: SubagentProgress): string =>
+  item.stream.filter(entry => entry.kind !== 'steer').at(-1)?.text ?? ''
 
 export function clearSessionSubagents(sid: string) {
   const map = $subagentsBySession.get()

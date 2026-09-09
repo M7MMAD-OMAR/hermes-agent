@@ -23,7 +23,7 @@ afterEach(() => {
 it('keeps each worker draft while inspecting siblings and removes settled selection', () => {
   upsertSubagent('parent', { subagent_id: 'a', goal: 'Worker A' })
   upsertSubagent('parent', { subagent_id: 'b', goal: 'Worker B' })
-  render(<SubagentSection sessionId="parent" />)
+  render(<SubagentSection navigate={() => {}} sessionId="parent" />)
   fireEvent.click(screen.getByRole('button', { name: /Worker A/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Preserve my instruction' } })
   fireEvent.click(screen.getByRole('button', { name: /Worker B/ }))
@@ -39,7 +39,7 @@ it('measures detail elapsed from worker start rather than first inspection', () 
   const now = vi.spyOn(Date, 'now').mockReturnValue(100000)
   upsertSubagent('parent', { subagent_id: 'timed', goal: 'Timed worker' })
   now.mockReturnValue(117000)
-  const { container } = render(<SubagentSection sessionId="parent" />)
+  const { container } = render(<SubagentSection navigate={() => {}} sessionId="parent" />)
   fireEvent.click(screen.getByRole('button', { name: /Timed worker/ }))
   expect(
     container.querySelector(

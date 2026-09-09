@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { SubagentRow } from '@/app/agents'
+import { openSession, openSessionIntentFromModifiers, type OpenSessionNavigate } from '@/app/open-session'
 import { ActivityTimerText } from '@/components/chat/activity-timer-text'
 import { StatusSection } from '@/components/chat/status-section'
 import { Button } from '@/components/ui/button'
@@ -11,12 +12,13 @@ import { useI18n } from '@/i18n'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { useSessionSlice } from '@/lib/use-session-slice'
 import { $subagentsBySession, lastWorkerActivity, type SubagentProgress } from '@/store/subagents'
-import { openSessionInNewWindow } from '@/store/windows'
 
 import { SubagentControls } from './subagent-controls'
 import { SubagentTranscript } from './subagent-transcript'
 
 interface SubagentSectionProps {
+  /** Router handle for `openSession`; passed down so this stays router-free. */
+  navigate: OpenSessionNavigate
   sessionId: string
 }
 
@@ -67,7 +69,7 @@ function RosterRow({
 }
 
 /** A composer-local roster: never borrow the global Agents panel's scope. */
-export function SubagentSection({ sessionId }: SubagentSectionProps) {
+export function SubagentSection({ navigate, sessionId }: SubagentSectionProps) {
   const { t } = useI18n()
   const items = useSessionSlice($subagentsBySession, sessionId)
   const live = items.filter(item => item.status === 'running' || item.status === 'queued')
@@ -77,6 +79,13 @@ export function SubagentSection({ sessionId }: SubagentSectionProps) {
   const hasLive = live.length > 0
 
   useViewedInterval(() => setNowMs(Date.now()), 1000, hasLive)
+
+  // Deliberately keyless, unlike the rows: opening a worker is a repeatable act,
+  // so the panel should settle in every time it mounts rather than once per
+  // worker. The hook animates opacity and offset off the element itself, so it
+  // never animates the stack's layout geometry on this hot path, and it bails
+  // out under `prefers-reduced-motion`.
+  const detailEnterRef = useEnterAnimation(true)
 
   if (!hasLive) {
     return null
@@ -115,11 +124,23 @@ export function SubagentSection({ sessionId }: SubagentSectionProps) {
         <div className="max-h-[25vh] overflow-y-auto overscroll-contain">{live.map(row)}</div>
       </StatusSection>
       {detail && (
-        <div className="max-h-[25vh] overflow-y-auto overscroll-contain px-3 py-2" data-slot="composer-subagent-detail">
+        <div
+          className="max-h-[25vh] overflow-y-auto overscroll-contain px-3 py-2"
+          data-slot="composer-subagent-detail"
+          ref={detailEnterRef}
+        >
           {childSession && (
             <div className="flex justify-end">
+              {/* Through the app's own navigation primitive, not a bare pop-out:
+                  a plain click lands the sub-conversation in the workspace
+                  (main while it holds only a blank draft, else a tab), and the
+                  session-row modifiers still reach a tab or a window. It also
+                  clears the child's unread marker and degrades to a tab where
+                  the shell cannot pop a window out at all. */}
               <Button
-                onClick={() => void openSessionInNewWindow(childSession, { watch: true })}
+                onClick={event =>
+                  openSession(childSession, navigate, openSessionIntentFromModifiers(event, 'stack'))
+                }
                 size="xs"
                 type="button"
                 variant="text"

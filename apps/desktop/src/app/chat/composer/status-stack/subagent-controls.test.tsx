@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 
+import * as openSessionModule from '@/app/open-session'
 import * as gateway from '@/store/gateway'
 import { _resetSessionOwnerHintsForTests, setSessionOwnerHint } from '@/store/session'
 import { $subagentsBySession, upsertSubagent } from '@/store/subagents'
-import * as windows from '@/store/windows'
 
 import { SubagentSection } from './subagent-section'
 
@@ -28,7 +28,7 @@ it('sends steer and stop to the child parent owner, never the active gateway or 
   const request = vi.spyOn(gateway, 'requestGatewayForAgent').mockResolvedValue({ status: 'queued', found: true })
   setSessionOwnerHint('parent', { connectionId: 'remote-owner', profile: 'research' })
   upsertSubagent('parent', { subagent_id: 'worker', child_session_id: 'child-transcript', goal: 'Owned work' })
-  render(<SubagentSection sessionId="parent" />)
+  render(<SubagentSection navigate={() => {}} sessionId="parent" />)
   fireEvent.click(screen.getByRole('button', { name: /Owned work/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Check the negative control' } })
   fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
@@ -54,7 +54,7 @@ it('surfaces a delivered instruction in the worker roster instead of only a queu
   vi.spyOn(gateway, 'requestGatewayForAgent').mockResolvedValue({ status: 'queued', found: true })
   setSessionOwnerHint('parent', { connectionId: 'remote-owner', profile: 'research' })
   upsertSubagent('parent', { subagent_id: 'worker', goal: 'Owned work' })
-  const view = render(<SubagentSection sessionId="parent" />)
+  const view = render(<SubagentSection navigate={() => {}} sessionId="parent" />)
   fireEvent.click(screen.getByRole('button', { name: /Owned work/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Skip the flaky fixture' } })
   fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
@@ -69,25 +69,33 @@ it('surfaces a delivered instruction in the worker roster instead of only a queu
   expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('')
 })
 
-it('offers the child conversation only when the worker reported its own session', async () => {
-  const openWindow = vi.spyOn(windows, 'openSessionInNewWindow').mockResolvedValue()
+it('navigates to the child conversation through openSession, honouring row modifiers', () => {
+  const open = vi.spyOn(openSessionModule, 'openSession').mockImplementation(() => {})
+  const navigate = vi.fn()
   upsertSubagent('parent', { subagent_id: 'anonymous', goal: 'No transcript yet' })
   upsertSubagent('parent', { subagent_id: 'worker', child_session_id: 'child-1', goal: 'Has a transcript' })
-  render(<SubagentSection sessionId="parent" />)
+  render(<SubagentSection navigate={navigate} sessionId="parent" />)
 
+  // A worker that never reported a session has nowhere to go.
   fireEvent.click(screen.getByRole('button', { name: /No transcript yet/ }))
   expect(screen.queryByRole('button', { name: 'Open chat' })).toBeNull()
 
   fireEvent.click(screen.getByRole('button', { name: /Has a transcript/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Open chat' }))
-  expect(openWindow).toHaveBeenCalledWith('child-1', { watch: true })
+  expect(open).toHaveBeenLastCalledWith('child-1', navigate, 'stack')
+
+  // Same modifiers as a sidebar session row: mod for a tab, mod+shift for a window.
+  fireEvent.click(screen.getByRole('button', { name: 'Open chat' }), { ctrlKey: true })
+  expect(open).toHaveBeenLastCalledWith('child-1', navigate, 'tab')
+  fireEvent.click(screen.getByRole('button', { name: 'Open chat' }), { ctrlKey: true, shiftKey: true })
+  expect(open).toHaveBeenLastCalledWith('child-1', navigate, 'window')
 })
 
 it('records nothing when the gateway refuses the steer', async () => {
   vi.spyOn(gateway, 'requestGatewayForAgent').mockResolvedValue({ status: 'rejected' })
   setSessionOwnerHint('parent', { connectionId: 'remote-owner', profile: 'research' })
   upsertSubagent('parent', { subagent_id: 'worker', goal: 'Owned work' })
-  render(<SubagentSection sessionId="parent" />)
+  render(<SubagentSection navigate={() => {}} sessionId="parent" />)
   fireEvent.click(screen.getByRole('button', { name: /Owned work/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Never delivered' } })
   fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
@@ -99,7 +107,7 @@ it('records nothing when the gateway refuses the steer', async () => {
 it('keeps rejected steer text and does not retarget when the owner is unknown', async () => {
   const request = vi.spyOn(gateway, 'requestGatewayForAgent').mockResolvedValue({ status: 'rejected' })
   upsertSubagent('unknown', { subagent_id: 'worker', goal: 'Unbound work' })
-  render(<SubagentSection sessionId="unknown" />)
+  render(<SubagentSection navigate={() => {}} sessionId="unknown" />)
   fireEvent.click(screen.getByRole('button', { name: /Unbound work/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep this instruction' } })
   fireEvent.click(screen.getByRole('button', { name: 'Steer' }))

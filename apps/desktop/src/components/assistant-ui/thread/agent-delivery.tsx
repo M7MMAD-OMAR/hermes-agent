@@ -1,7 +1,9 @@
-import { type ToolCallMessagePartProps } from '@assistant-ui/react'
+import { type ToolCallMessagePartProps, useAuiState } from '@assistant-ui/react'
 import { type FC, useEffect, useState } from 'react'
 
 import { AGENT_MESSAGE_RE, agentAvatarCache, resolveAgentAvatar } from '@/components/assistant-ui/thread/user-message'
+import { selectMessageRunning } from '@/components/assistant-ui/tool/fallback-model'
+import { useEnterAnimation } from '@/lib/use-enter-animation'
 
 // Sender-side inter-agent delivery: `hermes -p <agent> chat … -q "Message
 // from 🤖 <sender>…"` run through the terminal tool IS the messaging
@@ -88,6 +90,14 @@ const AgentGlyph: FC<{ handle: string }> = ({ handle }) => {
  *  command run via the terminal tool. Returns null when the command is not
  *  a delivery — caller falls through to the normal terminal row. */
 export const AgentDeliveryNotice: FC<ToolCallMessagePartProps> = props => {
+  // Every neighbour in the timeline settles in (tool rows, thinking groups,
+  // the assistant message itself) under one rule: animate only what mounts
+  // while its message is streaming, so a rehydrated history paints statically
+  // instead of cascading. This notice was the one thing arriving live with no
+  // motion at all, which is a poor fit for what it is: a message reaching this
+  // conversation from another one.
+  const messageRunning = useAuiState(selectMessageRunning)
+  const enterRef = useEnterAnimation(messageRunning, `agent-delivery:${props.toolCallId}`)
   const command = typeof props.args?.command === 'string' ? props.args.command : ''
   const target = deliveryTargetFromCommand(command)
 
@@ -101,7 +111,7 @@ export const AgentDeliveryNotice: FC<ToolCallMessagePartProps> = props => {
   const replyBody = AGENT_MESSAGE_RE.exec(reply)?.[4] ?? reply
 
   return (
-    <div className="flex w-full min-w-0 flex-col items-stretch gap-0.5">
+    <div className="flex w-full min-w-0 flex-col items-stretch gap-0.5" ref={enterRef}>
       <div className={NOTICE_CLASS} data-slot="aui_agent-delivery-notice">
         <span className="flex items-center justify-center gap-1.5">
           <AgentGlyph handle={target} />

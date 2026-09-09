@@ -289,6 +289,15 @@ Sizes: `default`, `xs`, `overlay` (titlebar glyph counts).
 - Do not animate layout geometry with `transition-all` on a hot interaction.
   Name the properties, avoid backdrop-filter repaints during movement, and
   remove animation before masking a performance problem.
+- **In the transcript, one rule decides who animates: what arrives live does,
+  what is rehydrated does not.** Anything that settles in on mount goes through
+  `useEnterAnimation` (`src/lib/use-enter-animation.ts`) gated on the message
+  streaming (`selectMessageRunning`, or `initiallyRunning` captured at mount)
+  and keyed so it plays once. Opening a session must not cascade its whole
+  history in. The hook animates opacity and offset off the element via the Web
+  Animations API rather than CSS transitions, deliberately: streaming deltas
+  invalidate ancestor state constantly and would replay a transition on
+  unrelated descendants.
 
 ## Direct manipulation & performance
 

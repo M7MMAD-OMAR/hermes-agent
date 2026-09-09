@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { type ThreadMessage } from '@assistant-ui/react'
+import { cleanup, render } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+
+import { stubThreadEnvironment, ThreadRuntime } from '../test-utils'
 
 import { deliveryTargetFromCommand, replyTextFromResult } from './agent-delivery'
+
+import { Thread } from '.'
+
+stubThreadEnvironment()
 
 // Sender-side inter-agent deliveries render as "Messaged X" / "Message from
 // X" notices instead of terminal transcript rows. This pins the detection
@@ -41,5 +49,66 @@ describe('reply extraction', () => {
   it('returns empty for empty results', () => {
     expect(replyTextFromResult(undefined)).toBe('')
     expect(replyTextFromResult({ output: '' })).toBe('')
+  })
+})
+
+// The notice is a message arriving from another conversation, so it settles in
+// under the transcript's one motion rule: animate what mounts while its message
+// is streaming, and let a rehydrated history paint statically.
+describe('delivery notice entry', () => {
+  const createdAt = new Date('2026-05-01T00:00:00.000Z')
+  const command = 'hermes -p turqoise chat --in ~ -Q -q "Message from 🤖 Hermes: hi"'
+  const animated: Element[] = []
+  const original = Element.prototype.animate
+
+  Element.prototype.animate = function record(this: Element) {
+    animated.push(this)
+
+    return { cancel() {}, finished: Promise.resolve() } as unknown as Animation
+  }
+
+  const delivery = (toolCallId: string) => ({ type: 'tool-call', toolCallId, toolName: 'terminal', args: { command } })
+
+  const message = (id: string, toolCallId: string, running: boolean): ThreadMessage =>
+    ({
+      id,
+      role: 'assistant',
+      content: [delivery(toolCallId)],
+      status: running ? { type: 'running' } : { type: 'complete', reason: 'stop' },
+      createdAt,
+      metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: {} }
+    }) as unknown as ThreadMessage
+
+  // The notice's own wrapper, not any animated ancestor: the assistant message
+  // root also animates while streaming and contains the notice, so a
+  // `querySelector` here would pass with no notice animation at all.
+  const animatedNotices = () =>
+    animated.filter(element => element.firstElementChild?.getAttribute('data-slot') === 'aui_agent-delivery-notice')
+      .length
+
+  afterEach(() => {
+    cleanup()
+    animated.length = 0
+  })
+
+  it('animates a notice that arrives while the turn is streaming', () => {
+    render(
+      <ThreadRuntime messages={[message('live', 'tc-live', true)]}>
+        <Thread />
+      </ThreadRuntime>
+    )
+
+    expect(animatedNotices()).toBeGreaterThan(0)
+  })
+
+  it('leaves a rehydrated notice alone', () => {
+    render(
+      <ThreadRuntime messages={[message('history', 'tc-history', false)]}>
+        <Thread />
+      </ThreadRuntime>
+    )
+
+    expect(animatedNotices()).toBe(0)
+    Element.prototype.animate = original
   })
 })

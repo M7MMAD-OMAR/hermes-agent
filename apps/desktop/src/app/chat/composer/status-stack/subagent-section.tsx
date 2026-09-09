@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { SubagentRow } from '@/app/agents'
 import { ActivityTimerText } from '@/components/chat/activity-timer-text'
 import { StatusSection } from '@/components/chat/status-section'
+import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { useViewedInterval } from '@/hooks/use-viewed-interval'
@@ -10,6 +11,7 @@ import { useI18n } from '@/i18n'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { useSessionSlice } from '@/lib/use-session-slice'
 import { $subagentsBySession, type SubagentProgress } from '@/store/subagents'
+import { openSessionInNewWindow } from '@/store/windows'
 
 import { SubagentControls } from './subagent-controls'
 import { SubagentTranscript } from './subagent-transcript'
@@ -93,6 +95,8 @@ export function SubagentSection({ sessionId }: SubagentSectionProps) {
   )
 
   const detail = live.find(item => item.id === selected)
+  // Only a child that reported its own session id has a conversation to open.
+  const childSession = detail?.sessionId
 
   return (
     <div className="composer-no-drag min-w-0" data-slot="composer-subagents">
@@ -112,6 +116,18 @@ export function SubagentSection({ sessionId }: SubagentSectionProps) {
       </StatusSection>
       {detail && (
         <div className="max-h-[25vh] overflow-y-auto overscroll-contain px-3 py-2" data-slot="composer-subagent-detail">
+          {childSession && (
+            <div className="flex justify-end">
+              <Button
+                onClick={() => void openSessionInNewWindow(childSession, { watch: true })}
+                size="xs"
+                type="button"
+                variant="text"
+              >
+                {t.notifications.openChat}
+              </Button>
+            </div>
+          )}
           <SubagentControls
             key={`${sessionId}:${detail.id}`}
             sessionId={sessionId}

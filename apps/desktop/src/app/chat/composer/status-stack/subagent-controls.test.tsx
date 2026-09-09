@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import * as gateway from '@/store/gateway'
 import { _resetSessionOwnerHintsForTests, setSessionOwnerHint } from '@/store/session'
 import { $subagentsBySession, upsertSubagent } from '@/store/subagents'
+import * as windows from '@/store/windows'
 
 import { SubagentSection } from './subagent-section'
 
@@ -66,6 +67,20 @@ it('surfaces a delivered instruction in the worker roster instead of only a queu
     ).toContain('Skip the flaky fixture')
   )
   expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('')
+})
+
+it('offers the child conversation only when the worker reported its own session', async () => {
+  const openWindow = vi.spyOn(windows, 'openSessionInNewWindow').mockResolvedValue()
+  upsertSubagent('parent', { subagent_id: 'anonymous', goal: 'No transcript yet' })
+  upsertSubagent('parent', { subagent_id: 'worker', child_session_id: 'child-1', goal: 'Has a transcript' })
+  render(<SubagentSection sessionId="parent" />)
+
+  fireEvent.click(screen.getByRole('button', { name: /No transcript yet/ }))
+  expect(screen.queryByRole('button', { name: 'Open chat' })).toBeNull()
+
+  fireEvent.click(screen.getByRole('button', { name: /Has a transcript/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Open chat' }))
+  expect(openWindow).toHaveBeenCalledWith('child-1', { watch: true })
 })
 
 it('records nothing when the gateway refuses the steer', async () => {

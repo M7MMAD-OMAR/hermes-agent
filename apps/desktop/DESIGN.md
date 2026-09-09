@@ -239,6 +239,15 @@ Sizes: `default`, `xs`, `overlay` (titlebar glyph counts).
 - Conversation and tool summaries remain expandable while work is running.
   Preserve the user's open state as new activity arrives and the turn finishes.
   Task updates keep a readable receipt in history after the progress panel clears.
+- **A worker roster answers two different questions, and must not confuse them.**
+  An instruction sent *into* a subagent is recorded on its stream as a `steer`
+  entry and drawn distinctly (steering-wheel glyph, `--ui-purple`, full text
+  weight) so it never reads as output the worker produced. Anything answering
+  "what is this worker doing" reads through `lastWorkerActivity`
+  (`src/store/subagents.ts`), which skips those entries, and `updatedAt` tracks
+  the child only: operator input is not worker activity. Opening a worker's own
+  conversation goes through `openSession` with the session-row modifiers, not a
+  bare pop-out.
 - Install, onboarding, connecting, boot failure, and reauthentication are
   distinct states with shared visual primitives. Preserve their recovery
   semantics when unifying appearance.

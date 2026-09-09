@@ -1,6 +1,6 @@
 import { type ThreadMessage } from '@assistant-ui/react'
 import { cleanup, render } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 import { stubThreadEnvironment, ThreadRuntime } from '../test-utils'
 
@@ -61,11 +61,21 @@ describe('delivery notice entry', () => {
   const animated: Element[] = []
   const original = Element.prototype.animate
 
-  Element.prototype.animate = function record(this: Element) {
-    animated.push(this)
+  // Scoped to this block, and restored even if a test throws. Patching at
+  // describe-body time instead would replace the shared stub from collection
+  // onward, and restoring inside the last test would leak it whenever that
+  // test is filtered out or fails early.
+  beforeAll(() => {
+    Element.prototype.animate = function record(this: Element) {
+      animated.push(this)
 
-    return { cancel() {}, finished: Promise.resolve() } as unknown as Animation
-  }
+      return { cancel() {}, finished: Promise.resolve() } as unknown as Animation
+    }
+  })
+
+  afterAll(() => {
+    Element.prototype.animate = original
+  })
 
   const delivery = (toolCallId: string) => ({ type: 'tool-call', toolCallId, toolName: 'terminal', args: { command } })
 
@@ -109,6 +119,5 @@ describe('delivery notice entry', () => {
     )
 
     expect(animatedNotices()).toBe(0)
-    Element.prototype.animate = original
   })
 })

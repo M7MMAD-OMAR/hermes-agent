@@ -36,11 +36,20 @@ function statusGlyph(status: SubagentStatus, a: Translations['agents']): ReactNo
     )
   }
 
+  // `role="img"` alongside the label: a bare labelled <svg> has no reliable
+  // role, and assistive tech skips it, so the status these rows exist to
+  // convey went unannounced.
   if (status === 'failed' || status === 'interrupted') {
-    return <AlertCircle aria-label={a.failed} className="size-3.5 shrink-0 text-destructive" />
+    return <AlertCircle aria-label={a.failed} className="size-3.5 shrink-0 text-destructive" role="img" />
   }
 
-  return <CheckCircle2 aria-label={a.done} className="size-3.5 shrink-0 text-emerald-600/85 dark:text-emerald-400/85" />
+  return (
+    <CheckCircle2
+      aria-label={a.done}
+      className="size-3.5 shrink-0 text-emerald-600/85 dark:text-emerald-400/85"
+      role="img"
+    />
+  )
 }
 
 const STREAM_TONE: Record<SubagentStreamEntry['kind'], string> = {
@@ -53,13 +62,17 @@ const STREAM_TONE: Record<SubagentStreamEntry['kind'], string> = {
   tool: 'text-foreground/85'
 }
 
-function streamGlyph(entry: SubagentStreamEntry): ReactNode {
+function streamGlyph(entry: SubagentStreamEntry, a: Translations['agents']): ReactNode {
   if (entry.isError) {
     return <AlertCircle aria-hidden className="mt-0.5 size-3 shrink-0 text-destructive" />
   }
 
+  // The one glyph here that is labelled rather than decorative: every other
+  // kind is the worker's own output, so the row's text stands alone. A steer is
+  // the operator's instruction going the other way, and without a label a
+  // screen reader hears it as one more line of worker output.
   if (entry.kind === 'steer') {
-    return <SteeringWheel aria-hidden className="mt-0.5 size-3 shrink-0 text-(--ui-purple)" />
+    return <SteeringWheel aria-label={a.steer} className="mt-0.5 size-3 shrink-0 text-(--ui-purple)" role="img" />
   }
 
   if (entry.kind === 'tool') {
@@ -312,7 +325,7 @@ function StreamLine({
 
   return (
     <div className="flex min-w-0 items-baseline gap-2 text-[0.72rem] leading-relaxed" ref={enterRef}>
-      <span className="flex h-[0.95rem] shrink-0 items-center">{streamGlyph(entry)}</span>
+      <span className="flex h-[0.95rem] shrink-0 items-center">{streamGlyph(entry, t.agents)}</span>
       <span className={cn('min-w-0 flex-1 wrap-anywhere', tone, isMono && 'font-mono text-[0.69rem]')}>
         {entry.text}
         {active ? (

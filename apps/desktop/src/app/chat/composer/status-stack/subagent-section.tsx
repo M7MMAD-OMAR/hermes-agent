@@ -78,11 +78,12 @@ export function SubagentSection({ sessionId }: SubagentSectionProps) {
 
   useViewedInterval(() => setNowMs(Date.now()), 1000, hasLive)
 
-  // Deliberately keyless, unlike the rows: opening a worker is a repeatable act,
-  // so the panel should settle in every time it mounts rather than once per
-  // worker. The hook animates opacity and offset off the element itself, so it
-  // never animates the stack's layout geometry on this hot path, and it bails
-  // out under `prefers-reduced-motion`.
+  // No animation key, unlike the rows: inspecting a worker is a repeatable act,
+  // so the panel settles in on every mount (and the `key` on the element below
+  // makes each selection a real mount) rather than once per worker id. The hook
+  // animates opacity and offset off the element itself, so it never animates
+  // the stack's layout geometry on this hot path, and it bails out under
+  // `prefers-reduced-motion`.
   const detailEnterRef = useEnterAnimation(true)
 
   if (!hasLive) {
@@ -125,6 +126,12 @@ export function SubagentSection({ sessionId }: SubagentSectionProps) {
         <div
           className="max-h-[25vh] overflow-y-auto overscroll-contain px-3 py-2"
           data-slot="composer-subagent-detail"
+          // Keyed per worker so switching selection is a remount, not a
+          // re-render of one reused node. Without it this scrolling panel
+          // carried the previous worker's scroll offset into the next one, and
+          // the enter animation below never replayed, because a callback ref
+          // only fires when the element actually mounts.
+          key={detail.id}
           ref={detailEnterRef}
         >
           {childSession && (

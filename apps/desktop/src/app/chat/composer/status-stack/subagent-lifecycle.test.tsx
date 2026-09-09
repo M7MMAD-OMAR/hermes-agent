@@ -47,3 +47,32 @@ it('measures detail elapsed from worker start rather than first inspection', () 
     )?.textContent
   ).toBe('17s')
 })
+
+// Regression: the detail panel was unkeyed, so switching selection re-rendered
+// one reused node instead of mounting a new one. That carried the previous
+// worker's scroll offset into the next worker's panel, and the enter animation
+// never replayed, because a callback ref only fires on a real mount.
+it('mounts a fresh detail panel per worker instead of reusing one node', () => {
+  const animated: Element[] = []
+  Element.prototype.animate = function record(this: Element) {
+    animated.push(this)
+
+    return { cancel() {} } as unknown as Animation
+  }
+
+  const panels = () => animated.filter(el => el.getAttribute('data-slot') === 'composer-subagent-detail')
+
+  upsertSubagent('parent', { subagent_id: 'a', goal: 'Worker A' })
+  upsertSubagent('parent', { subagent_id: 'b', goal: 'Worker B' })
+  render(<SubagentSection sessionId="parent" />)
+
+  fireEvent.click(screen.getByRole('button', { name: /Worker A/ }))
+  const first = panels()
+  expect(first).toHaveLength(1)
+
+  fireEvent.click(screen.getByRole('button', { name: /Worker B/ }))
+  const second = panels()
+  expect(second).toHaveLength(2)
+  // A distinct DOM node, which is what resets the panel's own scroll offset.
+  expect(second[1]).not.toBe(first[0])
+})

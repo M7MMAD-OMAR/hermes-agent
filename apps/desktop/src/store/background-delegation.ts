@@ -4,9 +4,10 @@ import { $activeSessionId, $busy } from './session'
 import { $subagentsBySession, lastWorkerActivity, type SubagentProgress } from './subagents'
 
 export interface BackgroundResume {
-  /** Latest live activity from the primary child (its newest stream line), or
-   *  null when nothing readable has arrived yet — the UI then falls back to the
-   *  generic "will resume" copy. */
+  /** Latest live activity from the primary child (its newest stream line that
+   *  the child itself produced, so an instruction steered into it never shows
+   *  up here), or null when nothing readable has arrived yet: the UI then falls
+   *  back to the generic "will resume" copy. */
   activity: string | null
   /** Running/queued background children for the active session. */
   count: number

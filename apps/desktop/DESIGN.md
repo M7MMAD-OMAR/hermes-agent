@@ -245,9 +245,10 @@ Sizes: `default`, `xs`, `overlay` (titlebar glyph counts).
   weight) so it never reads as output the worker produced. Anything answering
   "what is this worker doing" reads through `lastWorkerActivity`
   (`src/store/subagents.ts`), which skips those entries, and `updatedAt` tracks
-  the child only: operator input is not worker activity. Opening a worker's own
-  conversation goes through `openSession` with the session-row modifiers, not a
-  bare pop-out.
+  the child only: operator input is not worker activity. A live child's own
+  conversation opens as a spectator window (`openSessionInNewWindow(id, { watch:
+  true })`), never through the generic `openSession` navigation: a running
+  worker is someone else's session to mirror, not yours to adopt.
 - Install, onboarding, connecting, boot failure, and reauthentication are
   distinct states with shared visual primitives. Preserve their recovery
   semantics when unifying appearance.

@@ -17,11 +17,36 @@ Full reference: https://hermes-agent.nousresearch.com/docs/user-guide/configurat
 | `tts` | `provider` (edge/elevenlabs/openai/minimax/mistral/neutts/gemini/piper/kittentts/deepinfra/xai) |
 | `memory` | `memory_enabled`, `user_profile_enabled`, `provider`, `write_approval` |
 | `security` | `redact_secrets`, `tirith_enabled`, `website_blocklist` |
-| `delegation` | `model`, `provider`, `max_concurrent_children`, `max_iterations` (50), `max_spawn_depth` |
+| `delegation` | `model`, `provider`, `max_concurrent_children` (10), `max_iterations` (50), `max_spawn_depth` (1), `worktree_isolation` (false), `reasoning_effort`, `orchestrator_enabled`, `child_timeout_seconds` (0) |
 | `checkpoints` | `enabled`, `max_snapshots` (50) |
 | `curator` | `enabled`, `consolidate` (false, opt-in aux-model consolidation), `interval_hours`, `stale_after_days` |
 
 `hermes config check` reports sections missing from an older config.
+
+### Parallel delegation
+
+Fan-outs that write code contend for one working copy unless each child gets its own.
+`delegation.worktree_isolation: true` gives every child a worktree off the parent's HEAD
+(`<repo>/.worktrees/subagent-<id>`, branch `hermes-subagent/<id>`), pruned only on proof that it is
+clean and commitless. Git repos plus `terminal.backend: local` only: on docker/ssh/modal the host
+worktree is invisible inside the sandbox and isolation is silently skipped, so children share the
+parent's cwd. Turn it on before any parallel write-heavy delegation; leave it off for read-only
+fan-outs, where it only costs disk.
+
+Depth stays flat by default (`max_spawn_depth: 1`), which is the safe shape: children cannot spawn
+their own children, so one fan-out cannot become a tree. Raise it only for a real orchestrator tier.
+
+A fan-out is only as good as its brief. State in each child's goal:
+
+- The one write scope it owns, disjoint from every sibling.
+- That it must not spawn further tasks (redundant at depth 1, load-bearing above it).
+- That shared services, retained data, and deploys are off limits.
+- The exact deliverable: scoped commits, tests, and one report the parent integrates.
+
+Orchestrate live rather than waiting: `delegate_task(action='list')` shows live children,
+`action='steer'` with a `subagent_id` redirects one without stopping its current tool, and
+`action='stop'` ends it. Steers land at the child's next iteration boundary. The desktop roster
+records every delivered steer inline, so the exchange stays readable after the input clears.
 
 ### Toolsets
 

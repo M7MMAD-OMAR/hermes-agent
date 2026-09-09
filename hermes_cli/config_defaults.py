@@ -1274,6 +1274,11 @@ DEFAULT_CONFIG = {
         # Max parallel children per batch AND max concurrent background delegation units; async
         # dispatches beyond it run synchronously. Floor 1, no ceiling.
         "max_concurrent_children": 10,
+        # Give each child its own git worktree off the parent's HEAD so parallel children never
+        # contend for one working copy. Git repos + local terminal backend only; skipped elsewhere.
+        # Registered here so the knob is discoverable: `tools/delegate_tool_config.py` has always
+        # read it, but its absence from this table made `hermes config` call it an unknown key.
+        "worktree_isolation": False,
         # Background fan-outs return as ONE message when the whole call finishes. true = each task
         # (or `group`) returns on its own as it finishes — more new turns for the orchestrator.
         "independent_completions": False,

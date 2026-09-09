@@ -1,7 +1,6 @@
 import { useState } from 'react'
 
 import { SubagentRow } from '@/app/agents'
-import { openSession, openSessionIntentFromModifiers, type OpenSessionNavigate } from '@/app/open-session'
 import { ActivityTimerText } from '@/components/chat/activity-timer-text'
 import { StatusSection } from '@/components/chat/status-section'
 import { Button } from '@/components/ui/button'
@@ -12,13 +11,12 @@ import { useI18n } from '@/i18n'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { useSessionSlice } from '@/lib/use-session-slice'
 import { $subagentsBySession, lastWorkerActivity, type SubagentProgress } from '@/store/subagents'
+import { openSessionInNewWindow } from '@/store/windows'
 
 import { SubagentControls } from './subagent-controls'
 import { SubagentTranscript } from './subagent-transcript'
 
 interface SubagentSectionProps {
-  /** Router handle for `openSession`; passed down so this stays router-free. */
-  navigate: OpenSessionNavigate
   sessionId: string
 }
 
@@ -69,7 +67,7 @@ function RosterRow({
 }
 
 /** A composer-local roster: never borrow the global Agents panel's scope. */
-export function SubagentSection({ navigate, sessionId }: SubagentSectionProps) {
+export function SubagentSection({ sessionId }: SubagentSectionProps) {
   const { t } = useI18n()
   const items = useSessionSlice($subagentsBySession, sessionId)
   const live = items.filter(item => item.status === 'running' || item.status === 'queued')
@@ -131,16 +129,16 @@ export function SubagentSection({ navigate, sessionId }: SubagentSectionProps) {
         >
           {childSession && (
             <div className="flex justify-end">
-              {/* Through the app's own navigation primitive, not a bare pop-out:
-                  a plain click lands the sub-conversation in the workspace
-                  (main while it holds only a blank draft, else a tab), and the
-                  session-row modifiers still reach a tab or a window. It also
-                  clears the child's unread marker and degrades to a tab where
-                  the shell cannot pop a window out at all. */}
+              {/* A spectator window (`watch: true`), not the generic
+                  `openSession` navigation. This roster only ever lists LIVE
+                  children, and `watch` is the app's one mode for observing a
+                  session someone else is driving: a live-mirror stream instead
+                  of adopting it as your own chat. Both other places that open a
+                  subagent child pass it, and nothing else in the app does. An
+                  in-app tab would be more fluent and would land you on top of a
+                  running worker. */}
               <Button
-                onClick={event =>
-                  openSession(childSession, navigate, openSessionIntentFromModifiers(event, 'stack'))
-                }
+                onClick={() => void openSessionInNewWindow(childSession, { watch: true })}
                 size="xs"
                 type="button"
                 variant="text"

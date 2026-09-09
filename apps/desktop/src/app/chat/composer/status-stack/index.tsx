@@ -195,7 +195,7 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
 
   for (const group of groups) {
     if (group.type === 'subagent' && sessionId) {
-      sections.push({ key: group.type, node: <SubagentSection key={sessionId} navigate={navigate} sessionId={sessionId} /> })
+      sections.push({ key: group.type, node: <SubagentSection key={sessionId} sessionId={sessionId} /> })
 
       continue
     }

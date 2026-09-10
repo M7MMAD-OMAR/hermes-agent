@@ -117,6 +117,23 @@ export async function readDesktopFileDataUrl(path: string): Promise<string> {
   return typeof result === 'string' ? result : result.dataUrl || ''
 }
 
+/** An Office document as the PDF LibreOffice prints for it. Local only: the
+ *  conversion runs on this machine, and a remote gateway's file is not here.
+ *  The message is what the rail shows when it cannot preview. */
+export async function readDesktopOfficePdfDataUrl(path: string): Promise<string> {
+  if (isDesktopFsRemoteMode()) {
+    throw new Error('Office files preview on local connections only; open the PDF beside it instead')
+  }
+
+  const desktop = bridge()
+
+  if (!desktop.officePreviewPdf) {
+    throw new Error('Update Hermes Desktop to preview Office files')
+  }
+
+  return desktop.officePreviewPdf(path)
+}
+
 /**
  * Read a composer image local-shell first, even when the active agent is
  * remote. Picker, clipboard, and OS-drop paths belong to this machine; in-app

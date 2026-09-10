@@ -171,6 +171,10 @@ describe('remote HTML previews', () => {
 
 describe('PDF previews', () => {
   it('classifies PDF files as PDF previews', () => {
+    // Office documents ride the PDF viewer after LibreOffice prints them.
+    expect(localPreviewTarget('/tmp/brief.docx')).toMatchObject({ path: '/tmp/brief.docx', previewKind: 'office' })
+    expect(localPreviewTarget('/tmp/sheet.XLSX')).toMatchObject({ previewKind: 'office' })
+    expect(localPreviewTarget('/tmp/deck.pptx')).toMatchObject({ previewKind: 'office' })
     expect(localPreviewTarget('/tmp/spec.pdf')).toMatchObject({
       path: '/tmp/spec.pdf',
       previewKind: 'pdf'

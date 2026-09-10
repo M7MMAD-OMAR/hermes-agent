@@ -27,6 +27,7 @@ import {
   desktopGitRoot,
   readDesktopFileDataUrl,
   readDesktopFileText,
+  readDesktopOfficePdfDataUrl,
   writeDesktopFileText
 } from '@/lib/desktop-fs'
 import { Check, Pencil, X } from '@/lib/icons'
@@ -693,7 +694,10 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
   const fsCacheKey = desktopFsCacheKey(connection)
   const filePath = filePathForTarget(target)
   const isImage = target.previewKind === 'image'
-  const isPdf = target.previewKind === 'pdf'
+  // An Office document rides the PDF path: LibreOffice prints it and the PDF
+  // viewer shows the print. Every later `isPdf` check therefore covers both.
+  const isOffice = target.previewKind === 'office'
+  const isPdf = target.previewKind === 'pdf' || isOffice
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {
@@ -736,7 +740,9 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
         if (isImage || isPdf) {
           // Prefer bytes the caller already handed us (a pasted/dropped
           // screenshot) over re-reading a path that may be transient/unreadable.
-          const dataUrl = target.dataUrl || (await readDesktopFileDataUrl(filePath))
+          const dataUrl =
+            target.dataUrl ||
+            (isOffice ? await readDesktopOfficePdfDataUrl(filePath) : await readDesktopFileDataUrl(filePath))
 
           if (active) {
             setState({ dataUrl, loading: false })

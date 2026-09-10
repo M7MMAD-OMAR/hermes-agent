@@ -6,6 +6,8 @@ import type { PreviewTarget } from '@/store/preview'
 const HTML_EXTENSIONS = new Set(['.htm', '.html'])
 const IMAGE_EXTENSIONS = new Set(['.bmp', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp'])
 const PDF_EXTENSIONS = new Set(['.pdf'])
+// Previewed as the PDF LibreOffice prints for them (electron/office-preview.ts).
+const OFFICE_EXTENSIONS = new Set(['.doc', '.docx', '.odp', '.ods', '.odt', '.ppt', '.pptx', '.rtf', '.xls', '.xlsx'])
 // Mirrors `_FS_DATA_URL_MAX_BYTES` in the backend filesystem endpoint.
 const REMOTE_HTML_PREVIEW_MAX_BYTES = 16 * 1024 * 1024
 const REMOTE_HTML_PREVIEW_MAX_BASE64_BYTES = Math.ceil(REMOTE_HTML_PREVIEW_MAX_BYTES / 3) * 4
@@ -205,6 +207,7 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
   const isHtml = HTML_EXTENSIONS.has(ext)
   const isImage = IMAGE_EXTENSIONS.has(ext)
   const isPdf = PDF_EXTENSIONS.has(ext)
+  const isOffice = OFFICE_EXTENSIONS.has(ext)
 
   return {
     kind: 'file',
@@ -214,7 +217,7 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
     // Renderer fallback can't stat/sniff without reading; assume text unless
     // image/html/pdf extension says otherwise. LocalFilePreview still guards
     // binary/large files when readFileText/readFileDataUrl returns metadata.
-    previewKind: isHtml ? 'html' : isImage ? 'image' : isPdf ? 'pdf' : 'text',
+    previewKind: isHtml ? 'html' : isImage ? 'image' : isPdf ? 'pdf' : isOffice ? 'office' : 'text',
     source: raw,
     url: pathToFileUrl(path)
   }
@@ -226,7 +229,8 @@ async function enrichPreviewTarget(target: PreviewTarget | null): Promise<Previe
     !target ||
     target.kind !== 'file' ||
     target.previewKind === 'image' ||
-    target.previewKind === 'pdf'
+    target.previewKind === 'pdf' ||
+    target.previewKind === 'office'
   ) {
     return target
   }

@@ -213,7 +213,7 @@ describe('the desk panel', () => {
     expect(mocks.revealPath).not.toHaveBeenCalled()
   })
 
-  it('reveals a file the preview rail could only show as text', async () => {
+  it('previews a Word file too, the rail prints it through LibreOffice', async () => {
     const output = `${DESK}/output`
 
     mocks.readDir.mockResolvedValue({
@@ -223,8 +223,21 @@ describe('the desk panel', () => {
     renderPane()
     fireEvent.click(await screen.findByText('report.docx'))
 
+    expect(mocks.openPreview).toHaveBeenCalledWith(`${output}/report.docx`)
+  })
+
+  it('reveals a file the preview rail cannot show at all', async () => {
+    const output = `${DESK}/output`
+
+    mocks.readDir.mockResolvedValue({
+      entries: [{ isDirectory: false, mtimeMs: 1, name: 'bundle.zip', path: `${output}/bundle.zip`, size: 10 }]
+    })
+
+    renderPane()
+    fireEvent.click(await screen.findByText('bundle.zip'))
+
     expect(mocks.openPreview).not.toHaveBeenCalled()
-    expect(mocks.revealPath).toHaveBeenCalledWith(`${output}/report.docx`)
+    expect(mocks.revealPath).toHaveBeenCalledWith(`${output}/bundle.zip`)
   })
 
   it('falls back to the file manager when the rail declines a previewable path', async () => {

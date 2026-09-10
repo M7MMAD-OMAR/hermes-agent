@@ -247,6 +247,8 @@ declare global {
         } | null
       } | null>
       readFileDataUrl: (filePath: string) => Promise<string>
+      /** The PDF LibreOffice prints for a Word/Excel/PowerPoint file, as a data: URL. */
+      officePreviewPdf?: (filePath: string) => Promise<string>
       /** Remote non-image attach: higher dedicated cap than preview/Settings default. */
       readFileDataUrlForAttach?: (filePath: string) => Promise<string>
       /** Settings → Chat: max size for local files loaded as data URLs (attach/preview). */

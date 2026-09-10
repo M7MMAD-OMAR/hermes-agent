@@ -125,7 +125,7 @@ function humanSize(bytes: number | undefined): string {
 }
 
 /** What the preview rail renders as itself rather than as source text. */
-const PREVIEWABLE = /\.(pdf|png|jpe?g|gif|webp|svg|md|txt|csv|json|html?)$/i
+const PREVIEWABLE = /\.(pdf|docx?|xlsx?|pptx?|od[tsp]|rtf|png|jpe?g|gif|webp|svg|md|txt|csv|json|html?)$/i
 
 /** `output/` and one level of job folders under it, newest file first. Two
  *  levels because the mandate says "one subfolder per job when it has several

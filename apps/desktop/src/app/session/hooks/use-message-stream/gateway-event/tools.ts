@@ -1,5 +1,6 @@
 import { invalidateSlashCompletions } from '@/lib/slash-completion-cache'
 import { refreshBackgroundProcesses } from '@/store/composer-status'
+import { recordGraftToolResult } from '@/store/graft-savings'
 import { flashPetActivity, setPetActivity } from '@/store/pet'
 import { pruneDelegateFallbackSubagents, upsertSubagent } from '@/store/subagents'
 import { reportMcpToolResult } from '@/store/suggestion-providers/repair'
@@ -112,6 +113,12 @@ export function handleToolEvent(ctx: GatewayEventContext): boolean {
         Boolean(payload.error),
         [payload.error, payload.result].filter(part => typeof part === 'string').join(' ')
       )
+
+      // Graft results open with a tokens-saved line; the statusbar shows
+      // the session's running total of them.
+      if (!payload.error) {
+        recordGraftToolResult(sessionId, payload.tool_id || payload.tool_call_id || payload.id || '', payload.name, payload.result)
+      }
     }
 
     if (typeof payload?.inline_diff === 'string' && payload.inline_diff.trim()) {

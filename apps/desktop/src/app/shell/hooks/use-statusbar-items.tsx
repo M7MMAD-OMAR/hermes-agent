@@ -12,6 +12,7 @@ import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { useSystemResourcesStatusbarItem } from '@/app/shell/system-resources-statusbar'
 import { WorkspaceFolderMenu } from '@/app/shell/workspace-folder-menu'
 import { workspaceMoveTargetSessionId } from '@/app/shell/workspace-move-target'
+import { compactTokens } from '@/components/assistant-ui/tool/graft-model'
 import { $paneVisible, togglePaneVisible } from '@/components/pane-shell/tree/store'
 import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
@@ -36,6 +37,9 @@ import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { resolveVersionStatus } from '@/lib/version-status'
 import { toggleEmbeddedBrowser } from '@/store/preview'
+import { copyFilePath, revealFile } from '@/store/file-actions'
+import { $graftSavingsBySession } from '@/store/graft-savings'
+import { revealFileInTree } from '@/store/layout'
 import { $activeGatewayProfile } from '@/store/profile'
 import { $projectTree, projectNameForCwd } from '@/store/projects'
 import {
@@ -294,6 +298,18 @@ export function useStatusbarItems({
   // ticks mid-turn, message.complete after) — no extra RPC, no polling.
   const cacheHit = cacheHitLabel(currentUsage)
   const tokensPerSecond = tokensPerSecondLabel(currentUsage)
+
+  // Graft's running tally for the focused session. Two scalars are selected
+  // (not the record) so other sessions' graft calls don't rebuild the bar.
+  const graftTokensSaved = useStoreSelector(
+    $graftSavingsBySession,
+    bySession => (activeSessionId ? bySession[activeSessionId]?.tokensSaved : undefined) ?? 0
+  )
+
+  const graftCalls = useStoreSelector(
+    $graftSavingsBySession,
+    bySession => (activeSessionId ? bySession[activeSessionId]?.calls : undefined) ?? 0
+  )
 
   const approvalModeItem = useApprovalModeStatusbarItem(activeGatewayProfile, requestGateway)
   const systemResourcesItem = useSystemResourcesStatusbarItem()
@@ -617,6 +633,17 @@ export function useStatusbarItems({
         variant: 'text'
       },
       {
+        // Only present once the session has used Graft: a zero here is not
+        // a readout waiting for data, it's a tool that was never called.
+        hidden: graftCalls === 0,
+        icon: <Codicon name="type-hierarchy" size="0.75rem" />,
+        id: 'graft-savings',
+        label: copy.graftSaved(compactTokens(graftTokensSaved)),
+        title: copy.graftSavedTitle(graftTokensSaved.toLocaleString(), graftCalls),
+        toggleLabel: copy.toggleGraftSavings,
+        variant: 'text'
+      },
+      {
         detail: <LiveDuration since={sessionStartedAt} />,
         hidden: !sessionStartedAt,
         id: 'session-timer',
@@ -675,6 +702,8 @@ export function useStatusbarItems({
       copy,
       gaugeUsage,
       providerUsageHidden,
+      graftCalls,
+      graftTokensSaved,
       sessionStartedAt,
       gatewayState,
       systemResourcesItem,

@@ -445,12 +445,18 @@ class SlashCommandCompleter(Completer):
         for cmd, desc in COMMANDS.items():
             if self._command_allowed(cmd) and cmd[1:].startswith(word):
                 yield _cmd_completion(cmd[1:], desc)
-        for cmd, info in self._call_provider(self._skill_bundles_provider).items():
+        bundles = self._call_provider(self._skill_bundles_provider)
+        for cmd, info in bundles.items():
             if cmd[1:].startswith(word):
                 skill_count = len(info.get("skills", []))
                 yield _cmd_completion(
                     cmd[1:], f"▣ {info.get('description', 'Skill bundle')} ({skill_count} skills)")
         for cmd, info in self._iter_skill_commands().items():
+            # Slash dispatch resolves a shared slug to the bundle (agent/skill_bundles.py,
+            # "the bundle wins"), so a skill listed beside its same-named bundle is an
+            # entry the user can see but never reach. Offer only what dispatch will run.
+            if cmd in bundles:
+                continue
             if cmd[1:].startswith(word):
                 yield _cmd_completion(cmd[1:], f"⚡ {info.get('description', 'Skill command')}")
         try:

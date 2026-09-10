@@ -1,6 +1,6 @@
 ---
 name: herwork
-description: Use when asked for a finished office file, not code.
+description: Deliver finished office files, with research and diagrams.
 version: 1.1.0
 author: community
 license: MIT
@@ -13,7 +13,7 @@ metadata:
     # matches everything — comes last.
     tags: [report, deck, spreadsheet, invoice, letter, resume, herwork, workspace, productivity]
     category: productivity
-    related_skills: [docx, powerpoint, xlsx, pdf, ocr-and-documents, arabic-rtl-documents, architecture-diagram, excalidraw, grounded-citations, adversarial-doc-review, obsidian]
+    related_skills: [docx, powerpoint, xlsx, pdf, architecture-diagram, excalidraw, grounded-citations, obsidian]
 ---
 
 # HerWork Mode

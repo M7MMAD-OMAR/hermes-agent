@@ -515,6 +515,20 @@ describe('renderMediaTags', () => {
     expect(renderMediaTags('MEDIA:/tmp/demo.mp4')).toBe('[Video: demo.mp4](#media:%2Ftmp%2Fdemo.mp4)')
   })
 
+  it('does not swallow the markdown that wraps a marker into the path', () => {
+    // `**MEDIA:/x/report.pdf**` is how a model bolds a delivery line. The
+    // closing `**` is not part of the file name; taking it produced a preview
+    // tab called `report.pdf**` and a "file does not exist" pane.
+    expect(renderMediaTags('- **MEDIA:/out/report.pdf** (4 pages)')).toBe(
+      '- **[File: report.pdf](#media:%2Fout%2Freport.pdf)** (4 pages)'
+    )
+    expect(renderMediaTags('see (MEDIA:/out/a.md).')).toMatch(/^see \(\[[^\]]+\]\(#media:%2Fout%2Fa\.md\)\)\.$/)
+    // A quoted path is taken exactly as quoted, trailing punctuation and all.
+    expect(renderMediaTags('MEDIA:"/out/odd name).pdf"')).toBe(
+      '[File: odd name).pdf](#media:%2Fout%2Fodd%20name).pdf)'
+    )
+  })
+
   it('renders streamed assistant media once the tag is complete', () => {
     const parts = appendAssistantTextPart(appendAssistantTextPart([], 'ok\nMEDIA:'), '/tmp/voice.mp3')
     const text = chatMessageText({ id: 'a', role: 'assistant', parts })

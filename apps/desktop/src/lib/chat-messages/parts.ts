@@ -14,17 +14,32 @@ const MEDIA_LINE_RE = /(^|\n)[\t ]*[`"']?MEDIA:\s*(?<line>`[^`\n]+`|"[^"\n]+"|'[
 
 const MEDIA_TAG_RE = /[`"']?MEDIA:\s*(?<inline>`[^`\n]+`|"[^"\n]+"|'[^'\n]+'|\S+)[`"']?/g
 
-function unquoteMediaPath(value: string): string {
+// Markdown that wraps a bare marker (`**MEDIA:/x/report.pdf**`, `(MEDIA:/x/a.md)`)
+// leaves its closer glued to the path, because `\S+` runs to the whitespace. A
+// path never ends in emphasis or a closing bracket, so those are the wrapper's,
+// not the file's; sentence punctuation right after a marker is the sentence's.
+// Quoted forms are exempt: the quotes already fence the path exactly.
+const MEDIA_PATH_TRAILER_RE = /[*_~`)\]>.,;:!?]+$/
+
+/** The path a marker names, and whatever markdown trailed it that must stay in
+ *  the text (so `**MEDIA:/x.pdf**` still closes its bold after the link). */
+function splitMediaPath(value: string): { path: string; trailer: string } {
   const trimmed = value.trim()
   const quote = trimmed[0]
 
-  return quote && quote === trimmed.at(-1) && ['"', "'", '`'].includes(quote) ? trimmed.slice(1, -1) : trimmed
+  if (quote && quote === trimmed.at(-1) && ['"', "'", '`'].includes(quote)) {
+    return { path: trimmed.slice(1, -1), trailer: '' }
+  }
+
+  const trailer = MEDIA_PATH_TRAILER_RE.exec(trimmed)?.[0] ?? ''
+
+  return { path: trimmed.slice(0, trimmed.length - trailer.length), trailer }
 }
 
 function mediaLink(value: string): string {
-  const path = unquoteMediaPath(value)
+  const { path, trailer } = splitMediaPath(value)
 
-  return `[${mediaDisplayLabel(path)}](${mediaMarkdownHref(path)})`
+  return `[${mediaDisplayLabel(path)}](${mediaMarkdownHref(path)})${trailer}`
 }
 
 export function renderMediaTags(text: string): string {

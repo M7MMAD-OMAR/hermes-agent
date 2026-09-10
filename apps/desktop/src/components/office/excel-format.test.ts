@@ -57,9 +57,27 @@ describe('Excel number formats', () => {
     expect(text(45900.5, 'mm/dd')).toBe('08/31')
   })
 
-  it('leaves text alone and aligns it left', () => {
-    expect(formatCellValue('Total', '#,##0.00')).toEqual({ align: 'left', text: 'Total' })
-    expect(formatCellValue(null, 'General')).toEqual({ align: 'left', text: '' })
+  it('leaves text alone and aligns it to the start of the line', () => {
+    expect(formatCellValue('Total', '#,##0.00')).toEqual({ align: 'start', text: 'Total' })
+    expect(formatCellValue(null, 'General')).toEqual({ align: 'start', text: '' })
+  })
+
+  it('aligns numbers and dates to the end of the line', () => {
+    expect(formatCellValue(1234.5, '#,##0.00').align).toBe('end')
+    expect(formatCellValue(45900, 'yyyy-mm-dd').align).toBe('end')
+    expect(formatCellValue(true, 'General').align).toBe('end')
+  })
+
+  it('names months and weekdays in the reader\'s language', () => {
+    expect(formatCellValue(45900, 'dddd, mmmm d', 'en').text).toBe('Sunday, August 31')
+    expect(formatCellValue(45900, 'dddd, mmmm d', 'ar').text).toBe('الأحد, أغسطس 31')
+    expect(formatCellValue(45900, 'd mmm yyyy', 'en').text).toBe('31 Aug 2025')
+  })
+
+  it('keeps a full month name where the script has no three-letter form', () => {
+    // Slicing three characters out of أغسطس leaves a word fragment, not an
+    // abbreviation, so a non-Latin script keeps the whole name.
+    expect(formatCellValue(45900, 'mmm', 'ar').text).toBe('أغسطس')
   })
 
   it('shows a general number at full precision without an exponent', () => {

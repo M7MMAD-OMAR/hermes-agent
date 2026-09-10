@@ -8,10 +8,12 @@
  * makes the whole translation testable against real files.
  */
 
+import type { Cell, CellValue } from '@office-kit/xlsx/cell'
 import { cellValueAsPrimitive, getCachedFormulaValue, getFormulaText, isFormulaCell, isRichTextValue, richTextToString } from '@office-kit/xlsx/cell'
 import { fromArrayBuffer, loadWorkbook } from '@office-kit/xlsx/io'
 import { cellStyleToCss, getCellNumberFormat } from '@office-kit/xlsx/styles'
 import { pointToPixel } from '@office-kit/xlsx/utils'
+import type { Workbook } from '@office-kit/xlsx/workbook'
 import { getSheet, sheetNames } from '@office-kit/xlsx/workbook'
 import { getColumnDimension, getFreezePanes, getMaxCol, getMaxRow, getMergedCells, getRowDimension, iterRows } from '@office-kit/xlsx/worksheet'
 import type { CSSProperties } from 'react'
@@ -27,7 +29,14 @@ const DEFAULT_ROW_PX = 22
 /** Beyond this the grid stops being a preview and starts being a memory leak. */
 export const SHEET_MAX_CELLS = 400_000
 
-export interface SheetCellView {
+/** Widest sheet the grid draws.
+ *
+ *  The cap belongs to the model, not to the view, because it is the model that
+ *  can tell the reader about it: a sheet cut off at column 256 with nothing
+ *  said is data quietly missing from a preview. */
+export const SHEET_MAX_COLUMNS = 256
+
+export interface SheetCell {
   /** Present when the cell holds a formula, for the formula bar. */
   formula?: string
   /** The workbook's own fill, font and borders, ready to hand to React. Built
@@ -44,12 +53,12 @@ export interface SheetMerge {
   rowSpan: number
 }
 
-export interface SheetView {
+export interface SheetGrid {
   /** Column widths in pixels, keyed by 1-based column. */
   columnWidths: Map<number, number>
   columns: number
   /** Cells keyed `row:col`, 1-based. Empty cells are simply absent. */
-  cells: Map<string, SheetCellView>
+  cells: Map<string, SheetCell>
   /** How many leading rows and columns stay pinned. */
   frozenColumns: number
   frozenRows: number
@@ -61,7 +70,7 @@ export interface SheetView {
 }
 
 export interface SheetBook {
-  sheets: SheetView[]
+  sheets: SheetGrid[]
   /** Set when the workbook was too large to render whole. */
   truncated?: boolean
 }
@@ -93,8 +102,8 @@ export function decodeXmlText(value: string): string {
   })
 }
 
-function primitiveOf(cell: unknown): CellPrimitive {
-  const value = (cell as { value: never }).value
+function primitiveOf(cell: Cell): CellPrimitive {
+  const value: CellValue = cell.value
 
   // The rich-text variant wraps its runs: `{ kind: 'rich-text', runs }`. Handing
   // the wrapper to the joiner throws, and a workbook with one styled cell in it
@@ -110,8 +119,8 @@ function primitiveOf(cell: unknown): CellPrimitive {
 
 /** The workbook's CSS for one cell, as a React style object. The sheet's own
  *  alignment wins when it declared one; otherwise the format decides, which is
- *  what puts numbers right and text left. */
-function cellStyleOf(css: Record<string, string>, fallbackAlign: 'left' | 'right'): CSSProperties {
+ *  what puts numbers at the end of the line and text at the start. */
+function cellStyleOf(css: Record<string, string>, fallbackAlign: 'end' | 'start'): CSSProperties {
   const style: Record<string, string> = {}
 
   for (const [property, value] of Object.entries(css)) {
@@ -131,7 +140,7 @@ const RTL_LETTERS = /[\u0590-\u05ff\u0600-\u06ff\u0700-\u074f\u0780-\u07bf\u08a0
 const LTR_LETTERS = /[A-Za-z\u00c0-\u024f\u0370-\u058f]/
 
 /** True when the sheet's words are mostly written right to left. */
-export function mostlyRightToLeft(cells: Map<string, SheetCellView>): boolean {
+export function mostlyRightToLeft(cells: Map<string, SheetCell>): boolean {
   let rightToLeft = 0
   let leftToRight = 0
 
@@ -146,14 +155,21 @@ export function mostlyRightToLeft(cells: Map<string, SheetCellView>): boolean {
   return rightToLeft > leftToRight
 }
 
-function readSheet(workbook: unknown, name: string): SheetView {
-  const sheet = getSheet(workbook as never, name) as never
+function readSheet(workbook: Workbook, name: string, locale: string): null | SheetGrid {
+  const sheet = getSheet(workbook, name)
+
+  // `sheetNames` and `getSheet` disagree only on a malformed workbook, and a
+  // missing sheet is one tab the reader does not get rather than a dead grid.
+  if (!sheet) {
+    return null
+  }
+
   const rows = Math.max(getMaxRow(sheet), 1)
   const columns = Math.max(getMaxCol(sheet), 1)
 
   // Raw values first, so a formula anywhere can read any other cell without
   // depending on the order rows arrive in.
-  const raw = new Map<string, { cell: unknown; col: number; formula?: string; row: number }>()
+  const raw = new Map<string, { cell: Cell; col: number; formula?: string; row: number }>()
 
   for (const row of iterRows(sheet)) {
     // The iterator is rectangular, so an untouched cell arrives as a hole.
@@ -162,13 +178,11 @@ function readSheet(workbook: unknown, name: string): SheetView {
         continue
       }
 
-      const entry = cell as { col: number; row: number }
-
-      raw.set(cellKey(entry.row, entry.col), {
+      raw.set(cellKey(cell.row, cell.col), {
         cell,
-        col: entry.col,
-        formula: isFormulaCell(cell as never) ? (getFormulaText(cell as never) ?? undefined) : undefined,
-        row: entry.row
+        col: cell.col,
+        formula: isFormulaCell(cell) ? (getFormulaText(cell) ?? undefined) : undefined,
+        row: cell.row
       })
     }
   }
@@ -198,7 +212,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
 
     // A workbook written by Excel caches each result; one written by a library
     // does not, so the preview computes it rather than showing a blank.
-    const cached = getCachedFormulaValue(entry.cell as never)
+    const cached = getCachedFormulaValue(entry.cell)
 
     if (cached !== undefined && cached !== null) {
       const value = typeof cached === 'string' ? decodeXmlText(cached) : (cached as CellPrimitive)
@@ -220,7 +234,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
     return value
   }
 
-  const cells = new Map<string, SheetCellView>()
+  const cells = new Map<string, SheetCell>()
 
   for (const [key, entry] of raw) {
     const value = resolve(entry.row, entry.col)
@@ -229,9 +243,9 @@ function readSheet(workbook: unknown, name: string): SheetView {
       continue
     }
 
-    const format = getCellNumberFormat(workbook as never, entry.cell as never)
-    const formatted = formatCellValue(value, typeof format === 'string' ? format : undefined)
-    const css = (cellStyleToCss(workbook as never, entry.cell as never) ?? {}) as Record<string, string>
+    const format = getCellNumberFormat(workbook, entry.cell)
+    const formatted = formatCellValue(value, typeof format === 'string' ? format : undefined, locale)
+    const css = cellStyleToCss(workbook, entry.cell) ?? {}
 
     cells.set(key, {
       ...(entry.formula ? { formula: entry.formula } : {}),
@@ -242,8 +256,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
 
   const merges: SheetMerge[] = []
 
-  for (const range of getMergedCells(sheet) ?? []) {
-    const area = range as { maxCol: number; maxRow: number; minCol: number; minRow: number }
+  for (const area of getMergedCells(sheet)) {
     const startRow = Math.min(area.minRow, area.maxRow)
     const startCol = Math.min(area.minCol, area.maxCol)
     const rowSpan = Math.abs(area.maxRow - area.minRow) + 1
@@ -255,7 +268,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
   const columnWidths = new Map<number, number>()
 
   for (let col = 1; col <= columns; col += 1) {
-    const dimension = getColumnDimension(sheet, col) as { hidden?: boolean; width?: number } | undefined
+    const dimension = getColumnDimension(sheet, col)
 
     if (dimension?.hidden) {
       columnWidths.set(col, 0)
@@ -267,7 +280,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
   const rowHeights = new Map<number, number>()
 
   for (let row = 1; row <= rows; row += 1) {
-    const dimension = getRowDimension(sheet, row) as { height?: number; hidden?: boolean } | undefined
+    const dimension = getRowDimension(sheet, row)
 
     if (dimension?.hidden) {
       rowHeights.set(row, 0)
@@ -276,7 +289,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
     }
   }
 
-  const view = ((sheet as { views?: { rightToLeft?: boolean }[] }).views ?? [])[0]
+  const view = sheet.views[0]
   const freeze = getFreezePanes(sheet)
   let frozenRows = 0
   let frozenColumns = 0
@@ -309,23 +322,37 @@ function readSheet(workbook: unknown, name: string): SheetView {
   }
 }
 
-export function columnWidthPx(sheet: SheetView, col: number): number {
+export function columnWidthPx(sheet: SheetGrid, col: number): number {
   return sheet.columnWidths.get(col) ?? DEFAULT_COLUMN_PX
 }
 
-export function rowHeightPx(sheet: SheetView, row: number): number {
+export function rowHeightPx(sheet: SheetGrid, row: number): number {
   return sheet.rowHeights.get(row) ?? DEFAULT_ROW_PX
 }
 
-/** Read a workbook's OOXML bytes into the grid's model. */
-export async function readSheetBook(bytes: Uint8Array): Promise<SheetBook> {
+/** Read a workbook's OOXML bytes into the grid's model.
+ *
+ *  `locale` names the month and weekday names a date format renders in, so a
+ *  `dddd, mmmm d` column reads in the app's language rather than always in
+ *  English. It changes nothing else: values, formats and layout come from the
+ *  file. */
+export async function readSheetBook(bytes: Uint8Array, locale?: string): Promise<SheetBook> {
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
   const workbook = await loadWorkbook(fromArrayBuffer(buffer))
-  const sheets: SheetView[] = []
+  const sheets: SheetGrid[] = []
   let truncated = false
 
   for (const name of sheetNames(workbook)) {
-    const sheet = readSheet(workbook, name)
+    const sheet = readSheet(workbook, name, locale ?? 'en')
+
+    if (!sheet) {
+      continue
+    }
+
+    if (sheet.columns > SHEET_MAX_COLUMNS) {
+      truncated = true
+      sheet.columns = SHEET_MAX_COLUMNS
+    }
 
     if (sheet.rows * sheet.columns > SHEET_MAX_CELLS) {
       truncated = true

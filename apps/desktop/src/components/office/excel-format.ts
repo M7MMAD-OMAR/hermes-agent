@@ -17,8 +17,50 @@ export type CellPrimitive = boolean | Date | null | number | string
 
 const MS_PER_DAY = 86_400_000
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+/** Month and weekday names for `mmm`/`mmmm`/`ddd`/`dddd`, in the reader's
+ *  language.
+ *
+ *  Excel writes these tokens, not the words: the words come from whoever opens
+ *  the file. Hardcoding English put `Tuesday, September 9` in front of an
+ *  Arabic reader whose own Excel shows `الثلاثاء، 9 سبتمبر`. `Intl` holds every
+ *  language the app is translated into, so the names are read from there and
+ *  memoized per locale, since one workbook renders the same handful of formats
+ *  across thousands of cells.
+ *
+ *  The dates are built in UTC (an Excel serial has no zone), so the formatters
+ *  read them in UTC too. */
+const NAME_CACHE = new Map<string, { days: string[]; months: string[] }>()
+
+function dateNames(locale: string): { days: string[]; months: string[] } {
+  const cached = NAME_CACHE.get(locale)
+
+  if (cached) {
+    return cached
+  }
+
+  const monthFormat = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' })
+  const dayFormat = new Intl.DateTimeFormat(locale, { timeZone: 'UTC', weekday: 'long' })
+
+  const names = {
+    // 2021-08-01 was a Sunday, so seven days from it walk the week in order.
+    days: Array.from({ length: 7 }, (_unused, index) => dayFormat.format(Date.UTC(2021, 7, 1 + index))),
+    months: Array.from({ length: 12 }, (_unused, index) => monthFormat.format(Date.UTC(2021, index, 15)))
+  }
+
+  NAME_CACHE.set(locale, names)
+
+  return names
+}
+
+/** The three-letter forms Excel writes for `mmm` and `ddd`.
+ *
+ *  A script without an abbreviated form (Arabic, Chinese, Japanese) gets the
+ *  full name rather than three letters sliced out of the middle of a word. */
+function abbreviated(locale: string, name: string): string {
+  return /^[A-Za-z\u00c0-\u024f]/.test(name) ? name.slice(0, 3) : name
+}
+
+const DEFAULT_LOCALE = 'en'
 
 // A workbook has a handful of distinct format codes shared by every one of its
 // cells, so both parses are cached by the code they read.
@@ -91,7 +133,7 @@ function pad(value: number, width: number): string {
   return String(Math.floor(Math.abs(value))).padStart(width, '0')
 }
 
-function formatDate(date: Date, section: string): string {
+function formatDate(date: Date, section: string, locale: string): string {
   let out = ''
   let index = 0
   const hasAmPm = /am\/pm|a\/p/i.test(section)
@@ -147,7 +189,9 @@ function formatDate(date: Date, section: string): string {
       if (token.startsWith('y')) {
         out += width <= 2 ? pad(date.getUTCFullYear() % 100, 2) : String(date.getUTCFullYear())
       } else if (token.startsWith('d')) {
-        out += width >= 4 ? DAYS[date.getUTCDay()]! : width === 3 ? DAYS[date.getUTCDay()]!.slice(0, 3) : pad(date.getUTCDate(), width)
+        const day = dateNames(locale).days[date.getUTCDay()]!
+
+        out += width >= 4 ? day : width === 3 ? abbreviated(locale, day) : pad(date.getUTCDate(), width)
       } else if (token.startsWith('h')) {
         out += pad(hours, width)
       } else if (token.startsWith('s')) {
@@ -158,12 +202,14 @@ function formatDate(date: Date, section: string): string {
         const before = section.slice(0, index)
         const minutes = elapsedMinutes || /[hH]+[^a-zA-Z]*$/.test(before)
 
+        const month = dateNames(locale).months[date.getUTCMonth()]!
+
         out += minutes
           ? pad(date.getUTCMinutes(), width)
           : width >= 4
-            ? MONTHS[date.getUTCMonth()]!
+            ? month
             : width === 3
-              ? MONTHS[date.getUTCMonth()]!.slice(0, 3)
+              ? abbreviated(locale, month)
               : pad(date.getUTCMonth() + 1, width)
       }
 
@@ -337,19 +383,25 @@ export function generalNumber(value: number): string {
 }
 
 export interface FormattedCell {
-  /** Right for numbers and dates, left for text: the sheet's own default. */
-  align: 'left' | 'right'
+  /** Where General alignment puts the value: numbers and dates at the end of
+   *  the line, text at the start. Logical, not physical, because Excel's own
+   *  General alignment follows the sheet's reading order: in an Arabic sheet
+   *  that means text on the right and numbers on the left. */
+  align: 'end' | 'start'
   text: string
 }
 
-/** Render one cell value through its format code. */
-export function formatCellValue(value: CellPrimitive, code: string | undefined): FormattedCell {
+/** Render one cell value through its format code.
+ *
+ *  `locale` decides only the names of months and weekdays, which is the one
+ *  part of a format code that is words rather than digits. */
+export function formatCellValue(value: CellPrimitive, code: string | undefined, locale = DEFAULT_LOCALE): FormattedCell {
   if (value === null || value === undefined || value === '') {
-    return { align: 'left', text: '' }
+    return { align: 'start', text: '' }
   }
 
   if (typeof value === 'boolean') {
-    return { align: 'right', text: value ? 'TRUE' : 'FALSE' }
+    return { align: 'end', text: value ? 'TRUE' : 'FALSE' }
   }
 
   const sections = splitFormatSections(code && code.trim() ? code : 'General')
@@ -358,10 +410,10 @@ export function formatCellValue(value: CellPrimitive, code: string | undefined):
     const textSection = sections[3]
 
     if (textSection && textSection.includes('@')) {
-      return { align: 'left', text: textSection.replace(/"/g, '').replace('@', value) }
+      return { align: 'start', text: textSection.replace(/"/g, '').replace('@', value) }
     }
 
-    return { align: 'left', text: value }
+    return { align: 'start', text: value }
   }
 
   const asDate = value instanceof Date
@@ -372,14 +424,14 @@ export function formatCellValue(value: CellPrimitive, code: string | undefined):
 
   if (/^general$/i.test(section.trim())) {
     return asDate
-      ? { align: 'right', text: formatDate(value, 'yyyy-mm-dd') }
-      : { align: 'right', text: generalNumber(numeric) }
+      ? { align: 'end', text: formatDate(value, 'yyyy-mm-dd', locale) }
+      : { align: 'end', text: generalNumber(numeric) }
   }
 
   if (isDateFormat(section)) {
     const date = asDate ? value : excelToDate(numeric)
 
-    return { align: 'right', text: formatDate(date, section) }
+    return { align: 'end', text: formatDate(date, section, locale) }
   }
 
   const pattern = parseNumberPattern(section)
@@ -393,5 +445,5 @@ export function formatCellValue(value: CellPrimitive, code: string | undefined):
   const grouped = pattern.thousands ? groupThousands(digits) : digits
   const body = fraction ? `${grouped}.${fraction}` : grouped
 
-  return { align: 'right', text: `${pattern.literalBefore}${sign}${body}${pattern.literalAfter}` }
+  return { align: 'end', text: `${pattern.literalBefore}${sign}${body}${pattern.literalAfter}` }
 }

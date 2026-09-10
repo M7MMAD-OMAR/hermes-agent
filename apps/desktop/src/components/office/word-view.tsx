@@ -17,7 +17,7 @@ import { useI18n } from '@/i18n'
 
 import { ZoomControl } from './zoom-control'
 
-export function WordPreview({ bytes, trailing }: { bytes: Uint8Array; trailing?: ReactNode }) {
+export function WordView({ bytes, trailing }: { bytes: Uint8Array; trailing?: ReactNode }) {
   const { t } = useI18n()
   const contentRef = useRef<HTMLDivElement>(null)
   const styleRef = useRef<HTMLDivElement>(null)
@@ -129,9 +129,16 @@ export function WordPreview({ bytes, trailing }: { bytes: Uint8Array; trailing?:
           </div>
         )}
         <div ref={styleRef} />
+        {/* The document carries its own direction: docx-preview writes
+            `direction: rtl` onto the sections and paragraphs that declared
+            `w:bidi`, and nothing onto the ones that did not. Without an
+            explicit `ltr` here, an English document opened in the Arabic
+            interface inherits `dir="rtl"` from <html> and right-aligns
+            everything, reverses its tables and flips its list markers. */}
         <div
           className="hermes-docx-host"
           data-selectable-text="true"
+          dir="ltr"
           ref={contentRef}
           style={{ zoom } as { zoom: number }}
         />

@@ -10,21 +10,10 @@
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useI18n } from '@/i18n'
+import { useDirection, useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 
-export interface DeckSlide {
-  /** Rendered SVG markup for the slide, or null while it is still rendering. */
-  svg: null | string
-  notes: string
-  title: string
-}
-
-export interface Deck {
-  /** Slide aspect ratio, width over height. */
-  aspect: number
-  slides: DeckSlide[]
-}
+import type { Deck, DeckSlide } from './slides-model'
 
 function SlideFrame({ aspect, className, slide }: { aspect: number; className?: string; slide: DeckSlide }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -50,7 +39,7 @@ function SlideFrame({ aspect, className, slide }: { aspect: number; className?: 
   )
 }
 
-export function SlidesPreview({
+export function SlidesView({
   deck,
   onNeedSlide,
   trailing
@@ -61,6 +50,7 @@ export function SlidesPreview({
   trailing?: ReactNode
 }) {
   const { t } = useI18n()
+  const direction = useDirection()
   const [active, setActive] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const total = deck.slides.length
@@ -100,13 +90,20 @@ export function SlidesPreview({
       return
     }
 
+    // The horizontal keys follow the reading direction, because the controls
+    // do: the flex row reverses under RTL and the chevrons mirror with it, so
+    // in Arabic the arrow the reader presses to go forward is the left one.
+    // The vertical keys and Page keys do not flip; the rail is a column.
+    const forward = direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
+    const backward = direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft'
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'PageDown') {
+      if (event.key === forward || event.key === 'ArrowDown' || event.key === 'PageDown') {
         event.preventDefault()
         step(1)
       }
 
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'PageUp') {
+      if (event.key === backward || event.key === 'ArrowUp' || event.key === 'PageUp') {
         event.preventDefault()
         step(-1)
       }
@@ -115,7 +112,7 @@ export function SlidesPreview({
     element.addEventListener('keydown', onKeyDown)
 
     return () => element.removeEventListener('keydown', onKeyDown)
-  }, [step])
+  }, [direction, step])
 
   if (!slide) {
     return <div className="grid h-full place-items-center text-xs text-muted-foreground">{t.preview.office.emptyDeck}</div>
@@ -127,6 +124,7 @@ export function SlidesPreview({
         {deck.slides.map((entry, index) => (
           <button
             aria-current={index === active ? 'true' : undefined}
+            aria-label={t.preview.office.slideNumber(index + 1)}
             className={cn(
               'block w-full rounded text-start transition-opacity',
               index === active ? 'opacity-100' : 'opacity-70 hover:opacity-100'
@@ -164,7 +162,7 @@ export function SlidesPreview({
             >
               ‹
             </button>
-            <span className="text-[0.625rem] tabular-nums text-muted-foreground">
+            <span className="text-[0.625rem] tabular-nums text-muted-foreground" dir="ltr">
               {active + 1} / {total}
             </span>
             <button
@@ -182,12 +180,12 @@ export function SlidesPreview({
           <SlideFrame aspect={deck.aspect} className="mx-auto w-full max-w-4xl rounded" slide={slide} />
         </div>
         {slide.notes.trim() && (
-          <div
-            className="max-h-32 shrink-0 overflow-y-auto border-t border-border/40 px-3 py-2 text-[0.6875rem] leading-relaxed text-muted-foreground"
-            dir="auto"
-          >
+          <div className="max-h-32 shrink-0 overflow-y-auto border-t border-border/40 px-3 py-2 text-[0.6875rem] leading-relaxed text-muted-foreground">
             <div className="mb-1 text-[0.5625rem] font-semibold uppercase tracking-wide">{t.preview.office.notes}</div>
-            {slide.notes}
+            {/* The label is the app's language and the notes are the author's.
+                `dir="auto"` on a wrapper holding both reads the label first and
+                lays the notes out in the interface's direction. */}
+            <div dir="auto">{slide.notes}</div>
           </div>
         )}
       </div>

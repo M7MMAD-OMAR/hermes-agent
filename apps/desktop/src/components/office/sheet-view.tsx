@@ -16,7 +16,7 @@ import { useResizeObserver } from '@/hooks/use-resize-observer'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 
-import type { SheetBook, SheetView } from './sheet-model'
+import type { SheetBook, SheetGrid } from './sheet-model'
 import { cellKey, columnWidthPx, rowHeightPx } from './sheet-model'
 import { ZoomControl } from './zoom-control'
 
@@ -40,7 +40,6 @@ const ROW_HEADER_WIDTH = 52
 /** Below this a sheet renders whole, which keeps merges spanning rows exact. */
 const WINDOW_THRESHOLD_ROWS = 300
 const OVERSCAN_ROWS = 40
-const MAX_COLUMNS = 256
 
 interface Offsets {
   positions: number[]
@@ -82,18 +81,18 @@ function indexAt(offsets: Offsets, position: number): number {
 interface GridProps {
   onSelect: (row: number, col: number) => void
   selection: { col: number; row: number }
-  sheet: SheetView
+  sheet: SheetGrid
   zoom: number
 }
 
-function SheetGrid({ onSelect, selection, sheet, zoom }: GridProps) {
+function Grid({ onSelect, selection, sheet, zoom }: GridProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   // The window is stored as the row range it covers, not as a pixel offset: a
   // scroll frame that does not change which rows are visible must not
   // re-render a grid of thousands of cells.
   const [visible, setVisible] = useState({ first: 1, last: WINDOW_THRESHOLD_ROWS })
 
-  const columns = Math.min(sheet.columns, MAX_COLUMNS)
+  const columns = sheet.columns
   const rowOffsets = useMemo(() => cumulative(sheet.rows, row => rowHeightPx(sheet, row)), [sheet])
   const windowed = sheet.rows > WINDOW_THRESHOLD_ROWS
 
@@ -155,21 +154,18 @@ function SheetGrid({ onSelect, selection, sheet, zoom }: GridProps) {
     return { covered: hidden, mergeAt: anchors }
   }, [firstRow, lastRow, sheet.merges])
 
+  // The direction belongs to the SCROLLER, not only to the table. The table is
+  // `width: max-content`, so it is the scroll container that decides which end
+  // the grid opens at: with the direction on the table alone, an Arabic sheet
+  // in an English interface opened scrolled past its own first column.
   return (
     <div
       className="min-h-0 flex-1 overflow-auto bg-white text-black dark:bg-neutral-950 dark:text-neutral-100"
+      dir={sheet.rightToLeft ? 'rtl' : 'ltr'}
       onScroll={windowed ? remeasure : undefined}
       ref={scrollerRef}
     >
-      <table
-        className="border-collapse"
-        dir={sheet.rightToLeft ? 'rtl' : 'ltr'}
-        style={{
-          fontSize: `${11 * zoom}px`,
-          transformOrigin: sheet.rightToLeft ? 'top right' : 'top left',
-          width: 'max-content'
-        }}
-      >
+      <table className="border-collapse" style={{ fontSize: `${11 * zoom}px`, width: 'max-content' }}>
         <colgroup>
           <col style={{ width: ROW_HEADER_WIDTH }} />
           {Array.from({ length: columns }, (_unused, index) => (
@@ -243,7 +239,7 @@ function SheetGrid({ onSelect, selection, sheet, zoom }: GridProps) {
   )
 }
 
-export function SheetPreview({ book, trailing }: { book: SheetBook; trailing?: ReactNode }) {
+export function SheetView({ book, trailing }: { book: SheetBook; trailing?: ReactNode }) {
   const { t } = useI18n()
   const [active, setActive] = useState(0)
   const [selection, setSelection] = useState({ col: 1, row: 1 })
@@ -269,7 +265,15 @@ export function SheetPreview({ book, trailing }: { book: SheetBook; trailing?: R
         <span className="w-14 shrink-0 rounded border border-border/60 bg-muted/40 px-1 text-center text-[0.625rem] font-medium tabular-nums text-muted-foreground">
           {address}
         </span>
-        <span className="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-foreground" dir="auto">
+        {/* A formula is code: `=SUM(المبيعات)` leads with a neutral `=`, so
+            `auto` would hand the whole box to the Arabic operand and render the
+            equals sign on the right with the parentheses mirrored. Plain cell
+            text is prose and keeps `auto`. */}
+        <span
+          className="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-foreground"
+          dir={current?.formula ? 'ltr' : 'auto'}
+          style={current?.formula ? { unicodeBidi: 'isolate' } : undefined}
+        >
           {current?.formula ? `=${current.formula}` : (current?.text ?? '')}
         </span>
         <ZoomControl onZoom={setZoom} trailing={trailing} zoom={zoom} />
@@ -279,7 +283,7 @@ export function SheetPreview({ book, trailing }: { book: SheetBook; trailing?: R
           {t.preview.office.sheetTruncated}
         </div>
       )}
-      <SheetGrid onSelect={select} selection={selection} sheet={sheet} zoom={zoom} />
+      <Grid onSelect={select} selection={selection} sheet={sheet} zoom={zoom} />
       <div className="flex h-7 shrink-0 items-center gap-1 overflow-x-auto border-t border-border/40 px-2">
         {book.sheets.map((entry, index) => (
           <button
@@ -290,6 +294,7 @@ export function SheetPreview({ book, trailing }: { book: SheetBook; trailing?: R
                 ? 'bg-background font-semibold text-foreground shadow-[inset_0_-2px_0_0_var(--color-primary)]'
                 : 'text-muted-foreground hover:bg-accent hover:text-foreground'
             )}
+            dir="auto"
             key={entry.name}
             onClick={() => setActive(index)}
             type="button"

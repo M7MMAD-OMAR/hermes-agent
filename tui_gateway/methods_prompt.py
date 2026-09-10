@@ -624,6 +624,12 @@ def _(rid, params: dict) -> dict:
             isolated_response["error"].get("message", "unknown error"))
     if (err := _persist_session_row_for_submit(rid, session)) is not None:
         return err
+    # The desktop's own id for this turn (its optimistic user-message id). Echoed
+    # back on `session.outcome` so the outcome lands under the turn it describes,
+    # not under whichever turn finished last. Consumed by _run_prompt_submit, so a
+    # queued drain never inherits it.
+    client_turn_id = params.get("client_turn_id")
+    session["_pending_client_turn_id"] = str(client_turn_id).strip()[:128] if isinstance(client_turn_id, str) else ""
     # A completed FAILED build must not wedge the session: rebuild, don't replay it.
     if not _restart_completed_failed_agent_build(sid, session, session.get("agent_ready")):
         _start_agent_build(sid, session)

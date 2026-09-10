@@ -682,6 +682,23 @@ def finalize_turn(
     except Exception:
         pass  # Suggestions are never worth failing a turn over.
 
+    # Post-turn outcome: delivered / failed / open, pinned under the turn by the
+    # desktop. Same split as next moves: evidence here, generation and the
+    # `session.outcome` emit from the gateway seam after message.complete.
+    try:
+        from agent.turn_outcome import stage_turn_outcome
+
+        stage_turn_outcome(
+            agent,
+            messages_snapshot=messages,
+            final_response=final_response,
+            interrupted=interrupted,
+            errored=bool(failed),
+            turn_id=turn_id,
+        )
+    except Exception:
+        pass  # An outcome row is never worth failing a turn over.
+
     # Memory provider on_session_end()/shutdown_all() are NOT called here:
     # run_conversation() runs once per message; CLI/gateway own session-end cleanup.
     _invoke_hook_safely(

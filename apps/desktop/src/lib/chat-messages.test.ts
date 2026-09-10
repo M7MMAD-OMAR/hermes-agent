@@ -460,6 +460,50 @@ describe('toChatMessages', () => {
   })
 })
 
+describe('toChatMessages turn outcome', () => {
+  const OUTCOME = { delivered: ['q3-report.docx in output/'], failed: [], open: ['review slide 4'], source: 'model' }
+
+  it('carries a persisted outcome on the assistant reply it was stamped on', () => {
+    const messages = toChatMessages([
+      { role: 'user', content: 'build the report', timestamp: 1 },
+      { role: 'assistant', content: 'Done.', display_metadata: { turn_outcome: { ...OUTCOME, turn_id: 'user-1' } }, timestamp: 2 }
+    ])
+
+    expect(messages[1]?.turnOutcome).toEqual(OUTCOME)
+    expect(messages[0]?.turnOutcome).toBeUndefined()
+  })
+
+  it('reads it from JSON text too, and ignores a payload off the contract', () => {
+    const [textual, broken] = toChatMessages([
+      { role: 'user', content: 'go', timestamp: 1 },
+      { role: 'assistant', content: 'a', display_metadata: JSON.stringify({ turn_outcome: OUTCOME }), timestamp: 2 },
+      { role: 'user', content: 'again', timestamp: 3 },
+      { role: 'assistant', content: 'b', display_metadata: { turn_outcome: { delivered: 'nope' } }, timestamp: 4 }
+    ]).filter(message => message.role === 'assistant')
+
+    expect(textual?.turnOutcome).toEqual(OUTCOME)
+    expect(broken?.turnOutcome).toBeUndefined()
+  })
+
+  it('travels with the final row when the turn merges into one bubble', () => {
+    const messages = toChatMessages([
+      { role: 'user', content: 'edit it', timestamp: 1 },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'c1', function: { name: 'write_file', arguments: '{"path":"a.ts"}' } }],
+        timestamp: 2
+      },
+      { role: 'tool', content: 'ok', tool_call_id: 'c1', timestamp: 3 },
+      { role: 'assistant', content: 'Edited a.ts.', display_metadata: { turn_outcome: OUTCOME }, timestamp: 4 }
+    ] as SessionMessage[])
+
+    const assistants = messages.filter(message => message.role === 'assistant')
+    expect(assistants).toHaveLength(1)
+    expect(assistants[0]?.turnOutcome).toEqual(OUTCOME)
+  })
+})
+
 describe('renderMediaTags', () => {
   it('renders standalone and inline MEDIA tags as links', () => {
     expect(renderMediaTags('here\nMEDIA:/tmp/voice.mp3\nthere')).toBe(

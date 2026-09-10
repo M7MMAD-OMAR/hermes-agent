@@ -7,8 +7,10 @@ import { summarizeToolRun, type ToolCallLike } from '@/components/assistant-ui/t
 import { SCAFFOLD_LABEL_CLASS, ScaffoldRow } from '@/components/chat/scaffold-row'
 import { FadeText } from '@/components/ui/fade-text'
 import { useI18n } from '@/i18n'
+import type { TurnOutcome } from '@/lib/turn-outcome'
 import { cn } from '@/lib/utils'
 import { $toolDisclosureOpen, setToolDisclosureOpen } from '@/store/tool-view'
+import { $turnOutcome } from '@/store/turn-outcome'
 
 import { TurnProgress } from './turn-progress'
 
@@ -31,6 +33,14 @@ type ThreadMessageComponents = ComponentProps<typeof ThreadPrimitive.MessageByIn
  * and it interrupts the fold so the messages after it render in place), and
  * the tail. A pending question (approval, clarify) lives on the tail by
  * construction, so it can never be behind the header.
+ *
+ * And the OUTCOME: the backend's three-line account of what the turn
+ * delivered, what failed and what is still open (`agent/turn_outcome.py`). The
+ * header's tally says how much happened; the outcome says what the user got.
+ * It sits outside the fold, between the header and the tail (or under the tail
+ * when nothing folded), and stays for the life of the thread. It is read from
+ * its own per-key store, never from the digest, so a text delta on the tail
+ * cannot re-render it and an outcome landing cannot re-render the turn.
  */
 interface TurnDigestState {
   completedAt?: number
@@ -186,16 +196,102 @@ function useTurnDigest(indices: readonly number[], notesLabel: (count: number) =
   })
 }
 
+function isTurnOutcome(value: unknown): value is TurnOutcome {
+  return Boolean(value) && typeof value === 'object' && Array.isArray((value as TurnOutcome).delivered)
+}
+
+/** The outcome a rehydrated turn carries on its final assistant message
+ *  (`metadata.custom.turnOutcome`, from `display_metadata.turn_outcome`). The
+ *  selector returns the stored object itself, so Object.is holds across text
+ *  deltas and nothing re-renders until the message list is rebuilt. */
+function useHydratedOutcome(indices: readonly number[]): TurnOutcome | undefined {
+  return useAuiState(state => {
+    const messages = (state as unknown as DigestThreadSlice).thread.messages
+
+    for (let position = indices.length - 1; position >= 0; position--) {
+      const candidate = messages[indices[position]]?.metadata?.custom?.turnOutcome
+
+      if (isTurnOutcome(candidate)) {
+        return candidate
+      }
+    }
+
+    return undefined
+  })
+}
+
+/**
+ * The outcome row. A live outcome (this session, this turn) wins over the
+ * rehydrated copy: both come from the same producer, and the live one is the
+ * newer write. Model text is isolated per item (`<bdi>`) because it is in the
+ * conversation's language, which need not be the app's direction.
+ */
+export const TurnOutcomeRow: FC<{ indices: readonly number[]; sessionId: null | string; turnId: string }> = ({
+  indices,
+  sessionId,
+  turnId
+}) => {
+  const { t } = useI18n()
+  const live = useStore(useMemo(() => $turnOutcome(sessionId, turnId), [sessionId, turnId]))
+  const hydrated = useHydratedOutcome(indices)
+  const outcome = live ?? hydrated
+
+  if (!outcome) {
+    return null
+  }
+
+  const labels = t.assistant.thread
+
+  const sections: Array<[string, readonly string[], string]> = [
+    [labels.turnOutcomeDelivered, outcome.delivered, 'text-(--conversation-scaffold-text)'],
+    [labels.turnOutcomeFailed, outcome.failed, 'text-destructive'],
+    [labels.turnOutcomeOpen, outcome.open, 'text-primary']
+  ]
+
+  return (
+    <div
+      aria-label={labels.turnOutcomeTitle}
+      className="grid min-w-0 max-w-full gap-1"
+      data-conversation-scaffold=""
+      data-turn-outcome=""
+      data-turn-outcome-source={outcome.source}
+      role="group"
+    >
+      {sections.map(([label, items, tone]) =>
+        items.length === 0 ? null : (
+          <div className={cn(SCAFFOLD_LABEL_CLASS, 'flex min-w-0 gap-2')} data-turn-outcome-section={label} key={label}>
+            <span className="w-[5.5rem] shrink-0 text-[0.625rem] uppercase tracking-wide text-(--conversation-scaffold-meta)">
+              {label}
+            </span>
+            <ul className={cn('m-0 min-w-0 flex-1 list-none p-0', tone)}>
+              {items.map(item => (
+                <li className="min-w-0 break-words" key={item}>
+                  <bdi>{item}</bdi>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
 export const TurnDigest: FC<{
   components: ThreadMessageComponents
   indices: readonly number[]
-  /** Stable id of the turn (its user message), keying the remembered disclosure. */
+  /** The runtime session id the outcome store is keyed by; null in a thread
+   *  with no session (a preview), which then shows only rehydrated outcomes. */
+  sessionId?: null | string
+  /** Stable id of the turn (its user message), keying the remembered disclosure
+   *  and, being the id sent with prompt.submit, the outcome the backend echoes. */
   turnId: string
-}> = ({ components, indices, turnId }) => {
+}> = ({ components, indices, sessionId = null, turnId }) => {
   const { t } = useI18n()
   const digest = useTurnDigest(indices, t.assistant.thread.turnDigestNotes)
   const disclosureId = `turn-digest:${turnId}`
   const persistedOpen = useStore(useMemo(() => $toolDisclosureOpen(disclosureId), [disclosureId]))
+  const outcome = <TurnOutcomeRow indices={indices} sessionId={sessionId} turnId={turnId} />
 
   if (digest.folded.length === 0) {
     return (
@@ -204,6 +300,7 @@ export const TurnDigest: FC<{
         {digest.visible.map(index => (
           <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
         ))}
+        {outcome}
       </>
     )
   }
@@ -238,6 +335,7 @@ export const TurnDigest: FC<{
           </div>
         )}
       </div>
+      {outcome}
       {digest.visible.map(index => (
         <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
       ))}

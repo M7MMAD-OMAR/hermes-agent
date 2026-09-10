@@ -2,6 +2,7 @@ import { skillInvocationText } from '@hermes/shared'
 
 import { extractImageRefs } from '@/lib/embedded-images'
 import { dedupeGeneratedImageEchoesInParts } from '@/lib/generated-images'
+import { readTurnOutcome, type TurnOutcome } from '@/lib/turn-outcome'
 import type { MessageReaction, SessionMessage } from '@/types/hermes'
 
 import { assistantTextPart, chatMessageText, dedupeRepeatedTextInParts, reasoningPart, textPart } from './parts'
@@ -145,6 +146,10 @@ function timelineTaskCount(metadata: SessionMessage['display_metadata']): number
   const count = parseDisplayMetadata(metadata)?.task_count
 
   return typeof count === 'number' ? count : undefined
+}
+
+function messageTurnOutcome(metadata: SessionMessage['display_metadata']): TurnOutcome | undefined {
+  return readTurnOutcome(parseDisplayMetadata(metadata)?.turn_outcome) ?? undefined
 }
 
 function messageReactions(metadata: SessionMessage['display_metadata']): MessageReaction[] {
@@ -393,6 +398,14 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
           ...parts.map(part => part.timestamp)
         )
 
+        // The outcome is stamped on the turn's FINAL row; when that row merges
+        // into the bubble already holding the turn's tools, it travels along.
+        const mergedOutcome = messageTurnOutcome(message.display_metadata)
+
+        if (mergedOutcome) {
+          activeAssistant.turnOutcome = mergedOutcome
+        }
+
         return
       }
     } else {
@@ -400,6 +413,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     }
 
     const reactions = messageReactions(message.display_metadata)
+    const turnOutcome = message.role === 'assistant' ? messageTurnOutcome(message.display_metadata) : undefined
     // Gateway resume names the durable row id `row_id`; the REST transcript
     // prefetch ships the same messages.id as a numeric `id`. Either one lets
     // reactions address this exact row later.
@@ -415,6 +429,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
       timestamp: earliestTimestamp(message.timestamp, ...parts.map(part => part.timestamp)),
       ...(rowId !== undefined ? { rowId } : {}),
       ...(reactions.length ? { reactions } : {}),
+      ...(turnOutcome ? { turnOutcome } : {}),
       ...(extractedAttachmentRefs ? { attachmentRefs: extractedAttachmentRefs } : {})
     })
 

@@ -33,6 +33,10 @@ describe('gateway event routing', () => {
     expect(gatewayEventRequiresSessionId('next_moves.offer')).toBe(true)
   })
 
+  it('drops an unscoped turn outcome: the row is persisted under one turn of one chat', () => {
+    expect(gatewayEventRequiresSessionId('session.outcome')).toBe(true)
+  })
+
   it('attributes unscoped foreground turn events to the active chat', () => {
     // These must NOT be dropped when unscoped — they are the focused turn's own
     // output, and dropping them loses the live response until a refetch (#42178).

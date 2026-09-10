@@ -2310,6 +2310,7 @@ def _make_agent(
     # other surface sharing that finalizer would otherwise pay for evidence
     # nobody reads.
     agent._next_moves_dispatch = True
+    agent._turn_outcome_dispatch = True
     return agent
 
 

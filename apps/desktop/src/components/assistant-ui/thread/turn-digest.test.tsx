@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { $toolDisclosureStates } from '@/store/tool-view'
+import { clearAllTurnOutcomes, setTurnOutcome } from '@/store/turn-outcome'
 
 import { stubThreadEnvironment, stubThreadViewportSize, ThreadRuntime, userMessage } from '../test-utils'
 import { Thread } from '../thread'
@@ -205,5 +206,121 @@ describe('turn digest', () => {
 
     expect(digest.summary).toBe('2 notes')
     expect(digest.folded).toEqual([1, 2])
+  })
+})
+
+/**
+ * S6 of docs/design/herwork-workspace.md: the outcome row is the one thing in a
+ * settled turn that never folds. It answers "what did I get, what broke, what
+ * is left"; the header keeps answering "how many tools ran", and the two stay
+ * visually distinct.
+ */
+describe('turn outcome row', () => {
+  const RULES = { delivered: ['Edited 2 files: nav.tsx, dock.css'], failed: ['terminal reported an error'], open: [], source: 'rules' }
+
+  const MODEL = {
+    delivered: ['The navigation and dock styles are updated'],
+    failed: [],
+    open: ['تحقق من العناوين العربية في الشريحة 4'],
+    source: 'model'
+  }
+
+  function SessionHarness({ messages }: { messages: ThreadMessage[] }) {
+    return (
+      <ThreadRuntime messages={messages}>
+        <Thread sessionId="sess-1" />
+      </ThreadRuntime>
+    )
+  }
+
+  beforeEach(() => {
+    $toolDisclosureStates.set({})
+    clearAllTurnOutcomes()
+  })
+
+  afterEach(() => {
+    cleanup()
+    clearAllTurnOutcomes()
+  })
+
+  it('renders the three lines outside the fold and keeps them when the fold is collapsed', async () => {
+    setTurnOutcome('sess-1', 'user-1', RULES)
+    const { container } = render(<SessionHarness messages={[userMessage(), interimOne(), interimTwo(), reply()]} />)
+
+    await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
+
+    const row = container.querySelector('[data-turn-outcome]')!
+    expect(row.textContent).toContain('Edited 2 files: nav.tsx, dock.css')
+    expect(row.textContent).toContain('terminal reported an error')
+    expect(row.getAttribute('data-turn-outcome-source')).toBe('rules')
+    // Outside the body: the fold is collapsed and the row is still there.
+    expect(container.querySelector('[data-turn-digest-body]')).toBeNull()
+    expect(row.closest('[data-turn-digest]')).toBeNull()
+    // The header still says the tally, so the two are not confused.
+    expect(container.querySelector('[data-turn-digest]')!.textContent).toContain('Explored nav.tsx, ran 1 command')
+
+    fireEvent.click(container.querySelector('[data-turn-digest] button')!)
+    await waitFor(() => expect(container.querySelector('[data-turn-digest-body]')).not.toBeNull())
+    expect(container.querySelector('[data-turn-outcome]')).not.toBeNull()
+  })
+
+  it('swaps rules text for model text in place, inside a bidi-isolated element', async () => {
+    setTurnOutcome('sess-1', 'user-1', RULES)
+    const { container } = render(<SessionHarness messages={[userMessage(), interimOne(), interimTwo(), reply()]} />)
+
+    await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
+    const before = container.querySelector('[data-turn-outcome]')!
+
+    setTurnOutcome('sess-1', 'user-1', MODEL)
+
+    await waitFor(() => expect(container.querySelector('[data-turn-outcome-source="model"]')).not.toBeNull())
+    const after = container.querySelector('[data-turn-outcome]')!
+    expect(after).toBe(before)
+    expect(after.textContent).not.toContain('Edited 2 files')
+    const isolated = Array.from(after.querySelectorAll('bdi')).map(node => node.textContent)
+    expect(isolated).toContain('تحقق من العناوين العربية في الشريحة 4')
+  })
+
+  it('shows a rehydrated outcome from the tail message without any live event', async () => {
+    const hydratedReply = {
+      ...reply(),
+      metadata: { ...meta, custom: { turnOutcome: MODEL } }
+    } as unknown as ThreadMessage
+
+    const { container } = render(<SessionHarness messages={[userMessage(), interimOne(), hydratedReply]} />)
+
+    await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
+    expect(container.querySelector('[data-turn-outcome]')!.textContent).toContain('The navigation and dock styles are updated')
+  })
+
+  it('renders under the tail when nothing folded, and nothing at all without an outcome', async () => {
+    setTurnOutcome('sess-1', 'user-1', RULES)
+    const { container, unmount } = render(<SessionHarness messages={[userMessage(), reply()]} />)
+
+    await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
+    expect(container.querySelector('[data-turn-digest]')).toBeNull()
+    unmount()
+
+    const bare = render(<SessionHarness messages={[userMessage('user-2', 'another'), reply()]} />)
+    await waitFor(() => expect(bare.container.textContent).toContain('All done, both files updated.'))
+    expect(bare.container.querySelector('[data-turn-outcome]')).toBeNull()
+  })
+
+  it('does not re-render the outcome row on a text delta to the tail', async () => {
+    setTurnOutcome('sess-1', 'user-1', RULES)
+    const running = assistant('tail-live', [{ type: 'text', text: 'Working' }], { type: 'running' })
+    const { container, rerender } = render(<SessionHarness messages={[userMessage(), interimOne(), interimTwo(), running]} />)
+
+    await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
+    const row = container.querySelector('[data-turn-outcome]')!
+    const item = row.querySelector('bdi')!
+
+    const longer = assistant('tail-live', [{ type: 'text', text: 'Working on it, nearly there' }], { type: 'running' })
+    rerender(<SessionHarness messages={[userMessage(), interimOne(), interimTwo(), longer]} />)
+
+    await waitFor(() => expect(container.textContent).toContain('nearly there'))
+    // Same DOM nodes: the row was not rebuilt by the delta.
+    expect(container.querySelector('[data-turn-outcome]')).toBe(row)
+    expect(row.querySelector('bdi')).toBe(item)
   })
 })

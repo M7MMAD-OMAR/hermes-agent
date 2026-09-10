@@ -158,6 +158,8 @@ const COMPARED_FIELDS = [
   // Structured failure layer — drives the error card's title and action row,
   // so a change (e.g. resume replay attaching the descriptor) must repaint.
   'errorSurface',
+  // The outcome row under the turn: a rehydrate that attaches it must repaint.
+  'turnOutcome',
   'hidden',
   'branchGroupId',
   'interim',

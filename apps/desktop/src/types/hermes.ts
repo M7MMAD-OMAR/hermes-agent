@@ -574,6 +574,9 @@ export type TimelineDisplayMetadata =
       duration_seconds?: number
     }
   | { reactions: MessageReaction[] }
+  /** Post-turn outcome stamped on the final assistant row (`agent/turn_outcome.py`);
+   *  read through `readTurnOutcome`, never indexed directly. */
+  | { turn_outcome: Record<string, unknown> }
 
 /** One emoji reaction on a message. One per author, iOS-Tapback style. */
 export interface MessageReaction {

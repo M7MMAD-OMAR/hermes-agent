@@ -561,6 +561,8 @@ export function toRuntimeMessage(message: ChatMessage): ThreadMessage {
         ...(message.durationS !== undefined ? { durationS: message.durationS } : {}),
         // Structured failure layer for the error card (see lib/error-surface).
         ...(message.errorSurface ? { errorSurface: message.errorSurface } : {}),
+        // Rehydrated outcome row (see TurnDigest); a live one rides its store.
+        ...(message.turnOutcome ? { turnOutcome: message.turnOutcome } : {}),
         ...reactionMeta
       }
     }

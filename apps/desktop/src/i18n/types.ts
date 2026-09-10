@@ -3204,6 +3204,12 @@ export interface Translations {
       turnDuration: (duration: string) => string
       /** Header of a folded turn with no tool calls, counting its sealed notes. */
       turnDigestNotes: (count: number) => string
+      /** Labels of the outcome row pinned under a settled turn (never folded). */
+      turnOutcomeDelivered: string
+      turnOutcomeFailed: string
+      turnOutcomeOpen: string
+      /** Accessible name of the outcome block. */
+      turnOutcomeTitle: string
       progressTitle: string
       progressTask: string
       progressEdit: string

@@ -792,6 +792,16 @@ def _run_prompt_submit(
     # "agent", so the post-turn seam can tell one user prompt from the N
     # message.complete events a continuation chain produces.
     session["_turn_initiator"] = "agent" if str(initiator) == "agent" else "user"
+    # The client turn id belongs to the prompt.submit that carried it; a queued
+    # drain or a synthesized continuation runs with none.
+    pending_client_turn_id = str(session.pop("_pending_client_turn_id", "") or "")
+    session["_turn_client_id"] = pending_client_turn_id if initiator != "agent" else ""
+    try:
+        from agent.turn_outcome import cancel_turn_outcome
+
+        cancel_turn_outcome(agent)
+    except Exception:
+        pass
     # Fence off any next-moves generation still in flight for the PREVIOUS
     # turn. Never blocks: there is no fork to interrupt, just one auxiliary
     # request whose answer is now about a turn the user has moved past.
@@ -865,6 +875,26 @@ def _run_prompt_submit(
                 print(
                     f"[tui_gateway] next moves dispatch failed: "
                     f"{type(_moves_exc).__name__}: {_moves_exc}",
+                    file=sys.stderr,
+                )
+            # ── post-turn outcome ─────────────────────────────────────
+            # Same seam, same reason: the row describes a turn the client has
+            # settled. Carries the desktop's own turn id from prompt.submit.
+            try:
+                from agent.turn_outcome import dispatch_turn_outcome
+
+                dispatch_turn_outcome(
+                    st.agent,
+                    session_id=sid,
+                    status=status,
+                    emit=_emit,
+                    turn_id=str(session.get("_turn_client_id") or ""),
+                    agent_continued=session.get("_turn_initiator") == "agent",
+                )
+            except Exception as _outcome_exc:
+                print(
+                    f"[tui_gateway] turn outcome dispatch failed: "
+                    f"{type(_outcome_exc).__name__}: {_outcome_exc}",
                     file=sys.stderr,
                 )
             goal_followup = _goal_followup_after_turn(sid, session, st.result, status, raw)

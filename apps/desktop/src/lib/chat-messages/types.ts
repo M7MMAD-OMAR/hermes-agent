@@ -2,6 +2,7 @@ import type { ThreadMessageLike } from '@assistant-ui/react'
 import { type BillingBlock } from '@hermes/shared'
 
 import type { ErrorSurface } from '@/lib/error-surface'
+import type { TurnOutcome } from '@/lib/turn-outcome'
 import type { MessageReaction, SessionMessage, UsageStats } from '@/types/hermes'
 
 export interface TimelinePartMetadata {
@@ -44,6 +45,10 @@ export type ChatMessage = {
   rowId?: number
   /** Emoji reactions on this message — one per author (see MessageReaction). */
   reactions?: MessageReaction[]
+  /** The backend's post-turn outcome, persisted on the turn's final assistant
+   *  row (`display_metadata.turn_outcome`). Only rehydrated rows carry it; a
+   *  live turn's outcome arrives on `session.outcome` and lives in its store. */
+  turnOutcome?: TurnOutcome
 }
 
 export type GatewayEventPayload = {

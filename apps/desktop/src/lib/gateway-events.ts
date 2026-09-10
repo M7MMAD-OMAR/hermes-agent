@@ -65,7 +65,11 @@ const SESSION_SCOPED_EVENT_TYPES = new Set([
   // whichever chat happens to be focused is exactly the cross-conversation
   // bleed the feature is required not to have, and an unscoped frame here can
   // only mean the emitter lost its session id.
-  'next_moves.offer'
+  'next_moves.offer',
+  // An outcome row describes one turn of one conversation and is persisted
+  // under it; landing it on the focused chat would pin a stranger's result
+  // under the wrong turn, forever.
+  'session.outcome'
 ])
 
 export function gatewayEventRequiresSessionId(eventType: string | undefined): boolean {

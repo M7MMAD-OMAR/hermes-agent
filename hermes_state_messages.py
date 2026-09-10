@@ -336,6 +336,25 @@ class SessionMessagesMixin:
             return True
         return self._execute_write(_do)
 
+    def merge_latest_matching_message_display_metadata(self, session_id: str, *, role: str, content: str,
+                                                        patch: Dict[str, Any]) -> bool:
+        """Merge ``patch`` into the display metadata of this turn's freshly persisted row (newest active row
+        by content), leaving ``display_kind`` and every other key alone. Post-turn producers (the turn
+        outcome) stamp presentation facts on the assistant reply this way; the model never sees them."""
+        if not session_id or not content or not isinstance(patch, dict) or not patch:
+            return False
+        def _do(conn):
+            row = conn.execute("SELECT id, display_metadata FROM messages WHERE session_id = ? AND role = ? "
+                "AND content = ? AND active = 1 ORDER BY id DESC LIMIT 1",
+                (session_id, role, self._encode_content(content))).fetchone()
+            if row is None:
+                return False
+            meta = self._decode_display_metadata(row[1]) or {}
+            meta.update(patch)
+            conn.execute(_SET_DISPLAY_META_SQL, (self._encode_display_metadata(meta), row[0]))
+            return True
+        return self._execute_write(_do)
+
     def _reaction_list(self, meta: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Well-formed (dict) reactions stored under ``REACTIONS_METADATA_KEY``."""
         reactions = (meta or {}).get(self.REACTIONS_METADATA_KEY)

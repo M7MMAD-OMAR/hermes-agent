@@ -220,7 +220,7 @@ and nothing is invented.
 {
   "type": "session.outcome",
   "session_id": "...",
-  "turn_id": "<the turn's user message id>",
+  "turn_id": "<client turn id the desktop sent with session.prompt>",
   "outcome": {
     "delivered": ["q3-report.docx and its PDF in output/"],
     "failed":    ["xlsx totals: soffice missing, sheet not converted"],
@@ -255,8 +255,8 @@ and nothing is invented.
 ### Generation (`agent/turn_outcome.py`, new, ~150 lines)
 
 Staging reads what `finalize_turn` already holds: the turn's messages, the
-tool results with `is_error`, the todo list state before `clearActiveSessionTodos`
-would have dropped it (staging runs backend-side, before that). Prompt: the last
+tool results with `is_error`, and the todo list from `agent._todo_store`
+(backend state; the renderer's own todo clear never touches it). Prompt: the last
 assistant text, the list of tool calls with error flags, the todo list, and the
 user's request; ask for the three lists as JSON. Same size class as
 `title_generation`; add `"turn_outcome"` to `_FAST_MODEL_TASKS`. Note the
@@ -277,9 +277,11 @@ Three things Next Moves does that this must copy, not reinvent:
   (`_turn_started_monotonic` lives in `prompt_turn.py:775`); gate on evidence
   instead, the way `MIN_RESPONSE_CHARS` does (`next_moves.py:66,560`).
 
-Suppression: a turn with no tool calls and under `_MIN_TOOLLESS_SECONDS` is a
-chat reply and gets no outcome, the same threshold `turn_summary.py` uses. A
-turn that ended in an error still gets one; that is when `failed` matters most.
+Suppression: a turn with no tool calls and a final response under
+`MIN_RESPONSE_CHARS` is a chat reply and gets no outcome, the same evidence
+gate Next Moves uses (`next_moves.py:560`). Elapsed time is not the gate; it
+is not available where staging runs. A turn that ended in an error still gets
+one; that is when `failed` matters most.
 
 Config: `auxiliary.turn_outcome.enabled` (default true), `use_model` (default
 true), mirroring `auxiliary.next_moves.*`.
@@ -294,9 +296,9 @@ Failed carries the destructive tone; Open carries the accent.
 
 It is **never folded**: it sits outside the `expanded` body. Folding is for
 the working; the outcome is the point. It appears once the event lands and
-stays for the life of the thread. While the aux call is in flight after
-`message.complete`, the row shows the rules fallback immediately and swaps to
-the model text when it arrives, so the end of a turn is never blank.
+stays for the life of the thread. Until then the digest header's tally stands
+alone, which is today's behaviour; there is no renderer-side stand-in (see
+"One fallback, not two" below).
 
 Four renderer constraints, each with its anchor:
 
@@ -454,7 +456,7 @@ Every story has at least one test that fails before the change.
 1. **Core predicate + rehydrate fix + partition helper** (`workspace-scope.ts`,
    `session-states.ts`). Gate: S3 and S4 tests green, full desktop suite at
    baseline (10,107 + new).
-2. **Generalise the 6 routing sites and 9 SDK sites.** Gate: S1 `+` test, S4.
+2. **Generalise the 6 routing sites (not `:777`) and 9 SDK sites.** Gate: S1 `+` test, S4.
 3. **`hermes-herwork` plugin: entry, empty state, i18n.** Gate: S1, S2.
 4. **Desk cwd on the workspace route + `pending_bundle` on first prompt.**
    Precondition on this machine: `herwork.yaml` placed in
@@ -467,7 +469,7 @@ Every story has at least one test that fails before the change.
    land together because the id binding is shared. Gate: S6 backend tests.
 7. **Turn Outcome generation and rendering** (`turn_outcome.py`, aux task,
    dispatch gate and fence, `$turnOutcome` store, `TurnDigest` row).
-   Independent of steps 1 to 5. Gate: S6 renderer tests.
+   Depends on step 6 only, not on steps 1 to 5. Gate: S6 renderer tests.
 8. `DESIGN.md` and `src/AGENTS.md` (a HerWork section beside Bot Mode's).
 9. Rebuild with `hermes desktop --build-only --force-build`, then a live
    pass on this machine: open HerWork, run one deliverable, read the outcome.

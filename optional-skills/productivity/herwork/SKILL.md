@@ -169,6 +169,18 @@ Linux/macOS/Windows font directories and raises an install hint if Cairo
 is missing (free at fonts.google.com/specimen/Cairo). Pure-English
 deliverables may use the suite defaults.
 
+Direction comes with the font. `style_docx` also runs the docx skill's
+`apply_rtl`, which marks every Arabic paragraph right-to-left (`w:bidi` and
+`w:rtl`) and lays out mostly-Arabic tables from the right; a document built
+with `docx_create.py` gets the same pass from `"rtl": "auto"`. Without it the
+full stop lands at the START of the line and «(Python)» brackets face the
+wrong way, which is exactly how the desk's first reports came out.
+
+Punctuation: no em dash and no en dash in any deliverable, Arabic or
+English. Use a comma, a colon, or two sentences. The house rule exists
+because the dash reads as a machine's habit, and a reader of a business
+document notices.
+
 `shape_arabic` is not optional for PDFs. reportlab draws codepoint by
 codepoint with no shaper, and Cairo carries only 89 of the 144
 Presentation Forms-B codepoints a reshaper emits — isolated alef and teh

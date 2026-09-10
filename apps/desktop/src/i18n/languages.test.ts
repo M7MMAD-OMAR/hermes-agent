@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_LOCALE, isLocale, isSupportedLocaleValue, localeConfigValue, normalizeLocale } from './languages'
+import { DEFAULT_LOCALE, isLocale, isSupportedLocaleValue, localeConfigValue, localeDirection, normalizeLocale } from './languages'
 
 describe('desktop i18n languages', () => {
   it('normalizes supported locale aliases', () => {
@@ -51,5 +51,14 @@ describe('desktop i18n languages', () => {
     expect(localeConfigValue('ja')).toBe('ja')
     expect(localeConfigValue('ar')).toBe('ar')
     expect(localeConfigValue('ru')).toBe('ru')
+  })
+
+  it('reads Arabic as the one right-to-left interface direction', () => {
+    expect(localeDirection('ar')).toBe('rtl')
+    expect(localeDirection('en')).toBe('ltr')
+    expect(localeDirection('ja')).toBe('ltr')
+    expect(localeDirection('ru')).toBe('ltr')
+    expect(localeDirection('zh')).toBe('ltr')
+    expect(localeDirection('zh-hant')).toBe('ltr')
   })
 })

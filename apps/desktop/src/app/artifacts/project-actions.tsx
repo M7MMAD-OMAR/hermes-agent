@@ -7,7 +7,7 @@ import { CopyButton } from '@/components/ui/copy-button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { $pluginRecords } from '@/contrib/plugins-store'
-import { useI18n } from '@/i18n'
+import { localeDirection, useI18n } from '@/i18n'
 import { $activeConnectionId } from '@/store/connections'
 import { $activeGatewayProfile, $profileScope, ALL_PROFILES } from '@/store/profile'
 import { requestStartWorkSession } from '@/store/projects'
@@ -175,7 +175,7 @@ export function ProjectActions({ projectId, files, request }: Props) {
     <section className="space-y-3">
       <h3 className="text-sm font-medium">{a.title}</h3>
       <p className="text-xs text-muted-foreground">{a.hint}</p>
-      <Select dir={locale === 'ar' ? 'rtl' : 'ltr'} onValueChange={setSource} value={source}>
+      <Select dir={localeDirection(locale)} onValueChange={setSource} value={source}>
         <SelectTrigger aria-label={a.source} className="w-full">
           <SelectValue placeholder={a.source} />
         </SelectTrigger>

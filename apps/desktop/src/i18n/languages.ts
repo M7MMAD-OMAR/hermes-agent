@@ -51,6 +51,22 @@ export const LOCALE_META: Record<Locale, { name: string; englishName: string }> 
   LOCALE_OPTIONS.map(locale => [locale.id, { name: locale.name, englishName: locale.englishName }])
 ) as Record<Locale, { name: string; englishName: string }>
 
+/** Locales written right to left. One entry today, but the set is the point:
+ *  every direction decision in the app reads from here rather than comparing
+ *  against `'ar'` inline, so adding Hebrew or Persian is one line. */
+const RTL_LOCALES: ReadonlySet<Locale> = new Set<Locale>(['ar'])
+
+export type Direction = 'ltr' | 'rtl'
+
+/** The writing direction of the interface in `locale`.
+ *
+ *  This is the direction of the CHROME, not of a document being displayed. A
+ *  viewer showing an English workbook inside an Arabic interface has an RTL
+ *  chrome around an LTR document, and the two must be asked separately. */
+export function localeDirection(locale: Locale): Direction {
+  return RTL_LOCALES.has(locale) ? 'rtl' : 'ltr'
+}
+
 const LOCALE_ALIASES: Record<string, Locale> = {
   en: 'en',
   'en-us': 'en',

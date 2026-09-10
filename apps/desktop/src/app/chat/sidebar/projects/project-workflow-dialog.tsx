@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { useI18n } from '@/i18n'
+import { localeDirection, useI18n } from '@/i18n'
 import { $activeConnectionId } from '@/store/connections'
 import { requestGatewayForAgent } from '@/store/gateway'
 import { $activeGatewayProfile, $profileScope, ALL_PROFILES } from '@/store/profile'
@@ -108,7 +108,7 @@ export function ProjectWorkflowDialog({ project, onClose }: ProjectWorkflowDialo
         </DialogHeader>
         <div className="space-y-4">
           <Select
-            dir={locale === 'ar' ? 'rtl' : 'ltr'}
+            dir={localeDirection(locale)}
             onValueChange={value => {
               setWorkflow(value as typeof workflow)
               setApproach(value === 'quick-ui' ? 'quick' : 'standard')
@@ -129,7 +129,7 @@ export function ProjectWorkflowDialog({ project, onClose }: ProjectWorkflowDialo
           <p className="text-sm text-muted-foreground">{a.descriptions[workflow]}</p>
           <div className="space-y-2">
             <Select
-              dir={locale === 'ar' ? 'rtl' : 'ltr'}
+              dir={localeDirection(locale)}
               onValueChange={value => setApproach(value as typeof approach)}
               value={approach}
             >

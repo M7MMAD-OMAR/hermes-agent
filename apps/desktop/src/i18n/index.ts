@@ -5,15 +5,18 @@ export {
   type I18nContextValue,
   I18nProvider,
   LOCALE_META,
+  useDirection,
   useI18n,
   withConfigDisplayLanguage
 } from './context'
 export {
   DEFAULT_LOCALE,
+  type Direction,
   isLocale,
   isSupportedLocaleValue,
   LOCALE_OPTIONS,
   localeConfigValue,
+  localeDirection,
   normalizeLocale
 } from './languages'
 export {

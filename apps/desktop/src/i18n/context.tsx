@@ -3,7 +3,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { getHermesConfigRecord, type HermesConfigRecord, saveHermesConfig } from '@/hermes'
 
 import { DEFAULT_TRANSLATIONS, loadTranslations, translationsFor } from './catalog'
-import { DEFAULT_LOCALE, localeConfigValue, normalizeLocale } from './languages'
+import { DEFAULT_LOCALE, type Direction, localeConfigValue, localeDirection, normalizeLocale } from './languages'
 import { setRuntimeI18nLocale } from './runtime'
 import type { Locale, Translations } from './types'
 
@@ -55,15 +55,13 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
 }
 
-const RTL_LOCALES = new Set<Locale>(['ar'])
-
 function applyDocumentLocale(locale: Locale) {
   if (typeof document === 'undefined') {
     return
   }
 
   document.documentElement.lang = locale
-  document.documentElement.dir = RTL_LOCALES.has(locale) ? 'rtl' : 'ltr'
+  document.documentElement.dir = localeDirection(locale)
 }
 
 export interface I18nContextValue {
@@ -250,4 +248,14 @@ export function I18nProvider({ children, configClient = defaultConfigClient, ini
 
 export function useI18n(): I18nContextValue {
   return useContext(I18nContext)
+}
+
+/** The direction the interface reads in.
+ *
+ *  Chrome only. A viewer showing a document has two directions to keep apart:
+ *  this one, which belongs to the app's language, and the document's own,
+ *  which belongs to whoever wrote the file. Asking this hook for a document's
+ *  direction is the bug it exists to prevent. */
+export function useDirection(): Direction {
+  return localeDirection(useContext(I18nContext).locale)
 }

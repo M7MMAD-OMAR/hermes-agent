@@ -3516,6 +3516,10 @@ export const zh: Translations = {
       toggleWorkspace: '工作区',
       cacheHitRateTitle: '本会话的提示缓存命中率 — 缓存 token 更便宜，越高越省',
       tokensPerSecondTitle: '每秒输出 token 数，取最近 10 次模型调用的平均值',
+      graftSaved: tokens => `Graft 节省 ≈ ${tokens}`,
+      graftSavedTitle: (tokens, calls) =>
+        `Graft 代码图：本会话通过 ${calls} 次调用约节省 ${tokens} 个 token (相比完整读取所覆盖的文件)`,
+      toggleGraftSavings: 'Graft 节省',
       agents: '代理',
       closeAgents: '关闭代理',
       openAgents: '打开代理',
@@ -3975,6 +3979,29 @@ export const zh: Translations = {
       prefixes: {
         browser: '浏览器',
         web: '网页'
+      },
+      graft: {
+        files: count => `${count} 个文件`,
+        freshness: { fresh: '图已同步', missing: '尚未构建图', stale: '图已过期' },
+        hits: count => `${count} 条命中`,
+        indexedFiles: count => `已索引 ${count} 个文件`,
+        saved: tokens => `节省 ≈ ${tokens} token`,
+        savedPercent: (tokens, percent) => `节省 ≈ ${tokens} token (${percent}%)`,
+        scope: path => `于 ${path}`,
+        titles: {
+          ask: { done: 'Graft: 已查询代码图', pending: 'Graft: 正在查询代码图', pendingAction: '查询中' },
+          callers: { done: 'Graft: 已追踪调用', pending: 'Graft: 正在追踪调用', pendingAction: '追踪中' },
+          check: { done: 'Graft: 已检查图的新鲜度', pending: 'Graft: 正在检查图的新鲜度', pendingAction: '检查中' },
+          grep: { done: 'Graft: 已搜索索引', pending: 'Graft: 正在搜索索引', pendingAction: '搜索中' },
+          map: { done: 'Graft: 已绘制仓库地图', pending: 'Graft: 正在绘制仓库地图', pendingAction: '绘制中' },
+          skeleton: { done: 'Graft: 已读取文件 API', pending: 'Graft: 正在读取文件 API', pendingAction: '读取中' }
+        },
+        titlesWithTarget: {
+          ask: { done: target => `Graft: 已查询“${target}”`, pending: target => `Graft: 正在查询“${target}”` },
+          callers: { done: target => `Graft: 已追踪 ${target}`, pending: target => `Graft: 正在追踪 ${target}` },
+          grep: { done: target => `Graft: 已搜索“${target}”`, pending: target => `Graft: 正在搜索“${target}”` },
+          skeleton: { done: target => `Graft: 已读取 ${target} 的 API`, pending: target => `Graft: 正在读取 ${target} 的 API` }
+        }
       },
       titleTemplates: {
         actionCommand: (action, command) => `${action} ${command}`,

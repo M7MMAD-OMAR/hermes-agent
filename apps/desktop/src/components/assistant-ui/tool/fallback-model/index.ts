@@ -7,6 +7,18 @@ import { isCardTool, isFileEditTool, isSilentTool } from '@/lib/tool-render-clas
 import { extractToolErrorMessage, formatToolResultSummary } from '@/lib/tool-result-summary'
 
 import {
+  graftCountLabel,
+  graftPendingAction,
+  graftResultText,
+  graftSavingsLabel,
+  graftSummary,
+  graftTitle,
+  isGraftTool,
+  parseGraftResult,
+  stripGraftSavingsLine
+} from '../graft-model'
+
+import {
   browserExecStepLabel,
   compactPreview,
   contextValue,
@@ -249,6 +261,20 @@ function toolMeta(name: string): ToolMeta {
       pendingAction: translateNow(`assistant.tool.titles.${name}.pendingAction`),
       icon: meta.icon,
       tone: meta.tone
+    }
+  }
+
+  // Graft's MCP tools read as one family: the graph glyph and file tone, with
+  // the operation-specific title filled in by dynamicTitle once args are known.
+  if (isGraftTool(name)) {
+    const facts = parseGraftResult(name, {}, undefined)!
+
+    return {
+      done: graftTitle(facts, false),
+      pending: graftTitle(facts, true),
+      pendingAction: graftPendingAction(facts),
+      icon: 'type-hierarchy',
+      tone: 'file'
     }
   }
 
@@ -1048,6 +1074,12 @@ function toolSubtitle(
     return cronjobSubtitle(argsRecord, resultRecord)
   }
 
+  if (isGraftTool(toolName)) {
+    const facts = parseGraftResult(toolName, argsRecord, part.result)
+
+    return facts ? graftSummary(facts) : ''
+  }
+
   return (
     compactPreview(formatToolResultSummary(part.result), 120) ||
     compactPreview(resultRecord, 120) ||
@@ -1188,6 +1220,16 @@ function toolDetailText(
 
   if (part.toolName === 'cronjob') {
     return cronjobDetail(argsRecord, resultRecord)
+  }
+
+  if (isGraftTool(part.toolName) && part.result !== undefined) {
+    // The savings preamble is already the row's meta label; the body is the
+    // ranked hits / signatures / edges the model actually read.
+    const text = stripGraftSavingsLine(graftResultText(part.result))
+
+    if (text) {
+      return text
+    }
   }
 
   return fallbackDetailText(argsRecord, resultRecord)
@@ -1403,6 +1445,14 @@ function dynamicTitle(
     }
   }
 
+  if (isGraftTool(part.toolName)) {
+    const facts = parseGraftResult(part.toolName, args, part.result)
+
+    if (facts?.target) {
+      return titledAction(graftPendingAction(facts), graftTitle(facts, part.result === undefined))
+    }
+  }
+
   if (part.toolName === 'browser_exec') {
     // The browser_exec schema asks the model to open `code` with a one-line
     // `# …` comment describing the step in plain language; the CLI/TUI
@@ -1481,6 +1531,15 @@ export function buildToolView(part: ToolPart, inlineDiff: string): ToolView {
 
   const resultCount = status === 'error' ? null : toolResultCount(part, argsRecord, resultRecord)
 
+  // Graft rows carry two header facts: what came back (hits / files /
+  // freshness) and what it saved. Both are parsed from the result text, so
+  // neither goes through the generic `*_count` field sniffing above.
+  const graftFacts =
+    status !== 'error' && isGraftTool(part.toolName) ? parseGraftResult(part.toolName, argsRecord, part.result) : null
+
+  const graftCount = graftFacts ? graftCountLabel(graftFacts) : ''
+  const graftSaved = graftFacts ? graftSavingsLabel(graftFacts) : ''
+
   // For shell/code tools we surface stdout and stderr as separate labeled
   // streams in the renderer. Many CLIs use stderr for informational
   // messages (npm progress, git hints), so we deliberately don't paint
@@ -1496,13 +1555,14 @@ export function buildToolView(part: ToolPart, inlineDiff: string): ToolView {
   const terminalExitCode = part.toolName === 'terminal' ? numericField(resultRecord, 'exit_code') : undefined
 
   return {
-    countLabel: resultCount ? formatCountLabel(resultCount) : undefined,
+    countLabel: graftFacts ? graftCount || undefined : resultCount ? formatCountLabel(resultCount) : undefined,
     detail,
     detailLabel: error ? 'Error details' : toolDetailLabel(part.toolName),
     durationLabel: durationLabel(resultRecord),
     icon: meta.icon,
     imageUrl: toolImageUrl(argsRecord, resultRecord),
     inlineDiff,
+    metaLabel: graftSaved || undefined,
     previewTarget: toolPreviewTarget(part.toolName, argsRecord, resultRecord),
     rendersAnsi: rendersAnsi || undefined,
     searchQuery: searchQuery || undefined,

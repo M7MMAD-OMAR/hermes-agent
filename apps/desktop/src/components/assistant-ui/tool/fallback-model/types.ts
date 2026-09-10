@@ -37,6 +37,8 @@ export interface ToolView {
   icon?: string
   imageUrl?: string
   inlineDiff: string
+  /** A second header fact after `countLabel`, e.g. Graft's "saved ≈ 17k tokens". */
+  metaLabel?: string
   previewTarget?: string
   /** Set for tools whose output naturally contains ANSI escape codes
    *  (terminal/execute_code) so the renderer knows to run them through

@@ -2955,6 +2955,10 @@ export const ja = defineLocale({
       offDescription: '承認プロンプトなしで実行します'
     },
     statusbar: {
+      graftSaved: tokens => `Graft ≈ ${tokens} 節約`,
+      graftSavedTitle: (tokens, calls) =>
+        `Graft コードグラフ: このセッションで ${calls} 回の呼び出しにより約 ${tokens} トークンを節約 (ファイル全体を読む場合との比較)`,
+      toggleGraftSavings: 'Graft の節約',
       unknown: '不明',
       restart: '再起動',
       update: '更新',
@@ -3391,6 +3395,29 @@ export const ja = defineLocale({
       prefixes: {
         browser: 'ブラウザー',
         web: 'Web'
+      },
+      graft: {
+        files: count => `${count} ファイル`,
+        freshness: { fresh: 'グラフは同期済み', missing: 'グラフ未構築', stale: 'グラフが古い' },
+        hits: count => `${count} 件`,
+        indexedFiles: count => `${count} ファイルをインデックス`,
+        saved: tokens => `≈ ${tokens} トークン節約`,
+        savedPercent: (tokens, percent) => `≈ ${tokens} トークン節約 (${percent}%)`,
+        scope: path => `${path} 内`,
+        titles: {
+          ask: { done: 'Graft: コードグラフに質問', pending: 'Graft: コードグラフに質問中', pendingAction: '質問中' },
+          callers: { done: 'Graft: 呼び出しを追跡', pending: 'Graft: 呼び出しを追跡中', pendingAction: '追跡中' },
+          check: { done: 'Graft: グラフの鮮度を確認', pending: 'Graft: グラフの鮮度を確認中', pendingAction: '確認中' },
+          grep: { done: 'Graft: インデックスを検索', pending: 'Graft: インデックスを検索中', pendingAction: '検索中' },
+          map: { done: 'Graft: リポジトリをマップ', pending: 'Graft: リポジトリをマップ中', pendingAction: 'マップ中' },
+          skeleton: { done: 'Graft: ファイル API を読み取り', pending: 'Graft: ファイル API を読み取り中', pendingAction: '読み取り中' }
+        },
+        titlesWithTarget: {
+          ask: { done: target => `Graft: 「${target}」を質問`, pending: target => `Graft: 「${target}」を質問中` },
+          callers: { done: target => `Graft: ${target} を追跡`, pending: target => `Graft: ${target} を追跡中` },
+          grep: { done: target => `Graft: 「${target}」を検索`, pending: target => `Graft: 「${target}」を検索中` },
+          skeleton: { done: target => `Graft: ${target} の API を読み取り`, pending: target => `Graft: ${target} の API を読み取り中` }
+        }
       },
       titleTemplates: {
         actionCommand: (action, command) => `${action} ${command}`,

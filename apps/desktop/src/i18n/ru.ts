@@ -3359,6 +3359,10 @@ export const ru = defineLocale({
       toggleWorkspace: 'Рабочее пространство',
       cacheHitRateTitle: 'Доля попаданий в кэш промпта за сеанс — кэшированные токены дешевле, чем выше, тем дешевле',
       tokensPerSecondTitle: 'Выходных токенов в секунду, среднее за последние 10 вызовов модели',
+      graftSaved: tokens => `Graft сэкономил ≈ ${tokens}`,
+      graftSavedTitle: (tokens, calls) =>
+        `Граф кода Graft: около ${tokens} токенов сэкономлено за сеанс (${calls} вызов(ов)) по сравнению с чтением файлов целиком`,
+      toggleGraftSavings: 'Экономия Graft',
       agents: 'Агенты',
       closeAgents: 'Закрыть агентов',
       openAgents: 'Открыть агентов',
@@ -3752,6 +3756,29 @@ export const ru = defineLocale({
       prefixes: {
         browser: 'Браузер',
         web: 'Web'
+      },
+      graft: {
+        files: count => `${count} файл(ов)`,
+        freshness: { fresh: 'граф актуален', missing: 'граф не построен', stale: 'граф устарел' },
+        hits: count => `${count} совпадений`,
+        indexedFiles: count => `${count} файлов в индексе`,
+        saved: tokens => `сэкономлено ≈ ${tokens} токенов`,
+        savedPercent: (tokens, percent) => `сэкономлено ≈ ${tokens} токенов (${percent}%)`,
+        scope: path => `в ${path}`,
+        titles: {
+          ask: { done: 'Graft: запрос к графу кода', pending: 'Graft: запрос к графу кода', pendingAction: 'запрашивает' },
+          callers: { done: 'Graft: вызовы отслежены', pending: 'Graft: отслеживает вызовы', pendingAction: 'отслеживает' },
+          check: { done: 'Graft: свежесть графа проверена', pending: 'Graft: проверяет свежесть графа', pendingAction: 'проверяет' },
+          grep: { done: 'Graft: поиск по индексу', pending: 'Graft: ищет по индексу', pendingAction: 'ищет' },
+          map: { done: 'Graft: карта репозитория', pending: 'Graft: строит карту репозитория', pendingAction: 'строит' },
+          skeleton: { done: 'Graft: API файла прочитан', pending: 'Graft: читает API файла', pendingAction: 'читает' }
+        },
+        titlesWithTarget: {
+          ask: { done: target => `Graft: запрос «${target}»`, pending: target => `Graft: запрашивает «${target}»` },
+          callers: { done: target => `Graft: отслежен ${target}`, pending: target => `Graft: отслеживает ${target}` },
+          grep: { done: target => `Graft: поиск «${target}»`, pending: target => `Graft: ищет «${target}»` },
+          skeleton: { done: target => `Graft: API ${target}`, pending: target => `Graft: читает API ${target}` }
+        }
       },
       titleTemplates: {
         actionCommand: (action, command) => `${action} ${command}`,

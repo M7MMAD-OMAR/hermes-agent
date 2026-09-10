@@ -2597,6 +2597,10 @@ export const ar = defineLocale({
         title: 'استهلاك السياق',
         tokenSummary: (used, max) => `${used} / ${max} توكن`
       },
+      graftSaved: tokens => `Graft وفّر ≈ ${tokens}`,
+      graftSavedTitle: (tokens, calls) =>
+        `رسم الشيفرة Graft: وفّر نحو ${tokens} رمزًا في هذه الجلسة عبر ${calls === 1 ? 'استدعاء واحد' : `${calls} استدعاءات`}، مقارنة بقراءة الملفات كاملة`,
+      toggleGraftSavings: 'توفير Graft',
       unknown: 'غير معروف',
       restart: 'إعادة تشغيل',
       update: 'تحديث',
@@ -2984,6 +2988,29 @@ export const ar = defineLocale({
       prefixes: {
         browser: 'المتصفح',
         web: 'الويب'
+      },
+      graft: {
+        files: count => (count === 1 ? 'ملف واحد' : `${count} ملفات`),
+        freshness: { fresh: 'الرسم البياني محدّث', missing: 'لم يُبنَ رسم بياني', stale: 'الرسم البياني قديم' },
+        hits: count => (count === 1 ? 'نتيجة واحدة' : `${count} نتائج`),
+        indexedFiles: count => `${count} ملفات مفهرسة`,
+        saved: tokens => `وفّر ≈ ${tokens} رمزًا`,
+        savedPercent: (tokens, percent) => `وفّر ≈ ${tokens} رمزًا (${percent}%)`,
+        scope: path => `ضمن ${path}`,
+        titles: {
+          ask: { done: 'Graft: سأل رسم الشيفرة', pending: 'Graft: يسأل رسم الشيفرة', pendingAction: 'يسأل' },
+          callers: { done: 'Graft: تتبّع الاستدعاءات', pending: 'Graft: يتتبّع الاستدعاءات', pendingAction: 'يتتبّع' },
+          check: { done: 'Graft: تحقّق من حداثة الرسم', pending: 'Graft: يتحقّق من حداثة الرسم', pendingAction: 'يتحقّق' },
+          grep: { done: 'Graft: بحث في الفهرس', pending: 'Graft: يبحث في الفهرس', pendingAction: 'يبحث' },
+          map: { done: 'Graft: رسم خريطة المستودع', pending: 'Graft: يرسم خريطة المستودع', pendingAction: 'يرسم' },
+          skeleton: { done: 'Graft: قرأ واجهة الملف', pending: 'Graft: يقرأ واجهة الملف', pendingAction: 'يقرأ' }
+        },
+        titlesWithTarget: {
+          ask: { done: target => `Graft: سأل عن «${target}»`, pending: target => `Graft: يسأل عن «${target}»` },
+          callers: { done: target => `Graft: تتبّع ${target}`, pending: target => `Graft: يتتبّع ${target}` },
+          grep: { done: target => `Graft: بحث عن «${target}»`, pending: target => `Graft: يبحث عن «${target}»` },
+          skeleton: { done: target => `Graft: قرأ واجهة ${target}`, pending: target => `Graft: يقرأ واجهة ${target}` }
+        }
       },
       titleTemplates: {
         actionCommand: (action, command) => `${action} ${command}`,

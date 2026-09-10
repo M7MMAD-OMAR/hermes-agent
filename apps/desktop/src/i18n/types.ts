@@ -2903,6 +2903,9 @@ export interface Translations {
       toggleWorkspace: string
       cacheHitRateTitle: string
       tokensPerSecondTitle: string
+      graftSaved: (tokens: string) => string
+      graftSavedTitle: (tokens: string, calls: number) => string
+      toggleGraftSavings: string
       agents: string
       closeAgents: string
       openAgents: string
@@ -3350,6 +3353,23 @@ export interface Translations {
       prefixes: {
         browser: string
         web: string
+      }
+      graft: {
+        files: (count: number) => string
+        freshness: { fresh: string; missing: string; stale: string }
+        hits: (count: number) => string
+        indexedFiles: (count: number) => string
+        saved: (tokens: string) => string
+        savedPercent: (tokens: string, percent: number) => string
+        scope: (path: string) => string
+        titles: Record<
+          'ask' | 'callers' | 'check' | 'grep' | 'map' | 'skeleton',
+          { done: string; pending: string; pendingAction: string }
+        >
+        titlesWithTarget: Record<
+          'ask' | 'callers' | 'grep' | 'skeleton',
+          { done: (target: string) => string; pending: (target: string) => string }
+        >
       }
       titleTemplates: {
         actionCommand: (action: string, command: string) => string

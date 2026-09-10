@@ -3379,6 +3379,10 @@ export const en: Translations = {
       toggleWorkspace: 'Workspace',
       cacheHitRateTitle: 'Prompt cache hit rate this session — cached tokens cost less, so higher is cheaper',
       tokensPerSecondTitle: 'Output tokens per second, averaged over the last 10 model calls',
+      graftSaved: tokens => `Graft saved ≈ ${tokens}`,
+      graftSavedTitle: (tokens, calls) =>
+        `Graft context graph: about ${tokens} tokens saved this session across ${calls === 1 ? '1 call' : `${calls} calls`}, versus reading the covered files whole`,
+      toggleGraftSavings: 'Graft savings',
       agents: 'Agents',
       closeAgents: 'Close agents',
       openAgents: 'Open agents',
@@ -3843,6 +3847,33 @@ export const en: Translations = {
       prefixes: {
         browser: 'Browser',
         web: 'Web'
+      },
+      graft: {
+        files: count => (count === 1 ? '1 file' : `${count} files`),
+        freshness: { fresh: 'graph in sync', missing: 'no graph built', stale: 'graph stale' },
+        hits: count => (count === 1 ? '1 hit' : `${count} hits`),
+        indexedFiles: count => `${count} indexed files`,
+        saved: tokens => `saved ≈ ${tokens} tokens`,
+        savedPercent: (tokens, percent) => `saved ≈ ${tokens} tokens (${percent}%)`,
+        scope: path => `in ${path}`,
+        titles: {
+          ask: { done: 'Graft: asked the code graph', pending: 'Graft: asking the code graph', pendingAction: 'asking' },
+          callers: { done: 'Graft: traced calls', pending: 'Graft: tracing calls', pendingAction: 'tracing' },
+          check: {
+            done: 'Graft: checked graph freshness',
+            pending: 'Graft: checking graph freshness',
+            pendingAction: 'checking'
+          },
+          grep: { done: 'Graft: searched the index', pending: 'Graft: searching the index', pendingAction: 'searching' },
+          map: { done: 'Graft: mapped the repo', pending: 'Graft: mapping the repo', pendingAction: 'mapping' },
+          skeleton: { done: 'Graft: read file API', pending: 'Graft: reading file API', pendingAction: 'reading' }
+        },
+        titlesWithTarget: {
+          ask: { done: target => `Graft: asked “${target}”`, pending: target => `Graft: asking “${target}”` },
+          callers: { done: target => `Graft: traced ${target}`, pending: target => `Graft: tracing ${target}` },
+          grep: { done: target => `Graft: searched “${target}”`, pending: target => `Graft: searching “${target}”` },
+          skeleton: { done: target => `Graft: read API of ${target}`, pending: target => `Graft: reading API of ${target}` }
+        }
       },
       titleTemplates: {
         actionCommand: (action, command) => `${action} ${command}`,

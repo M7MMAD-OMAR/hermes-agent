@@ -2848,6 +2848,10 @@ export const zhHant = defineLocale({
       offDescription: '不顯示核准提示，直接執行'
     },
     statusbar: {
+      graftSaved: tokens => `Graft 節省 ≈ ${tokens}`,
+      graftSavedTitle: (tokens, calls) =>
+        `Graft 程式碼圖：本工作階段透過 ${calls} 次呼叫約節省 ${tokens} 個 token (相較於完整讀取所涵蓋的檔案)`,
+      toggleGraftSavings: 'Graft 節省',
       unknown: '未知',
       restart: '重新啟動',
       update: '更新',
@@ -3278,6 +3282,29 @@ export const zhHant = defineLocale({
       prefixes: {
         browser: '瀏覽器',
         web: '網頁'
+      },
+      graft: {
+        files: count => `${count} 個檔案`,
+        freshness: { fresh: '圖已同步', missing: '尚未建立圖', stale: '圖已過期' },
+        hits: count => `${count} 筆命中`,
+        indexedFiles: count => `已索引 ${count} 個檔案`,
+        saved: tokens => `節省 ≈ ${tokens} token`,
+        savedPercent: (tokens, percent) => `節省 ≈ ${tokens} token (${percent}%)`,
+        scope: path => `於 ${path}`,
+        titles: {
+          ask: { done: 'Graft: 已查詢程式碼圖', pending: 'Graft: 正在查詢程式碼圖', pendingAction: '查詢中' },
+          callers: { done: 'Graft: 已追蹤呼叫', pending: 'Graft: 正在追蹤呼叫', pendingAction: '追蹤中' },
+          check: { done: 'Graft: 已檢查圖的新鮮度', pending: 'Graft: 正在檢查圖的新鮮度', pendingAction: '檢查中' },
+          grep: { done: 'Graft: 已搜尋索引', pending: 'Graft: 正在搜尋索引', pendingAction: '搜尋中' },
+          map: { done: 'Graft: 已繪製儲存庫地圖', pending: 'Graft: 正在繪製儲存庫地圖', pendingAction: '繪製中' },
+          skeleton: { done: 'Graft: 已讀取檔案 API', pending: 'Graft: 正在讀取檔案 API', pendingAction: '讀取中' }
+        },
+        titlesWithTarget: {
+          ask: { done: target => `Graft: 已查詢「${target}」`, pending: target => `Graft: 正在查詢「${target}」` },
+          callers: { done: target => `Graft: 已追蹤 ${target}`, pending: target => `Graft: 正在追蹤 ${target}` },
+          grep: { done: target => `Graft: 已搜尋「${target}」`, pending: target => `Graft: 正在搜尋「${target}」` },
+          skeleton: { done: target => `Graft: 已讀取 ${target} 的 API`, pending: target => `Graft: 正在讀取 ${target} 的 API` }
+        }
       },
       titleTemplates: {
         actionCommand: (action, command) => `${action} ${command}`,

@@ -802,6 +802,7 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
     forcePreview,
     fsCacheKey,
     isImage,
+    isOffice,
     isPdf,
     isText,
     reloadKey,

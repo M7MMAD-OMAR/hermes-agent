@@ -1,30 +1,55 @@
-// Office files (Word, Excel, PowerPoint, OpenDocument, RTF) have no renderer in
-// the preview rail. LibreOffice does, and it is on most desks that produce such
-// files, so the rail previews them as the PDF LibreOffice prints: one viewer
-// for every document format, and the PDF is what the reader would have been
-// sent anyway. Conversions are cached by the source's path, size and mtime, so
-// re-opening a tab is a file read, not a second LibreOffice launch.
+// Office documents are rendered natively in the rail: Word by docx-preview,
+// spreadsheets by an OOXML grid, decks by an SVG slide renderer. All three read
+// OOXML, so the only thing the main process still owes them is a *converter*:
+// the legacy and OpenDocument formats (.doc, .rtf, .odt, .xls, .ods, .ppt,
+// .odp) become their OOXML sibling first, and the Word viewer asks for a PDF
+// when the reader wants exact print pages instead of the reflowed document.
+//
+// LibreOffice does that conversion. Results are cached by the source's path,
+// size and mtime, so re-opening a tab is a file read, not a second launch.
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-export const OFFICE_PREVIEW_EXTENSIONS = new Set([
-  '.doc',
-  '.docx',
-  '.odp',
-  '.ods',
-  '.odt',
-  '.ppt',
-  '.pptx',
-  '.rtf',
-  '.xls',
-  '.xlsx'
+/** What a converted file can be asked to become. */
+export type OfficeConvertTarget = 'docx' | 'pdf' | 'pptx' | 'xlsx'
+
+const MIME_BY_TARGET: Record<OfficeConvertTarget, string> = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pdf: 'application/pdf',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+}
+
+/** The OOXML family each previewable extension belongs to. A file already in
+ *  its family's OOXML form needs no conversion at all — the renderer reads its
+ *  bytes straight off disk — which is why `.docx`, `.xlsx` and `.pptx` map to
+ *  themselves and the check for "must convert" is `family !== extension`. */
+const FAMILY_BY_EXTENSION = new Map<string, OfficeConvertTarget>([
+  ['.doc', 'docx'],
+  ['.docx', 'docx'],
+  ['.odp', 'pptx'],
+  ['.ods', 'xlsx'],
+  ['.odt', 'docx'],
+  ['.ppt', 'pptx'],
+  ['.pptx', 'pptx'],
+  ['.rtf', 'docx'],
+  ['.xls', 'xlsx'],
+  ['.xlsx', 'xlsx']
 ])
 
+export const OFFICE_PREVIEW_EXTENSIONS = new Set(FAMILY_BY_EXTENSION.keys())
+
 export function isOfficePreviewPath(filePath: string): boolean {
-  return OFFICE_PREVIEW_EXTENSIONS.has(path.extname(filePath).toLowerCase())
+  return FAMILY_BY_EXTENSION.has(path.extname(filePath).toLowerCase())
+}
+
+/** The OOXML format this file is read as, or null when it is not an Office
+ *  document at all. */
+export function officeFamilyFor(filePath: string): OfficeConvertTarget | null {
+  return FAMILY_BY_EXTENSION.get(path.extname(filePath).toLowerCase()) ?? null
 }
 
 const CONVERT_TIMEOUT_MS = 90_000
@@ -73,22 +98,32 @@ function findSoffice(env = process.env): string | null {
   return null
 }
 
-export interface OfficePreviewDeps {
+export interface OfficeConvertDeps {
   /** Path hardening: the same resolver every other fs door uses. */
   resolveReadableFile: (filePath: string) => Promise<{ resolvedPath: string; stat: fs.Stats }>
-  /** Largest PDF the rail will take, in bytes; the preview cap. */
+  /** Largest converted file the rail will take, in bytes; the preview cap. */
   maxBytes: number
   cacheDir?: string
   run?: RunConverter
   sofficePath?: string | null
 }
 
-/** The PDF LibreOffice prints for an Office file, as a data: URL, from cache
- *  when the source has not changed since. Throws a plain message when
- *  LibreOffice is not installed, when the source is not an Office file, or when
- *  the PDF exceeds the preview cap; the rail shows the message as its
- *  "Preview unavailable" reason, so it has to read as advice, not as a trace. */
-export async function officePreviewPdfForIpc(filePath: string, deps: OfficePreviewDeps): Promise<string> {
+/** The converted file as a data: URL, from cache when the source has not
+ *  changed since. Throws a plain message when LibreOffice is not installed,
+ *  when the source is not an Office file, or when the result exceeds the
+ *  preview cap; the rail shows the message as its "Preview unavailable"
+ *  reason, so it has to read as advice, not as a trace. */
+export async function officeConvertForIpc(
+  filePath: string,
+  target: OfficeConvertTarget,
+  deps: OfficeConvertDeps
+): Promise<string> {
+  const mimeType = MIME_BY_TARGET[target]
+
+  if (!mimeType) {
+    throw new Error('Unsupported conversion target')
+  }
+
   const { resolvedPath, stat } = await deps.resolveReadableFile(filePath)
 
   if (!isOfficePreviewPath(resolvedPath)) {
@@ -98,29 +133,29 @@ export async function officePreviewPdfForIpc(filePath: string, deps: OfficePrevi
   const soffice = deps.sofficePath === undefined ? findSoffice() : deps.sofficePath
 
   if (!soffice) {
-    throw new Error('Install LibreOffice to preview Word, Excel and PowerPoint files here')
+    throw new Error('Install LibreOffice to open this document format here')
   }
 
   const cacheDir = deps.cacheDir ?? path.join(os.tmpdir(), 'hermes-office-preview')
   const key = createHash('sha1').update(`${resolvedPath}\n${stat.size}\n${stat.mtimeMs}`).digest('hex')
   const outDir = path.join(cacheDir, key)
-  const pdfName = `${path.basename(resolvedPath, path.extname(resolvedPath))}.pdf`
-  const pdfPath = path.join(outDir, pdfName)
+  const outPath = path.join(outDir, `${path.basename(resolvedPath, path.extname(resolvedPath))}.${target}`)
 
-  if (!fs.existsSync(pdfPath)) {
+  if (!fs.existsSync(outPath)) {
     await fs.promises.mkdir(outDir, { recursive: true })
 
     // A private profile dir per conversion: a soffice already running for the
     // user (or for another conversion) would otherwise hand the work to that
-    // instance, and the headless call returns before the file exists.
-    const profileDir = path.join(outDir, 'profile')
+    // instance, and the headless call returns before the file exists. It is
+    // keyed by target so two formats of one source can convert side by side.
+    const profileDir = path.join(outDir, `profile-${target}`)
 
     const args = [
       `-env:UserInstallation=${pathToFileUrl(profileDir)}`,
       '--headless',
       '--norestore',
       '--convert-to',
-      'pdf',
+      target,
       '--outdir',
       outDir,
       resolvedPath
@@ -129,20 +164,20 @@ export async function officePreviewPdfForIpc(filePath: string, deps: OfficePrevi
     await (deps.run ?? runSoffice)(soffice, args, CONVERT_TIMEOUT_MS)
     await fs.promises.rm(profileDir, { force: true, recursive: true })
 
-    if (!fs.existsSync(pdfPath)) {
-      throw new Error('LibreOffice produced no PDF for this file')
+    if (!fs.existsSync(outPath)) {
+      throw new Error(`LibreOffice produced no ${target.toUpperCase()} for this file`)
     }
   }
 
-  const pdf = await fs.promises.stat(pdfPath)
+  const converted = await fs.promises.stat(outPath)
 
-  if (pdf.size > deps.maxBytes) {
-    throw new Error(`The converted PDF is ${Math.round(pdf.size / 1048576)} MB, above the preview limit`)
+  if (converted.size > deps.maxBytes) {
+    throw new Error(`The converted file is ${Math.round(converted.size / 1048576)} MB, above the preview limit`)
   }
 
-  const data = await fs.promises.readFile(pdfPath)
+  const data = await fs.promises.readFile(outPath)
 
-  return `data:application/pdf;base64,${data.toString('base64')}`
+  return `data:${mimeType};base64,${data.toString('base64')}`
 }
 
 function pathToFileUrl(target: string): string {

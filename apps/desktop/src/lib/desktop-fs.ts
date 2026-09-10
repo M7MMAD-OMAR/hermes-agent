@@ -5,6 +5,8 @@ import type {
   HermesReadFileTextResult,
   HermesSelectPathsOptions
 } from '@/global'
+import { pathToFileUrl } from '@/lib/file-url'
+import { officeFamilyForPath, officeNeedsConversion } from '@/lib/office-format'
 import { $connection } from '@/store/session'
 
 export interface DesktopFsRemotePicker {
@@ -117,21 +119,68 @@ export async function readDesktopFileDataUrl(path: string): Promise<string> {
   return typeof result === 'string' ? result : result.dataUrl || ''
 }
 
-/** An Office document as the PDF LibreOffice prints for it. Local only: the
+/** An Office document converted to `target`, as a data: URL. Local only: the
  *  conversion runs on this machine, and a remote gateway's file is not here.
  *  The message is what the rail shows when it cannot preview. */
-export async function readDesktopOfficePdfDataUrl(path: string): Promise<string> {
+export async function convertDesktopOffice(path: string, target: 'docx' | 'pdf' | 'pptx' | 'xlsx'): Promise<string> {
   if (isDesktopFsRemoteMode()) {
-    throw new Error('Office files preview on local connections only; open the PDF beside it instead')
+    throw new Error('Office files open on local connections only; open the PDF beside it instead')
   }
 
   const desktop = bridge()
 
-  if (!desktop.officePreviewPdf) {
-    throw new Error('Update Hermes Desktop to preview Office files')
+  if (!desktop.officeConvert) {
+    throw new Error('Update Hermes Desktop to open Office files')
   }
 
-  return desktop.officePreviewPdf(path)
+  return desktop.officeConvert(path, target)
+}
+
+/** Hand a local file to whatever the OS opens it with. The main process turns
+ *  a `file:` URL into `shell.openPath`, so this is the app's "edit it properly"
+ *  door for formats the rail can show but not author. */
+export async function openDesktopFileExternally(path: string): Promise<void> {
+  if (isDesktopFsRemoteMode()) {
+    throw new Error('Only local files open in another app')
+  }
+
+  await bridge().openExternal(pathToFileUrl(path))
+}
+
+/** The OOXML bytes an Office viewer parses: the file itself when it is already
+ *  OOXML, and LibreOffice's conversion of it when it is not. */
+export async function readDesktopOfficeBytes(path: string): Promise<Uint8Array> {
+  const family = officeFamilyForPath(path)
+
+  if (!family) {
+    throw new Error('Not an Office document')
+  }
+
+  const dataUrl = officeNeedsConversion(path)
+    ? await convertDesktopOffice(path, family)
+    : await readDesktopFileDataUrl(path)
+
+  return dataUrlBytes(dataUrl)
+}
+
+/** The payload of a base64 data: URL, as bytes. */
+export function dataUrlBytes(dataUrl: string): Uint8Array {
+  const comma = dataUrl.indexOf(',')
+
+  if (!dataUrl.startsWith('data:') || comma < 0) {
+    throw new Error('Unreadable file contents')
+  }
+
+  const meta = dataUrl.slice(5, comma)
+  const payload = dataUrl.slice(comma + 1)
+  const binary = meta.includes(';base64') ? atob(payload) : decodeURIComponent(payload)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  return bytes
 }
 
 /**

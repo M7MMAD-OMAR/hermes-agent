@@ -1,13 +1,13 @@
 import DOMPurify from 'dompurify'
 
 import { isDesktopFsRemoteMode, readDesktopFileDataUrl, readDesktopFileText } from '@/lib/desktop-fs'
+import { pathToFileUrl } from '@/lib/file-url'
+import { isOfficePreviewKind, OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@/lib/office-format'
 import type { PreviewTarget } from '@/store/preview'
 
 const HTML_EXTENSIONS = new Set(['.htm', '.html'])
 const IMAGE_EXTENSIONS = new Set(['.bmp', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp'])
 const PDF_EXTENSIONS = new Set(['.pdf'])
-// Previewed as the PDF LibreOffice prints for them (electron/office-preview.ts).
-const OFFICE_EXTENSIONS = new Set(['.doc', '.docx', '.odp', '.ods', '.odt', '.ppt', '.pptx', '.rtf', '.xls', '.xlsx'])
 // Mirrors `_FS_DATA_URL_MAX_BYTES` in the backend filesystem endpoint.
 const REMOTE_HTML_PREVIEW_MAX_BYTES = 16 * 1024 * 1024
 const REMOTE_HTML_PREVIEW_MAX_BASE64_BYTES = Math.ceil(REMOTE_HTML_PREVIEW_MAX_BYTES / 3) * 4
@@ -66,21 +66,6 @@ function joinPath(base: string, rel: string) {
   return `${base.replace(/\/+$/, '')}/${rel.replace(/^\.?\//, '')}`
 }
 
-function pathToFileUrl(path: string) {
-  const isWindowsUnc = path.startsWith('\\\\')
-  const normalized = isWindowsUnc || /^[a-z]:[\\/]/i.test(path) ? path.replace(/\\/g, '/') : path
-
-  const encoded = normalized
-    .split('/')
-    .map(part => encodeURIComponent(part))
-    .join('/')
-
-  if (isWindowsUnc) {
-    return `file://${encoded.slice(2)}`
-  }
-
-  return `file://${encoded.startsWith('/') ? encoded : `/${encoded}`}`
-}
 
 export function validatedRemoteHtmlDataUrl(value: string): string | null {
   const prefix = 'data:text/html;base64,'
@@ -207,7 +192,7 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
   const isHtml = HTML_EXTENSIONS.has(ext)
   const isImage = IMAGE_EXTENSIONS.has(ext)
   const isPdf = PDF_EXTENSIONS.has(ext)
-  const isOffice = OFFICE_EXTENSIONS.has(ext)
+  const officeFamily = officeFamilyForPath(path)
 
   return {
     kind: 'file',
@@ -217,7 +202,15 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
     // Renderer fallback can't stat/sniff without reading; assume text unless
     // image/html/pdf extension says otherwise. LocalFilePreview still guards
     // binary/large files when readFileText/readFileDataUrl returns metadata.
-    previewKind: isHtml ? 'html' : isImage ? 'image' : isPdf ? 'pdf' : isOffice ? 'office' : 'text',
+    previewKind: isHtml
+      ? 'html'
+      : isImage
+        ? 'image'
+        : isPdf
+          ? 'pdf'
+          : officeFamily
+            ? OFFICE_PREVIEW_KIND_BY_FAMILY[officeFamily]
+            : 'text',
     source: raw,
     url: pathToFileUrl(path)
   }
@@ -230,7 +223,7 @@ async function enrichPreviewTarget(target: PreviewTarget | null): Promise<Previe
     target.kind !== 'file' ||
     target.previewKind === 'image' ||
     target.previewKind === 'pdf' ||
-    target.previewKind === 'office'
+    isOfficePreviewKind(target.previewKind)
   ) {
     return target
   }

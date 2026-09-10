@@ -273,7 +273,7 @@ import { loadNativeTokenSet, type NativeTokenStoreIo, persistNativeTokenSet } fr
 import { chatDeepLink, decorateNotificationBody, parseNotifyCapabilities } from './notification-body-link'
 import { serializeJsonBody, setJsonRequestHeaders } from './oauth-net-request'
 import { LEGACY_OAUTH_PARTITION, resolveOauthPartition } from './oauth-partition'
-import { officePreviewPdfForIpc } from './office-preview'
+import { officeConvertForIpc } from './office-preview'
 import { createParentStartMarkerResolver, parentWatchdogEnv } from './parent-process-identity'
 import { registerPetOverlayIpc } from './pet-overlay-ipc'
 import {
@@ -16999,10 +16999,10 @@ ipcMain.handle('hermes:readFileDataUrl', async (_event, filePath) => {
 
 // Word, Excel and PowerPoint have no renderer in the rail; LibreOffice prints
 // them to PDF and the PDF viewer takes it from there (office-preview.ts).
-ipcMain.handle('hermes:officePreviewPdf', async (_event, filePath) => {
-  return officePreviewPdfForIpc(filePath, {
+ipcMain.handle('hermes:officeConvert', async (_event, filePath, target) => {
+  return officeConvertForIpc(filePath, target, {
     maxBytes: dataUrlReadMaxBytesFromMb(dataUrlReadMaxMb),
-    resolveReadableFile: target => resolveReadableFileForIpc(target, { purpose: 'File preview' })
+    resolveReadableFile: candidate => resolveReadableFileForIpc(candidate, { purpose: 'File preview' })
   })
 })
 

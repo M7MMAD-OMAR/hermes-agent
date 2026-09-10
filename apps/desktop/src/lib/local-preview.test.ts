@@ -171,10 +171,13 @@ describe('remote HTML previews', () => {
 
 describe('PDF previews', () => {
   it('classifies PDF files as PDF previews', () => {
-    // Office documents ride the PDF viewer after LibreOffice prints them.
-    expect(localPreviewTarget('/tmp/brief.docx')).toMatchObject({ path: '/tmp/brief.docx', previewKind: 'office' })
-    expect(localPreviewTarget('/tmp/sheet.XLSX')).toMatchObject({ previewKind: 'office' })
-    expect(localPreviewTarget('/tmp/deck.pptx')).toMatchObject({ previewKind: 'office' })
+    // Each Office family opens in its own viewer, so the family is the kind.
+    expect(localPreviewTarget('/tmp/brief.docx')).toMatchObject({ path: '/tmp/brief.docx', previewKind: 'word' })
+    expect(localPreviewTarget('/tmp/legacy.RTF')).toMatchObject({ previewKind: 'word' })
+    expect(localPreviewTarget('/tmp/sheet.XLSX')).toMatchObject({ previewKind: 'sheet' })
+    expect(localPreviewTarget('/tmp/sheet.ods')).toMatchObject({ previewKind: 'sheet' })
+    expect(localPreviewTarget('/tmp/deck.pptx')).toMatchObject({ previewKind: 'slides' })
+    expect(localPreviewTarget('/tmp/deck.odp')).toMatchObject({ previewKind: 'slides' })
     expect(localPreviewTarget('/tmp/spec.pdf')).toMatchObject({
       path: '/tmp/spec.pdf',
       previewKind: 'pdf'

@@ -3028,6 +3028,21 @@ export interface Translations {
     popIn: string
     popOut: string
     linkHint: string
+    /** The native Word, spreadsheet and deck viewers. */
+    office: {
+      converting: string
+      document: string
+      emptyBook: string
+      emptyDeck: string
+      nextSlide: string
+      notes: string
+      openInApp: string
+      pages: string
+      previousSlide: string
+      sheetTruncated: string
+      zoomIn: string
+      zoomOut: string
+    }
     sourceLineTitle: string
     source: string
     renderedPreview: string

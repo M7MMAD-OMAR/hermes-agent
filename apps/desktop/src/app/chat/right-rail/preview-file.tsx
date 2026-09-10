@@ -18,6 +18,7 @@ import { CodeEditor } from '@/components/chat/code-editor'
 import { FileDiffPanel } from '@/components/chat/diff-lines'
 import { chunkTextLines, useFixedRowWindow } from '@/components/chat/fixed-row-window'
 import { LazyShiki as ShikiHighlighter } from '@/components/chat/shiki-highlighter'
+import { OfficePreview } from '@/components/office/office-preview'
 import { PageLoader } from '@/components/page-loader'
 import { Tip } from '@/components/ui/tooltip'
 import { translateNow, useI18n } from '@/i18n'
@@ -27,13 +28,14 @@ import {
   desktopGitRoot,
   readDesktopFileDataUrl,
   readDesktopFileText,
-  readDesktopOfficePdfDataUrl,
   writeDesktopFileText
 } from '@/lib/desktop-fs'
 import { Check, Pencil, X } from '@/lib/icons'
 import { isComposerChord } from '@/lib/keybinds/chords'
 import { shikiLanguageForFilename } from '@/lib/markdown-code'
 import { normalizeFilePreviewMath } from '@/lib/markdown-preprocess'
+import { isOfficePreviewKind, officeFamilyForPreviewKind } from '@/lib/office-format'
+import { dataUrlToBlob } from '@/lib/pdf-blob'
 import { useMathPlugin } from '@/lib/use-math-plugin'
 import { cn } from '@/lib/utils'
 import type { PreviewTarget } from '@/store/preview'
@@ -226,44 +228,6 @@ function looksBinaryBytes(bytes: Uint8Array) {
   return suspicious / Math.min(bytes.length, 4096) > 0.12
 }
 
-function dataUrlToBlob(dataUrl: string) {
-  const comma = dataUrl.indexOf(',')
-
-  if (comma < 0 || !dataUrl.startsWith('data:')) {
-    throw new Error('Invalid PDF data URL')
-  }
-
-  const metadata = dataUrl
-    .slice(5, comma)
-    .split(';')
-    .map(part => part.trim().toLowerCase())
-
-  const payload = dataUrl.slice(comma + 1)
-
-  if (metadata[0] !== 'application/pdf' || !metadata.slice(1).includes('base64')) {
-    throw new Error('Invalid PDF data URL type')
-  }
-
-  let binary: string
-
-  try {
-    binary = atob(decodeURIComponent(payload))
-  } catch {
-    throw new Error('Invalid PDF data URL payload')
-  }
-
-  if (!binary.startsWith('%PDF-')) {
-    throw new Error('Invalid PDF file header')
-  }
-
-  const bytes = new Uint8Array(binary.length)
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index)
-  }
-
-  return new Blob([bytes], { type: 'application/pdf' })
-}
 
 async function readTextPreview(filePath: string) {
   try {
@@ -694,10 +658,10 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
   const fsCacheKey = desktopFsCacheKey(connection)
   const filePath = filePathForTarget(target)
   const isImage = target.previewKind === 'image'
-  // An Office document rides the PDF path: LibreOffice prints it and the PDF
-  // viewer shows the print. Every later `isPdf` check therefore covers both.
-  const isOffice = target.previewKind === 'office'
-  const isPdf = target.previewKind === 'pdf' || isOffice
+  // Word, spreadsheets and decks each have their own viewer and never touch the
+  // load path below: `OfficePreview` reads the file itself.
+  const officeKind = isOfficePreviewKind(target.previewKind) ? target.previewKind : null
+  const isPdf = target.previewKind === 'pdf'
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {
@@ -740,9 +704,7 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
         if (isImage || isPdf) {
           // Prefer bytes the caller already handed us (a pasted/dropped
           // screenshot) over re-reading a path that may be transient/unreadable.
-          const dataUrl =
-            target.dataUrl ||
-            (isOffice ? await readDesktopOfficePdfDataUrl(filePath) : await readDesktopFileDataUrl(filePath))
+          const dataUrl = target.dataUrl || (await readDesktopFileDataUrl(filePath))
 
           if (active) {
             setState({ dataUrl, loading: false })
@@ -802,7 +764,6 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
     forcePreview,
     fsCacheKey,
     isImage,
-    isOffice,
     isPdf,
     isText,
     reloadKey,
@@ -1019,6 +980,19 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
           />
         </div>
       </div>
+    )
+  }
+
+  // Word, spreadsheets and decks are read and drawn by their own viewers, which
+  // own the file from here: nothing below this line applies to them.
+  if (officeKind) {
+    return (
+      <OfficePreview
+        family={officeFamilyForPreviewKind(officeKind)}
+        filePath={filePath}
+        label={target.label}
+        reloadKey={reloadKey}
+      />
     )
   }
 

@@ -626,8 +626,30 @@ export const host = {
     /** Profile the live gateway is routed to. */
     profile: readonlyAtom<string>($activeGatewayProfile),
     /** Window geometry ({ width, height, narrow }). */
-    viewport: readonlyAtom<ViewportRect>($viewport)
+    viewport: readonlyAtom<ViewportRect>($viewport),
+    /** Which workspace the window is looking at ('sessions' | 'bots' | 'herwork').
+     *  A SIGNAL, not a filter: read it to adapt, never to decide whether to render. */
+    workspaceMode: readonlyAtom<WorkspaceMode>($workspaceMode),
+    /** Exact opaque owner key of the current owned workspace; null in Sessions. */
+    workspaceOwnerKey: readonlyAtom<null | string>($workspaceOwnerKey)
   },
+
+  /** Does this stored session belong to the given owned workspace? Reads the
+   *  tile the session was opened under; a session never opened as a tile in
+   *  that workspace answers false. Cheap; safe to call in render. */
+  sessionInWorkspace: (storedSessionId: string, mode: WorkspaceMode, ownerKey: string): boolean =>
+    Boolean(storedSessionId) &&
+    $sessionTiles
+      .get()
+      .some(
+        tile =>
+          tile.storedSessionId === storedSessionId &&
+          tile.workspaceMode === mode &&
+          tile.workspaceOwnerKey === ownerKey
+      ),
+  /** Subscribe-able form of the tile list, for the render that must re-check
+   *  `sessionInWorkspace` once the tile lands after the transcript mounts. */
+  sessionTiles: readonlyAtom<readonly { storedSessionId: string }[]>($sessionTiles),
 
   /** Toast into the app's notification stack. */
   notify,

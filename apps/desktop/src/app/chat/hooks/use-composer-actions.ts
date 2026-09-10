@@ -3,9 +3,10 @@ import { useCallback } from 'react'
 import { requestComposerFocus, requestComposerInsert, requestComposerInsertRefs } from '@/app/chat/composer/focus'
 import { droppedFileInlineRef } from '@/app/chat/composer/inline-refs'
 import { formatRefValue } from '@/components/assistant-ui/directive-text'
+import { $workspaceNewSessionTarget } from '@/components/pane-shell/workspace-scope'
 import { useI18n } from '@/i18n'
 import { attachmentId, contextPath, pathLabel } from '@/lib/chat-runtime'
-import { readDesktopFileDataUrlLocalFirst, selectDesktopPaths } from '@/lib/desktop-fs'
+import { copyDesktopFileInto, readDesktopFileDataUrlLocalFirst, selectDesktopPaths } from '@/lib/desktop-fs'
 import { desktopGit } from '@/lib/desktop-git'
 import { downscaleDataUrlForPreview } from '@/lib/image-resize'
 import { normalize } from '@/lib/text'
@@ -251,6 +252,27 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
  * way. So OS drops must go through the attachment/upload pipeline rather than
  * leaking a local path into the prompt text.
  */
+/** Copy an OS-dropped file into the current workspace's drop folder, when the
+ *  workspace route names one. Resolves to the copy's path, or null when there
+ *  is no drop folder or the copy failed (the caller then attaches in place, so
+ *  a copy that cannot happen never loses the drop). */
+async function copyIntoWorkspaceDropDir(filePath: string): Promise<null | string> {
+  const target = $workspaceNewSessionTarget.get()
+  const dropDir = target?.kind === 'route' ? (target.route.dropDir ?? '').trim() : ''
+
+  if (!dropDir) {
+    return null
+  }
+
+  try {
+    return await copyDesktopFileInto(filePath, dropDir)
+  } catch (error) {
+    notifyError(error, `Could not copy into ${dropDir}`)
+
+    return null
+  }
+}
+
 export function partitionDroppedFiles(candidates: DroppedFile[]): {
   osDrops: DroppedFile[]
   inAppRefs: DroppedFile[]
@@ -681,6 +703,19 @@ export function useComposerActions({
           }
 
           lastFailure = `Could not attach ${file.name || 'image'}`
+
+          continue
+        }
+
+        // A workspace that names a drop folder (HerWork's desk inbox) takes a
+        // COPY of the file there and attaches the copy: the agent then reads
+        // source material from inside the workspace rather than from wherever
+        // the file happened to sit. Images stay on the vision pipeline above;
+        // this is for documents, sheets, decks and data.
+        const landed = filePath ? await copyIntoWorkspaceDropDir(filePath) : null
+
+        if (landed && attachContextFilePath(landed)) {
+          attached = true
 
           continue
         }

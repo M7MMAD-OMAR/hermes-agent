@@ -207,6 +207,37 @@ export function registerFsIpc({
     return { path: resolved }
   })
 
+  // Copy one file into a directory, keeping its name (a numbered suffix when
+  // that name is taken). This is how an OS drop lands in a workspace's own
+  // folder instead of being attached from wherever it sat: the renderer holds
+  // only a path, never the bytes, so the copy has to happen here. Source and
+  // destination both pass the same path hardening as every other fs door;
+  // directories are refused because a workspace inbox takes files.
+  ipcMain.handle('hermes:fs:copyInto', async (_event, sourcePath, destinationDir) => {
+    const rawSource = String(sourcePath || '').trim()
+    const rawDir = String(destinationDir || '').trim()
+
+    if (!rawSource || !rawDir) {
+      throw new Error('Invalid path')
+    }
+
+    const source = resolveRequestedPathForIpc(expandUserPath(rawSource), { purpose: 'Copy file' })
+    const dir = resolveRequestedPathForIpc(expandUserPath(rawDir), { purpose: 'Copy file' })
+    const stat = await fs.promises.stat(source)
+
+    if (!stat.isFile()) {
+      throw new Error('Only files can be copied')
+    }
+
+    await fs.promises.mkdir(dir, { recursive: true })
+
+    const target = await freeNameIn(dir, path.basename(source))
+
+    await fs.promises.copyFile(source, target, fs.constants.COPYFILE_EXCL)
+
+    return { path: target }
+  })
+
   // Move a file/folder to the OS trash (recoverable) — the VS Code "Delete"
   // default. `shell.trashItem` routes to Finder/Explorer/Files trash per platform.
   ipcMain.handle('hermes:fs:trash', async (_event, targetPath) => {
@@ -220,4 +251,23 @@ export function registerFsIpc({
 
     return true
   })
+}
+
+/** `name`, or `name (2)`, `name (3)`... whichever does not yet exist in `dir`.
+ *  The extension stays at the end so the copy still opens with the right app. */
+async function freeNameIn(dir: string, name: string): Promise<string> {
+  const ext = path.extname(name)
+  const stem = ext ? name.slice(0, -ext.length) : name
+
+  for (let n = 1; n < 1000; n += 1) {
+    const candidate = path.join(dir, n === 1 ? name : `${stem} (${n})${ext}`)
+
+    try {
+      await fs.promises.access(candidate)
+    } catch {
+      return candidate
+    }
+  }
+
+  throw new Error('Could not find a free file name')
 }

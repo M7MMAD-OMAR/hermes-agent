@@ -28,6 +28,10 @@ export type HerworkMessages = {
     noFiles: string
     filesUnavailable: string
     openFolder: string
+    deliverables: string
+    noDeliverables: string
+    preview: string
+    folders: string
     tasks: string
     noTasks: string
     retry: string
@@ -49,6 +53,10 @@ const en: HerworkMessages = {
     noFiles: 'The desk is empty.',
     filesUnavailable: 'The desk folder is not readable yet.',
     openFolder: 'Show in file manager',
+    deliverables: 'Delivered',
+    noDeliverables: 'Nothing delivered yet. Finished files appear here.',
+    preview: 'Preview',
+    folders: 'Folders',
     tasks: 'Steps',
     noTasks: 'No steps on the open job.',
     retry: 'Try again'
@@ -70,6 +78,10 @@ const ar: HerworkMessages = {
     noFiles: 'المكتب فاضي.',
     filesUnavailable: 'مجلد المكتب غير متاح للقراءة.',
     openFolder: 'افتح في مدير الملفات',
+    deliverables: 'المسلَّمات',
+    noDeliverables: 'ما في شي مسلَّم بعد. الملفات المنجزة بتظهر هون.',
+    preview: 'معاينة',
+    folders: 'المجلدات',
     tasks: 'الخطوات',
     noTasks: 'ما في خطوات على المهمة المفتوحة.',
     retry: 'أعد المحاولة'
@@ -94,6 +106,10 @@ export function useHerwork(): HerworkMessages {
         noFiles: t('desk.noFiles'),
         filesUnavailable: t('desk.filesUnavailable'),
         openFolder: t('desk.openFolder'),
+        deliverables: t('desk.deliverables'),
+        noDeliverables: t('desk.noDeliverables'),
+        preview: t('desk.preview'),
+        folders: t('desk.folders'),
         tasks: t('desk.tasks'),
         noTasks: t('desk.noTasks'),
         retry: t('desk.retry')

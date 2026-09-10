@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => {
     focusedTodos: makeStore<unknown[]>([]),
     listPersistedSessions: vi.fn(async (..._args: unknown[]) => ({ sessions: [] as unknown[] })),
     newChat: vi.fn(),
+    openPreview: vi.fn((_path: string) => true),
     openSession: vi.fn(async () => undefined),
     readDir: vi.fn(async (_path: string): Promise<{ entries: unknown[]; error?: string }> => ({ entries: [] })),
     revealPath: vi.fn(async () => undefined)
@@ -64,6 +65,7 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
       ...original.host,
       listPersistedSessions: mocks.listPersistedSessions,
       newChat: mocks.newChat,
+      openPreview: mocks.openPreview,
       openSession: mocks.openSession,
       readDir: mocks.readDir,
       revealPath: mocks.revealPath,
@@ -175,44 +177,99 @@ describe('the desk panel', () => {
     expect(other?.getAttribute('aria-current')).toBeNull()
   })
 
-  it('lists the desk folder and reveals the entry clicked', async () => {
-    mocks.readDir.mockResolvedValue({
-      entries: [
-        { isDirectory: true, name: 'output', path: `${DESK}/output` },
-        { isDirectory: false, name: 'brief.md', path: `${DESK}/brief.md` }
-      ]
+  it('lists delivered files newest first, job folders included, and previews a PDF', async () => {
+    const output = `${DESK}/output`
+
+    mocks.readDir.mockImplementation(async (dir: string) => {
+      if (dir === output) {
+        return {
+          entries: [
+            { isDirectory: true, name: 'q3-deck', path: `${output}/q3-deck` },
+            { isDirectory: false, mtimeMs: 1_000, name: 'old-brief.docx', path: `${output}/old-brief.docx`, size: 40_960 }
+          ]
+        }
+      }
+
+      if (dir === `${output}/q3-deck`) {
+        return {
+          entries: [{ isDirectory: false, mtimeMs: 9_000, name: 'deck.pdf', path: `${output}/q3-deck/deck.pdf`, size: 2_400_000 }]
+        }
+      }
+
+      return { entries: [] }
     })
 
     renderPane()
 
-    await waitFor(() => expect(mocks.readDir).toHaveBeenCalledWith(DESK))
+    const names = await screen.findAllByText(/\.(pdf|docx)$/)
 
-    fireEvent.click(await screen.findByText('brief.md'))
-    expect(mocks.revealPath).toHaveBeenCalledWith(`${DESK}/brief.md`)
+    // The newer file wins even though it sits one folder down.
+    expect(names.map(node => node.textContent)).toEqual(['deck.pdf', 'old-brief.docx'])
+    expect(screen.getByText('q3-deck')).toBeTruthy()
+    expect(screen.getByText('2.3 MB')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('deck.pdf'))
+    expect(mocks.openPreview).toHaveBeenCalledWith(`${output}/q3-deck/deck.pdf`)
+    expect(mocks.revealPath).not.toHaveBeenCalled()
   })
 
-  it('reads a desk that does not exist yet as empty, not as broken', async () => {
-    // The first job creates the folder; until then ENOENT is the ordinary state
-    // and must not present itself as a failure the user has to act on.
+  it('reveals a file the preview rail could only show as text', async () => {
+    const output = `${DESK}/output`
+
+    mocks.readDir.mockResolvedValue({
+      entries: [{ isDirectory: false, mtimeMs: 1, name: 'report.docx', path: `${output}/report.docx`, size: 10 }]
+    })
+
+    renderPane()
+    fireEvent.click(await screen.findByText('report.docx'))
+
+    expect(mocks.openPreview).not.toHaveBeenCalled()
+    expect(mocks.revealPath).toHaveBeenCalledWith(`${output}/report.docx`)
+  })
+
+  it('falls back to the file manager when the rail declines a previewable path', async () => {
+    mocks.openPreview.mockReturnValue(false)
+    mocks.readDir.mockResolvedValue({
+      entries: [{ isDirectory: false, mtimeMs: 1, name: 'a.pdf', path: `${DESK}/output/a.pdf`, size: 10 }]
+    })
+
+    renderPane()
+    fireEvent.click(await screen.findByText('a.pdf'))
+
+    expect(mocks.revealPath).toHaveBeenCalledWith(`${DESK}/output/a.pdf`)
+  })
+
+  it('reads an output folder that does not exist yet as empty, not as broken', async () => {
+    // The first delivered job creates the folder; until then ENOENT is the
+    // ordinary state and must not present itself as a failure to act on.
     mocks.readDir.mockResolvedValue({ entries: [], error: 'ENOENT' })
 
     renderPane()
 
-    expect(await screen.findByText(/desk\.noFiles/i)).toBeTruthy()
+    expect(await screen.findByText(/desk\.noDeliverables/i)).toBeTruthy()
     expect(screen.queryByText(/desk\.filesUnavailable/i)).toBeNull()
   })
 
-  it('offers a retry when the desk folder genuinely cannot be read', async () => {
+  it('offers a retry when the output folder genuinely cannot be read', async () => {
     mocks.readDir.mockResolvedValue({ entries: [], error: 'EACCES' })
 
     renderPane()
 
     expect(await screen.findByText(/desk\.filesUnavailable/i)).toBeTruthy()
 
-    mocks.readDir.mockResolvedValue({ entries: [{ isDirectory: false, name: 'ok.md', path: `${DESK}/ok.md` }] })
+    mocks.readDir.mockResolvedValue({
+      entries: [{ isDirectory: false, mtimeMs: 1, name: 'ok.pdf', path: `${DESK}/output/ok.pdf`, size: 1 }]
+    })
     fireEvent.click(screen.getByRole('button', { name: /desk\.retry/i }))
 
-    expect(await screen.findByText('ok.md')).toBeTruthy()
+    expect(await screen.findByText('ok.pdf')).toBeTruthy()
+  })
+
+  it('opens each desk folder in the file manager', async () => {
+    renderPane()
+
+    fireEvent.click(screen.getByRole('button', { name: 'inbox' }))
+    expect(mocks.revealPath).toHaveBeenCalledWith(`${DESK}/inbox`)
   })
 
   it('renders the open job steps, keeping a cancelled one visible', async () => {
@@ -240,6 +297,6 @@ describe('the desk panel', () => {
     mocks.cwd.set('/home/ada/somewhere/else/entirely')
     renderPane()
 
-    await waitFor(() => expect(mocks.readDir).toHaveBeenCalledWith(DESK))
+    await waitFor(() => expect(mocks.readDir).toHaveBeenCalledWith(`${DESK}/output`))
   })
 })

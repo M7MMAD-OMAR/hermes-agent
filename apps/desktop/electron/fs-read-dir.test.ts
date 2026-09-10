@@ -243,7 +243,7 @@ test('readDirForIpc allows expanding symlink or junction directories outside the
     const result = await readDirForIpc(linkPath)
 
     assert.equal(result.error, undefined)
-    assert.deepEqual(result.entries, [
+    assert.deepEqual(result.entries.map(({ mtimeMs: _mtime, size: _size, ...entry }) => entry), [
       { name: 'outside.txt', path: path.join(linkPath, 'outside.txt'), isDirectory: false }
     ])
   } finally {
@@ -284,9 +284,16 @@ test('readDirForIpc stats symbolic links and unknown entries without dropping th
   const result = await readDirForIpc(input, { fs: fsImpl })
 
   assert.equal(result.error, undefined)
+  // Every non-directory is stat'ed now (files for size and mtime, links and
+  // unknown entries for their kind); the directory fast path is what stays.
   assert.deepEqual(
     statCalls.sort(),
-    [path.join(resolved, 'broken-link'), path.join(resolved, 'linked-dir'), path.join(resolved, 'unknown-entry')].sort()
+    [
+      path.join(resolved, 'broken-link'),
+      path.join(resolved, 'linked-dir'),
+      path.join(resolved, 'plain.txt'),
+      path.join(resolved, 'unknown-entry')
+    ].sort()
   )
   assert.deepEqual(result.entries, [
     { name: 'linked-dir', path: path.join(resolved, 'linked-dir'), isDirectory: true },
@@ -372,4 +379,24 @@ test('readDirForIpc bounds concurrent stats while preserving complete sorted out
   )
   assert.equal(result.entries.find(entry => entry.name === failedName)?.isDirectory, false)
   assert.equal(result.entries.filter(entry => entry.isDirectory).length, successfulDirectoryNames.size)
+})
+
+test('readDirForIpc reports size and mtime for files, and neither for directories', async () => {
+  const root = mkTmpDir()
+
+  try {
+    fs.mkdirSync(path.join(root, 'output'))
+    fs.writeFileSync(path.join(root, 'report.pdf'), 'x'.repeat(2048))
+
+    const { entries } = await readDirForIpc(root)
+    const dir = entries.find(entry => entry.name === 'output')
+    const file = entries.find(entry => entry.name === 'report.pdf')
+
+    assert.equal(dir?.isDirectory, true)
+    assert.equal('mtimeMs' in (dir ?? {}), false)
+    assert.equal(file?.size, 2048)
+    assert.ok(typeof file?.mtimeMs === 'number' && file.mtimeMs > 0)
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true })
+  }
 })

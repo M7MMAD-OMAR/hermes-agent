@@ -158,6 +158,32 @@ def style_docx(doc) -> None:
                 continue
             for run in paragraph.iter(qn("w:r")):
                 _docx_set_rfonts(run, qn)
+    # 3. Direction. A font alone does not make Arabic read right; without
+    #    w:bidi the full stop lands at the START of the line and brackets face
+    #    the wrong way. The rule lives in the docx skill (one owner); here it
+    #    is only invoked, so a document built through any path gets it.
+    rtl_docx(doc)
+
+
+def rtl_docx(doc, mode: str = "auto") -> dict:
+    """Mark Arabic paragraphs right-to-left via the docx skill's ``apply_rtl``.
+
+    Returns the skill's counts, or ``{"skipped": reason}`` when the docx skill
+    is not installed beside this one, so a missing dependency is visible in the
+    caller's report rather than silent."""
+    import sys
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parents[2] / "docx" / "scripts",                          # same skills tree
+        Path.home() / ".hermes" / "skills" / "productivity" / "docx" / "scripts",
+    ]
+    for scripts in candidates:
+        if (scripts / "docx_common.py").is_file():
+            if str(scripts) not in sys.path:
+                sys.path.insert(0, str(scripts))
+            from docx_common import apply_rtl
+            return apply_rtl(doc, mode)
+    return {"skipped": "docx skill not installed; direction left as built"}
 
 
 def _pptx_run_font(run) -> None:

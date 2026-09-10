@@ -395,6 +395,9 @@ declare global {
       renamePath?: (path: string, newName: string) => Promise<{ path: string }>
       // Write a small UTF-8 text file (hardened path, parent must exist).
       writeTextFile?: (path: string, content: string) => Promise<{ path: string }>
+      /** Copy one file into a directory (created if missing), keeping its name
+       *  or taking a numbered one. Resolves to the copy's absolute path. */
+      copyFileInto?: (sourcePath: string, destinationDir: string) => Promise<{ path: string }>
       // Move a file/folder to the OS trash (recoverable).
       trashPath?: (path: string) => Promise<boolean>
       // Git-driven worktree management for the "Start work" flow.
@@ -1439,6 +1442,11 @@ export interface HermesReadDirEntry {
   name: string
   path: string
   isDirectory: boolean
+  /** Files only: last modification time (ms since epoch) and byte size, so a
+   *  listing can order by recency without a stat per entry. Absent on
+   *  directories and on entries whose stat failed. */
+  mtimeMs?: number
+  size?: number
 }
 
 export interface HermesReadDirResult {

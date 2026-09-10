@@ -134,11 +134,15 @@ describe('desk', () => {
       profile: 'herwork',
       targetProfile: 'herwork',
       cwd: '/home/sbarah/herwork',
+      // Dropped files land in the desk inbox, not wherever they were dragged from.
+      dropDir: '/home/sbarah/herwork/inbox',
       bundle: 'herwork'
     })
-    // Unknown home: no cwd on the route (never `/herwork`), bundle still set.
+    // Unknown home: no cwd on the route (never `/herwork`), no drop folder
+    // either (never `/inbox`), bundle still set.
     expect(herworkRoute('local-1')).toMatchObject({ bundle: 'herwork' })
     expect(herworkRoute('local-1')).not.toHaveProperty('cwd')
+    expect(herworkRoute('local-1')).not.toHaveProperty('dropDir')
     expect(herworkRoute('')).toBeNull()
     expect(herworkRoute(null)).toBeNull()
   })

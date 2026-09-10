@@ -46,7 +46,8 @@ import { registry } from '@/contrib/registry'
 import type { WorkspaceMode } from '@/contrib/types'
 import type { HermesReadDirResult } from '@/global'
 import { deleteProfile, getLogs, getStatus, hermesApi, type HermesGateway } from '@/hermes'
-import { readDesktopDir, revealDesktopPath } from '@/lib/desktop-fs'
+import { copyDesktopFileInto, readDesktopDir, revealDesktopPath } from '@/lib/desktop-fs'
+import { localPreviewTarget } from '@/lib/local-preview'
 import { completeMcpDesktopOAuth } from '@/lib/mcp-dashboard-oauth'
 import type { TodoItem } from '@/lib/todos'
 import {
@@ -61,6 +62,7 @@ import {
   retireLocalProfileGateways
 } from '@/store/gateway'
 import { notify, notifyError } from '@/store/notifications'
+import { openPreview as openPreviewTab } from '@/store/preview'
 import {
   $activeGatewayProfile,
   $gatewaySwapTarget,
@@ -726,6 +728,27 @@ export const host = {
   /** Show a file or folder in the OS file manager (Finder / Explorer). Local
    *  connections only; a no-op wherever the bridge has no such door. */
   revealPath: async (path: string): Promise<void> => revealDesktopPath(path),
+
+  /** Open a local file in the preview rail beside the chat: PDFs and images
+   *  render, HTML shows as source, anything else as text. Re-opening a file
+   *  that already has a tab fronts that tab. Returns false when the path is
+   *  not something the rail can show. */
+  openPreview: (path: string): boolean => {
+    const target = localPreviewTarget((path ?? '').trim())
+
+    if (!target) {
+      return false
+    }
+
+    openPreviewTab(target, 'manual', { reveal: true })
+
+    return true
+  },
+
+  /** Copy a file into a directory (created if missing). Resolves to the
+   *  copy's absolute path; the name is kept, or numbered when taken. */
+  copyFileInto: async (sourcePath: string, destinationDir: string): Promise<string> =>
+    copyDesktopFileInto(sourcePath, destinationDir),
 
   /** Navigate the app router (hash routes, e.g. '/command-center?section=system'). */
   navigate: (path: string) => {

@@ -328,6 +328,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   agentPluginsRoot: () => ipcRenderer.invoke('hermes:fs:agentPluginsRoot'),
   renamePath: (targetPath, newName) => ipcRenderer.invoke('hermes:fs:rename', targetPath, newName),
   writeTextFile: (filePath, content) => ipcRenderer.invoke('hermes:fs:writeText', filePath, content),
+  copyFileInto: (sourcePath, destinationDir) => ipcRenderer.invoke('hermes:fs:copyInto', sourcePath, destinationDir),
   trashPath: targetPath => ipcRenderer.invoke('hermes:fs:trash', targetPath),
   git: {
     worktreeList: repoPath => ipcRenderer.invoke('hermes:git:worktreeList', repoPath),

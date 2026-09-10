@@ -43,6 +43,10 @@ export type HerworkRoute = {
   /** Absolute desk path; omitted when the home cannot be derived, in which
    *  case the session opens at the ambient cwd rather than at `/herwork`. */
   cwd?: string
+  /** `<desk>/inbox`: an OS file dropped into a desk chat is copied here first,
+   *  so the agent reads source material from the desk, where the mandate says
+   *  it lives, not from a Downloads folder it must not write into. */
+  dropDir?: string
   /** The mode bundle the backend prefixes onto the first prompt. */
   bundle: string
 }
@@ -64,7 +68,7 @@ export function herworkRoute(localConnectionId: null | string | undefined, home 
     mode: 'local',
     profile: HERWORK_PROFILE,
     targetProfile: HERWORK_PROFILE,
-    ...(cwd ? { cwd } : {}),
+    ...(cwd ? { cwd, dropDir: `${cwd}/inbox` } : {}),
     bundle: HERWORK_BUNDLE
   }
 }

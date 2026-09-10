@@ -7,9 +7,11 @@
  *   · Jobs  — the desk's own chats, newest first. The `+` in the tab bar routes
  *             here too; this button exists because the panel is where the eye
  *             already is, and because an empty desk otherwise offers no door.
- *   · Desk  — what is actually in the desk folder. The point of the workspace
- *             is "hand over a job, get finished files back", so the files are
- *             the deliverable, not a detail.
+ *   · Delivered  what `output/` holds, newest first, opened in the preview
+ *             rail. The point of the workspace is "hand over a job, get
+ *             finished files back", so the files are the deliverable, not a
+ *             detail buried in a tree. The three desk folders sit under it as
+ *             doors into the file manager.
  *   · Steps — the open job's plan, the same list the composer status stack
  *             renders, pinned where it stays readable while the turn runs.
  *
@@ -100,27 +102,78 @@ function Jobs({ m }: { m: HerworkMessages }) {
   )
 }
 
-/** What is on the desk. Directories first, then files, as the bridge sorts
- *  them; a click reveals the entry in the OS file manager, which is the only
- *  thing this pane can usefully do with a path it does not own. */
-function Desk({ cwd, m }: { cwd: string; m: HerworkMessages }) {
+/** Bytes as a person reads them. Two significant figures at most: a size in a
+ *  side panel is for telling a 40 KB stub from a 4 MB deck, not for auditing. */
+function humanSize(bytes: number | undefined): string {
+  if (bytes === undefined) {
+    return ''
+  }
+
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+
+  const kb = bytes / 1024
+
+  if (kb < 1024) {
+    return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`
+  }
+
+  const mb = kb / 1024
+
+  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`
+}
+
+/** What the preview rail renders as itself rather than as source text. */
+const PREVIEWABLE = /\.(pdf|png|jpe?g|gif|webp|svg|md|txt|csv|json|html?)$/i
+
+/** `output/` and one level of job folders under it, newest file first. Two
+ *  levels because the mandate says "one subfolder per job when it has several
+ *  files": deeper than that is the agent's scratch, not a deliverable. */
+async function listDeliverables(outputDir: string): Promise<{ entries: HermesReadDirEntry[]; error?: string }> {
+  const top = await host.readDir(outputDir)
+
+  if (top.error) {
+    return { entries: [], error: top.error }
+  }
+
+  const files = top.entries.filter(entry => !entry.isDirectory)
+  const folders = top.entries.filter(entry => entry.isDirectory)
+  const nested = await Promise.all(folders.map(folder => host.readDir(folder.path)))
+
+  for (const listing of nested) {
+    files.push(...listing.entries.filter(entry => !entry.isDirectory))
+  }
+
+  files.sort((a, b) => (b.mtimeMs ?? 0) - (a.mtimeMs ?? 0))
+
+  return { entries: files }
+}
+
+/** What the desk has produced. This is the point of the workspace ("hand over
+ *  a job, get finished files back"), so it reads like a delivery list, not a
+ *  file tree: newest first, with the job folder as a quiet prefix. A PDF or
+ *  image opens in the preview rail beside the chat; anything else is revealed
+ *  in the file manager, because the rail would only show it as text. */
+function Deliverables({ desk, m }: { desk: string; m: HerworkMessages }) {
   const [entries, setEntries] = useState<HermesReadDirEntry[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const outputDir = desk ? `${desk}/output` : ''
 
   const load = useCallback(async () => {
-    if (!cwd) {
+    if (!outputDir) {
       setEntries([])
 
       return
     }
 
-    const result = await host.readDir(cwd)
+    const result = await listDeliverables(outputDir)
 
-    // A desk folder that does not exist yet is the ordinary first-run state,
-    // not a failure: the first job creates it.
+    // No output folder yet is the ordinary first-run state, not a failure: the
+    // first delivered job creates it.
     setFailed(Boolean(result.error) && result.error !== 'ENOENT')
     setEntries(result.entries)
-  }, [cwd])
+  }, [outputDir])
 
   useEffect(() => {
     void load()
@@ -146,30 +199,71 @@ function Desk({ cwd, m }: { cwd: string; m: HerworkMessages }) {
   }
 
   if (!entries?.length) {
-    return <Empty>{m.desk.noFiles}</Empty>
+    return <Empty>{m.desk.noDeliverables}</Empty>
   }
 
   return (
     <ul className="m-0 flex list-none flex-col gap-px p-0">
-      {entries.map(entry => (
-        <li key={entry.path}>
-          <button
-            className="flex w-full min-w-0 items-center gap-1.5 rounded px-2 py-1 text-left text-xs text-(--ui-text-secondary) transition-colors hover:bg-(--ui-bg-hover)"
-            onClick={() => void host.revealPath(entry.path)}
-            title={m.desk.openFolder}
-            type="button"
-          >
-            <Codicon
-              aria-hidden
-              className="shrink-0 text-(--ui-text-tertiary)"
-              name={entry.isDirectory ? 'folder' : 'file'}
-              size="0.8rem"
-            />
-            <span className="truncate">{entry.name}</span>
-          </button>
-        </li>
-      ))}
+      {entries.map(entry => {
+        const job = entry.path.slice(outputDir.length + 1).split('/').slice(0, -1).join('/')
+        const previewable = PREVIEWABLE.test(entry.name)
+
+        return (
+          <li key={entry.path}>
+            <button
+              className="flex w-full min-w-0 flex-col items-start gap-0.5 rounded px-2 py-1 text-left transition-colors hover:bg-(--ui-bg-hover)"
+              data-deliverable={previewable ? 'preview' : 'reveal'}
+              onClick={() => {
+                if (!previewable || !host.openPreview(entry.path)) {
+                  void host.revealPath(entry.path)
+                }
+              }}
+              title={previewable ? m.desk.preview : m.desk.openFolder}
+              type="button"
+            >
+              <span className="flex w-full min-w-0 items-center gap-1.5 text-xs text-(--ui-text-secondary)">
+                <Codicon
+                  aria-hidden
+                  className="shrink-0 text-(--ui-text-tertiary)"
+                  name={previewable ? 'file-media' : 'file'}
+                  size="0.8rem"
+                />
+                <span className="truncate">{entry.name}</span>
+              </span>
+              <span className="flex w-full min-w-0 gap-2 ps-5 text-[0.65rem] text-(--ui-text-tertiary)">
+                {job ? <span className="truncate">{job}</span> : null}
+                <span className="shrink-0 tabular-nums">{humanSize(entry.size)}</span>
+                {entry.mtimeMs ? <span className="shrink-0">{relativeTime(entry.mtimeMs)}</span> : null}
+              </span>
+            </button>
+          </li>
+        )
+      })}
     </ul>
+  )
+}
+
+/** The three desk folders, as doors: reveal each in the file manager. */
+function Folders({ desk, m }: { desk: string; m: HerworkMessages }) {
+  if (!desk) {
+    return null
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {(['inbox', 'work', 'output'] as const).map(name => (
+        <button
+          className="flex items-center gap-1 rounded border border-(--ui-border) px-1.5 py-0.5 font-mono text-[0.68rem] text-(--ui-text-secondary) transition-colors hover:bg-(--ui-bg-hover)"
+          key={name}
+          onClick={() => void host.revealPath(`${desk}/${name}`)}
+          title={m.desk.openFolder}
+          type="button"
+        >
+          <Codicon aria-hidden name="folder" size="0.75rem" />
+          {name}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -245,23 +339,12 @@ export function HerworkPane() {
         <Jobs m={m} />
       </Section>
 
-      <Section
-        action={
-          desk ? (
-            <button
-              aria-label={m.desk.openFolder}
-              className="rounded p-0.5 text-(--ui-text-tertiary) transition-colors hover:text-(--ui-text-primary)"
-              onClick={() => void host.revealPath(desk)}
-              title={desk}
-              type="button"
-            >
-              <Codicon aria-hidden name="link-external" size="0.75rem" />
-            </button>
-          ) : undefined
-        }
-        title={m.desk.files}
-      >
-        <Desk cwd={desk} m={m} />
+      <Section title={m.desk.deliverables}>
+        <Deliverables desk={desk} m={m} />
+      </Section>
+
+      <Section title={m.desk.folders}>
+        <Folders desk={desk} m={m} />
       </Section>
 
       <Section title={m.desk.tasks}>

@@ -38,6 +38,10 @@ export interface WorkspaceSessionRoute {
    *  Carried on the route rather than resolved from the Projects store so the
    *  main chat's cwd is never redirected by a workspace it is not in. */
   cwd?: string
+  /** Where an OS file dropped into one of this workspace's chats is copied
+   *  before it is attached, so the agent reads a path inside the workspace
+   *  rather than wherever the file happened to sit. Absent: attach in place. */
+  dropDir?: string
   /** Skill bundle slug the workspace prefixes onto a fresh session's first
    *  prompt (as if the user typed `/<bundle>`). Backend consumes it once. */
   bundle?: string
@@ -108,6 +112,7 @@ function sameNewSessionTarget(a: WorkspaceNewSessionTarget | null, b: WorkspaceN
       a.route.profile === b.route.profile &&
       a.route.targetProfile === b.route.targetProfile &&
       a.route.cwd === b.route.cwd &&
+      a.route.dropDir === b.route.dropDir &&
       a.route.bundle === b.route.bundle
     )
   }

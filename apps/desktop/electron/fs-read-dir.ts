@@ -28,35 +28,33 @@ function direntIsDirectory(dirent) {
   return typeof dirent.isDirectory === 'function' && dirent.isDirectory()
 }
 
-function direntIsFile(dirent) {
-  return typeof dirent.isFile === 'function' && dirent.isFile()
-}
-
-function direntIsSymbolicLink(dirent) {
-  return typeof dirent.isSymbolicLink === 'function' && dirent.isSymbolicLink()
-}
-
-function shouldStatDirent(dirent) {
-  if (direntIsDirectory(dirent)) {
-    return false
-  }
-
-  return direntIsSymbolicLink(dirent) || !direntIsFile(dirent)
-}
-
 async function entryForDirent(dirent, resolved, fsImpl) {
   const fullPath = path.join(resolved, dirent.name)
   let isDirectory = direntIsDirectory(dirent)
+  let mtimeMs: number | undefined
+  let size: number | undefined
 
-  if (!isDirectory && shouldStatDirent(dirent)) {
+  // Files are stat'ed for their size and modification time so a listing can
+  // say "newest first" and "2.1 MB" without a second round trip per entry
+  // (the desk panel sorts deliverables by recency). Directories keep the
+  // dirent-only fast path: their mtime says nothing useful to a reader, and a
+  // tree walk over node_modules-sized folders must stay cheap.
+  if (!isDirectory) {
     try {
-      isDirectory = (await fsImpl.promises.stat(fullPath)).isDirectory()
+      const stat = await fsImpl.promises.stat(fullPath)
+
+      isDirectory = stat.isDirectory()
+
+      if (!isDirectory) {
+        mtimeMs = stat.mtimeMs
+        size = stat.size
+      }
     } catch {
       isDirectory = false
     }
   }
 
-  return { name: dirent.name, path: fullPath, isDirectory }
+  return { name: dirent.name, path: fullPath, isDirectory, ...(mtimeMs === undefined ? {} : { mtimeMs, size }) }
 }
 
 async function mapWithStatConcurrency(items, mapper) {

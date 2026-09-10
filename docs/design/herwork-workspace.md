@@ -178,8 +178,44 @@ deliberate tab switch; never on a hot path.
   a filter, and that scoping panes by workspace is how the main zone once
   vanished when Bot Mode's last chat closed. HerWork tabs sit in the one main
   strip beside session tabs, like bot chats do.
-- No preview-rail or file-pane changes. The desk's `output/` is a folder;
-  Projects already owns folders.
+- No changes to the preview rail's rendering. The desk panel OPENS files in
+  it (below), it does not teach it new formats: PDF renders there already,
+  which is why the skill writes a PDF sibling beside every Office file.
+
+**The desk panel (`pane.tsx`), added 10 Sept 2026**
+
+The tab body is the whole HerWork loop, in the order the work runs. Every
+section reads through `@hermes/plugin-sdk` and owns no state core does not
+already hold, so a reload rebuilds it exactly.
+
+- **New job**: `host.newChat(route, { workspaceMode, workspaceOwnerKey })`.
+  Disabled, not hidden, without a local connection.
+- **Jobs**: `host.listPersistedSessions(route, { profile: 'herwork' })`,
+  newest first, the open one marked `aria-current`. Read from the owning
+  source so the list is there before the profile has been dialled; refetched on
+  a 15 s timer because nothing pushes a session-created event at a pane.
+- **Delivered**: `output/` and one level of job folders under it (the mandate
+  says one subfolder per job), newest file first with size and age. A PDF,
+  image or text file opens in the preview rail (`host.openPreview`); anything
+  else is revealed in the file manager, because the rail would show it as
+  source. `ENOENT` on `output/` reads as empty, not as an error: the first
+  delivered job creates it.
+- **Folders**: `inbox`, `work`, `output` as doors into the file manager.
+- **Steps**: `host.state.focusedTodos`, the same list the composer status
+  stack renders. A cancelled step stays visible, struck through.
+
+**Dropping files into a desk chat.** `WorkspaceSessionRoute` gained
+`dropDir`; the desk route sets it to `<desk>/inbox`. The composer's OS-drop
+pipeline (`use-composer-actions.ts`) copies a dropped document there through
+the new `hermes:fs:copyInto` door (name kept, numbered when taken) and
+attaches the copy, so the agent reads source material from the desk. Images
+stay on the vision pipeline; a copy that fails attaches the original, so a
+drop is never lost. The mandate in `~/herwork/AGENTS.md` tells the agent so.
+
+**SDK doors added for it**: `host.readDir` (entries now carry `mtimeMs` and
+`size` for files), `host.revealPath`, `host.openPreview`, `host.copyFileInto`,
+`host.state.focusedTodos`, and the `TodoItem`, `SessionInfo`,
+`HermesReadDirEntry` types.
 
 ## Part 4. Turn Outcome
 

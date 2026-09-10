@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { $workspaceNewSessionTarget } from '@/components/pane-shell/workspace-scope'
 import { $composerAttachments, type ComposerAttachment, updateComposerAttachment } from '@/store/composer'
 import { $connection } from '@/store/session'
 
@@ -667,5 +668,102 @@ describe('attachImagePath thumbnail separation', () => {
 
     expect(attachment?.previewUrl).toBe('data:text/plain;base64,aGVsbG8=')
     expect(attachment?.thumbnailUrl).toBeUndefined()
+  })
+})
+
+describe('OS drops inside a workspace with a drop folder', () => {
+  afterEach(() => {
+    $workspaceNewSessionTarget.set(null)
+    delete (window as unknown as { hermesDesktop?: unknown }).hermesDesktop
+    $composerAttachments.set([])
+  })
+
+  function dropRoute(dropDir?: string) {
+    $workspaceNewSessionTarget.set({
+      kind: 'route',
+      route: {
+        connectionId: 'local-1',
+        mode: 'local',
+        profile: 'herwork',
+        targetProfile: 'herwork',
+        cwd: '/home/ada/herwork',
+        ...(dropDir ? { dropDir } : {})
+      }
+    })
+  }
+
+  function renderWith(copyFileInto: (source: string, dir: string) => Promise<{ path: string }>) {
+    const add = vi.fn<(attachment: ComposerAttachment) => void>()
+
+    Object.defineProperty(window, 'hermesDesktop', {
+      configurable: true,
+      value: {
+        copyFileInto,
+        getPathForFile: () => '/home/ada/Downloads/brief.docx'
+      }
+    })
+
+    const { result } = renderHook(() =>
+      useComposerActions({
+        activeSessionId: null,
+        currentCwd: '/home/ada/herwork',
+        requestGateway: vi.fn(),
+        scope: {
+          add,
+          remove: vi.fn(() => null),
+          target: 'test-composer',
+          update: vi.fn(() => true),
+          updateIfCurrent: vi.fn(() => true)
+        }
+      })
+    )
+
+    return { add, result }
+  }
+
+  const brief = () => new File([new Uint8Array([1])], 'brief.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+
+  it('copies the file into the drop folder and attaches the copy', async () => {
+    dropRoute('/home/ada/herwork/inbox')
+
+    const copyFileInto = vi.fn(async () => ({ path: '/home/ada/herwork/inbox/brief.docx' }))
+    const { add, result } = renderWith(copyFileInto)
+
+    await act(async () => {
+      expect(await result.current.attachDroppedItems([{ file: brief(), path: '' }])).toBe(true)
+    })
+
+    expect(copyFileInto).toHaveBeenCalledWith('/home/ada/Downloads/brief.docx', '/home/ada/herwork/inbox')
+    // The agent is handed the copy inside the desk, not the Downloads path.
+    expect(add).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file', detail: 'inbox/brief.docx' }))
+  })
+
+  it('attaches in place when the workspace names no drop folder', async () => {
+    dropRoute()
+
+    const copyFileInto = vi.fn(async () => ({ path: 'never' }))
+    const { add, result } = renderWith(copyFileInto)
+
+    await act(async () => {
+      await result.current.attachDroppedItems([{ file: brief(), path: '' }])
+    })
+
+    expect(copyFileInto).not.toHaveBeenCalled()
+    expect(add).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file', detail: '/home/ada/Downloads/brief.docx' }))
+  })
+
+  it('still attaches the original when the copy fails', async () => {
+    dropRoute('/home/ada/herwork/inbox')
+
+    const { add, result } = renderWith(vi.fn(async () => {
+      throw new Error('disk full')
+    }))
+
+    await act(async () => {
+      expect(await result.current.attachDroppedItems([{ file: brief(), path: '' }])).toBe(true)
+    })
+
+    // A copy that cannot happen must never lose the drop.
+    expect(add).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file', detail: '/home/ada/Downloads/brief.docx' }))
   })
 })

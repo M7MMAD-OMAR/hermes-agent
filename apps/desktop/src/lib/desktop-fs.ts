@@ -158,6 +158,20 @@ export async function desktopDefaultCwd(): Promise<{ branch: string; cwd: string
   return remoteFsApi<{ branch: string; cwd: string }>('/api/fs/default-cwd')
 }
 
+// Copy a file into a directory (created if missing), keeping its name or
+// taking a numbered one; resolves to the copy's absolute path. Local only:
+// an OS drop is a path on THIS machine, and a remote gateway could not read
+// it anyway, which is the whole reason the copy exists.
+export async function copyDesktopFileInto(sourcePath: string, destinationDir: string): Promise<string> {
+  const desktop = bridge()
+
+  if (!desktop.copyFileInto) {
+    throw new Error('Copying files is not available')
+  }
+
+  return (await desktop.copyFileInto(sourcePath, destinationDir)).path
+}
+
 // Reveal a path in the OS file manager (Finder / Explorer / Files). Local only.
 export async function revealDesktopPath(path: string): Promise<void> {
   await bridge().revealPath?.(path)

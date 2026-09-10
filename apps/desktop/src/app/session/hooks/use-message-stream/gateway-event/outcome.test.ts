@@ -1,28 +1,44 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { ClientSessionState } from '@/app/types'
-import { $sessionStates, clearAllSessionStates, dropSessionState } from '@/store/session-states'
-import { $turnOutcome, clearAllTurnOutcomes, setTurnOutcome } from '@/store/turn-outcome'
+import type { ChatMessage } from '@/lib/chat-messages'
 
 import { handleOutcomeEvent } from './outcome'
 import type { GatewayEventContext } from './types'
 
 /**
- * S6 of docs/design/herwork-workspace.md, handler half. The event's OWN routed
- * session id is the key (an unscoped frame never reaches here: it is dropped by
- * `gatewayEventRequiresSessionId`), a background session's outcome is stored
- * and not painted, and eviction follows the session.
+ * S6 of docs/design/herwork-workspace.md, handler half. `session.outcome`
+ * stamps the outcome onto the turn's final assistant message (the same row the
+ * backend persisted it on), keyed by the event's OWN routed session id. An
+ * unscoped frame is dropped upstream and never reaches here; a background
+ * session's message list is still patched.
  */
 
 const OUTCOME = { delivered: ['q3-report.docx in output/'], failed: [], open: ['review slide 4'], source: 'model' }
 
-function context(overrides: Partial<GatewayEventContext> = {}, payload: Record<string, unknown> = {}): GatewayEventContext {
-  const body = { outcome: OUTCOME, session_id: 'routed-session', turn_id: 'user-171-abc', ...payload }
+function assistant(id: string, turnOutcome?: unknown): ChatMessage {
+  return { id, role: 'assistant', parts: [], ...(turnOutcome ? { turnOutcome } : {}) } as unknown as ChatMessage
+}
 
-  return {
-    deps: {
-      sessionStateByRuntimeIdRef: { current: new Map<string, ClientSessionState>() }
-    } as unknown as GatewayEventContext['deps'],
+function context(
+  messages: ChatMessage[],
+  payload: Record<string, unknown> = {},
+  overrides: Partial<GatewayEventContext> = {}
+): { ctx: GatewayEventContext; states: Map<string, ClientSessionState>; updateSessionState: ReturnType<typeof vi.fn> } {
+  const states = new Map<string, ClientSessionState>()
+  states.set('routed-session', { messages } as unknown as ClientSessionState)
+
+  const updateSessionState = vi.fn((sessionId: string, updater: (s: ClientSessionState) => ClientSessionState) => {
+    const next = updater(states.get(sessionId)!)
+    states.set(sessionId, next)
+
+    return next
+  })
+
+  const body = { outcome: OUTCOME, session_id: 'routed-session', ...payload }
+
+  const ctx = {
+    deps: { updateSessionState } as unknown as GatewayEventContext['deps'],
     event: { payload: body, session_id: 'routed-session', type: 'session.outcome' },
     explicitSid: 'routed-session',
     fromActiveSource: () => true,
@@ -32,83 +48,57 @@ function context(overrides: Partial<GatewayEventContext> = {}, payload: Record<s
     scheduleConfigRefresh: vi.fn(),
     sessionId: 'routed-session',
     ...overrides
-  }
+  } as GatewayEventContext
+
+  return { ctx, states, updateSessionState }
 }
 
-afterEach(() => {
-  clearAllTurnOutcomes()
-  clearAllSessionStates()
-})
+const outcomeOf = (states: Map<string, ClientSessionState>, id = 'reply'): unknown =>
+  (states.get('routed-session')!.messages as ChatMessage[]).find(m => m.id === id)?.turnOutcome
 
 describe('handleOutcomeEvent', () => {
   it('does not claim other events', () => {
-    expect(handleOutcomeEvent(context({ event: { type: 'message.complete' } }))).toBe(false)
+    const { ctx } = context([assistant('reply')], {}, { event: { type: 'message.complete' } as never })
+    expect(handleOutcomeEvent(ctx)).toBe(false)
   })
 
-  it('stores a background session outcome under the routed id and the echoed turn id', () => {
-    expect(handleOutcomeEvent(context())).toBe(true)
+  it('stamps the outcome onto the last assistant message', () => {
+    const { ctx, states } = context([assistant('user' as string), assistant('reply')])
 
-    expect($turnOutcome('routed-session', 'user-171-abc').get()).toEqual(OUTCOME)
-    // Not the active chat, not the event's raw sid when routing differs.
-    expect($turnOutcome('active-session', 'user-171-abc').get()).toBeUndefined()
+    expect(handleOutcomeEvent(ctx)).toBe(true)
+    expect(outcomeOf(states)).toEqual(OUTCOME)
   })
 
-  it('claims an unscoped frame without storing anything', () => {
-    expect(handleOutcomeEvent(context({ sessionId: null }))).toBe(true)
-    expect($turnOutcome('routed-session', 'user-171-abc').get()).toBeUndefined()
+  it('claims an unscoped frame without touching any session', () => {
+    const { ctx, updateSessionState } = context([assistant('reply')], {}, { sessionId: null })
+
+    expect(handleOutcomeEvent(ctx)).toBe(true)
+    expect(updateSessionState).not.toHaveBeenCalled()
   })
 
-  it('binds to the latest visible user message when the backend echoes no turn id', () => {
-    const states = new Map<string, ClientSessionState>()
-    states.set('routed-session', {
-      messages: [
-        { id: 'user-old', role: 'user', parts: [] },
-        { id: 'asst-old', role: 'assistant', parts: [] },
-        { id: 'user-new', role: 'user', parts: [] },
-        { id: 'user-hidden', role: 'user', parts: [], hidden: true },
-        { id: 'asst-new', role: 'assistant', parts: [] }
-      ]
-    } as unknown as ClientSessionState)
+  it('drops a payload that is not the outcome contract', () => {
+    const { ctx, updateSessionState } = context([assistant('reply')], { outcome: { delivered: 'no' } })
 
-    handleOutcomeEvent(
-      context({ deps: { sessionStateByRuntimeIdRef: { current: states } } as unknown as GatewayEventContext['deps'] }, { turn_id: '' })
-    )
-
-    expect($turnOutcome('routed-session', 'user-new').get()).toEqual(OUTCOME)
-    expect($turnOutcome('routed-session', 'user-old').get()).toBeUndefined()
+    expect(handleOutcomeEvent(ctx)).toBe(true)
+    expect(updateSessionState).not.toHaveBeenCalled()
   })
 
-  it('drops an outcome with no turn to bind to', () => {
-    handleOutcomeEvent(context({}, { turn_id: undefined }))
+  it('leaves the list alone when the turn has no assistant row yet', () => {
+    const { ctx, states } = context([{ id: 'user-1', role: 'user', parts: [] } as unknown as ChatMessage])
 
-    expect(Object.keys($turnOutcome('routed-session', '').get() ?? {})).toEqual([])
+    handleOutcomeEvent(ctx)
+    expect((states.get('routed-session')!.messages as ChatMessage[])[0]?.turnOutcome).toBeUndefined()
   })
 
-  it('is idempotent under replay', () => {
-    handleOutcomeEvent(context())
-    handleOutcomeEvent(context())
+  it('replaces rules text with a model outcome but never the reverse', () => {
+    const rules = { delivered: ['Edited 2 files: a, b'], failed: [], open: [], source: 'rules' }
 
-    expect($turnOutcome('routed-session', 'user-171-abc').get()).toEqual(OUTCOME)
-  })
-})
+    const upgrade = context([assistant('reply', rules)])
+    expect(handleOutcomeEvent(upgrade.ctx)).toBe(true)
+    expect(outcomeOf(upgrade.states)).toEqual(OUTCOME)
 
-describe('eviction follows the session', () => {
-  it('dropping a runtime state forgets its outcomes', () => {
-    $sessionStates.set({ 'runtime-1': { messages: [] } as unknown as ClientSessionState })
-    setTurnOutcome('runtime-1', 'user-1', OUTCOME)
-    setTurnOutcome('runtime-2', 'user-1', OUTCOME)
-
-    dropSessionState('runtime-1')
-
-    expect($turnOutcome('runtime-1', 'user-1').get()).toBeUndefined()
-    expect($turnOutcome('runtime-2', 'user-1').get()).toEqual(OUTCOME)
-  })
-
-  it('a profile switch clears them all', () => {
-    setTurnOutcome('runtime-1', 'user-1', OUTCOME)
-
-    clearAllSessionStates()
-
-    expect($turnOutcome('runtime-1', 'user-1').get()).toBeUndefined()
+    const replayed = context([assistant('reply', OUTCOME)], { outcome: rules })
+    handleOutcomeEvent(replayed.ctx)
+    expect(outcomeOf(replayed.states)).toEqual(OUTCOME)
   })
 })

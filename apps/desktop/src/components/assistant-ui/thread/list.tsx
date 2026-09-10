@@ -345,7 +345,6 @@ interface TurnRowProps {
   components: ThreadMessageComponents
   group: MessageGroup
   resetKey: string
-  sessionId: null | string
   virtualized: boolean
 }
 
@@ -371,7 +370,7 @@ interface TurnRowProps {
 // The live tail (newest turns) is exempt: virtualizing a turn whose final
 // size hasn't been remembered yet snaps it to a stale height when it scrolls
 // off, drifting stick-to-bottom up over old turns. See liveTailStart.
-const TurnRow = memo(function TurnRow({ components, group, resetKey, sessionId, virtualized }: TurnRowProps) {
+const TurnRow = memo(function TurnRow({ components, group, resetKey, virtualized }: TurnRowProps) {
   return (
     <div
       className={cn(
@@ -386,7 +385,7 @@ const TurnRow = memo(function TurnRow({ components, group, resetKey, sessionId, 
             data-slot="aui_turn-pair"
           >
             <ThreadPrimitive.MessageByIndex components={components} index={group.indices[0]} />
-            <TurnDigest components={components} indices={group.indices.slice(1)} sessionId={sessionId} turnId={group.id} />
+            <TurnDigest components={components} indices={group.indices.slice(1)} turnId={group.id} />
           </div>
         ) : (
           <ThreadPrimitive.MessageByIndex components={components} index={group.index} />
@@ -985,11 +984,10 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
           group={group}
           key={group.id}
           resetKey={structuralSignature}
-          sessionId={sessionId}
           virtualized={indexInVisible < tailStart}
         />
       )),
-    [visibleGroups, components, structuralSignature, tailStart, sessionId]
+    [visibleGroups, components, structuralSignature, tailStart]
   )
 
   return (

@@ -778,7 +778,7 @@ export function useSubmitPrompt(deps: SubmitPromptDeps) {
           text,
           // Our own id for this turn (the optimistic user bubble's). The backend
           // echoes it on `session.outcome`, so the outcome row lands under THIS
-          // turn even when two turns finish close together (store/turn-outcome.ts).
+          // turn's final row provenance (display_metadata.turn_outcome.turn_id).
           client_turn_id: optimisticId,
           ...(interrupted && { interrupted }),
           // Off-screen widget intent: the gateway types the persisted user

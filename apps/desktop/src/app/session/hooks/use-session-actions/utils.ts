@@ -262,6 +262,26 @@ export function chatReactionsEquivalent(a: ChatMessage['reactions'], b: ChatMess
   )
 }
 
+/** Structural compare of the turn-outcome row (source + the three lists): it
+ *  arrives as a fresh object on every resume/live stamp, so identity would
+ *  repaint forever, and a rehydrate that attaches it must repaint once. */
+export function chatTurnOutcomesEquivalent(a: ChatMessage['turnOutcome'], b: ChatMessage['turnOutcome']): boolean {
+  if (a === b) {
+    return true
+  }
+
+  if (!a || !b) {
+    return a == null && b == null
+  }
+
+  return (
+    a.source === b.source &&
+    a.delivered.join('\u0000') === b.delivered.join('\u0000') &&
+    a.failed.join('\u0000') === b.failed.join('\u0000') &&
+    a.open.join('\u0000') === b.open.join('\u0000')
+  )
+}
+
 export function chatMessagesEquivalent(a: ChatMessage, b: ChatMessage): boolean {
   if (
     a.id !== b.id ||
@@ -280,7 +300,8 @@ export function chatMessagesEquivalent(a: ChatMessage, b: ChatMessage): boolean 
     // Interim gates the action footer, so flipping it must repaint (e.g. a
     // previewed final settling onto a sealed interim bubble restores the bar).
     (a.interim ?? false) !== (b.interim ?? false) ||
-    !chatReactionsEquivalent(a.reactions, b.reactions)
+    !chatReactionsEquivalent(a.reactions, b.reactions) ||
+    !chatTurnOutcomesEquivalent(a.turnOutcome, b.turnOutcome)
   ) {
     return false
   }
@@ -423,6 +444,15 @@ export function reconcileResumeMessages(nextMessages: ChatMessage[], previousMes
       preserved = { ...preserved, reactions: [...previous.reactions] }
     }
 
+    // The outcome row is stamped live onto this message by `handleOutcomeEvent`
+    // AFTER the turn's own message.complete resume rebuilt the list, so an
+    // authoritative row that predates the persist carries none. Carry the live
+    // copy forward so the row does not blink off between the stamp and the DB
+    // catching up.
+    if (sameTurn && preserved.turnOutcome === undefined && previous.turnOutcome) {
+      preserved = { ...preserved, turnOutcome: previous.turnOutcome }
+    }
+
     const previousImages = embeddedImageUrls(previousText)
 
     if (!previousImages.length || embeddedImageUrls(chatMessageText(preserved)).length) {
@@ -516,6 +546,10 @@ const withAuthoritativeTurnState = (local: ChatMessage, authoritative: ChatMessa
 
   if (local.reactions === undefined && authoritative.reactions?.length) {
     merged.reactions = [...authoritative.reactions]
+  }
+
+  if (local.turnOutcome === undefined && authoritative.turnOutcome) {
+    merged.turnOutcome = authoritative.turnOutcome
   }
 
   return merged

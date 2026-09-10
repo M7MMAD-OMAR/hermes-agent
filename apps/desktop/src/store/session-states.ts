@@ -74,7 +74,6 @@ import {
   type SessionProfileRoute
 } from './session-request-router'
 import { ackStoredSessionId, markSessionUnreadFinished } from './session-unread'
-import { clearAllTurnOutcomes, clearTurnOutcomes } from './turn-outcome'
 import { isBrowserWindow, isSecondaryWindow } from './windows'
 
 // ---------------------------------------------------------------------------
@@ -585,9 +584,6 @@ export function dropSessionState(runtimeId: string) {
   clearSessionProviderWait(runtimeId)
   sessionScopeByRuntimeId.delete(runtimeId)
   sessionOwnerByRuntimeId.delete(runtimeId)
-  // Outcome rows are keyed by runtime id and persisted backend-side; the
-  // renderer copy goes with the runtime, and a reopen rehydrates them.
-  clearTurnOutcomes(runtimeId)
   clearGraftSavings(runtimeId)
 
   const current = $sessionStates.get()
@@ -618,7 +614,6 @@ export function clearAllSessionStates() {
   sessionOwnerByRuntimeId.clear()
   $stalledSessionIds.set([])
   $sessionStates.set({})
-  clearAllTurnOutcomes()
   clearAllGraftSavings()
 }
 

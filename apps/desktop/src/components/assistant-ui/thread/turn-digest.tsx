@@ -10,7 +10,6 @@ import { useI18n } from '@/i18n'
 import type { TurnOutcome } from '@/lib/turn-outcome'
 import { cn } from '@/lib/utils'
 import { $toolDisclosureOpen, setToolDisclosureOpen } from '@/store/tool-view'
-import { $turnOutcome } from '@/store/turn-outcome'
 
 import { TurnProgress } from './turn-progress'
 
@@ -219,20 +218,15 @@ function useHydratedOutcome(indices: readonly number[]): TurnOutcome | undefined
 }
 
 /**
- * The outcome row. A live outcome (this session, this turn) wins over the
- * rehydrated copy: both come from the same producer, and the live one is the
- * newer write. Model text is isolated per item (`<bdi>`) because it is in the
+ * The outcome row. The outcome rides `metadata.custom.turnOutcome` on the
+ * turn's final assistant message, stamped there live by `handleOutcomeEvent`
+ * and rehydrated from `display_metadata` on resume, so one read serves both.
+ * Model text is isolated per item (`<bdi>`) because it is in the
  * conversation's language, which need not be the app's direction.
  */
-export const TurnOutcomeRow: FC<{ indices: readonly number[]; sessionId: null | string; turnId: string }> = ({
-  indices,
-  sessionId,
-  turnId
-}) => {
+export const TurnOutcomeRow: FC<{ indices: readonly number[] }> = ({ indices }) => {
   const { t } = useI18n()
-  const live = useStore(useMemo(() => $turnOutcome(sessionId, turnId), [sessionId, turnId]))
-  const hydrated = useHydratedOutcome(indices)
-  const outcome = live ?? hydrated
+  const outcome = useHydratedOutcome(indices)
 
   if (!outcome) {
     return null
@@ -278,18 +272,14 @@ export const TurnOutcomeRow: FC<{ indices: readonly number[]; sessionId: null | 
 export const TurnDigest: FC<{
   components: ThreadMessageComponents
   indices: readonly number[]
-  /** The runtime session id the outcome store is keyed by; null in a thread
-   *  with no session (a preview), which then shows only rehydrated outcomes. */
-  sessionId?: null | string
-  /** Stable id of the turn (its user message), keying the remembered disclosure
-   *  and, being the id sent with prompt.submit, the outcome the backend echoes. */
+  /** Stable id of the turn (its user message), keying the remembered disclosure. */
   turnId: string
-}> = ({ components, indices, sessionId = null, turnId }) => {
+}> = ({ components, indices, turnId }) => {
   const { t } = useI18n()
   const digest = useTurnDigest(indices, t.assistant.thread.turnDigestNotes)
   const disclosureId = `turn-digest:${turnId}`
   const persistedOpen = useStore(useMemo(() => $toolDisclosureOpen(disclosureId), [disclosureId]))
-  const outcome = <TurnOutcomeRow indices={indices} sessionId={sessionId} turnId={turnId} />
+  const outcome = <TurnOutcomeRow indices={indices} />
 
   if (digest.folded.length === 0) {
     return (

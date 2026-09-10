@@ -183,49 +183,55 @@ class TurnEvidence:
 # ---------------------------------------------------------------------------
 
 
-def _next_moves_config() -> Dict[str, Any]:
-    """The ``auxiliary.next_moves`` block, or an empty dict.
+def auxiliary_block(name: str) -> Dict[str, Any]:
+    """The ``auxiliary.<name>`` block, or an empty dict.
 
     Lazy import and the read-only loader, matching ``title_generator``: this
     module is imported from agent paths where a module-level ``hermes_cli``
     import risks circularity, and a post-turn read must never trigger a config
-    migration write.
+    migration write. Shared by every post-turn producer (next moves, the turn
+    outcome) so the read has one shape.
     """
     try:
         from hermes_cli.config import load_config_readonly
 
         config = load_config_readonly()
-        block = (config.get("auxiliary") or {}).get("next_moves")
+        block = (config.get("auxiliary") or {}).get(name)
 
         return block if isinstance(block, dict) else {}
     except Exception:
-        logger.debug("Failed to read auxiliary.next_moves", exc_info=True)
+        logger.debug("Failed to read auxiliary.%s", name, exc_info=True)
 
         return {}
 
 
-def next_moves_enabled(config: Optional[Mapping[str, Any]] = None) -> bool:
-    """Whether the feature runs at all. Off means nothing is staged."""
+def auxiliary_flag(
+    block: Optional[Mapping[str, Any]], key: str, *, default: bool, name: str
+) -> bool:
+    """A truthy flag from an ``auxiliary.<name>`` block, read on demand when the
+    caller has no block in hand. Never raises: the default wins on any error."""
     try:
         from utils import is_truthy_value
 
-        block = _next_moves_config() if config is None else config
+        resolved = auxiliary_block(name) if block is None else block
 
-        return is_truthy_value(block.get("enabled"), default=True)
+        return is_truthy_value(resolved.get(key), default=default)
     except Exception:
-        return True
+        return default
+
+
+def _next_moves_config() -> Dict[str, Any]:
+    return auxiliary_block("next_moves")
+
+
+def next_moves_enabled(config: Optional[Mapping[str, Any]] = None) -> bool:
+    """Whether the feature runs at all. Off means nothing is staged."""
+    return auxiliary_flag(config, "enabled", default=True, name="next_moves")
 
 
 def next_moves_use_model(config: Optional[Mapping[str, Any]] = None) -> bool:
     """Whether to spend an auxiliary call. Off leaves the local rules alone."""
-    try:
-        from utils import is_truthy_value
-
-        block = _next_moves_config() if config is None else config
-
-        return is_truthy_value(block.get("use_model"), default=False)
-    except Exception:
-        return False
+    return auxiliary_flag(config, "use_model", default=False, name="next_moves")
 
 
 # ---------------------------------------------------------------------------

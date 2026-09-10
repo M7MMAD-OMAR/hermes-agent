@@ -1,3 +1,4 @@
+import { isVisibleUserMessage } from '@/app/session/hooks/use-prompt-actions/utils'
 import { setTurnOutcome } from '@/store/turn-outcome'
 
 import type { GatewayEventContext } from './types'
@@ -39,13 +40,5 @@ export function handleOutcomeEvent(ctx: GatewayEventContext): boolean {
 function latestUserMessageId(ctx: GatewayEventContext, sessionId: string): string {
   const messages = ctx.deps.sessionStateByRuntimeIdRef?.current?.get(sessionId)?.messages ?? []
 
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index]
-
-    if (message?.role === 'user' && !message.hidden) {
-      return message.id
-    }
-  }
-
-  return ''
+  return messages.findLast(isVisibleUserMessage)?.id ?? ''
 }

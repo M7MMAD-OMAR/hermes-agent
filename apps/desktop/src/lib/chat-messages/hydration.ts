@@ -142,18 +142,20 @@ function parseDisplayMetadata(metadata: SessionMessage['display_metadata']): nul
   return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
 }
 
-function timelineTaskCount(metadata: SessionMessage['display_metadata']): number | undefined {
-  const count = parseDisplayMetadata(metadata)?.task_count
+type DisplayMeta = null | Record<string, unknown>
+
+function timelineTaskCount(meta: DisplayMeta): number | undefined {
+  const count = meta?.task_count
 
   return typeof count === 'number' ? count : undefined
 }
 
-function messageTurnOutcome(metadata: SessionMessage['display_metadata']): TurnOutcome | undefined {
-  return readTurnOutcome(parseDisplayMetadata(metadata)?.turn_outcome) ?? undefined
+function messageTurnOutcome(meta: DisplayMeta): TurnOutcome | undefined {
+  return readTurnOutcome(meta?.turn_outcome) ?? undefined
 }
 
-function messageReactions(metadata: SessionMessage['display_metadata']): MessageReaction[] {
-  const reactions = parseDisplayMetadata(metadata)?.reactions
+function messageReactions(meta: DisplayMeta): MessageReaction[] {
+  const reactions = meta?.reactions
 
   if (!Array.isArray(reactions)) {
     return []
@@ -206,7 +208,7 @@ function timelineDisplayContent(message: SessionMessage, content: string): strin
   }
 
   if (message.display_kind === 'async_delegation_complete') {
-    const count = timelineTaskCount(message.display_metadata)
+    const count = timelineTaskCount(parseDisplayMetadata(message.display_metadata))
 
     return count === undefined
       ? 'background agent work finished'
@@ -400,7 +402,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
 
         // The outcome is stamped on the turn's FINAL row; when that row merges
         // into the bubble already holding the turn's tools, it travels along.
-        const mergedOutcome = messageTurnOutcome(message.display_metadata)
+        const mergedOutcome = messageTurnOutcome(parseDisplayMetadata(message.display_metadata))
 
         if (mergedOutcome) {
           activeAssistant.turnOutcome = mergedOutcome
@@ -412,8 +414,9 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
       flushPendingTools(index)
     }
 
-    const reactions = messageReactions(message.display_metadata)
-    const turnOutcome = message.role === 'assistant' ? messageTurnOutcome(message.display_metadata) : undefined
+    const displayMeta = parseDisplayMetadata(message.display_metadata)
+    const reactions = messageReactions(displayMeta)
+    const turnOutcome = message.role === 'assistant' ? messageTurnOutcome(displayMeta) : undefined
     // Gateway resume names the durable row id `row_id`; the REST transcript
     // prefetch ships the same messages.id as a numeric `id`. Either one lets
     // reactions address this exact row later.

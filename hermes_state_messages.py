@@ -326,15 +326,20 @@ class SessionMessagesMixin:
         if not session_id or not content or not display_kind:
             return False
         def _do(conn):
-            row = conn.execute("SELECT id FROM messages WHERE session_id = ? AND role = ? "
-                "AND content = ? AND active = 1 ORDER BY id DESC LIMIT 1",
-                (session_id, role, self._encode_content(content))).fetchone()
+            row = self._latest_matching_row(conn, session_id, role, content)
             if row is None:
                 return False
             conn.execute("UPDATE messages SET display_kind = ?, display_metadata = ? WHERE id = ?",
                 (_scrub_surrogates(display_kind), self._encode_display_metadata(display_metadata), row[0]))
             return True
         return self._execute_write(_do)
+
+    def _latest_matching_row(self, conn, session_id: str, role: str, content: str):
+        """``(id, display_metadata)`` of the newest active row with this role and content, or None.
+        Shared by the two post-turn stampers so "this turn's row" is defined once."""
+        return conn.execute("SELECT id, display_metadata FROM messages WHERE session_id = ? AND role = ? "
+            "AND content = ? AND active = 1 ORDER BY id DESC LIMIT 1",
+            (session_id, role, self._encode_content(content))).fetchone()
 
     def merge_latest_matching_message_display_metadata(self, session_id: str, *, role: str, content: str,
                                                         patch: Dict[str, Any]) -> bool:
@@ -344,9 +349,7 @@ class SessionMessagesMixin:
         if not session_id or not content or not isinstance(patch, dict) or not patch:
             return False
         def _do(conn):
-            row = conn.execute("SELECT id, display_metadata FROM messages WHERE session_id = ? AND role = ? "
-                "AND content = ? AND active = 1 ORDER BY id DESC LIMIT 1",
-                (session_id, role, self._encode_content(content))).fetchone()
+            row = self._latest_matching_row(conn, session_id, role, content)
             if row is None:
                 return False
             meta = self._decode_display_metadata(row[1]) or {}

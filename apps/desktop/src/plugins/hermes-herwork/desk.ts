@@ -22,6 +22,8 @@ export function herworkDeskCwd(home: string): string {
 /** `$HOME` is not exposed to the renderer; the desk lives under the same home
  *  the given cwd does. A cwd outside a home directory (or empty) yields ''. */
 export function homeOf(cwd: string): string {
+  // Same three layouts as `lib/display-path`'s home inference; a plugin may
+  // import only the SDK, so the rule is restated rather than reused.
   const match = /^(\/home\/[^/]+|\/Users\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)/.exec(cwd)
 
   return match ? match[1]! : ''

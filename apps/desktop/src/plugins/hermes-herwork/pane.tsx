@@ -12,7 +12,7 @@ import { HERWORK_PROFILE, herworkDeskCwd, homeOf } from './desk'
 import { useHerwork } from './i18n'
 
 export function HerworkPane() {
-  const { m } = useHerwork()
+  const m = useHerwork()
   const cwd = useValue(host.state.cwd)
   const desk = herworkDeskCwd(homeOf(cwd))
 

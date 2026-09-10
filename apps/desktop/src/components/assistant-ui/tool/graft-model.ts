@@ -1,7 +1,8 @@
 import { translateNow } from '@/i18n'
+import { compactNumber } from '@/lib/format'
 import { firstStringField } from '@/lib/text'
 
-import { compactPreview, isRecord, parseMaybeObject } from './fallback-model/format'
+import { compactPreview, isRecord, numberValue, parseMaybeObject } from './fallback-model/format'
 
 /**
  * Graft (github.com/nanonets/graft) serves a repo's context graph over MCP.
@@ -65,15 +66,9 @@ export function isGraftTool(toolName: string): boolean {
   return graftOperation(toolName) !== null
 }
 
-const parseCount = (raw: string | undefined): number | undefined => {
-  if (raw === undefined) {
-    return undefined
-  }
-
-  const n = Number(raw.replace(/,/g, ''))
-
-  return Number.isFinite(n) ? n : undefined
-}
+/** `17,234` → 17234; the savings line writes its figures with thousands separators. */
+const parseCount = (raw: string | undefined): number | undefined =>
+  raw === undefined ? undefined : (numberValue(raw.replace(/,/g, '')) ?? undefined)
 
 /**
  * The text of a tool result however the transport shaped it: the joined
@@ -253,23 +248,6 @@ export function parseGraftResult(toolName: string, args: unknown, result: unknow
   return facts
 }
 
-/** `17234` → `17.2k`, `2546026` → `2.5M`; small counts stay exact. */
-export function compactTokens(n: number): string {
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
-  }
-
-  if (n >= 10_000) {
-    return `${Math.round(n / 1_000)}k`
-  }
-
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
-  }
-
-  return String(n)
-}
-
 const t = (key: string, ...args: unknown[]) => translateNow(`assistant.tool.graft.${key}`, ...args)
 
 /** Header meta beside the title: the savings figure, or nothing to claim. */
@@ -278,7 +256,7 @@ export function graftSavingsLabel(facts: GraftFacts): string {
     return ''
   }
 
-  const tokens = compactTokens(facts.savings.tokensSaved)
+  const tokens = compactNumber(facts.savings.tokensSaved)
 
   return facts.savings.percent === undefined ? t('saved', tokens) : t('savedPercent', tokens, facts.savings.percent)
 }

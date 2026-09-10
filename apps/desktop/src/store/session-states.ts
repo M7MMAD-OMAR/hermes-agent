@@ -37,6 +37,7 @@ import { readJson, writeJson } from '@/lib/storage'
 import type { SessionInfo } from '@/types/hermes'
 
 import { forgetSessionSuggestions } from './composer-suggestions'
+import { clearAllGraftSavings, clearGraftSavings } from './graft-savings'
 import {
   $browserSessionId,
   adoptBrowserSessionKey,
@@ -587,6 +588,7 @@ export function dropSessionState(runtimeId: string) {
   // Outcome rows are keyed by runtime id and persisted backend-side; the
   // renderer copy goes with the runtime, and a reopen rehydrates them.
   clearTurnOutcomes(runtimeId)
+  clearGraftSavings(runtimeId)
 
   const current = $sessionStates.get()
   setSessionStalled(current[runtimeId]?.storedSessionId, false)
@@ -617,6 +619,7 @@ export function clearAllSessionStates() {
   $stalledSessionIds.set([])
   $sessionStates.set({})
   clearAllTurnOutcomes()
+  clearAllGraftSavings()
 }
 
 /** Downgrade cached busy/awaiting states after a gateway reconnect.
@@ -867,6 +870,9 @@ function parseTileList(value: unknown): StoredTile[] {
         .filter((t): t is SessionTile => Boolean(t && typeof (t as SessionTile).storedSessionId === 'string'))
         .map(t => {
           const raw = t as SessionTile
+          // Validated over the enum, not coerced to a known pair: a persisted
+          // 'herwork' tile used to come back as 'sessions' on restart.
+          const workspaceMode = parseWorkspaceMode(raw.workspaceMode)
 
           return {
             anchor: typeof raw.anchor === 'string' ? raw.anchor : undefined,
@@ -886,11 +892,9 @@ function parseTileList(value: unknown): StoredTile[] {
                   }
                 : undefined,
             storedSessionId: raw.storedSessionId,
-            // Validated over the enum, not coerced to a known pair: a persisted
-            // 'herwork' tile used to come back as 'sessions' on restart.
-            workspaceMode: parseWorkspaceMode(raw.workspaceMode),
+            workspaceMode,
             workspaceOwnerKey:
-              isOwnedWorkspace(parseWorkspaceMode(raw.workspaceMode)) && typeof raw.workspaceOwnerKey === 'string'
+              isOwnedWorkspace(workspaceMode) && typeof raw.workspaceOwnerKey === 'string'
                 ? raw.workspaceOwnerKey
                 : undefined,
             workspaceTabTitle: typeof raw.workspaceTabTitle === 'string' ? raw.workspaceTabTitle : undefined

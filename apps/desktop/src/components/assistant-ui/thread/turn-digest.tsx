@@ -196,10 +196,6 @@ function useTurnDigest(indices: readonly number[], notesLabel: (count: number) =
   })
 }
 
-function isTurnOutcome(value: unknown): value is TurnOutcome {
-  return Boolean(value) && typeof value === 'object' && Array.isArray((value as TurnOutcome).delivered)
-}
-
 /** The outcome a rehydrated turn carries on its final assistant message
  *  (`metadata.custom.turnOutcome`, from `display_metadata.turn_outcome`). The
  *  selector returns the stored object itself, so Object.is holds across text
@@ -209,9 +205,11 @@ function useHydratedOutcome(indices: readonly number[]): TurnOutcome | undefined
     const messages = (state as unknown as DigestThreadSlice).thread.messages
 
     for (let position = indices.length - 1; position >= 0; position--) {
-      const candidate = messages[indices[position]]?.metadata?.custom?.turnOutcome
+      // Hydration ran `readTurnOutcome` before stamping this, so the stored
+      // object is the contract and is returned as is (identity matters here).
+      const candidate = messages[indices[position]]?.metadata?.custom?.turnOutcome as TurnOutcome | undefined
 
-      if (isTurnOutcome(candidate)) {
+      if (candidate) {
         return candidate
       }
     }

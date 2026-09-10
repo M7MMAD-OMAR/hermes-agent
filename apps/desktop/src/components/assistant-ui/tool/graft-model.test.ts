@@ -4,7 +4,6 @@ import { setRuntimeI18nLocale } from '@/i18n'
 
 import { buildToolView, type ToolPart } from './fallback-model'
 import {
-  compactTokens,
   graftCountLabel,
   graftOperation,
   graftResultText,
@@ -200,23 +199,13 @@ describe('parseGraftResult', () => {
   })
 })
 
-describe('compactTokens', () => {
-  it('keeps small counts exact and rounds large ones', () => {
-    expect(compactTokens(720)).toBe('720')
-    expect(compactTokens(1531)).toBe('1.5k')
-    expect(compactTokens(17234)).toBe('17k')
-    expect(compactTokens(2546026)).toBe('2.5M')
-    expect(compactTokens(1000)).toBe('1k')
-  })
-})
-
 describe('phrasing', () => {
   const ask = parseGraftResult('mcp__graft__graft_find_code', { query: 'payments checkout flow' }, ASK_RESULT)!
 
   it('labels savings, counts and the one-line summary', () => {
-    expect(graftSavingsLabel(ask)).toBe('saved ≈ 17k tokens (93%)')
+    expect(graftSavingsLabel(ask)).toBe('saved ≈ 17.2k tokens (93%)')
     expect(graftCountLabel(ask)).toBe('3 hits')
-    expect(graftSummary(ask)).toBe('3 hits · saved ≈ 17k tokens (93%)')
+    expect(graftSummary(ask)).toBe('3 hits · saved ≈ 17.2k tokens (93%)')
 
     const scoped = parseGraftResult('mcp__graft__graft_find_all', { in: 'server/src', pattern: 'x' }, GREP_RESULT)!
 
@@ -248,7 +237,7 @@ describe('buildToolView for graft rows', () => {
 
     expect(view.title).toBe('Graft: asked “payments checkout flow”')
     expect(view.countLabel).toBe('3 hits')
-    expect(view.metaLabel).toBe('saved ≈ 17k tokens (93%)')
+    expect(view.metaLabel).toBe('saved ≈ 17.2k tokens (93%)')
     expect(view.icon).toBe('type-hierarchy')
     expect(view.status).toBe('success')
     expect(view.detail.startsWith('graft ask')).toBe(true)

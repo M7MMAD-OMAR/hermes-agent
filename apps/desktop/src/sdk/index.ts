@@ -895,8 +895,7 @@ export const host = {
 
     const expectHistory = options.expectHistory ?? false
 
-    // TS cannot narrow `options.workspaceMode` through the predicate call, so
-    // the owned mode is bound once here and reused below.
+    // Bound once: the narrowing does not survive into the closures below.
     const ownedMode = isOwnedWorkspace(options.workspaceMode) ? options.workspaceMode : undefined
 
     if (ownedMode) {

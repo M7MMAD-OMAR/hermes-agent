@@ -5,7 +5,7 @@
  * verbs resolve against core.
  */
 
-import { type PluginLocaleBundles, type PluginTranslate, usePluginI18n } from '@hermes/plugin-sdk'
+import { type PluginLocaleBundles, usePluginI18n } from '@hermes/plugin-sdk'
 import { useMemo } from 'react'
 
 export const HERWORK_PLUGIN_ID = 'hermes-herwork'
@@ -17,8 +17,6 @@ type HerworkMessages = {
   empty: {
     title: string
     desk: string
-    inbox: (count: number) => string
-    output: (count: number) => string
     rule: string
   }
 }
@@ -28,8 +26,6 @@ const en: HerworkMessages = {
   empty: {
     title: 'HerWork',
     desk: 'A shared desk. Hand over a job and get finished files back.',
-    inbox: count => (count === 1 ? '1 file in inbox' : `${count} files in inbox`),
-    output: count => (count === 1 ? '1 deliverable in output' : `${count} deliverables in output`),
     rule: 'Research first, draw the structure, verify by re-opening, deliver with a PDF sibling.'
   }
 }
@@ -39,8 +35,6 @@ const ar: HerworkMessages = {
   empty: {
     title: 'هيرورك',
     desk: 'مكتب مشترك. سلّم المهمة واستلم ملفات منجزة.',
-    inbox: count => (count === 1 ? 'ملف واحد في الوارد' : `${count} ملفات في الوارد`),
-    output: count => (count === 1 ? 'مخرج واحد في المخرجات' : `${count} مخرجات في المخرجات`),
     rule: 'ابحث أولًا، ارسم البنية، تحقق بإعادة الفتح، وسلّم مع نسخة PDF مرافقة.'
   }
 }
@@ -48,22 +42,14 @@ const ar: HerworkMessages = {
 export const HERWORK_LOCALES: PluginLocaleBundles = { ar, en } as unknown as PluginLocaleBundles
 
 /** Typed access over the plugin translator; keys mirror `HerworkMessages`. */
-export function useHerwork(): { t: PluginTranslate; m: HerworkMessages } {
+export function useHerwork(): HerworkMessages {
   const t = usePluginI18n(HERWORK_PLUGIN_ID)
 
-  const m = useMemo<HerworkMessages>(
+  return useMemo<HerworkMessages>(
     () => ({
       pane: { title: t('pane.title') },
-      empty: {
-        title: t('empty.title'),
-        desk: t('empty.desk'),
-        inbox: count => t('empty.inbox', count),
-        output: count => t('empty.output', count),
-        rule: t('empty.rule')
-      }
+      empty: { title: t('empty.title'), desk: t('empty.desk'), rule: t('empty.rule') }
     }),
     [t]
   )
-
-  return { m, t }
 }

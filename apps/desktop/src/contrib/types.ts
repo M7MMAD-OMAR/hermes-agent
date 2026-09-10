@@ -26,7 +26,7 @@ export const WORKSPACE_MODES: readonly WorkspaceMode[] = ['sessions', 'bots', 'h
 /** True for a workspace with an owner key and its own `+` route (Bots, HerWork).
  *  Sessions is the ambient default and owns nothing. Sites that mean "Bot Mode
  *  specifically" (hiding a canonical Bot Chat) keep comparing to `'bots'`. */
-export const isOwnedWorkspace = (mode: WorkspaceMode | undefined): boolean =>
+export const isOwnedWorkspace = (mode: WorkspaceMode | undefined): mode is Exclude<WorkspaceMode, 'sessions'> =>
   mode !== undefined && mode !== 'sessions'
 
 export function parseWorkspaceMode(value: unknown): WorkspaceMode {

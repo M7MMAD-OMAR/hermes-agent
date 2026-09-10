@@ -13,7 +13,7 @@ import { HERWORK_OWNER_KEY } from './desk'
 import { useHerwork } from './i18n'
 
 export function HerworkChatEmpty({ sessionId }: { sessionId: string }) {
-  const { m } = useHerwork()
+  const m = useHerwork()
   // Subscribed, not read once: the tile and the focused stored id both land
   // after the transcript mounts, and the slot mounts for every empty session.
   useValue(host.sessionTiles)

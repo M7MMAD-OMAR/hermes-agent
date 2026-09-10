@@ -783,23 +783,20 @@ _API_KEY_PROVIDER_AUX_MODELS_FALLBACK: Dict[str, str] = {
 _API_KEY_PROVIDER_AUX_MODELS: Dict[str, str] = _API_KEY_PROVIDER_AUX_MODELS_FALLBACK
 
 # Auxiliary tasks that may opt into the provider's fast/cheap model instead of
-# the user's main chat model. The opt-in lives in
+# the user's main chat model, mapped to whether they ride the fast lane by
+# default. The opt-in (or opt-out) lives in
 # ``auxiliary.<task>.prefer_fast_model`` so the default ``auto = main model``
-# contract remains true on every settings surface.
-_FAST_MODEL_TASKS: frozenset = frozenset({"next_moves", "title_generation", "turn_outcome"})
-
-# Tasks that ride the fast lane unless the user pins them to the main model. The
-# turn outcome is a three-line digest fired after every non-trivial turn; on the
+# contract remains true on every settings surface. The turn outcome defaults
+# on: it is a three-line digest fired after every non-trivial turn, and on the
 # main model its cost estimate would be wrong (docs/design/herwork-workspace.md).
-_FAST_MODEL_DEFAULT_ON: frozenset = frozenset({"turn_outcome"})
+_FAST_MODEL_TASKS: Dict[str, bool] = {"next_moves": False, "title_generation": False, "turn_outcome": True}
 
 
 def _task_prefers_fast_model(task: Optional[str]) -> bool:
-    """Return whether an eligible task opts into fast-model routing (explicitly, or by default
-    for ``_FAST_MODEL_DEFAULT_ON`` members)."""
+    """Return whether an eligible task opts into fast-model routing, explicitly or by its default."""
     return task in _FAST_MODEL_TASKS and is_truthy_value(
         _get_auxiliary_task_config(task).get("prefer_fast_model"),
-        default=task in _FAST_MODEL_DEFAULT_ON)
+        default=_FAST_MODEL_TASKS[task])
 
 
 # Dedicated vision models for direct providers whose main chat model differs.

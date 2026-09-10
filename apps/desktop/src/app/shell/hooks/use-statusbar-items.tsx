@@ -12,12 +12,12 @@ import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { useSystemResourcesStatusbarItem } from '@/app/shell/system-resources-statusbar'
 import { WorkspaceFolderMenu } from '@/app/shell/workspace-folder-menu'
 import { workspaceMoveTargetSessionId } from '@/app/shell/workspace-move-target'
-import { compactTokens } from '@/components/assistant-ui/tool/graft-model'
 import { $paneVisible, togglePaneVisible } from '@/components/pane-shell/tree/store'
 import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { useI18n } from '@/i18n'
 import { displayPath, pathLeaf } from '@/lib/display-path'
+import { compactNumber } from '@/lib/format'
 import {
   Activity,
   AlertCircle,
@@ -36,10 +36,8 @@ import { cacheHitLabel, contextBarLabel, LiveDuration, tokensPerSecondLabel, usa
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { resolveVersionStatus } from '@/lib/version-status'
-import { toggleEmbeddedBrowser } from '@/store/preview'
-import { copyFilePath, revealFile } from '@/store/file-actions'
 import { $graftSavingsBySession } from '@/store/graft-savings'
-import { revealFileInTree } from '@/store/layout'
+import { toggleEmbeddedBrowser } from '@/store/preview'
 import { $activeGatewayProfile } from '@/store/profile'
 import { $projectTree, projectNameForCwd } from '@/store/projects'
 import {
@@ -299,17 +297,15 @@ export function useStatusbarItems({
   const cacheHit = cacheHitLabel(currentUsage)
   const tokensPerSecond = tokensPerSecondLabel(currentUsage)
 
-  // Graft's running tally for the focused session. Two scalars are selected
-  // (not the record) so other sessions' graft calls don't rebuild the bar.
-  const graftTokensSaved = useStoreSelector(
-    $graftSavingsBySession,
-    bySession => (activeSessionId ? bySession[activeSessionId]?.tokensSaved : undefined) ?? 0
+  // Graft's running tally for the focused session. The store allocates a new
+  // record only for the session that changed, so selecting this session's
+  // record keeps other sessions' graft calls from rebuilding the bar.
+  const graftSavings = useStoreSelector($graftSavingsBySession, bySession =>
+    activeSessionId ? bySession[activeSessionId] : undefined
   )
 
-  const graftCalls = useStoreSelector(
-    $graftSavingsBySession,
-    bySession => (activeSessionId ? bySession[activeSessionId]?.calls : undefined) ?? 0
-  )
+  const graftTokensSaved = graftSavings?.tokensSaved ?? 0
+  const graftCalls = graftSavings?.calls ?? 0
 
   const approvalModeItem = useApprovalModeStatusbarItem(activeGatewayProfile, requestGateway)
   const systemResourcesItem = useSystemResourcesStatusbarItem()
@@ -638,7 +634,7 @@ export function useStatusbarItems({
         hidden: graftCalls === 0,
         icon: <Codicon name="type-hierarchy" size="0.75rem" />,
         id: 'graft-savings',
-        label: copy.graftSaved(compactTokens(graftTokensSaved)),
+        label: copy.graftSaved(compactNumber(graftTokensSaved)),
         title: copy.graftSavedTitle(graftTokensSaved.toLocaleString(), graftCalls),
         toggleLabel: copy.toggleGraftSavings,
         variant: 'text'

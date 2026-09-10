@@ -54,12 +54,20 @@ export function recordGraftToolResult(sessionId: string, toolId: string, toolNam
   })
 }
 
-export function graftSavingsFor(sessionId: null | string | undefined): GraftSessionSavings | null {
-  return sessionId ? ($graftSavingsBySession.get()[sessionId] ?? null) : null
+/** Forget one session's tally and its seen tool ids; called when its runtime state is dropped. */
+export function clearGraftSavings(sessionId: string): void {
+  seenToolIds.delete(sessionId)
+
+  const current = $graftSavingsBySession.get()
+
+  if (sessionId in current) {
+    const { [sessionId]: _dropped, ...rest } = current
+
+    $graftSavingsBySession.set(rest)
+  }
 }
 
-/** Test seam. */
-export function resetGraftSavings(): void {
+export function clearAllGraftSavings(): void {
   seenToolIds.clear()
   $graftSavingsBySession.set({})
 }

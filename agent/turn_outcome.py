@@ -32,9 +32,13 @@ from agent.next_moves import (
     MIN_RESPONSE_CHARS,
     NO_NEXT_MOVES_PLATFORMS,
     TurnEvidence,
+    _clip as _clip_to,
     _main_runtime,
+    auxiliary_block,
+    auxiliary_flag,
     extract_evidence,
 )
+from tools.todo_tool import _ACTIVE_STATUSES
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +53,6 @@ OUTCOME_KEYS = ("delivered", "failed", "open")
 # ``lib/chat-messages/hydration.ts`` when history is rehydrated.
 DISPLAY_METADATA_KEY = "turn_outcome"
 
-_TODO_OPEN_STATUSES = frozenset({"pending", "in_progress"})
 
 
 @dataclass
@@ -78,7 +81,6 @@ class OutcomeEvidence:
     turn: TurnEvidence
     todos: List[Mapping[str, Any]] = field(default_factory=list)
     errored: bool = False
-    turn_id: str = ""
 
     @property
     def open_todos(self) -> List[str]:
@@ -88,7 +90,7 @@ class OutcomeEvidence:
             status = str(todo.get("status") or "").strip().lower()
             content = str(todo.get("content") or "").strip()
 
-            if content and status in _TODO_OPEN_STATUSES:
+            if content and status in _ACTIVE_STATUSES:
                 items.append(content)
 
         return items
@@ -100,43 +102,18 @@ class OutcomeEvidence:
 
 
 def _outcome_config() -> Dict[str, Any]:
-    """The ``auxiliary.turn_outcome`` block, or an empty dict (read-only loader,
-    lazy import: same reasons as ``next_moves._next_moves_config``)."""
-    try:
-        from hermes_cli.config import load_config_readonly
-
-        config = load_config_readonly()
-        block = (config.get("auxiliary") or {}).get("turn_outcome")
-
-        return block if isinstance(block, dict) else {}
-    except Exception:
-        logger.debug("Failed to read auxiliary.turn_outcome", exc_info=True)
-
-        return {}
+    """The ``auxiliary.turn_outcome`` block, or an empty dict."""
+    return auxiliary_block("turn_outcome")
 
 
 def turn_outcome_enabled(config: Optional[Mapping[str, Any]] = None) -> bool:
-    try:
-        from utils import is_truthy_value
-
-        block = _outcome_config() if config is None else config
-
-        return is_truthy_value(block.get("enabled"), default=True)
-    except Exception:
-        return True
+    return auxiliary_flag(config, "enabled", default=True, name="turn_outcome")
 
 
 def turn_outcome_use_model(config: Optional[Mapping[str, Any]] = None) -> bool:
     """Default ON, unlike next moves: the rules can only count, and counting is
     what the fold header already does."""
-    try:
-        from utils import is_truthy_value
-
-        block = _outcome_config() if config is None else config
-
-        return is_truthy_value(block.get("use_model"), default=True)
-    except Exception:
-        return True
+    return auxiliary_flag(config, "use_model", default=True, name="turn_outcome")
 
 
 # ---------------------------------------------------------------------------
@@ -145,12 +122,7 @@ def turn_outcome_use_model(config: Optional[Mapping[str, Any]] = None) -> bool:
 
 
 def _clip(text: Any, limit: int = ITEM_LIMIT) -> str:
-    flat = " ".join(str(text or "").split())
-
-    if len(flat) <= limit:
-        return flat
-
-    return flat[: limit - 1].rstrip() + "…"
+    return _clip_to(text, limit)
 
 
 def validate_items(raw: Any) -> List[str]:
@@ -290,13 +262,19 @@ def _evidence_prompt(evidence: OutcomeEvidence) -> str:
     return "\n".join(lines)
 
 
-def model_outcome(evidence: OutcomeEvidence, main_runtime: Optional[Dict[str, Any]] = None) -> Optional[TurnOutcome]:
+def model_outcome(
+    evidence: OutcomeEvidence,
+    main_runtime: Optional[Dict[str, Any]] = None,
+    config: Optional[Mapping[str, Any]] = None,
+) -> Optional[TurnOutcome]:
     """One auxiliary call. Never raises: ``None`` means "use the rules"."""
     try:
         from agent.auxiliary_client import call_llm
         from utils import safe_json_loads
 
-        config = _outcome_config()
+        if config is None:
+            config = _outcome_config()
+
         language = str(config.get("language") or "").strip()
         system = _SYSTEM_PROMPT
 
@@ -323,10 +301,17 @@ def model_outcome(evidence: OutcomeEvidence, main_runtime: Optional[Dict[str, An
     return validate_outcome(parsed, source="model")
 
 
-def build_outcome(agent: Any, evidence: OutcomeEvidence) -> TurnOutcome:
-    """The model when it is on and answers in shape, the rules otherwise."""
-    if turn_outcome_use_model():
-        outcome = model_outcome(evidence, main_runtime=_main_runtime(agent))
+def build_outcome(
+    agent: Any, evidence: OutcomeEvidence, config: Optional[Mapping[str, Any]] = None
+) -> TurnOutcome:
+    """The model when it is on and answers in shape, the rules otherwise. The
+    config block is read once per turn and handed down: every read takes the
+    config lock and stats the file."""
+    if config is None:
+        config = _outcome_config()
+
+    if turn_outcome_use_model(config):
+        outcome = model_outcome(evidence, main_runtime=_main_runtime(agent), config=config)
 
         if outcome is not None and not outcome.is_empty():
             return outcome
@@ -346,9 +331,14 @@ def stage_turn_outcome(
     final_response: str,
     interrupted: bool,
     errored: bool = False,
-    turn_id: str = "",
+    turn_evidence: Optional[TurnEvidence] = None,
 ) -> None:
-    """Park this turn's evidence on the agent. Silent on every gate."""
+    """Park this turn's evidence on the agent. Silent on every gate.
+
+    ``turn_evidence`` is the ``TurnEvidence`` next moves already extracted from
+    this same snapshot, when it did; passing it saves a second walk over every
+    message and tool call of the turn.
+    """
     agent._turn_outcome_evidence = None
 
     # Only the surface that dispatches may stage (the desktop/TUI gateway sets
@@ -371,7 +361,7 @@ def stage_turn_outcome(
         return
 
     try:
-        turn = extract_evidence(agent, messages_snapshot, final_response)
+        turn = turn_evidence if turn_evidence is not None else extract_evidence(agent, messages_snapshot, final_response)
     except Exception:
         logger.debug("Turn-outcome evidence extraction failed", exc_info=True)
 
@@ -391,8 +381,7 @@ def stage_turn_outcome(
     except Exception:
         logger.debug("Todo store unreadable for turn outcome", exc_info=True)
 
-    agent._turn_outcome_evidence = OutcomeEvidence(
-        turn=turn, todos=todos, errored=bool(errored), turn_id=str(turn_id or ""))
+    agent._turn_outcome_evidence = OutcomeEvidence(turn=turn, todos=todos, errored=bool(errored))
 
 
 def cancel_turn_outcome(agent: Any) -> None:
@@ -452,12 +441,13 @@ def dispatch_turn_outcome(
         evidence.errored = True
 
     client_turn_id = str(turn_id or "")
+    config = _outcome_config()
 
     def run() -> None:
         generation = int(getattr(agent, "_turn_outcome_generation", 0))
 
         try:
-            outcome = build_outcome(agent, evidence)
+            outcome = build_outcome(agent, evidence, config=config)
         except Exception:
             logger.debug("Turn-outcome generation failed", exc_info=True)
 
@@ -475,7 +465,7 @@ def dispatch_turn_outcome(
 
     # The rules are string work and run inline; the model is a network round
     # trip and must never sit on the turn thread ahead of the /goal judge.
-    if turn_outcome_use_model():
+    if turn_outcome_use_model(config):
         threading.Thread(target=run, daemon=True, name="turn-outcome").start()
     else:
         run()

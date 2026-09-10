@@ -14,7 +14,7 @@ import base64
 import binascii
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 _LOOK_QUESTION = "This is the page open in the in-app browser. Read it and answer what the task needs."
 
@@ -41,28 +41,40 @@ def screenshots_dir() -> Path:
     return directory
 
 
-def decode_data_url(data_url: str) -> Optional[bytes]:
-    """The bytes of a base64 ``data:image/...`` URL, or None if it is not one."""
+# What the renderer may send, and the suffix each one has to be written under.
+# The media type is not decoration: the model provider validates the bytes
+# against the type declared for them, and a JPEG announced as a PNG is refused
+# with an HTTP 400 that names neither the file nor the tool that made it.
+_IMAGE_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+
+
+def decode_data_url(data_url: str) -> Optional[Tuple[str, bytes]]:
+    """The media type and bytes of a base64 ``data:image/...`` URL, or None."""
     if not isinstance(data_url, str) or not data_url.startswith("data:image/"):
         return None
     head, _, payload = data_url.partition(",")
     if not payload or "base64" not in head:
         return None
+    media_type = head[len("data:"):].split(";", 1)[0].strip().lower()
+    if media_type not in _IMAGE_SUFFIXES:
+        return None
     try:
-        return base64.b64decode(payload, validate=True)
+        return media_type, base64.b64decode(payload, validate=True)
     except (binascii.Error, ValueError):
         return None
 
 
-def save_look(data_url: str) -> Optional[Path]:
-    """Write the photograph to the screenshot cache; None when it is unreadable."""
-    raw = decode_data_url(data_url)
-    if not raw:
+def save_look(data_url: str) -> Optional[Tuple[str, Path]]:
+    """Write the photograph to the screenshot cache under a suffix matching its
+    media type. Returns ``(media_type, path)``; None when it is unreadable."""
+    decoded = decode_data_url(data_url)
+    if not decoded:
         return None
-    path = screenshots_dir() / f"preview_look_{uuid.uuid4().hex}.png"
+    media_type, raw = decoded
+    path = screenshots_dir() / f"preview_look_{uuid.uuid4().hex}{_IMAGE_SUFFIXES[media_type]}"
     path.write_bytes(raw)
 
-    return path
+    return media_type, path
 
 
 def look_result(payload: Dict[str, Any], question: str = "") -> Any:
@@ -71,14 +83,15 @@ def look_result(payload: Dict[str, Any], question: str = "") -> Any:
     ``payload`` is the renderer's answer. Anything without a usable image comes
     straight back, so an error from the renderer still reads as an error.
     """
-    path = save_look(payload.get("image", ""))
-    if path is None:
+    saved = save_look(payload.get("image", ""))
+    if saved is None:
         stripped = {key: value for key, value in payload.items() if key != "image"}
         stripped.setdefault("error", "The in-app browser returned no readable image.")
         stripped["success"] = False
 
         return stripped
 
+    media_type, path = saved
     asked = question.strip() or _LOOK_QUESTION
     rest = {key: value for key, value in payload.items() if key != "image"}
 
@@ -93,7 +106,7 @@ def look_result(payload: Dict[str, Any], question: str = "") -> Any:
 
         if _should_use_native_vision_fast_path():
             data_url = _resize_image_for_vision(
-                path, mime_type="image/png", max_base64_bytes=_EMBED_TARGET_BYTES,
+                path, mime_type=media_type, max_base64_bytes=_EMBED_TARGET_BYTES,
                 max_dimension=_EMBED_MAX_DIMENSION, force_jpeg=True)
             native = _build_native_vision_tool_result(
                 image_url=str(path), question=asked, image_data_url=data_url,

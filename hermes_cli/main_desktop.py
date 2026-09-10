@@ -29,6 +29,68 @@ logger = logging.getLogger("hermes_cli.main")
 
 _PREVIOUS_APP_KEPT = "  ↩ The previous desktop app was left untouched and still works."
 
+# Linux only: the .desktop entry runs with Terminal=false, so everything this
+# module prints during a rebuild goes nowhere and the user sees minutes with no
+# window and no explanation. Windows and macOS launch the exe directly and
+# never reach the rebuild path from a launcher click.
+_BUILD_NOTIFY_ID_FILE = "desktop-build-notify-id"
+
+
+def _desktop_build_notification_argv(
+    phase: str, *, platform: str = sys.platform, replaces_id: Optional[str] = None
+) -> Optional[list[str]]:
+    """The notify-send argv announcing a rebuild phase, or None when nothing should be shown.
+
+    ``phase`` is ``start``, ``done`` or ``failed``. Pure so it is testable: the caller decides whether
+    a notification daemon and ``notify-send`` exist. ``replaces_id`` folds the later phases into the
+    ``start`` toast instead of stacking three.
+    """
+    if platform != "linux":
+        return None
+    messages = {
+        "start": ("Hermes is rebuilding the desktop app",
+                  "The window opens when the build finishes. This can take a few minutes."),
+        "done": ("Hermes desktop app rebuilt", "Starting the app now."),
+        "failed": ("Hermes desktop rebuild failed",
+                   "Run `hermes desktop --force-build` in a terminal to see the error."),
+    }
+    if phase not in messages:
+        return None
+    summary, body = messages[phase]
+    urgency = "critical" if phase == "failed" else "normal"
+    argv = ["notify-send", "--app-name=Hermes", f"--urgency={urgency}", "--print-id"]
+    if phase == "start":
+        # Stays until replaced: a toast that expires would leave the same silence it exists to break.
+        argv.append("--expire-time=0")
+    if replaces_id and replaces_id.isdigit():
+        argv.append(f"--replace-id={replaces_id}")
+    return argv + [summary, body]
+
+
+def _notify_desktop_build(phase: str) -> None:
+    """Best-effort desktop toast for a rebuild phase. Never raises, never blocks the build."""
+    if not shutil.which("notify-send") or not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return
+    from hermes_constants import get_hermes_home
+    id_path = get_hermes_home() / _BUILD_NOTIFY_ID_FILE
+    previous = None
+    if phase != "start":
+        with contextlib.suppress(OSError):
+            previous = id_path.read_text(encoding="utf-8").strip()
+    argv = _desktop_build_notification_argv(phase, replaces_id=previous)
+    if argv is None:
+        return
+    try:
+        result = subprocess.run(argv, capture_output=True, text=True, timeout=5, check=False)
+    except Exception:
+        return
+    if phase == "start" and result.returncode == 0 and result.stdout.strip().isdigit():
+        with contextlib.suppress(OSError):
+            id_path.write_text(result.stdout.strip(), encoding="utf-8")
+    elif phase != "start":
+        with contextlib.suppress(OSError):
+            id_path.unlink()
+
 
 def _desktop_dist_exists(desktop_dir: Path) -> bool:
     """Return True when a local desktop renderer build is present."""
@@ -1421,6 +1483,7 @@ def _build_desktop_app(desktop_dir: Path, *, source_mode: bool, npm: str, env: d
 
     build_label = "source build" if source_mode else "packaged app"
     print(f"→ Building desktop {build_label}...")
+    _notify_desktop_build("start")
     build_script = "build" if source_mode else "pack"
     if _force_adhoc_macos_signing(env, source_mode=source_mode):
         print("  → No Developer ID configured; ad-hoc signing this local rebuild "
@@ -1445,6 +1508,7 @@ def _build_desktop_app(desktop_dir: Path, *, source_mode: bool, npm: str, env: d
     build_result = _run_desktop_pack_with_recovery(desktop_dir, build_cmd, npm_build_env, env, staging_dir)
     if build_result.returncode != 0:
         print("✗ Desktop GUI build failed")
+        _notify_desktop_build("failed")
         if staging_dir is not None:
             _discard_desktop_staging(staging_dir)
             if _desktop_packaged_executable(desktop_dir) is not None:
@@ -1463,6 +1527,7 @@ def _build_desktop_app(desktop_dir: Path, *, source_mode: bool, npm: str, env: d
 
     # Build succeeded — write the stamp so next run can skip
     _write_desktop_build_stamp(PROJECT_ROOT, source_mode=source_mode)
+    _notify_desktop_build("done")
     return packaged_executable
 
 

@@ -81,3 +81,43 @@ in `src/plugins/hermes-bots/`: `canonical-chat-registry.test.ts` (tripwire: the 
 reads/writes a stored pointer), `canonical-chat-creation.test.ts`, `canonical-chat-adopt-on-conflict.test.ts`,
 `bot-row-opens-canonical-chat.test.ts`, `hide-bot-chats.test.ts`; plus repo-root
 `tests/tui_gateway/test_profiles_list_canonical_session.py`.
+
+## HerWork (`src/plugins/hermes-herwork/`): a third workspace beside Sessions and Bots
+
+Design: `docs/design/herwork-workspace.md`. HerWork is a **workspace**, not a bot: its sessions
+are ordinary visible sessions that happen to live under one owner key (`herwork:desk`) on the
+`herwork` profile, with the desk (`~/herwork`) as cwd and the `herwork` skill bundle prefixed onto
+the first prompt. There is no roster, no canonical hidden chat, no per-desk session pointer.
+
+The plugin owns almost nothing. The mode, owner key and `+` route live on the core workspace-scope
+primitive (`components/pane-shell/workspace-scope.ts`), and every routing site that used to test
+`=== 'bots'` now asks `isOwnedWorkspace(mode)` (`contrib/types.ts`); `WORKSPACE_MODES` is the
+list to extend for a fourth workspace. Two things stay bots-only on purpose: the hidden canonical
+chat (`hidden: true` on create) and `rememberBotChatScope`. The plugin publishes the scope while its
+tab is on screen (`host.paneVisibility`), hands it back to Sessions when the tab hides, and tints the
+app through `host.setWorkspaceAccent` (`themes/workspace-accent.ts`: one seed, `retintTheme`, cleared
+on hide and on dispose). Backend half: `session.create {bundle}` stores a one-shot `pending_bundle`
+that `_prepare_turn_input` consumes on the FIRST prompt only, resolved under the profile's own home
+(`~/.hermes/profiles/herwork/skill-bundles/`), never the default home.
+
+**Turn Outcome** is the second half of the same design and is not HerWork-specific: after every
+non-trivial turn the backend stages evidence in `finalize_turn` (`agent/turn_outcome.py`, gated by
+`agent._turn_outcome_dispatch`, which only the desktop gateway sets), builds delivered / failed /
+open on the fast lane (`auxiliary.turn_outcome`, task `turn_outcome`), persists it as
+`display_metadata.turn_outcome` on the turn's final assistant row, and emits `session.outcome`
+AFTER `message.complete`. The event carries the desktop's own turn id (`client_turn_id` on
+`prompt.submit`, the optimistic user-message id), so the row binds to the turn it describes even
+when two turns finish together; with no echoed id the handler binds to the session's latest user
+message. Renderer: `store/turn-outcome.ts` (per-key `$turnOutcome(sessionId, turnId)`, idempotent
+under replay, evicted with the session), `gateway-event/outcome.ts`, and `TurnOutcomeRow` in
+`thread/turn-digest.tsx`, which reads the live store first and the rehydrated
+`metadata.custom.turnOutcome` second. `session.outcome` is in `SESSION_SCOPED_EVENT_TYPES`: an
+unscoped frame is dropped, never landed on the focused chat.
+
+Reviewer corollaries: do not add a renderer-side outcome tally (two fallbacks drift); do not fold
+the outcome row; do not bind outcomes to turn counters when the echoed id is present. Contract
+tests: `tests/agent/test_turn_outcome.py`, `tests/tui_gateway/test_session_outcome_event.py`,
+`tests/tui_gateway/test_prompt_turn_pending_bundle.py`, `store/turn-outcome.test.ts`,
+`gateway-event/outcome.test.ts`, the outcome block of `thread/turn-digest.test.tsx`, and
+`plugins/hermes-herwork/plugin.test.tsx`.
+

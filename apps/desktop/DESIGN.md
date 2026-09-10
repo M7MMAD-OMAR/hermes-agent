@@ -239,6 +239,14 @@ Sizes: `default`, `xs`, `overlay` (titlebar glyph counts).
 - Conversation and tool summaries remain expandable while work is running.
   Preserve the user's open state as new activity arrives and the turn finishes.
   Task updates keep a readable receipt in history after the progress panel clears.
+- **The turn outcome never folds.** A settled turn's working folds under a
+  tally that answers "how many tools ran"; the outcome row under it
+  (`TurnOutcomeRow` in `thread/turn-digest.tsx`) answers "what did I get, what
+  broke, what is left" in three short lines, and it sits outside the fold for
+  the life of the thread. One producer: the backend (`agent/turn_outcome.py`),
+  with `source: rules` when the model is off. Never compute a second outcome
+  tally in the renderer, and never render its text as markdown: it is
+  model-authored in the conversation's language, so each item is `<bdi>`.
 - **A worker roster answers two different questions, and must not confuse them.**
   An instruction sent *into* a subagent is recorded on its stream as a `steer`
   entry and drawn distinctly (steering-wheel glyph, `--ui-purple`, full text

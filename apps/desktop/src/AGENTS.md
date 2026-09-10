@@ -105,19 +105,19 @@ non-trivial turn the backend stages evidence in `finalize_turn` (`agent/turn_out
 `agent._turn_outcome_dispatch`, which only the desktop gateway sets), builds delivered / failed /
 open on the fast lane (`auxiliary.turn_outcome`, task `turn_outcome`), persists it as
 `display_metadata.turn_outcome` on the turn's final assistant row, and emits `session.outcome`
-AFTER `message.complete`. The event carries the desktop's own turn id (`client_turn_id` on
-`prompt.submit`, the optimistic user-message id), so the row binds to the turn it describes even
-when two turns finish together; with no echoed id the handler binds to the session's latest user
-message. Renderer: `store/turn-outcome.ts` (per-key `$turnOutcome(sessionId, turnId)`, idempotent
-under replay, evicted with the session), `gateway-event/outcome.ts`, and `TurnOutcomeRow` in
-`thread/turn-digest.tsx`, which reads the live store first and the rehydrated
-`metadata.custom.turnOutcome` second. `session.outcome` is in `SESSION_SCOPED_EVENT_TYPES`: an
+AFTER `message.complete`. Renderer: `gateway-event/outcome.ts` stamps the outcome onto the live
+final assistant message (the same field the DB row rehydrates into, so id churn from the
+end-of-turn resume cannot lose it, and one read serves live and rehydrated), and `TurnOutcomeRow`
+in `thread/turn-digest.tsx` reads it off `metadata.custom.turnOutcome`. The resume reconciler in
+`use-session-actions/utils.ts` carries a live outcome over an authoritative row that predates the
+persist, the same guard reactions have. `session.outcome` is in `SESSION_SCOPED_EVENT_TYPES`: an
 unscoped frame is dropped, never landed on the focused chat.
 
-Reviewer corollaries: do not add a renderer-side outcome tally (two fallbacks drift); do not fold
-the outcome row; do not bind outcomes to turn counters when the echoed id is present. Contract
-tests: `tests/agent/test_turn_outcome.py`, `tests/tui_gateway/test_session_outcome_event.py`,
-`tests/tui_gateway/test_prompt_turn_pending_bundle.py`, `store/turn-outcome.test.ts`,
-`gateway-event/outcome.test.ts`, the outcome block of `thread/turn-digest.test.tsx`, and
-`plugins/hermes-herwork/plugin.test.tsx`.
+Reviewer corollaries: the outcome is a `display_metadata` fact on the final assistant row, carried
+like a reaction, NOT a side store keyed by a client turn id (that key drifts when the end-of-turn
+resume regenerates message ids); do not fold the outcome row; do not add a second renderer-side
+copy. Contract tests: `tests/agent/test_turn_outcome.py`,
+`tests/tui_gateway/test_session_outcome_event.py`,
+`tests/tui_gateway/test_prompt_turn_pending_bundle.py`, `gateway-event/outcome.test.ts`, the
+outcome block of `thread/turn-digest.test.tsx`, and `plugins/hermes-herwork/plugin.test.tsx`.
 

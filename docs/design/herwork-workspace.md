@@ -302,12 +302,16 @@ alone, which is today's behaviour; there is no renderer-side stand-in (see
 
 Four renderer constraints, each with its anchor:
 
-- **Keep the outcome out of `useTurnDigest`.** Its signature cache
-  (`turn-digest.tsx:160`) exists so text deltas do not re-render the turn.
-  The outcome lives in its own per-key store, `$turnOutcome(sessionId, turnId)`,
-  read with `useStore` the way `$toolDisclosureOpen(disclosureId)` is at `:198`,
-  so it re-renders only when an outcome changes.
-- **One fallback, not two.** The backend emits `source: "rules"` when the model
+- **Carry the outcome ON the assistant row, not in a side store.** It is a
+  `display_metadata.turn_outcome` fact on the turn's final assistant reply, the
+  same shape as a reaction. `handleOutcomeEvent` stamps it onto the live
+  message; a resume rehydrates it from the DB; `TurnOutcomeRow` reads it off
+  `metadata.custom.turnOutcome`. A per-turn store keyed by the client turn id
+  was tried first and fails: the end-of-turn resume regenerates message ids, so
+  the render key drifts off its turn. The field travelling on the row is
+  immune to that. Keep it out of `useTurnDigest`'s signature cache
+  (`turn-digest.tsx`), which exists so text deltas do not re-render the turn.
+- **One producer, not two.** The backend emits `source: "rules"` when the model
   call is off or fails; the renderer does not compute its own tally for the
   outcome row. Until an event lands, the row is absent and the digest header's
   tally stands alone, which is today's behaviour.
@@ -432,14 +436,13 @@ Every story has at least one test that fails before the change.
   in-flight outcome for the previous one.
 - `turn-digest.test.tsx`: with an outcome present the three lines render
   outside `[data-turn-digest-body]`, remain rendered when the fold is
-  collapsed, and swap from `source: rules` text to `source: model` text
-  in place without remount. Model text is inside a bidi-isolated element.
-  A text delta on the tail message does NOT re-render the outcome row (the
-  per-key store, not the digest signature cache).
+  collapsed. Model text is inside a bidi-isolated element. A text delta on the
+  tail message does NOT re-render the outcome row (the outcome object identity
+  on the message is stable across the delta).
 - `gateway-event/outcome.test.ts`: an unscoped `session.outcome` frame is
-  dropped; one for a session not on screen is stored, not painted; delete,
-  runtime-gone and profile switch evict it; an outcome rehydrated with history
-  renders without any live event.
+  dropped; a valid one is stamped onto the turn's final assistant message; a
+  replayed `rules` frame never overwrites a `model` outcome already on the row;
+  an outcome rehydrated with history renders without any live event.
 - `turn-digest.test.tsx` (existing): the digest header still says the tally,
   so the two are not confused.
 

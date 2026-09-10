@@ -24,17 +24,20 @@ const HEADER_HEIGHT = 24
 
 // Built once. The grid re-renders on every scroll frame and every selection,
 // and a class-merge call per cell is the largest thing in that path.
+// Fixed neutrals, not theme tokens: the grid is the workbook's own light
+// surface in both themes (see the note above the scroller), so a header
+// painted in the dark theme's colours would sit on white.
 const HEADER_CLASS =
-  'sticky top-0 z-20 h-6 border-b border-e border-border bg-muted/70 px-1 text-center text-[0.625rem] font-medium text-muted-foreground backdrop-blur-sm'
+  'sticky top-0 z-20 h-6 border-b border-e border-neutral-300 bg-neutral-100 px-1 text-center text-[0.625rem] font-medium text-neutral-600'
 
-const HEADER_CLASS_SELECTED = `${HEADER_CLASS} bg-primary/15 text-foreground`
+const HEADER_CLASS_SELECTED = `${HEADER_CLASS} bg-neutral-300 text-neutral-900`
 const CORNER_CLASS = `${HEADER_CLASS} z-30 start-0`
 
 const ROW_HEADER_CLASS =
-  'sticky start-0 z-10 border-b border-e border-border bg-muted/70 px-1 text-center text-[0.625rem] font-medium tabular-nums text-muted-foreground'
+  'sticky start-0 z-10 border-b border-e border-neutral-300 bg-neutral-100 px-1 text-center text-[0.625rem] font-medium tabular-nums text-neutral-600'
 
-const ROW_HEADER_CLASS_SELECTED = `${ROW_HEADER_CLASS} bg-primary/15 text-foreground`
-const CELL_CLASS = 'overflow-hidden whitespace-pre border-b border-e border-border/50 px-1 align-middle'
+const ROW_HEADER_CLASS_SELECTED = `${ROW_HEADER_CLASS} bg-neutral-300 text-neutral-900`
+const CELL_CLASS = 'overflow-hidden whitespace-pre border-b border-e border-neutral-200 px-1 align-middle'
 const CELL_CLASS_SELECTED = `${CELL_CLASS} outline outline-2 -outline-offset-1 outline-primary`
 const ROW_HEADER_WIDTH = 52
 /** Below this a sheet renders whole, which keeps merges spanning rows exact. */
@@ -154,13 +157,18 @@ function Grid({ onSelect, selection, sheet, zoom }: GridProps) {
     return { covered: hidden, mergeAt: anchors }
   }, [firstRow, lastRow, sheet.merges])
 
+  // The sheet is white with black text in both themes, like the pages the Word
+  // viewer draws and the slides the deck viewer draws. It is not chrome: a
+  // workbook's own fills are light, and painting the theme's light text over a
+  // light fill made every header and total row in the file invisible.
+  //
   // The direction belongs to the SCROLLER, not only to the table. The table is
   // `width: max-content`, so it is the scroll container that decides which end
   // the grid opens at: with the direction on the table alone, an Arabic sheet
   // in an English interface opened scrolled past its own first column.
   return (
     <div
-      className="min-h-0 flex-1 overflow-auto bg-white text-black dark:bg-neutral-950 dark:text-neutral-100"
+      className="min-h-0 flex-1 overflow-auto bg-white text-black"
       dir={sheet.rightToLeft ? 'rtl' : 'ltr'}
       onScroll={windowed ? remeasure : undefined}
       ref={scrollerRef}

@@ -11,6 +11,8 @@
 import { strToU8, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
+import { replaceMissingBullets } from './word-view'
+
 const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -97,5 +99,49 @@ describe('the Word viewer', () => {
     expect(section).toBeTruthy()
     // 12240 twips is 8.5in, which docx-preview writes as 612pt.
     expect(section!.style.width).toBe('612pt')
+  })
+})
+
+describe('the bullets Word writes as private-use codepoints', () => {
+  /** A stylesheet shaped like the one docx-preview generates for a bulleted
+   *  list: the marker is a `content:` rule, not a character in the document. */
+  function styleHost(css: string): HTMLElement {
+    const host = window.document.createElement('div')
+    const sheet = window.document.createElement('style')
+
+    sheet.textContent = css
+    host.append(sheet)
+
+    return host
+  }
+
+  it('replaces the Symbol bullet with one every machine can draw', () => {
+    const host = styleHost('.docx li::before { content: "\uf0b7"; font-family: Symbol; }')
+
+    replaceMissingBullets(host)
+
+    expect(host.querySelector('style')?.textContent).toContain('"\u2022"')
+    expect(host.querySelector('style')?.textContent).not.toContain('\uf0b7')
+  })
+
+  it('replaces the Wingdings markers too, and leaves everything else alone', () => {
+    const host = styleHost('a::before{content:"\uf0a7"}b::before{content:"\uf0d8"}c::before{content:"x"}')
+
+    replaceMissingBullets(host)
+
+    const css = host.querySelector('style')?.textContent ?? ''
+
+    expect(css).toContain('"\u25aa"')
+    expect(css).toContain('"\u27a2"')
+    expect(css).toContain('"x"')
+  })
+
+  it('leaves a stylesheet with no private-use characters untouched', () => {
+    const css = '.docx li::before { content: "\u2022"; }'
+    const host = styleHost(css)
+
+    replaceMissingBullets(host)
+
+    expect(host.querySelector('style')?.textContent).toBe(css)
   })
 })

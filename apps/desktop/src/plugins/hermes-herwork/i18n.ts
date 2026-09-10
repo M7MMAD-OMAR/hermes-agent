@@ -10,7 +10,7 @@ import { useMemo } from 'react'
 
 export const HERWORK_PLUGIN_ID = 'hermes-herwork'
 
-type HerworkMessages = {
+export type HerworkMessages = {
   /** The sidebar tab beside Sessions and Bots. */
   pane: { title: string }
   /** What an empty HerWork chat shows before the first message. */
@@ -18,6 +18,19 @@ type HerworkMessages = {
     title: string
     desk: string
     rule: string
+  }
+  /** The desk panel's own sections. */
+  desk: {
+    newChat: string
+    chats: string
+    noChats: string
+    files: string
+    noFiles: string
+    filesUnavailable: string
+    openFolder: string
+    tasks: string
+    noTasks: string
+    retry: string
   }
 }
 
@@ -27,6 +40,18 @@ const en: HerworkMessages = {
     title: 'HerWork',
     desk: 'A shared desk. Hand over a job and get finished files back.',
     rule: 'Research first, draw the structure, verify by re-opening, deliver with a PDF sibling.'
+  },
+  desk: {
+    newChat: 'New job',
+    chats: 'Jobs',
+    noChats: 'No jobs yet. Start one above.',
+    files: 'Desk',
+    noFiles: 'The desk is empty.',
+    filesUnavailable: 'The desk folder is not readable yet.',
+    openFolder: 'Show in file manager',
+    tasks: 'Steps',
+    noTasks: 'No steps on the open job.',
+    retry: 'Try again'
   }
 }
 
@@ -36,6 +61,18 @@ const ar: HerworkMessages = {
     title: 'هيرورك',
     desk: 'مكتب مشترك. سلّم المهمة واستلم ملفات منجزة.',
     rule: 'ابحث أولًا، ارسم البنية، تحقق بإعادة الفتح، وسلّم مع نسخة PDF مرافقة.'
+  },
+  desk: {
+    newChat: 'مهمة جديدة',
+    chats: 'المهمات',
+    noChats: 'ما في مهمات بعد. ابدأ وحدة من فوق.',
+    files: 'المكتب',
+    noFiles: 'المكتب فاضي.',
+    filesUnavailable: 'مجلد المكتب غير متاح للقراءة.',
+    openFolder: 'افتح في مدير الملفات',
+    tasks: 'الخطوات',
+    noTasks: 'ما في خطوات على المهمة المفتوحة.',
+    retry: 'أعد المحاولة'
   }
 }
 
@@ -48,7 +85,19 @@ export function useHerwork(): HerworkMessages {
   return useMemo<HerworkMessages>(
     () => ({
       pane: { title: t('pane.title') },
-      empty: { title: t('empty.title'), desk: t('empty.desk'), rule: t('empty.rule') }
+      empty: { title: t('empty.title'), desk: t('empty.desk'), rule: t('empty.rule') },
+      desk: {
+        newChat: t('desk.newChat'),
+        chats: t('desk.chats'),
+        noChats: t('desk.noChats'),
+        files: t('desk.files'),
+        noFiles: t('desk.noFiles'),
+        filesUnavailable: t('desk.filesUnavailable'),
+        openFolder: t('desk.openFolder'),
+        tasks: t('desk.tasks'),
+        noTasks: t('desk.noTasks'),
+        retry: t('desk.retry')
+      }
     }),
     [t]
   )

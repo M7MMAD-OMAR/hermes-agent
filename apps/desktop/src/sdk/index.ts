@@ -44,8 +44,11 @@ import {
 import { onGatewayEvent } from '@/contrib/events'
 import { registry } from '@/contrib/registry'
 import type { WorkspaceMode } from '@/contrib/types'
+import type { HermesReadDirResult } from '@/global'
 import { deleteProfile, getLogs, getStatus, hermesApi, type HermesGateway } from '@/hermes'
+import { readDesktopDir, revealDesktopPath } from '@/lib/desktop-fs'
 import { completeMcpDesktopOAuth } from '@/lib/mcp-dashboard-oauth'
+import type { TodoItem } from '@/lib/todos'
 import {
   $gateway,
   activeGatewayConnectionId,
@@ -100,6 +103,7 @@ import {
   sessionTileDelegate
 } from '@/store/session-states'
 import { runGatewayRestart } from '@/store/system-actions'
+import { $todosBySession } from '@/store/todos'
 import { setWorkspaceAccent } from '@/themes/workspace-accent'
 import type { PaginatedSessions, UsageStats } from '@/types/hermes'
 
@@ -131,6 +135,16 @@ const $focusedBusy = focusedTurnFlag(state => state.busy, PRIMARY_SESSION_VIEW.$
 const $focusedAwaitingResponse = focusedTurnFlag(
   state => state.awaitingResponse,
   PRIMARY_SESSION_VIEW.$awaitingResponse
+)
+
+const EMPTY_TODOS: readonly TodoItem[] = []
+
+/** The focused chat's live todo list. Keyed by RUNTIME id upstream, which is
+ *  why this projects off `$focusedRuntimeId` rather than the stored id. Empty
+ *  array (not null) when the turn wrote no plan, so a consumer can render the
+ *  section unconditionally and let the length decide. */
+const $focusedTodos = computed([$focusedRuntimeId, $todosBySession], (focused, todos) =>
+  focused ? (todos[focused] ?? EMPTY_TODOS) : EMPTY_TODOS
 )
 
 export interface PluginFocusedSessionOwner {
@@ -619,6 +633,10 @@ export const host = {
      *  streamed by the backend, no RPC needed. Null while unresolved.
      *  The UsageStats-optional fields (context_*, cost_usd) arrive as the
      *  backend reports them, so read them with a fallback. */
+    /** The focused chat's live plan, as the composer status stack shows it:
+     *  the steps the turn wrote for itself, each with its status. Empty when
+     *  the turn wrote none. */
+    focusedTodos: readonlyAtom<readonly TodoItem[]>($focusedTodos),
     focusedUsage: readonlyAtom<null | UsageStats>($focusedUsage),
     /** Gateway socket state: 'idle' | 'connecting' | 'open' | …. Not turn-busy. */
     gateway: readonlyAtom<string>($gatewayState),
@@ -683,6 +701,31 @@ export const host = {
 
     return completeMcpDesktopOAuth({ ...options, profile })
   },
+
+  /** List a directory: `{ entries: [{ name, path, isDirectory }], error? }`,
+   *  directories first then files, each group by name. Never throws for an
+   *  unreadable path — it answers with an `error` code (ENOENT, EACCES) and no
+   *  entries, so a folder that does not exist yet renders as empty rather than
+   *  as a crash. Routes through the same door the project tree uses, so a
+   *  remote profile reads the REMOTE filesystem, not the user's laptop. */
+  readDir: async (path: string): Promise<HermesReadDirResult> => {
+    const target = (path ?? '').trim()
+
+    if (!target) {
+      return { entries: [], error: 'ENOENT' }
+    }
+
+    try {
+      return await readDesktopDir(target)
+    } catch {
+      // No desktop bridge (plain browser) is an absent capability, not a fault.
+      return { entries: [], error: 'unavailable' }
+    }
+  },
+
+  /** Show a file or folder in the OS file manager (Finder / Explorer). Local
+   *  connections only; a no-op wherever the bridge has no such door. */
+  revealPath: async (path: string): Promise<void> => revealDesktopPath(path),
 
   /** Navigate the app router (hash routes, e.g. '/command-center?section=system'). */
   navigate: (path: string) => {
@@ -1653,6 +1696,7 @@ export { Contribute, type ContributeProps } from '@/contrib/react/contribute'
 // -- contracts ----------------------------------------------------------------
 
 export type { Contribution } from '@/contrib/types'
+export type { HermesReadDirEntry, HermesReadDirResult } from '@/global'
 /** The live gateway instance type — for typing the `gateway` prop `McpTab`
  *  takes; obtain the instance from `host.getGateway()`. */
 export type { HermesGateway } from '@/hermes'
@@ -1715,12 +1759,15 @@ export { LruCache } from '@/lib/lru-cache'
  *  hand-picked color still sits with the generated ones; reach for them
  *  instead of literal hex, which can't follow the theme. */
 export { PROFILE_SWATCHES, profileColor, profileColorSoft } from '@/lib/profile-color'
+
+export const PANES_AREA = 'panes'
 /** The shared client itself, for invalidation OUTSIDE React (e.g. a
  *  `ctx.socket` frame invalidating a query). Inside components keep using
  *  `useQueryClient`. */
 export { queryClient } from '@/lib/query-client'
+export const STATUSBAR_AREAS = { left: 'statusBar.left', right: 'statusBar.right' } as const
+export const TITLEBAR_AREAS = { center: 'titleBar.center', left: 'titleBar.left', right: 'titleBar.right' } as const
 
-export const PANES_AREA = 'panes'
 /** Hermes' reasoning levels + their compact labels, so a plugin surfacing a
  *  thinking depth uses the same scale and spelling as the rest of the app. */
 export {
@@ -1730,9 +1777,6 @@ export {
   type ReasoningEffort,
   reasoningEffortLabel
 } from '@/lib/reasoning-effort'
-export const STATUSBAR_AREAS = { left: 'statusBar.left', right: 'statusBar.right' } as const
-export const TITLEBAR_AREAS = { center: 'titleBar.center', left: 'titleBar.left', right: 'titleBar.right' } as const
-
 /** The app's own gateway-readiness evaluation (setup.status +
  *  setup.runtime_check, reconciled) — pass `host.request`. Don't hand-roll
  *  readiness from raw RPC shapes. */
@@ -1744,6 +1788,7 @@ export { evaluateRuntimeReadiness, type RuntimeReadinessResult } from '@/lib/run
  *  suffix. `relativeTime` is the bidirectional Intl form ("in 14 hr") — use it
  *  for a scheduled next-run, not for an age. */
 export { type AgoLabels, coarseElapsed, fmtDateTime, fmtDayTime, formatAgo, relativeTime } from '@/lib/time'
+export type { TodoItem, TodoStatus } from '@/lib/todos'
 /** The transcript as a contribution area: register a named `::directive{...}`
  *  and the model can render your component inline in assistant messages. */
 export {
@@ -1796,7 +1841,7 @@ export { requestTheme } from '@/themes/request'
 export { retintTheme, themeHue } from '@/themes/retint'
 export type { DesktopTheme, DesktopThemeColors } from '@/themes/types'
 export { THEMES_AREA } from '@/themes/user-themes'
-export type { RpcEvent, StatusResponse } from '@/types/hermes'
+export type { PaginatedSessions, RpcEvent, SessionInfo, StatusResponse } from '@/types/hermes'
 /** Subscribe a component to a `host.state` atom. */
 export { useStore as useValue } from '@nanostores/react'
 /** The app's data-fetching layer. Plugins share the ONE QueryClient mounted at

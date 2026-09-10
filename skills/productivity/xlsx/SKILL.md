@@ -152,6 +152,19 @@ Only the first sheet lands in a CSV; for other sheets use
 `xlsx_to_csv.py --sheet NAME`. If `soffice` is missing, install
 LibreOffice or hand the file to the user unconverted.
 
+## Arabic, Persian, Urdu, Hebrew (right-to-left)
+`xlsx_create.py` sets sheet direction automatically (`"rtl": "auto"`, the
+default): a sheet whose words are mostly RTL gets `rightToLeft` on its view,
+which puts column A on the right where its reader expects it. Force it with
+`"rtl": "on"`, disable with `"off"`, set it per sheet, or pass `--rtl`.
+
+## Formulas need a recalculation flag
+openpyxl writes the formula and no cached result, so a reader that does not
+calculate shows an empty cell. `xlsx_create.py` therefore sets
+`fullCalcOnLoad` whenever the workbook contains a formula. Set
+`"full_calc_on_load": false` to opt out, or run `xlsx_recalc.py` to bake
+values in.
+
 ## Pitfalls
 
 - **openpyxl does not calculate.** Formula results are available only

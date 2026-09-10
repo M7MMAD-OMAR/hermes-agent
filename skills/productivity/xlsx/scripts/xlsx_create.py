@@ -63,6 +63,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import date, datetime
 
@@ -224,10 +225,50 @@ def build_sheet(ws, spec):
         ws.protection.sheet = True
 
 
+# Arabic, Persian, Urdu and Hebrew letters. A sheet whose words are written
+# right to left belongs with column A on the right, and openpyxl never sets
+# that by itself.
+_RTL_RE = re.compile("[֐-׿؀-ۿݐ-ݿࢠ-ࣿיִ-﷿ﹰ-﻿]")
+_LATIN_RE = re.compile("[A-Za-z]")
+
+
+def sheet_is_rtl(ws):
+    """True when the sheet's own words are mostly right-to-left."""
+    rtl = latin = 0
+    for row in ws.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str):
+                rtl += len(_RTL_RE.findall(cell.value))
+                latin += len(_LATIN_RE.findall(cell.value))
+    return rtl > 0 and rtl >= latin
+
+
+def apply_rtl(ws, mode="auto"):
+    """Lay the sheet out right to left. Returns True when it was flipped."""
+    if mode == "off":
+        return False
+    if mode == "on" or sheet_is_rtl(ws):
+        ws.sheet_view.rightToLeft = True
+        return True
+    return False
+
+
+def has_formulas(ws):
+    """True when any cell holds a formula, so the file should recalculate."""
+    return any(
+        isinstance(cell.value, str) and cell.value.startswith("=")
+        for row in ws.iter_rows()
+        for cell in row
+    )
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Create .xlsx from a JSON spec.")
     ap.add_argument("spec", help="path to JSON spec, or '-' for stdin")
     ap.add_argument("output", help="output .xlsx path")
+    ap.add_argument("--rtl", choices=("auto", "on", "off"),
+                    help="right-to-left sheet layout; default auto, or the "
+                         "spec's \"rtl\" key")
     args = ap.parse_args(argv)
 
     if args.spec == "-":
@@ -238,16 +279,26 @@ def main(argv=None):
 
     wb = Workbook()
     wb.remove(wb.active)
+    rtl_mode = args.rtl or spec.get("rtl", "auto")
+    formulas = False
+    rtl_sheets = []
     for sheet_spec in spec.get("sheets", []):
         ws = wb.create_sheet(sheet_spec.get("name", "Sheet1"))
         build_sheet(ws, sheet_spec)
+        if apply_rtl(ws, sheet_spec.get("rtl", rtl_mode)):
+            rtl_sheets.append(ws.title)
+        formulas = formulas or has_formulas(ws)
     for name, ref in spec.get("defined_names", {}).items():
         wb.defined_names[name] = DefinedName(name, attr_text=ref)
-    if spec.get("full_calc_on_load"):
+    # A library writes the formula and no result, so a reader that does not
+    # calculate shows blanks. Asking for a full recalculation on load is what
+    # makes the numbers appear in Excel, LibreOffice and anything else.
+    if spec.get("full_calc_on_load", formulas):
         wb.calculation.fullCalcOnLoad = True
     wb.save(args.output)
     print(json.dumps({"ok": True, "output": args.output,
-                      "sheets": wb.sheetnames}, ensure_ascii=False))
+                      "sheets": wb.sheetnames, "rtl_sheets": rtl_sheets},
+                     ensure_ascii=False))
     return 0
 
 

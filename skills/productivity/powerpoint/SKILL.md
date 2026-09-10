@@ -171,6 +171,21 @@ substituted, so render-verify (Procedure step 5) before shipping the PDF.
 There is no offline pure-Python .pptx→PDF path; if `soffice` is absent,
 say so rather than approximating.
 
+## Arabic, Persian, Urdu, Hebrew (right-to-left)
+`pptx_create.py` sets slide direction automatically (`"rtl": "auto"`, the
+default): every paragraph containing RTL letters gets `a:pPr@rtl="1"` and is
+right-aligned, table cells included. Without it python-pptx leaves the base
+direction left-to-right, so an Arabic slide shows its punctuation on the wrong
+side and its bullets and text hugging the left edge. Force it with
+`"rtl": "on"`, disable with `"off"`; the CLI flag `--rtl` wins over the spec.
+An edit script can call `pptx_common.apply_rtl(prs, "auto")` before saving.
+Set an Arabic-capable font (Cairo, Noto Naskh Arabic, Amiri) on the runs, or
+the glyphs come out of a fallback face.
+
+**Never type a bullet character into bullet text.** The placeholder draws its
+own, so `"• Overview"` renders as `"• • Overview"`. `pptx_create.py` strips a
+leading bullet glyph as a safety net, but the spec should not carry one.
+
 ## Pitfalls
 
 - **Run splitting**: PowerPoint fragments paragraph text into runs at

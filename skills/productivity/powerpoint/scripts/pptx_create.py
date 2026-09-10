@@ -4,6 +4,7 @@
 Spec format (all positions/sizes in inches, colors as RRGGBB hex):
 {
   "slide_size": "16:9",              // or "4:3" (default "16:9")
+  "rtl": "auto",                     // "auto" (default) | "on" | "off"
   "slides": [
     {"layout": "title", "title": "My Deck", "subtitle": "Q3 review"},
     {"layout": "title_content", "title": "Agenda",
@@ -45,6 +46,8 @@ from pptx.enum.chart import XL_CHART_TYPE
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.util import Inches, Pt
 
+from pptx_common import apply_rtl, strip_typed_bullet
+
 LAYOUTS = {"title": 0, "title_content": 1, "section": 2,
            "two_content": 3, "title_only": 5, "blank": 6}
 CHART_TYPES = {"bar": XL_CHART_TYPE.COLUMN_CLUSTERED,
@@ -83,7 +86,9 @@ def add_bullets(text_frame, bullets):
         para = text_frame.paragraphs[0] if i == 0 else text_frame.add_paragraph()
         para.level = int(item.get("level", 0))
         run = para.add_run()
-        run.text = item.get("text", "")
+        # The placeholder draws the bullet. A glyph typed into the text as well
+        # renders twice, which is how "• • Overview" reached a delivered deck.
+        run.text = strip_typed_bullet(item.get("text", ""))
         style_run(run, item)
 
 
@@ -190,6 +195,9 @@ def main(argv=None):
         epilog=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("spec", help="path to JSON deck spec")
     parser.add_argument("output", help="output .pptx path")
+    parser.add_argument("--rtl", choices=("auto", "on", "off"),
+                        help="right-to-left pass; default auto, or the spec's "
+                             "\"rtl\" key")
     args = parser.parse_args(argv)
 
     with open(args.spec, encoding="utf-8") as fh:
@@ -204,9 +212,13 @@ def main(argv=None):
     for slide_spec in spec.get("slides", []):
         build_slide(prs, slide_spec)
 
+    rtl_counts = apply_rtl(prs, args.rtl or spec.get("rtl", "auto"))
+
     prs.save(args.output)
     print(json.dumps({"ok": True, "output": args.output,
-                      "slides": len(prs.slides._sldIdLst)}))
+                      "slides": len(prs.slides._sldIdLst),
+                      "rtl_paragraphs": rtl_counts["paragraphs"],
+                      "rtl_cells": rtl_counts["cells"]}))
     return 0
 
 

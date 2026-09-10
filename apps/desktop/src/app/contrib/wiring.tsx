@@ -27,6 +27,7 @@ import {
   $workspaceMode,
   $workspaceNewSessionTarget,
   $workspaceOwnerKey,
+  isOwnedWorkspace,
   setWorkspaceScope
 } from '@/components/pane-shell/workspace-scope'
 import { FloatingPet } from '@/components/pet/floating-pet'
@@ -943,13 +944,15 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     const workspaceOwnerKey = $workspaceOwnerKey.get()
     const workspaceNewSessionTarget = $workspaceNewSessionTarget.get()
 
-    if ($workspaceMode.get() === 'bots' && workspaceNewSessionTarget?.kind === 'route' && workspaceOwnerKey) {
+    const workspaceMode = $workspaceMode.get()
+
+    if (isOwnedWorkspace(workspaceMode) && workspaceNewSessionTarget?.kind === 'route' && workspaceOwnerKey) {
       void openNewSessionTile('center', {
         listed: false,
         route: workspaceNewSessionTarget.route,
         workspaceScope: {
           ownerRoute: workspaceNewSessionTarget.route,
-          workspaceMode: 'bots',
+          workspaceMode,
           workspaceOwnerKey
         }
       })

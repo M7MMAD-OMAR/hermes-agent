@@ -36,6 +36,7 @@ import {
 import {
   $workspaceMode,
   $workspaceOwnerKey,
+  isOwnedWorkspace,
   setWorkspaceScope as publishWorkspaceScope,
   setWorkspaceOwnerLabel,
   type WorkspaceNewSessionTarget
@@ -865,15 +866,19 @@ export const host = {
 
     const ownerRoute =
       explicitRoute ??
-      (options.workspaceMode === 'bots' && profile && localConnectionId
+      (isOwnedWorkspace(options.workspaceMode) && profile && localConnectionId
         ? { connectionId: localConnectionId, mode: 'local' as const, profile: targetProfile }
         : null)
 
     const expectHistory = options.expectHistory ?? false
 
-    if (options.workspaceMode === 'bots') {
+    // TS cannot narrow `options.workspaceMode` through the predicate call, so
+    // the owned mode is bound once here and reused below.
+    const ownedMode = isOwnedWorkspace(options.workspaceMode) ? options.workspaceMode : undefined
+
+    if (ownedMode) {
       publishWorkspaceScope(
-        'bots',
+        ownedMode,
         options.workspaceOwnerKey ?? null,
         ownerRoute ? { kind: 'route', route: ownerRoute } : null
       )
@@ -881,8 +886,9 @@ export const host = {
 
     const openingStillCurrent = () =>
       generation === openSessionGeneration &&
-      (options.workspaceMode !== 'bots' ||
-        ($workspaceMode.get() === 'bots' && $workspaceOwnerKey.get() === (options.workspaceOwnerKey ?? null)))
+      (!isOwnedWorkspace(options.workspaceMode) ||
+        ($workspaceMode.get() === options.workspaceMode &&
+          $workspaceOwnerKey.get() === (options.workspaceOwnerKey ?? null)))
 
     const plan = planPluginOpenSession({
       activeProfile: $activeGatewayProfile.get(),
@@ -995,10 +1001,10 @@ export const host = {
 
           const intent = options.intent ?? 'in-place'
 
-          if (options.workspaceMode === 'bots') {
+          if (ownedMode) {
             openSession(storedSessionId, navigate, intent, {
               ownerRoute: ownerRoute ?? undefined,
-              workspaceMode: 'bots',
+              workspaceMode: ownedMode,
               workspaceOwnerKey: options.workspaceOwnerKey,
               ...(options.tabTitle ? { workspaceTabTitle: options.tabTitle } : {})
             })
@@ -1203,19 +1209,21 @@ export const host = {
    *  backend spins up in the background — same door the sidebar's per-profile
    *  "+" uses). */
   newChat: (profile?: null | string | PluginProfileRoute, options: PluginNewChatOptions = {}): void => {
-    if (options.workspaceMode === 'bots') {
+    const ownedMode = isOwnedWorkspace(options.workspaceMode) ? options.workspaceMode : undefined
+
+    if (ownedMode) {
       if (!profile || typeof profile === 'string' || !options.workspaceOwnerKey) {
-        notify({ kind: 'error', message: 'Select a Bot before starting another chat.' })
+        notify({ kind: 'error', message: 'Select a workspace owner before starting another chat.' })
 
         return
       }
 
-      publishWorkspaceScope('bots', options.workspaceOwnerKey, { kind: 'route', route: { ...profile } })
+      publishWorkspaceScope(ownedMode, options.workspaceOwnerKey, { kind: 'route', route: { ...profile } })
 
       const openTab = $newSessionTabAction.get()
 
       if (!openTab) {
-        notify({ kind: 'error', message: 'Update Hermes Desktop to open another Bot chat.' })
+        notify({ kind: 'error', message: 'Update Hermes Desktop to open another workspace chat.' })
 
         return
       }

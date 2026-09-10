@@ -15,6 +15,7 @@
  *     the bridge has no session-window support.
  */
 import type { WorkspaceMode } from '@/contrib/types'
+import { isOwnedWorkspace } from '@/contrib/types'
 import { $activeSessionId, $selectedStoredSessionId, markSessionRead } from '@/store/session'
 import type { SessionProfileRoute } from '@/store/session-request-router'
 import {
@@ -95,7 +96,7 @@ export function openSession(
   // at focusOpenSession and never clear its unread dot.
   markSessionRead(storedSessionId)
   setSessionTileWorkspaceScope(storedSessionId, workspaceScope)
-  const botWorkspaceScope = workspaceScope.workspaceMode === 'bots' ? workspaceScope : undefined
+  const ownedWorkspaceScope = isOwnedWorkspace(workspaceScope.workspaceMode) ? workspaceScope : undefined
 
   let resolved: OpenSessionIntent = intent
 
@@ -145,15 +146,15 @@ export function openSession(
     // stacking a second blank one beside it.
     if (
       spendBlankDraft &&
-      (botWorkspaceScope
-        ? reuseBlankDraftTile(storedSessionId, botWorkspaceScope)
+      (ownedWorkspaceScope
+        ? reuseBlankDraftTile(storedSessionId, ownedWorkspaceScope)
         : reuseBlankDraftTile(storedSessionId))
     ) {
       return
     }
 
-    if (botWorkspaceScope) {
-      openSessionTile(storedSessionId, 'center', undefined, undefined, botWorkspaceScope)
+    if (ownedWorkspaceScope) {
+      openSessionTile(storedSessionId, 'center', undefined, undefined, ownedWorkspaceScope)
     } else {
       openSessionTile(storedSessionId, 'center')
     }

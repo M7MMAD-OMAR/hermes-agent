@@ -19,7 +19,7 @@ import type { ChatEmptyProps, HermesPlugin } from '@hermes/plugin-sdk'
 import { CHAT_EMPTY_AREA, host } from '@hermes/plugin-sdk'
 
 import { HerworkChatEmpty } from './chat-empty'
-import { HERWORK_OWNER_KEY, herworkRoute, homeOf } from './desk'
+import { HERWORK_ACCENT, HERWORK_OWNER_KEY, herworkRoute, homeOf } from './desk'
 import { HERWORK_LOCALES, HERWORK_PLUGIN_ID } from './i18n'
 import { HerworkPane } from './pane'
 
@@ -38,6 +38,7 @@ export function enterHerwork(): void {
     HERWORK_OWNER_KEY,
     route ? { kind: 'route', route } : { kind: 'blocked', message: 'Connect a local gateway to start a desk chat.' }
   )
+  host.setWorkspaceAccent?.(HERWORK_ACCENT)
 }
 
 const plugin: HermesPlugin = {
@@ -47,6 +48,8 @@ const plugin: HermesPlugin = {
   defaultEnabled: true,
   register(ctx) {
     ctx.onDispose(ctx.i18n.register(HERWORK_LOCALES))
+    // Disabling the plugin must never strand a tinted app with no control to clear it.
+    ctx.onDispose(() => host.setWorkspaceAccent?.(null))
     host.setWorkspaceOwnerLabel(HERWORK_OWNER_KEY, ctx.i18n.t('pane.title'))
 
     // The tab: docked into the sessions zone as a center stack, the same
@@ -73,6 +76,7 @@ const plugin: HermesPlugin = {
           enterHerwork()
         } else if (host.state.workspaceMode.get() === 'herwork') {
           host.setWorkspaceScope('sessions')
+          host.setWorkspaceAccent?.(null)
         }
       })
 

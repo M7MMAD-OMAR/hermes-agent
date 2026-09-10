@@ -1,9 +1,11 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { setAccentOverride } from './accent-override'
 import { __resetBackendSkinSync, ingestBackendSkin } from './backend-sync'
 import { skinPref, ThemeProvider, useTheme } from './context'
 import { everforestTheme } from './presets'
+import { setWorkspaceAccent } from './workspace-accent'
 
 // The live-authoring loop: Hermes writes/edits one skin file and every surface
 // repaints. An in-place edit keeps the NAME — only the palette moves.
@@ -159,5 +161,70 @@ describe('ThemeProvider highlight preview', () => {
 
     act(() => ctx.previewTheme('does-not-exist', 'dark'))
     expect(cssVar('--theme-foreground')).toBe(painted)
+  })
+})
+
+// S5 of docs/design/herwork-workspace.md: a workspace may tint the active theme
+// from one seed; Sessions and Bots publish none and paint as authored; the
+// dev-only accent override, when set, beats the workspace seed.
+describe('ThemeProvider workspace accent', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    __resetBackendSkinSync()
+    setWorkspaceAccent(null)
+    setAccentOverride(null)
+  })
+
+  afterEach(() => {
+    cleanup()
+    setWorkspaceAccent(null)
+    setAccentOverride(null)
+  })
+
+  it('paints the theme as authored while no workspace seed is set', () => {
+    render(
+      <ThemeProvider>
+        <div />
+      </ThemeProvider>
+    )
+    const authored = cssVar('--theme-primary')
+
+    expect(authored).not.toBe('')
+    act(() => setWorkspaceAccent(null))
+    expect(cssVar('--theme-primary')).toBe(authored)
+  })
+
+  it('retints from the workspace seed and returns on clear', () => {
+    render(
+      <ThemeProvider>
+        <div />
+      </ThemeProvider>
+    )
+    const authored = cssVar('--theme-primary')
+
+    act(() => setWorkspaceAccent('#1f6f5c'))
+    const tinted = cssVar('--theme-primary')
+    expect(tinted).not.toBe(authored)
+    expect(tinted.toLowerCase()).toBe('#1f6f5c')
+
+    act(() => setWorkspaceAccent(null))
+    expect(cssVar('--theme-primary')).toBe(authored)
+  })
+
+  it('lets the dev accent override win over the workspace seed', () => {
+    render(
+      <ThemeProvider>
+        <div />
+      </ThemeProvider>
+    )
+
+    act(() => {
+      setWorkspaceAccent('#1f6f5c')
+      setAccentOverride('#c0392b')
+    })
+    expect(cssVar('--theme-primary').toLowerCase()).toBe('#c0392b')
+
+    act(() => setAccentOverride(null))
+    expect(cssVar('--theme-primary').toLowerCase()).toBe('#1f6f5c')
   })
 })

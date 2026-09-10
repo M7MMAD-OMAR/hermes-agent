@@ -25,6 +25,7 @@ import { BUILTIN_THEME_LIST, DEFAULT_SKIN_NAME, DEFAULT_TYPOGRAPHY, nousTheme } 
 import { retintTheme } from './retint'
 import type { DesktopTheme, DesktopThemeColors } from './types'
 import { $userThemes, listAllThemes, resolveTheme } from './user-themes'
+import { $workspaceAccent } from './workspace-accent'
 
 // Legacy global skin (pre per-profile themes). Still the inheritance fallback
 // for any profile without its own assignment, so single-profile users and old
@@ -468,14 +469,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [paintedName, paintedMode, userThemes, backendThemes, registryVersion]
   )
 
-  // Dev-only accent retint. `null` (always, in production) returns the theme
-  // untouched, and retintTheme is an identity when the seed already matches —
-  // so the picker costs nothing until it's actually moved off the default.
+  // Two retint inputs, one seed wins. The workspace accent is production
+  // behaviour (a workspace that owns the screen may tint it, see
+  // workspace-accent.ts); the dev-only accent override, when set, beats it
+  // because a scratch authoring control must be able to show any color.
+  // `null` for both (the normal case) returns the theme untouched, and
+  // retintTheme is an identity when the seed already matches the theme's
+  // primary, so neither costs anything until it is actually set.
   const accentOverride = useStore($accentOverride)
+  const workspaceAccent = useStore($workspaceAccent)
+  const retintSeed = accentOverride ?? workspaceAccent
 
   const paintedTheme = useMemo(
-    () => (accentOverride === null ? activeTheme : retintTheme(activeTheme, accentOverride)),
-    [activeTheme, accentOverride]
+    () => (retintSeed === null ? activeTheme : retintTheme(activeTheme, retintSeed)),
+    [activeTheme, retintSeed]
   )
 
   // What actually gets painted (matches the `.dark` class applyTheme toggles).

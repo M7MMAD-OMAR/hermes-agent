@@ -100,6 +100,7 @@ import {
   sessionTileDelegate
 } from '@/store/session-states'
 import { runGatewayRestart } from '@/store/system-actions'
+import { setWorkspaceAccent } from '@/themes/workspace-accent'
 import type { PaginatedSessions, UsageStats } from '@/types/hermes'
 
 import { planPluginOpenSession } from './plugin-open-session-plan'
@@ -1219,6 +1220,11 @@ export const host = {
    *  chat's STORED title is an identity the backend resolves by name; this is
    *  the caption shown for it. Feature-detect on older desktops. */
   setWorkspaceOwnerLabel,
+
+  /** Tint the active theme from one seed while a workspace owns the screen;
+   *  `null` paints the theme as authored. Production behaviour, distinct from
+   *  the dev-only accent picker, which wins over it when both are set. */
+  setWorkspaceAccent,
 
   /** Switch the visible main-pane workspace without unregistering retained panes. */
   setWorkspaceScope: (

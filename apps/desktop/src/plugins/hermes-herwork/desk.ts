@@ -29,6 +29,10 @@ export function homeOf(cwd: string): string {
 
 export const HERWORK_BUNDLE = 'herwork'
 
+/** The desk's accent seed: a deep teal, unlike Sessions' authored primary and
+ *  Bots' purple, so the tab and its chats read as one place at a glance. */
+export const HERWORK_ACCENT = '#1f6f5c'
+
 export type HerworkRoute = {
   connectionId: string
   mode: 'local'

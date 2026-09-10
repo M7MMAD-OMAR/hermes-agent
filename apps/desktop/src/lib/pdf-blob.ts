@@ -8,6 +8,8 @@
  * header.
  */
 
+import { dataUrlBytes } from '@/lib/desktop-fs'
+
 export function dataUrlToBlob(dataUrl: string) {
   const comma = dataUrl.indexOf(',')
 
@@ -26,22 +28,18 @@ export function dataUrlToBlob(dataUrl: string) {
     throw new Error('Invalid PDF data URL type')
   }
 
-  let binary: string
+  let bytes: Uint8Array<ArrayBuffer>
 
   try {
-    binary = atob(decodeURIComponent(payload))
+    bytes = dataUrlBytes(dataUrl)
   } catch {
     throw new Error('Invalid PDF data URL payload')
   }
 
-  if (!binary.startsWith('%PDF-')) {
+  // A payload that is not a PDF reaches Chromium's viewer as a blank frame, so
+  // the header is checked here rather than diagnosed there.
+  if (String.fromCharCode(...bytes.slice(0, 5)) !== '%PDF-') {
     throw new Error('Invalid PDF file header')
-  }
-
-  const bytes = new Uint8Array(binary.length)
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index)
   }
 
   return new Blob([bytes], { type: 'application/pdf' })

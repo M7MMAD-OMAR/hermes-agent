@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { attachFilesToPreviewInput, DEFAULT_FILE_INPUT_SELECTOR, type DebuggerLike } from './preview-upload'
+import { attachFilesToPreviewInput, type DebuggerLike } from './preview-upload'
 
 function fakeDebugger(overrides: { nodeId?: null | number } = {}) {
   const calls: { method: string; params?: Record<string, unknown> }[] = []
@@ -47,11 +47,8 @@ describe('uploading a workspace file into a page', () => {
       resolveReadableFile
     })
 
-    expect(result).toEqual({
-      files: ['/resolved/work/report.pdf'],
-      selector: DEFAULT_FILE_INPUT_SELECTOR,
-      success: true
-    })
+    expect(result).toEqual({ count: 1, selector: 'input[type=file]', success: true })
+    expect(target.calls.at(-1)?.params?.files).toEqual(['/resolved/work/report.pdf'])
     expect(target.calls.map(call => call.method)).toEqual([
       'DOM.enable',
       'DOM.getDocument',

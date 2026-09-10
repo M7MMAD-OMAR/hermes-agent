@@ -17,7 +17,7 @@ const DEFAULT_ASPECT = 16 / 9
 /** A deck longer than this previews its first slides; the rest open in the app. */
 export const DECK_MAX_SLIDES = 200
 
-const UNSAFE_ELEMENTS = new Set(['script', 'iframe', 'object', 'embed', 'foreignobject-script'])
+const UNSAFE_ELEMENTS = new Set(['embed', 'iframe', 'object', 'script'])
 
 /** Scrub the rendered markup before it is inserted.
  *

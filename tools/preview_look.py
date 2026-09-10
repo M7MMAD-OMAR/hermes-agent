@@ -20,10 +20,23 @@ _LOOK_QUESTION = "This is the page open in the in-app browser. Read it and answe
 
 
 def screenshots_dir() -> Path:
+    """The same cache `browser_vision` writes to, swept the same way.
+
+    Sharing the directory without sharing the sweep is how a cache one writer
+    trims and another only fills ends up unbounded, so the age-based cleanup
+    runs here too.
+    """
     from hermes_constants import get_hermes_dir
 
     directory = get_hermes_dir("cache/screenshots", "browser_screenshots")
     directory.mkdir(parents=True, exist_ok=True)
+    try:
+        from tools.browser_tool_lifecycle import _cleanup_old_screenshots
+
+        _cleanup_old_screenshots(directory, max_age_hours=24)
+    except Exception:
+        # A cache that could not be swept is not a reason to lose the picture.
+        pass
 
     return directory
 

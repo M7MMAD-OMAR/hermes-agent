@@ -4,7 +4,9 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { isOfficePreviewPath, officeConvertForIpc, officeFamilyFor } from './office-preview'
+import { officeFamilyForPath } from '../../shared/src/office-format'
+
+import { isOfficePreviewPath, officeConvertForIpc } from './office-preview'
 
 let root: string
 
@@ -45,15 +47,16 @@ describe('the Office conversion door', () => {
     expect(isOfficePreviewPath('/x/a.txt')).toBe(false)
   })
 
-  it('maps every readable format to the OOXML family its viewer parses', () => {
-    // A file already in its family's form needs no conversion, which is what
-    // the renderer checks by comparing the family to the extension.
-    expect(officeFamilyFor('/x/a.docx')).toBe('docx')
-    expect(officeFamilyFor('/x/a.odt')).toBe('docx')
-    expect(officeFamilyFor('/x/a.rtf')).toBe('docx')
-    expect(officeFamilyFor('/x/a.ods')).toBe('xlsx')
-    expect(officeFamilyFor('/x/a.PPT')).toBe('pptx')
-    expect(officeFamilyFor('/x/a.txt')).toBeNull()
+  it('reads the same family table the renderer classifies with', () => {
+    // One table, imported by both processes: when they were two, adding a
+    // format to one gave a viewer a file nothing had converted.
+    expect(officeFamilyForPath('/x/a.docx')).toBe('docx')
+    expect(officeFamilyForPath('/x/a.odt')).toBe('docx')
+    expect(officeFamilyForPath('/x/a.ods')).toBe('xlsx')
+    expect(officeFamilyForPath('/x/a.PPT')).toBe('pptx')
+    expect(officeFamilyForPath('/x/a.txt')).toBeNull()
+    // And the conversion door agrees with it.
+    expect(isOfficePreviewPath('/x/a.odt')).toBe(true)
   })
 
   it('converts once and serves the cache while the source is unchanged', async () => {

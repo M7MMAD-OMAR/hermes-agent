@@ -1,3 +1,6 @@
+import { pathToFileUrl } from '@hermes/shared/file-url'
+import { officeFamilyForPath, officeNeedsConversion } from '@hermes/shared/office-format'
+
 import { hermesApi } from '@/api/client'
 import type {
   HermesConnection,
@@ -5,8 +8,6 @@ import type {
   HermesReadFileTextResult,
   HermesSelectPathsOptions
 } from '@/global'
-import { pathToFileUrl } from '@/lib/file-url'
-import { officeFamilyForPath, officeNeedsConversion } from '@/lib/office-format'
 import { $connection } from '@/store/session'
 
 export interface DesktopFsRemotePicker {
@@ -164,17 +165,21 @@ export async function readDesktopOfficeBytes(path: string): Promise<Uint8Array> 
 }
 
 /** The payload of a base64 data: URL, as bytes. */
-export function dataUrlBytes(dataUrl: string): Uint8Array {
+export function dataUrlBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
   const comma = dataUrl.indexOf(',')
 
   if (!dataUrl.startsWith('data:') || comma < 0) {
     throw new Error('Unreadable file contents')
   }
 
-  const meta = dataUrl.slice(5, comma)
-  const payload = dataUrl.slice(comma + 1)
-  const binary = meta.includes(';base64') ? atob(payload) : decodeURIComponent(payload)
-  const bytes = new Uint8Array(binary.length)
+  const meta = dataUrl.slice(5, comma).toLowerCase()
+  const raw = dataUrl.slice(comma + 1)
+  // A percent-escaped payload is legal in a data: URL and Chromium produces
+  // one, so it is unescaped first; the scan is skipped when there is nothing
+  // to unescape, which is the usual case and the large one.
+  const payload = raw.includes('%') ? decodeURIComponent(raw) : raw
+  const binary = meta.includes(';base64') ? atob(payload) : payload
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length))
 
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index)

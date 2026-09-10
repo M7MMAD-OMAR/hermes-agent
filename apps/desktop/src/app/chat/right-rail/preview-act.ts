@@ -34,7 +34,6 @@ import { agentPreviewTabId } from '@/store/preview'
 import { consoleSince } from './preview-console-digest'
 import { clickAt, glideTo, pointerPlaced, pressKey, selectAll, typeText, wheelBy } from './preview-drive'
 import { agentPreviewInput, type PreviewInputHandle } from './preview-input'
-import { shrinkLook } from './preview-look'
 import { agentPreviewNav } from './preview-nav'
 import {
   agentPreviewCapture,
@@ -69,6 +68,10 @@ const DRIVEN: readonly string[] = ['click', 'hover', 'press', 'type']
  *  witness can speak to. `press` and `hover` never click, so demanding a witness
  *  from them would report every one of them as a failure. */
 const CLICKS: readonly string[] = ['click', 'type']
+
+/** Long edge and quality of the page photograph the agent receives. Text on a
+ *  web page stays legible well below the resolution it was captured at. */
+const LOOK_FORMAT = { jpegQuality: 82, maxEdge: 1400 } as const
 
 const NOTHING_OPEN = 'No live page is open in the in-app browser — open one with open_preview first.'
 
@@ -528,13 +531,15 @@ async function lookAtPage(sessionId: null | string): Promise<PreviewActResult> {
   }
 
   try {
-    const image = await capture()
+    // Capped and JPEG-encoded by the host: the picture crosses a websocket
+    // frame and then lives in the model's context for the rest of the turn.
+    const image = await capture(undefined, LOOK_FORMAT)
 
     if (!image.startsWith('data:image/')) {
       return { error: 'The page could not be photographed.', success: false }
     }
 
-    return { acted: 'look', image: await shrinkLook(image), success: true }
+    return { acted: 'look', image, success: true }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error), success: false }
   }
@@ -564,7 +569,7 @@ async function uploadToPage(
   const result = await upload(paths, action.selector)
 
   return result.success
-    ? { acted: 'upload', note: `Attached ${result.files?.length ?? paths.length} file(s) to ${result.selector}.`, success: true }
+    ? { acted: 'upload', note: `Attached ${result.count ?? paths.length} file(s) to ${result.selector}.`, success: true }
     : { error: result.error ?? 'The file could not be attached.', success: false }
 }
 

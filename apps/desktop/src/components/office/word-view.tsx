@@ -9,12 +9,13 @@
  */
 
 import type { ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { PageLoader } from '@/components/page-loader'
+import { useResizeObserver } from '@/hooks/use-resize-observer'
 import { useI18n } from '@/i18n'
 
-const ZOOM_STEPS = [0.5, 0.6, 0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2]
+import { ZoomControl } from './zoom-control'
 
 export function WordPreview({ bytes, trailing }: { bytes: Uint8Array; trailing?: ReactNode }) {
   const { t } = useI18n()
@@ -83,72 +84,38 @@ export function WordPreview({ bytes, trailing }: { bytes: Uint8Array; trailing?:
     }
   }, [bytes])
 
-  // Re-fit whenever the rail changes width, and once the first render lands.
-  useEffect(() => {
+  // Fit to the rail's width until the reader picks a zoom, and re-fit whenever
+  // the rail changes width.
+  const fit = useCallback(() => {
     const scroller = scrollerRef.current
     const content = contentRef.current
 
-    if (!autoFit || !scroller || !content || rendering || typeof ResizeObserver !== 'function') {
+    if (!autoFit || !scroller || !content || rendering) {
       return
     }
 
-    const fit = () => {
-      const page = content.querySelector('section') as HTMLElement | null
-      const pageWidth = page?.offsetWidth ?? 0
+    const page = content.querySelector('section') as HTMLElement | null
+    const pageWidth = page?.offsetWidth ?? 0
 
-      if (!pageWidth || !scroller.clientWidth) {
-        return
-      }
-
-      setZoom(Math.min(1, Math.max(0.35, Math.round(((scroller.clientWidth - 24) / pageWidth) * 100) / 100)))
+    if (!pageWidth || !scroller.clientWidth) {
+      return
     }
 
-    const observer = new ResizeObserver(fit)
-
-    observer.observe(scroller)
-    fit()
-
-    return () => observer.disconnect()
+    setZoom(Math.min(1, Math.max(0.35, Math.round(((scroller.clientWidth - 24) / pageWidth) * 100) / 100)))
   }, [autoFit, rendering])
 
-  const step = (delta: number) => {
-    const index = ZOOM_STEPS.indexOf(zoom)
-    const next = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, (index < 0 ? 4 : index) + delta))]
+  useResizeObserver(fit, scrollerRef)
+  useEffect(fit, [fit])
 
+  const setManualZoom = (next: number) => {
     setAutoFit(false)
-    setZoom(next ?? 1)
+    setZoom(next)
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex h-7 shrink-0 items-center justify-end gap-2 border-b border-border/40 px-2">
-        {trailing}
-        <button
-          aria-label={t.preview.office.zoomOut}
-          className="rounded px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          onClick={() => step(-1)}
-          type="button"
-        >
-          −
-        </button>
-        <button
-          className="min-w-10 rounded px-1 text-[0.625rem] tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          onClick={() => {
-            setAutoFit(false)
-            setZoom(1)
-          }}
-          type="button"
-        >
-          {Math.round(zoom * 100)}%
-        </button>
-        <button
-          aria-label={t.preview.office.zoomIn}
-          className="rounded px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          onClick={() => step(1)}
-          type="button"
-        >
-          +
-        </button>
+        <ZoomControl onZoom={setManualZoom} trailing={trailing} zoom={zoom} />
       </div>
       <div className="relative min-h-0 flex-1 overflow-auto bg-neutral-200 dark:bg-neutral-800" ref={scrollerRef}>
         {rendering && (

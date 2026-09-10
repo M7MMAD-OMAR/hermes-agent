@@ -26,11 +26,13 @@ export interface PreviewUploadDeps {
   resolveReadableFile: (filePath: string) => Promise<{ resolvedPath: string }>
 }
 
-export const DEFAULT_FILE_INPUT_SELECTOR = 'input[type=file]'
+const DEFAULT_FILE_INPUT_SELECTOR = 'input[type=file]'
 
 export interface PreviewUploadResult {
+  /** How many files were set, for the caller's note. */
+  count?: number
   error?: string
-  files?: string[]
+  /** The selector actually used, which the caller may have left to default. */
   selector?: string
   success: boolean
 }
@@ -72,6 +74,7 @@ export async function attachFilesToPreviewInput(
     const document = (await deps.debugger.sendCommand('DOM.getDocument', { depth: -1 })) as {
       root?: { nodeId?: number }
     }
+
     const rootId = document?.root?.nodeId
 
     if (typeof rootId !== 'number') {
@@ -88,7 +91,7 @@ export async function attachFilesToPreviewInput(
 
     await deps.debugger.sendCommand('DOM.setFileInputFiles', { files, nodeId: found.nodeId })
 
-    return { files, selector: target, success: true }
+    return { count: files.length, selector: target, success: true }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error), success: false }
   } finally {

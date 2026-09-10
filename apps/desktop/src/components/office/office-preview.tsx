@@ -11,16 +11,17 @@
  * opens a document never pays for them.
  */
 
+import type { OfficeFamily } from '@hermes/shared/office-format'
 import type { ReactNode } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageLoader } from '@/components/page-loader'
 import { useI18n } from '@/i18n'
 import { convertDesktopOffice, openDesktopFileExternally, readDesktopOfficeBytes } from '@/lib/desktop-fs'
-import type { OfficeFamily } from '@/lib/office-format'
 import { dataUrlToBlob } from '@/lib/pdf-blob'
 import { cn } from '@/lib/utils'
 
+import type { DeckSource } from './deck-model'
 import type { SheetBook } from './sheet-model'
 import type { Deck } from './slides-view'
 
@@ -32,11 +33,12 @@ const WordPreview = lazy(async () => ({ default: (await import('./word-view')).W
 
 type WordMode = 'document' | 'pages'
 
-interface Loaded {
-  book?: SheetBook
-  bytes?: Uint8Array
-  deck?: Deck
-}
+/** Exactly one of these, decided by the file's family. A record of three
+ *  optionals let the reader represent five states that cannot happen. */
+type Loaded =
+  | { book: SheetBook; kind: 'book' }
+  | { bytes: Uint8Array; kind: 'bytes' }
+  | { deck: Deck; kind: 'deck' }
 
 /** A button that reads as a link, for the toolbars the viewers already own. */
 function ToolbarAction({ label, onClick }: { label: string; onClick: () => void }) {
@@ -79,6 +81,7 @@ export function OfficePreview({
 }) {
   const { t } = useI18n()
   const [loaded, setLoaded] = useState<Loaded | null>(null)
+  const [deckSource, setDeckSource] = useState<DeckSource | null>(null)
   const [error, setError] = useState<null | string>(null)
   const [mode, setMode] = useState<WordMode>('document')
   const [pagesUrl, setPagesUrl] = useState<string>()
@@ -86,9 +89,64 @@ export function OfficePreview({
 
   useEffect(() => {
     setLoaded(null)
+    setDeckSource(null)
     setError(null)
     setMode('document')
   }, [filePath, reloadKey])
+
+  // Slides are drawn in the order they are asked for, one at a time: the one
+  // in view first, then the rest of the rail behind it. Rendering all of them
+  // up front would block the first slide on a long deck; rendering only the
+  // ones in view would leave the rail full of blank thumbnails.
+  // A fresh queue per deck: indices belong to the deck they were asked for.
+  const queue = useMemo<number[]>(() => [], [deckSource])
+  const draining = useRef(false)
+
+  const renderSlide = useCallback(
+    (index: number) => {
+      if (!deckSource || queue.includes(index)) {
+        return
+      }
+
+      queue.push(index)
+
+      if (draining.current) {
+        return
+      }
+
+      draining.current = true
+
+      void (async () => {
+        try {
+          for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+            const svg = await deckSource.render(next)
+            const at = next
+
+            setLoaded(current => {
+              if (current?.kind !== 'deck') {
+                return current
+              }
+
+              const slide = current.deck.slides[at]
+
+              if (!slide || slide.svg !== null) {
+                return current
+              }
+
+              const slides = current.deck.slides.slice()
+
+              slides[at] = { ...slide, svg }
+
+              return { deck: { ...current.deck, slides }, kind: 'deck' }
+            })
+          }
+        } finally {
+          draining.current = false
+        }
+      })()
+    },
+    [deckSource, queue]
+  )
 
   useEffect(() => {
     let active = true
@@ -106,7 +164,7 @@ export function OfficePreview({
           const book = await readSheetBook(bytes)
 
           if (active) {
-            setLoaded({ book })
+            setLoaded({ book, kind: 'book' })
           }
 
           return
@@ -120,41 +178,13 @@ export function OfficePreview({
             return
           }
 
-          const deck = pendingDeck(source)
-
-          setLoaded({ deck })
-
-          // Slides render one at a time so the first one appears immediately
-          // and a long deck never blocks the frame.
-          for (let index = 0; index < deck.slides.length; index += 1) {
-            const svg = await source.render(index)
-
-            if (!active) {
-              return
-            }
-
-            setLoaded(current => {
-              if (!current?.deck) {
-                return current
-              }
-
-              const slides = current.deck.slides.slice()
-              const slide = slides[index]
-
-              if (!slide) {
-                return current
-              }
-
-              slides[index] = { ...slide, svg }
-
-              return { deck: { ...current.deck, slides } }
-            })
-          }
+          setDeckSource(source)
+          setLoaded({ deck: pendingDeck(source), kind: 'deck' })
 
           return
         }
 
-        setLoaded({ bytes })
+        setLoaded({ bytes, kind: 'bytes' })
       } catch (cause) {
         if (active) {
           setError(cause instanceof Error ? cause.message : String(cause))
@@ -259,13 +289,13 @@ export function OfficePreview({
 
   return (
     <Suspense fallback={<PageLoader label={t.preview.loading} />}>
-      {family === 'xlsx' && loaded.book ? (
+      {loaded.kind === 'book' ? (
         <SheetPreview book={loaded.book} trailing={trailing} />
-      ) : family === 'pptx' && loaded.deck ? (
-        <SlidesPreview deck={loaded.deck} trailing={trailing} />
-      ) : loaded.bytes ? (
+      ) : loaded.kind === 'deck' ? (
+        <SlidesPreview deck={loaded.deck} onNeedSlide={renderSlide} trailing={trailing} />
+      ) : (
         <WordPreview bytes={loaded.bytes} trailing={trailing} />
-      ) : null}
+      )}
     </Suspense>
   )
 }

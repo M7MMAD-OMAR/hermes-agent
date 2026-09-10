@@ -19,10 +19,10 @@ function grid() {
 
 function sheet(overrides: Partial<SheetView> = {}): SheetView {
   const cells = new Map<string, SheetCellView>([
-    [cellKey(1, 1), { align: 'left' as const, css: { 'font-weight': 'bold' }, text: 'Product' }],
-    [cellKey(1, 2), { align: 'left' as const, css: {}, text: 'Total' }],
-    [cellKey(2, 1), { align: 'left' as const, css: {}, text: 'Widget' }],
-    [cellKey(2, 2), { align: 'right' as const, css: {}, formula: 'A2*3', text: '70,942.50' }]
+    [cellKey(1, 1), { style: { fontWeight: 'bold', textAlign: 'left' }, text: 'Product' }],
+    [cellKey(1, 2), { style: { textAlign: 'left' }, text: 'Total' }],
+    [cellKey(2, 1), { style: { textAlign: 'left' }, text: 'Widget' }],
+    [cellKey(2, 2), { formula: 'A2*3', style: { textAlign: 'right' }, text: '70,942.50' }]
   ])
 
   return {
@@ -71,7 +71,7 @@ describe('the spreadsheet grid', () => {
 
   it('gives every sheet a tab and switches between them', () => {
     const second = sheet({
-      cells: new Map<string, SheetCellView>([[cellKey(1, 1), { align: 'left', css: {}, text: 'Second sheet' }]]),
+      cells: new Map<string, SheetCellView>([[cellKey(1, 1), { style: {}, text: 'Second sheet' }]]),
       name: 'Notes'
     })
 

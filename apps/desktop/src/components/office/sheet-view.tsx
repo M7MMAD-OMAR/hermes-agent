@@ -8,16 +8,34 @@
  * the numbers stay numbers.
  */
 
-import type { CSSProperties, ReactNode } from 'react'
+import { columnLetterFromIndex } from '@office-kit/xlsx/utils'
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { useResizeObserver } from '@/hooks/use-resize-observer'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 
-import type { SheetBook, SheetCellView, SheetView } from './sheet-model'
-import { cellKey, columnLabel, columnWidthPx, rowHeightPx } from './sheet-model'
+import type { SheetBook, SheetView } from './sheet-model'
+import { cellKey, columnWidthPx, rowHeightPx } from './sheet-model'
+import { ZoomControl } from './zoom-control'
 
 const HEADER_HEIGHT = 24
+
+// Built once. The grid re-renders on every scroll frame and every selection,
+// and a class-merge call per cell is the largest thing in that path.
+const HEADER_CLASS =
+  'sticky top-0 z-20 h-6 border-b border-e border-border bg-muted/70 px-1 text-center text-[0.625rem] font-medium text-muted-foreground backdrop-blur-sm'
+
+const HEADER_CLASS_SELECTED = `${HEADER_CLASS} bg-primary/15 text-foreground`
+const CORNER_CLASS = `${HEADER_CLASS} z-30 start-0`
+
+const ROW_HEADER_CLASS =
+  'sticky start-0 z-10 border-b border-e border-border bg-muted/70 px-1 text-center text-[0.625rem] font-medium tabular-nums text-muted-foreground'
+
+const ROW_HEADER_CLASS_SELECTED = `${ROW_HEADER_CLASS} bg-primary/15 text-foreground`
+const CELL_CLASS = 'overflow-hidden whitespace-pre border-b border-e border-border/50 px-1 align-middle'
+const CELL_CLASS_SELECTED = `${CELL_CLASS} outline outline-2 -outline-offset-1 outline-primary`
 const ROW_HEADER_WIDTH = 52
 /** Below this a sheet renders whole, which keeps merges spanning rows exact. */
 const WINDOW_THRESHOLD_ROWS = 300
@@ -61,18 +79,6 @@ function indexAt(offsets: Offsets, position: number): number {
   return low
 }
 
-function cellStyle(cell: SheetCellView | undefined, align: 'center' | 'left' | 'right'): CSSProperties {
-  if (!cell) {
-    return { textAlign: align }
-  }
-
-  const style: Record<string, string> = { ...cell.css }
-
-  delete style['text-align']
-
-  return { ...(style as CSSProperties), textAlign: cell.align }
-}
-
 interface GridProps {
   onSelect: (row: number, col: number) => void
   selection: { col: number; row: number }
@@ -82,38 +88,35 @@ interface GridProps {
 
 function SheetGrid({ onSelect, selection, sheet, zoom }: GridProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const [scrollTop, setScrollTop] = useState(0)
-  const [viewportHeight, setViewportHeight] = useState(600)
+  // The window is stored as the row range it covers, not as a pixel offset: a
+  // scroll frame that does not change which rows are visible must not
+  // re-render a grid of thousands of cells.
+  const [visible, setVisible] = useState({ first: 1, last: WINDOW_THRESHOLD_ROWS })
 
   const columns = Math.min(sheet.columns, MAX_COLUMNS)
+  const rowOffsets = useMemo(() => cumulative(sheet.rows, row => rowHeightPx(sheet, row)), [sheet])
+  const windowed = sheet.rows > WINDOW_THRESHOLD_ROWS
 
-  const rowOffsets = useMemo(
-    () => cumulative(sheet.rows, row => rowHeightPx(sheet, row)),
-    [sheet]
-  )
-
-  useEffect(() => {
+  const remeasure = useCallback(() => {
     const element = scrollerRef.current
 
-    if (!element || typeof ResizeObserver !== 'function') {
+    if (!element || !windowed) {
       return
     }
 
-    const observer = new ResizeObserver(() => setViewportHeight(element.clientHeight || 600))
+    const top = element.scrollTop / zoom
+    const bottom = (element.scrollTop + (element.clientHeight || 600)) / zoom
+    const first = Math.max(1, indexAt(rowOffsets, top) + 1 - OVERSCAN_ROWS)
+    const last = Math.min(sheet.rows, indexAt(rowOffsets, bottom) + 1 + OVERSCAN_ROWS)
 
-    observer.observe(element)
-    setViewportHeight(element.clientHeight || 600)
+    setVisible(current => (current.first === first && current.last === last ? current : { first, last }))
+  }, [rowOffsets, sheet.rows, windowed, zoom])
 
-    return () => observer.disconnect()
-  }, [])
+  useResizeObserver(remeasure, scrollerRef)
+  useEffect(remeasure, [remeasure])
 
-  const windowed = sheet.rows > WINDOW_THRESHOLD_ROWS
-  const firstRow = windowed ? Math.max(1, indexAt(rowOffsets, scrollTop / zoom) + 1 - OVERSCAN_ROWS) : 1
-
-  const lastRow = windowed
-    ? Math.min(sheet.rows, indexAt(rowOffsets, (scrollTop + viewportHeight) / zoom) + 1 + OVERSCAN_ROWS)
-    : sheet.rows
-
+  const firstRow = windowed ? visible.first : 1
+  const lastRow = windowed ? visible.last : sheet.rows
   const topSpacer = rowOffsets.positions[firstRow - 1]!
   const bottomSpacer = rowOffsets.total - rowOffsets.positions[lastRow]!
 
@@ -125,35 +128,37 @@ function SheetGrid({ onSelect, selection, sheet, zoom }: GridProps) {
 
   // A merge whose anchor sits above the window still has to draw, so it is
   // clamped to the first visible row instead of disappearing with its anchor.
-  const mergeAt = new Map<string, { colSpan: number; rowSpan: number }>()
-  const covered = new Set<string>()
+  // Rebuilt when the window moves, never on a selection click.
+  const { covered, mergeAt } = useMemo(() => {
+    const anchors = new Map<string, { colSpan: number; rowSpan: number }>()
+    const hidden = new Set<string>()
 
-  for (const merge of sheet.merges) {
-    const startRow = Math.max(merge.row, firstRow)
-    const endRow = Math.min(merge.row + merge.rowSpan - 1, lastRow)
+    for (const merge of sheet.merges) {
+      const startRow = Math.max(merge.row, firstRow)
+      const endRow = Math.min(merge.row + merge.rowSpan - 1, lastRow)
 
-    if (endRow < startRow) {
-      continue
-    }
+      if (endRow < startRow) {
+        continue
+      }
 
-    mergeAt.set(cellKey(startRow, merge.col), { colSpan: merge.colSpan, rowSpan: endRow - startRow + 1 })
+      anchors.set(cellKey(startRow, merge.col), { colSpan: merge.colSpan, rowSpan: endRow - startRow + 1 })
 
-    for (let row = startRow; row <= endRow; row += 1) {
-      for (let col = merge.col; col < merge.col + merge.colSpan; col += 1) {
-        if (row !== startRow || col !== merge.col) {
-          covered.add(cellKey(row, col))
+      for (let row = startRow; row <= endRow; row += 1) {
+        for (let col = merge.col; col < merge.col + merge.colSpan; col += 1) {
+          if (row !== startRow || col !== merge.col) {
+            hidden.add(cellKey(row, col))
+          }
         }
       }
     }
-  }
 
-  const headerClass =
-    'sticky top-0 z-20 h-6 border-b border-e border-border bg-muted/70 px-1 text-center text-[0.625rem] font-medium text-muted-foreground backdrop-blur-sm'
+    return { covered: hidden, mergeAt: anchors }
+  }, [firstRow, lastRow, sheet.merges])
 
   return (
     <div
       className="min-h-0 flex-1 overflow-auto bg-white text-black dark:bg-neutral-950 dark:text-neutral-100"
-      onScroll={event => setScrollTop((event.target as HTMLDivElement).scrollTop)}
+      onScroll={windowed ? remeasure : undefined}
       ref={scrollerRef}
     >
       <table
@@ -173,15 +178,15 @@ function SheetGrid({ onSelect, selection, sheet, zoom }: GridProps) {
         </colgroup>
         <thead>
           <tr style={{ height: HEADER_HEIGHT }}>
-            <th className={cn(headerClass, 'sticky z-30 start-0')} scope="col" />
+            <th className={CORNER_CLASS} scope="col" />
             {Array.from({ length: columns }, (_unused, index) => (
               <th
-                aria-label={columnLabel(index + 1)}
-                className={cn(headerClass, selection.col === index + 1 && 'bg-primary/15 text-foreground')}
+                aria-label={columnLetterFromIndex(index + 1)}
+                className={selection.col === index + 1 ? HEADER_CLASS_SELECTED : HEADER_CLASS}
                 key={index}
                 scope="col"
               >
-                {columnLabel(index + 1)}
+                {columnLetterFromIndex(index + 1)}
               </th>
             ))}
           </tr>
@@ -195,10 +200,7 @@ function SheetGrid({ onSelect, selection, sheet, zoom }: GridProps) {
           {rows.map(row => (
             <tr key={row} style={{ height: Math.round(rowHeightPx(sheet, row) * zoom) }}>
               <th
-                className={cn(
-                  'sticky start-0 z-10 border-b border-e border-border bg-muted/70 px-1 text-center text-[0.625rem] font-medium tabular-nums text-muted-foreground',
-                  selection.row === row && 'bg-primary/15 text-foreground'
-                )}
+                className={selection.row === row ? ROW_HEADER_CLASS_SELECTED : ROW_HEADER_CLASS}
                 scope="row"
               >
                 {row}
@@ -217,15 +219,12 @@ function SheetGrid({ onSelect, selection, sheet, zoom }: GridProps) {
 
                 return (
                   <td
-                    className={cn(
-                      'overflow-hidden whitespace-pre border-b border-e border-border/50 px-1 align-middle',
-                      selected && 'outline outline-2 -outline-offset-1 outline-primary'
-                    )}
+                    className={selected ? CELL_CLASS_SELECTED : CELL_CLASS}
                     colSpan={span?.colSpan}
                     key={col}
                     onClick={() => onSelect(row, col)}
                     rowSpan={span?.rowSpan}
-                    style={cellStyle(cell, sheet.rightToLeft ? 'right' : 'left')}
+                    style={cell?.style}
                   >
                     {cell?.text ?? ''}
                   </td>
@@ -262,7 +261,7 @@ export function SheetPreview({ book, trailing }: { book: SheetBook; trailing?: R
   }
 
   const current = sheet.cells.get(cellKey(selection.row, selection.col))
-  const address = `${columnLabel(selection.col)}${selection.row}`
+  const address = `${columnLetterFromIndex(selection.col)}${selection.row}`
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -273,32 +272,7 @@ export function SheetPreview({ book, trailing }: { book: SheetBook; trailing?: R
         <span className="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-foreground" dir="auto">
           {current?.formula ? `=${current.formula}` : (current?.text ?? '')}
         </span>
-        <div className="flex shrink-0 items-center gap-1">
-          {trailing}
-          <button
-            aria-label={t.preview.office.zoomOut}
-            className="rounded px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            onClick={() => setZoom(value => Math.max(0.5, Math.round((value - 0.1) * 10) / 10))}
-            type="button"
-          >
-            −
-          </button>
-          <button
-            className="min-w-10 rounded px-1 text-[0.625rem] tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            onClick={() => setZoom(1)}
-            type="button"
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-          <button
-            aria-label={t.preview.office.zoomIn}
-            className="rounded px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            onClick={() => setZoom(value => Math.min(2.5, Math.round((value + 0.1) * 10) / 10))}
-            type="button"
-          >
-            +
-          </button>
-        </div>
+        <ZoomControl onZoom={setZoom} trailing={trailing} zoom={zoom} />
       </div>
       {book.truncated && (
         <div className="shrink-0 border-b border-border/60 bg-muted/35 px-3 py-1 text-[0.68rem] text-muted-foreground">

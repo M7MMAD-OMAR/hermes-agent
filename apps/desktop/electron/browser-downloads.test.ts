@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { downloadFileName, handleBrowserDownload, type DownloadItemLike } from './browser-downloads'
+import { downloadFileName, type DownloadItemLike, handleBrowserDownload } from './browser-downloads'
 
 let root: string
 

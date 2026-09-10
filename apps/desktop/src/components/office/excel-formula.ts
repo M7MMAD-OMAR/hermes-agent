@@ -10,6 +10,8 @@
  * value, and the grid falls back to showing the formula text.
  */
 
+import { coordinateToTuple } from '@office-kit/xlsx/utils'
+
 import type { CellPrimitive } from './excel-format'
 
 export type CellLookup = (row: number, col: number) => CellPrimitive
@@ -125,22 +127,13 @@ function tokenize(input: string): Token[] {
   return tokens
 }
 
-/** `$B$12` → row 12, column 2. */
+/** `$B$12` → row 12, column 2, as the workbook reader reads it. */
 export function parseReference(reference: string): { col: number; row: number } {
-  const match = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})$/.exec(reference)
-
-  if (!match) {
+  try {
+    return coordinateToTuple(reference)
+  } catch {
     throw new FormulaError('#REF!')
   }
-
-  const letters = match[1]!.toUpperCase()
-  let col = 0
-
-  for (const letter of letters) {
-    col = col * 26 + (letter.charCodeAt(0) - 64)
-  }
-
-  return { col, row: Number(match[2]) }
 }
 
 function toNumber(value: Value): number {

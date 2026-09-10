@@ -14,11 +14,12 @@
 import { setFormula } from '@office-kit/xlsx/cell'
 import { workbookToBytes } from '@office-kit/xlsx/io'
 import { setBold, setCellBackgroundColor, setCellNumberFormat } from '@office-kit/xlsx/styles'
+import { columnLetterFromIndex } from '@office-kit/xlsx/utils'
 import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook'
 import { mergeCells, setCell, setFreezePanes } from '@office-kit/xlsx/worksheet'
 import { describe, expect, it } from 'vitest'
 
-import { cellKey, columnLabel, decodeXmlText, readSheetBook } from './sheet-model'
+import { cellKey, decodeXmlText, readSheetBook } from './sheet-model'
 
 async function buildWorkbook(rows: (number | string)[][], options: { arabic?: boolean } = {}) {
   const workbook = createWorkbook()
@@ -41,10 +42,11 @@ async function buildWorkbook(rows: (number | string)[][], options: { arabic?: bo
 
 describe('reading a workbook into the grid', () => {
   it('labels columns the way a sheet does', () => {
-    expect(columnLabel(1)).toBe('A')
-    expect(columnLabel(26)).toBe('Z')
-    expect(columnLabel(27)).toBe('AA')
-    expect(columnLabel(703)).toBe('AAA')
+    // The workbook reader's own labelling, so the grid's headers and the
+    // addresses in its formula bar cannot disagree with the file.
+    expect(columnLetterFromIndex(1)).toBe('A')
+    expect(columnLetterFromIndex(27)).toBe('AA')
+    expect(columnLetterFromIndex(703)).toBe('AAA')
   })
 
   it('decodes the character references the reader leaves in shared strings', () => {
@@ -65,8 +67,8 @@ describe('reading a workbook into the grid', () => {
     expect(sheet.name).toBe('Q3')
     expect(sheet.cells.get(cellKey(1, 1))?.text).toBe('Product')
     expect(sheet.cells.get(cellKey(2, 2))?.text).toBe('10')
-    expect(sheet.cells.get(cellKey(1, 1))?.css['font-weight']).toBe('bold')
-    expect(sheet.cells.get(cellKey(1, 1))?.css['background-color']).toBe('#305496')
+    expect(sheet.cells.get(cellKey(1, 1))?.style.fontWeight).toBe('bold')
+    expect(sheet.cells.get(cellKey(1, 1))?.style.backgroundColor).toBe('#305496')
     expect(sheet.frozenRows).toBe(1)
     expect(sheet.frozenColumns).toBe(0)
   })

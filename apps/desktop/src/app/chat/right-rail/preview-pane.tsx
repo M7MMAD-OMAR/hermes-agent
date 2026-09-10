@@ -924,7 +924,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       return
     }
 
-    return registerPreviewCapture(tabId, async rect => {
+    return registerPreviewCapture(tabId, async (rect, format) => {
       const webview = webviewRef.current
       const webContentsId = webview?.getWebContentsId?.()
 
@@ -939,7 +939,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
         '({ width: window.innerWidth, height: window.innerHeight })'
       )) as { height: number; width: number }
 
-      const dataUrl = await window.hermesDesktop.capturePreview?.({ rect, viewport, webContentsId })
+      const dataUrl = await window.hermesDesktop.capturePreview?.({ format, rect, viewport, webContentsId })
 
       if (!dataUrl) {
         throw new Error('preview capture is unavailable')

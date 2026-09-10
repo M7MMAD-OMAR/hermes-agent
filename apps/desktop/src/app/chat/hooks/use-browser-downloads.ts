@@ -26,13 +26,24 @@ export function workspaceDownloadDir(target: ReturnType<typeof $workspaceNewSess
   return target?.kind === 'route' ? (target.route.downloadDir ?? null) : null
 }
 
+let publishedDir: null | string | undefined
+
 export function useBrowserDownloads(): void {
   useEffect(() => {
     const publish = () => {
-      void window.hermesDesktop?.setBrowserDownloadDir?.(workspaceDownloadDir($workspaceNewSessionTarget.get()))
-    }
+      const directory = workspaceDownloadDir($workspaceNewSessionTarget.get())
 
-    publish()
+      // The store notifies on every workspace update; only a changed folder is
+      // worth an IPC round trip. Module scope, not a ref: there is one slot in
+      // the main process, so what was last published is a property of the app
+      // rather than of whichever window's hook is running.
+      if (directory === publishedDir) {
+        return
+      }
+
+      publishedDir = directory
+      void window.hermesDesktop?.setBrowserDownloadDir?.(directory)
+    }
 
     return $workspaceNewSessionTarget.subscribe(publish)
   }, [])
@@ -44,15 +55,13 @@ export function useBrowserDownloads(): void {
 
       const target = localPreviewTarget(record.path)
 
-      notify({
-        action: target ? { label: translateNow('preview.openPreview'), onClick: () => openPreview(target, 'tool-result') } : undefined,
-        message: record.name,
-        title: translateNow('preview.office.downloaded')
-      })
-
+      // Opened, then announced. The toast says where it went; offering to open
+      // a file that is already on screen would be an action with nothing to do.
       if (target) {
         openPreview(target, 'tool-result')
       }
+
+      notify({ message: record.name, title: translateNow('preview.office.downloaded') })
     })
 
     return () => unsubscribe?.()

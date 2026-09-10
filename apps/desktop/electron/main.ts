@@ -81,6 +81,7 @@ import {
 } from './bootstrap-platform'
 import { decideBootstrapRepair } from './bootstrap-repair-guard'
 import { runBootstrap } from './bootstrap-runner'
+import { BROWSER_PARTITIONS, type BrowserDownloadRecord, handleBrowserDownload } from './browser-downloads'
 import {
   BROWSER_WINDOW_HEIGHT,
   BROWSER_WINDOW_MIN_HEIGHT,
@@ -273,9 +274,7 @@ import { loadNativeTokenSet, type NativeTokenStoreIo, persistNativeTokenSet } fr
 import { chatDeepLink, decorateNotificationBody, parseNotifyCapabilities } from './notification-body-link'
 import { serializeJsonBody, setJsonRequestHeaders } from './oauth-net-request'
 import { LEGACY_OAUTH_PARTITION, resolveOauthPartition } from './oauth-partition'
-import { BROWSER_PARTITIONS, type BrowserDownloadRecord, handleBrowserDownload } from './browser-downloads'
 import { officeConvertForIpc } from './office-preview'
-import { attachFilesToPreviewInput } from './preview-upload'
 import { createParentStartMarkerResolver, parentWatchdogEnv } from './parent-process-identity'
 import { registerPetOverlayIpc } from './pet-overlay-ipc'
 import {
@@ -303,6 +302,7 @@ import { createKeepAwake } from './power-save'
 import { capturePreviewContents } from './preview-capture'
 import { PreviewReachRegistry } from './preview-reach'
 import { classifyPreviewShortcut } from './preview-shortcut'
+import { attachFilesToPreviewInput } from './preview-upload'
 import {
   createPrimaryRemoteConnection,
   FirstRunSetupResetError,
@@ -7325,8 +7325,14 @@ function isMediaCapturePermission(permission, details) {
 // no workspace to put files in — see `browser-downloads.ts`.
 let browserDownloadDir: null | string = null
 
-function broadcastBrowserDownload(record: BrowserDownloadRecord) {
-  for (const win of BrowserWindow.getAllWindows()) {
+/** Tell the window whose browser started the download, not every window: the
+ *  renderer answers by opening the file, and a second window opening a tab for
+ *  a download it did not start is somebody else's file appearing on screen. */
+function announceBrowserDownload(record: BrowserDownloadRecord, guest: null | Electron.WebContents) {
+  const owner = guest ? BrowserWindow.fromWebContents(guest) : null
+  const windows = owner ? [owner] : BrowserWindow.getAllWindows()
+
+  for (const win of windows) {
     const { webContents } = win
 
     if (webContents && !webContents.isDestroyed()) {
@@ -7370,11 +7376,11 @@ function installDownloadHandling() {
   session.defaultSession.on('will-download', (_event, item) => applyDownloadSaveDialog(item))
 
   for (const partition of BROWSER_PARTITIONS) {
-    session.fromPartition(partition).on('will-download', (_event, item) => {
+    session.fromPartition(partition).on('will-download', (_event, item, guest) => {
       const taken = handleBrowserDownload(item, {
         destinationDir: () => browserDownloadDir,
         extensionForMimeType,
-        onSaved: broadcastBrowserDownload
+        onSaved: record => announceBrowserDownload(record, guest)
       })
 
       if (!taken) {
@@ -17033,10 +17039,6 @@ ipcMain.handle('hermes:readFileDataUrl', async (_event, filePath) => {
   })
 })
 
-// Word, Excel and PowerPoint have no renderer in the rail; LibreOffice prints
-// them to PDF and the PDF viewer takes it from there (office-preview.ts).
-// The renderer owns the answer to "where does a download belong": it knows
-// which conversation is focused and which workspace folder it works in.
 // Put a workspace file into a page's file input. The renderer cannot do this
 // itself: a guest page is never handed a local path, by design. The host can,
 // through Chromium's own protocol, and the page sees what it would have seen
@@ -17058,6 +17060,8 @@ ipcMain.handle('hermes:preview:attachFiles', async (_event, payload) => {
   )
 })
 
+// The renderer owns the answer to "where does a download belong": it knows
+// which conversation is focused and which workspace folder it works in.
 ipcMain.handle('hermes:preview:setDownloadDir', (_event, directory) => {
   if (!directory) {
     browserDownloadDir = null
@@ -17324,7 +17328,7 @@ ipcMain.handle('hermes:preview:emulate-device', (event, payload) => {
 ipcMain.handle('hermes:capturePreview', async (_event, payload) => {
   const guest = electronWebContents.fromId(Number(payload?.webContentsId))
 
-  return capturePreviewContents(guest, payload?.rect, payload?.viewport)
+  return capturePreviewContents(guest, payload?.rect, payload?.viewport, payload?.format)
 })
 
 ipcMain.handle('hermes:saveImageBuffer', async (_event, payload) => {

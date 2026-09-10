@@ -74,9 +74,14 @@ def mermaid_config(source: str, font: str = "") -> dict:
     return {"fontFamily": family, "themeVariables": {"fontFamily": family}}
 
 
-def render(source: str, output: Path, theme: str, background: str, scale: int, width: int,
-           font: str) -> Path:
-    """Run the Mermaid CLI once and return the file it wrote."""
+def render(source: str, outputs, theme: str, background: str, scale: int, width: int,
+           font: str):
+    """Run the Mermaid CLI once per requested format, in one browser session.
+
+    Both formats come out of one CLI invocation: the tool takes repeated
+    ``-o`` targets, and a second invocation would mean a second npx bootstrap
+    and a second headless Chromium cold start for the same diagram.
+    """
     binary = find_chromium()
     with tempfile.TemporaryDirectory(prefix="mermaid-") as work:
         work_dir = Path(work)
@@ -92,24 +97,25 @@ def render(source: str, output: Path, theme: str, background: str, scale: int, w
         config_path = work_dir / "config.json"
         config_path.write_text(json.dumps(mermaid_config(source, font)), encoding="utf-8")
 
-        output.parent.mkdir(parents=True, exist_ok=True)
-        args = [
-            "npx", "--yes", "--package=@mermaid-js/mermaid-cli", "mmdc",
-            "-i", str(input_path), "-o", str(output),
-            "-p", str(puppeteer_path), "-c", str(config_path),
-            "-t", theme, "-b", background,
-        ]
-        if output.suffix.lower() == ".png":
-            args += ["-s", str(scale)]
-        if width:
-            args += ["-w", str(width)]
+        for output in outputs:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            args = [
+                "npx", "--yes", "--package=@mermaid-js/mermaid-cli", "mmdc",
+                "-i", str(input_path), "-o", str(output),
+                "-p", str(puppeteer_path), "-c", str(config_path),
+                "-t", theme, "-b", background,
+            ]
+            if output.suffix.lower() == ".png":
+                args += ["-s", str(scale)]
+            if width:
+                args += ["-w", str(width)]
 
-        result = subprocess.run(args, capture_output=True, text=True, timeout=RENDER_TIMEOUT_S)
-        if result.returncode != 0 or not output.exists():
-            detail = (result.stderr or result.stdout or "").strip()[-600:]
-            raise RuntimeError(f"Mermaid failed to render: {detail}")
+            result = subprocess.run(args, capture_output=True, text=True, timeout=RENDER_TIMEOUT_S)
+            if result.returncode != 0 or not output.exists():
+                detail = (result.stderr or result.stdout or "").strip()[-600:]
+                raise RuntimeError(f"Mermaid failed to render: {detail}")
 
-    return output
+    return list(outputs)
 
 
 def main(argv=None):
@@ -135,16 +141,13 @@ def main(argv=None):
     source = args.code if args.code else Path(args.source).read_text(encoding="utf-8")
 
     output = Path(args.output)
-    written = [render(source, output, args.theme, args.background, args.scale, args.width, args.font)]
-
-    sibling = None
+    wanted = [output]
     if args.also_svg and output.suffix.lower() != ".svg":
-        sibling = output.with_suffix(".svg")
+        wanted.append(output.with_suffix(".svg"))
     if args.also_png and output.suffix.lower() != ".png":
-        sibling = output.with_suffix(".png")
-    if sibling is not None:
-        written.append(render(source, sibling, args.theme, args.background, args.scale, args.width,
-                              args.font))
+        wanted.append(output.with_suffix(".png"))
+
+    written = render(source, wanted, args.theme, args.background, args.scale, args.width, args.font)
 
     print(json.dumps({"ok": True, "outputs": [str(path) for path in written],
                       "rtl": bool(RTL_RE.search(source))}, ensure_ascii=False))

@@ -8,7 +8,7 @@
  */
 
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
@@ -50,7 +50,16 @@ function SlideFrame({ aspect, className, slide }: { aspect: number; className?: 
   )
 }
 
-export function SlidesPreview({ deck, trailing }: { deck: Deck; trailing?: ReactNode }) {
+export function SlidesPreview({
+  deck,
+  onNeedSlide,
+  trailing
+}: {
+  deck: Deck
+  /** Asked for a slide that has not been drawn yet. */
+  onNeedSlide?: (index: number) => void
+  trailing?: ReactNode
+}) {
   const { t } = useI18n()
   const [active, setActive] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -61,6 +70,28 @@ export function SlidesPreview({ deck, trailing }: { deck: Deck; trailing?: React
     (delta: number) => setActive(current => Math.min(total - 1, Math.max(0, current + delta))),
     [total]
   )
+
+  // Ask for the slides around the one in view first, then for the rest of the
+  // rail. The order is the whole point: the reader sees this slide now, and
+  // the thumbnails fill in behind it instead of staying blank.
+  useEffect(() => {
+    if (!onNeedSlide) {
+      return
+    }
+
+    const near: number[] = []
+    const rest: number[] = []
+
+    for (let index = 0; index < total; index += 1) {
+      if (deck.slides[index]?.svg === null) {
+        ;(Math.abs(index - active) <= 2 ? near : rest).push(index)
+      }
+    }
+
+    for (const index of [...near, ...rest]) {
+      onNeedSlide(index)
+    }
+  }, [active, deck.slides, onNeedSlide, total])
 
   useEffect(() => {
     const element = containerRef.current
@@ -86,8 +117,6 @@ export function SlidesPreview({ deck, trailing }: { deck: Deck; trailing?: React
     return () => element.removeEventListener('keydown', onKeyDown)
   }, [step])
 
-  const thumbnails = useMemo(() => deck.slides.map((entry, index) => ({ entry, index })), [deck.slides])
-
   if (!slide) {
     return <div className="grid h-full place-items-center text-xs text-muted-foreground">{t.preview.office.emptyDeck}</div>
   }
@@ -95,7 +124,7 @@ export function SlidesPreview({ deck, trailing }: { deck: Deck; trailing?: React
   return (
     <div className="flex h-full min-h-0 outline-none" ref={containerRef} tabIndex={0}>
       <div className="w-40 shrink-0 space-y-2 overflow-y-auto border-e border-border/40 bg-muted/20 p-2">
-        {thumbnails.map(({ entry, index }) => (
+        {deck.slides.map((entry, index) => (
           <button
             aria-current={index === active ? 'true' : undefined}
             className={cn(

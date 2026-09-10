@@ -11,8 +11,10 @@
 import { cellValueAsPrimitive, getCachedFormulaValue, getFormulaText, isFormulaCell, isRichTextCell, richTextToString } from '@office-kit/xlsx/cell'
 import { fromArrayBuffer, loadWorkbook } from '@office-kit/xlsx/io'
 import { cellStyleToCss, getCellNumberFormat } from '@office-kit/xlsx/styles'
+import { pointToPixel } from '@office-kit/xlsx/utils'
 import { getSheet, sheetNames } from '@office-kit/xlsx/workbook'
 import { getColumnDimension, getFreezePanes, getMaxCol, getMaxRow, getMergedCells, getRowDimension, iterRows } from '@office-kit/xlsx/worksheet'
+import type { CSSProperties } from 'react'
 
 import type { CellPrimitive } from './excel-format'
 import { formatCellValue } from './excel-format'
@@ -22,16 +24,16 @@ import { evaluateFormula, parseReference } from './excel-formula'
 const PX_PER_CHAR_UNIT = 7
 const DEFAULT_COLUMN_PX = 80
 const DEFAULT_ROW_PX = 22
-const PX_PER_POINT = 96 / 72
 /** Beyond this the grid stops being a preview and starts being a memory leak. */
 export const SHEET_MAX_CELLS = 400_000
 
 export interface SheetCellView {
-  align: 'center' | 'left' | 'right'
-  /** Inline style straight from the workbook's own fills, fonts and borders. */
-  css: Record<string, string>
   /** Present when the cell holds a formula, for the formula bar. */
   formula?: string
+  /** The workbook's own fill, font and borders, ready to hand to React. Built
+   *  once here rather than per render: the grid re-renders on every scroll
+   *  frame and every selection, and this is per visible cell. */
+  style: CSSProperties
   text: string
 }
 
@@ -68,21 +70,6 @@ export function cellKey(row: number, col: number): string {
   return `${row}:${col}`
 }
 
-/** `1` → A, `27` → AA. The grid's column headers. */
-export function columnLabel(col: number): string {
-  let label = ''
-  let value = col
-
-  while (value > 0) {
-    const remainder = (value - 1) % 26
-
-    label = String.fromCharCode(65 + remainder) + label
-    value = Math.floor((value - 1) / 26)
-  }
-
-  return label
-}
-
 /** The reader keeps shared-string text as it appears in the XML, so numeric
  *  character references survive into the value. Arabic and every other
  *  non-Latin sheet is unreadable until they are decoded. */
@@ -116,15 +103,23 @@ function primitiveOf(cell: unknown): CellPrimitive {
   return typeof value === 'string' ? decodeXmlText(value) : (value as CellPrimitive)
 }
 
-/** Where the sheet's own alignment lands once the format has had its say. */
-function alignmentOf(css: Record<string, string>, fallback: 'left' | 'right'): 'center' | 'left' | 'right' {
-  const declared = css['text-align']
+/** The workbook's CSS for one cell, as a React style object. The sheet's own
+ *  alignment wins when it declared one; otherwise the format decides, which is
+ *  what puts numbers right and text left. */
+function cellStyleOf(css: Record<string, string>, fallbackAlign: 'left' | 'right'): CSSProperties {
+  const style: Record<string, string> = {}
 
-  if (declared === 'center' || declared === 'left' || declared === 'right') {
-    return declared
+  for (const [property, value] of Object.entries(css)) {
+    if (property !== 'text-align') {
+      style[property.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase())] = value
+    }
   }
 
-  return fallback
+  const declared = css['text-align']
+
+  style.textAlign = declared === 'center' || declared === 'left' || declared === 'right' ? declared : fallbackAlign
+
+  return style as CSSProperties
 }
 
 const RTL_LETTERS = /[\u0590-\u05ff\u0600-\u06ff\u0700-\u074f\u0780-\u07bf\u08a0-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/
@@ -153,7 +148,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
 
   // Raw values first, so a formula anywhere can read any other cell without
   // depending on the order rows arrive in.
-  const raw = new Map<string, { cell: unknown; formula?: string }>()
+  const raw = new Map<string, { cell: unknown; col: number; formula?: string; row: number }>()
 
   for (const row of iterRows(sheet)) {
     // The iterator is rectangular, so an untouched cell arrives as a hole.
@@ -166,7 +161,9 @@ function readSheet(workbook: unknown, name: string): SheetView {
 
       raw.set(cellKey(entry.row, entry.col), {
         cell,
-        formula: isFormulaCell(cell as never) ? (getFormulaText(cell as never) ?? undefined) : undefined
+        col: entry.col,
+        formula: isFormulaCell(cell as never) ? (getFormulaText(cell as never) ?? undefined) : undefined,
+        row: entry.row
       })
     }
   }
@@ -221,10 +218,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
   const cells = new Map<string, SheetCellView>()
 
   for (const [key, entry] of raw) {
-    const position = key.split(':')
-    const row = Number(position[0])
-    const col = Number(position[1])
-    const value = resolve(row, col)
+    const value = resolve(entry.row, entry.col)
 
     if (value === null || value === '') {
       continue
@@ -235,9 +229,8 @@ function readSheet(workbook: unknown, name: string): SheetView {
     const css = (cellStyleToCss(workbook as never, entry.cell as never) ?? {}) as Record<string, string>
 
     cells.set(key, {
-      align: alignmentOf(css, formatted.align),
-      css,
       ...(entry.formula ? { formula: entry.formula } : {}),
+      style: cellStyleOf(css, formatted.align),
       text: formatted.text
     })
   }
@@ -274,7 +267,7 @@ function readSheet(workbook: unknown, name: string): SheetView {
     if (dimension?.hidden) {
       rowHeights.set(row, 0)
     } else if (typeof dimension?.height === 'number') {
-      rowHeights.set(row, Math.round(dimension.height * PX_PER_POINT))
+      rowHeights.set(row, Math.round(pointToPixel(dimension.height)))
     }
   }
 

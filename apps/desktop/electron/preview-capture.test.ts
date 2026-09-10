@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import { capturePreviewContents, mapViewportRectToImage, normalizeCaptureRect } from './preview-capture'
 
@@ -94,4 +94,48 @@ test('capturePreviewContents fails closed on a destroyed guest', async () => {
     }),
     /gone/
   )
+})
+
+describe('the picture the agent receives', () => {
+  test('caps the long edge and encodes JPEG when the caller asks', async () => {
+    const resized: string[] = []
+
+    const image = {
+      crop: () => image,
+      getSize: () => ({ height: 1200, width: 2800 }),
+      isEmpty: () => false,
+      resize: (options: { height?: number; width?: number }) => {
+        resized.push(`${options.width}x${options.height}`)
+
+        return { ...image, getSize: () => ({ height: options.height ?? 0, width: options.width ?? 0 }) }
+      },
+      toJPEG: () => Buffer.from('jpeg-bytes'),
+      toPNG: () => Buffer.from('png-bytes')
+    }
+
+    const url = await capturePreviewContents({ capturePage: async () => image, isDestroyed: () => false }, undefined, undefined, {
+      jpegQuality: 82,
+      maxEdge: 1400
+    })
+
+    expect(resized).toEqual(['1400x600'])
+    expect(url.startsWith('data:image/jpeg;base64,')).toBe(true)
+  })
+
+  test('leaves a picture that already fits, and stays PNG without a quality', async () => {
+    const image = {
+      getSize: () => ({ height: 700, width: 900 }),
+      isEmpty: () => false,
+      resize: () => {
+        throw new Error('should not resize')
+      },
+      toPNG: () => Buffer.from('png-bytes')
+    }
+
+    const url = await capturePreviewContents({ capturePage: async () => image, isDestroyed: () => false }, undefined, undefined, {
+      maxEdge: 1400
+    })
+
+    expect(url.startsWith('data:image/png;base64,')).toBe(true)
+  })
 })

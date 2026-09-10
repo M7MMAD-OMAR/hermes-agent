@@ -1,6 +1,11 @@
 /**
  * Which native viewer an Office file opens in, and what it has to become first.
  *
+ * Shared by both processes on purpose. The renderer picks the viewer from this
+ * table and the main process picks the conversion target from it; when they
+ * were two tables, adding a format to one gave you a tab that opened the sheet
+ * viewer over a file LibreOffice had never been asked to convert.
+ *
  * Every viewer in the rail reads OOXML: Word by docx-preview, the sheet grid
  * and the slide deck by their OOXML parsers. So a file is described by the
  * *family* it belongs to. A file already in its family's form is read straight
@@ -25,7 +30,7 @@ export const OFFICE_FAMILY_BY_EXTENSION: Readonly<Record<string, OfficeFamily>> 
 }
 
 /** The lowercased extension of a path or URL, dot included. */
-export function officeExtensionOf(value: string): string {
+export function fileExtensionOf(value: string): string {
   const clean = value.split(/[?#]/, 1)[0] || value
   const name = clean.split(/[\\/]/).pop() || clean
   const dot = name.lastIndexOf('.')
@@ -34,14 +39,14 @@ export function officeExtensionOf(value: string): string {
 }
 
 export function officeFamilyForPath(value: string): null | OfficeFamily {
-  return OFFICE_FAMILY_BY_EXTENSION[officeExtensionOf(value)] ?? null
+  return OFFICE_FAMILY_BY_EXTENSION[fileExtensionOf(value)] ?? null
 }
 
 /** True when the file must be converted before its viewer can parse it. */
 export function officeNeedsConversion(value: string): boolean {
   const family = officeFamilyForPath(value)
 
-  return family != null && officeExtensionOf(value) !== `.${family}`
+  return family != null && fileExtensionOf(value) !== `.${family}`
 }
 
 /** The rail's preview kind for each family. Word, spreadsheets and decks each
@@ -67,4 +72,14 @@ export function isOfficePreviewKind(kind: string | undefined): kind is OfficePre
 
 export function officeFamilyForPreviewKind(kind: OfficePreviewKind): OfficeFamily {
   return OFFICE_FAMILY_BY_PREVIEW_KIND[kind]
+}
+
+/** True when the viewer for this kind reads the file's bytes itself.
+ *
+ *  These viewers never want a text prefetch: an image, a PDF, and each of the
+ *  Office viewers parses the file directly, so fetching its text first is a
+ *  download of a binary nobody reads. Naming the property keeps the list from
+ *  being spelled out again wherever it matters. */
+export function previewReadsOwnBytes(kind: string | undefined): boolean {
+  return kind === 'image' || kind === 'pdf' || isOfficePreviewKind(kind)
 }

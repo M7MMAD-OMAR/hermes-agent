@@ -1,7 +1,10 @@
 import type { GatewayWsUrlResult } from '@hermes/shared'
 import type { TranslucencyState } from '@hermes/shared/translucency'
 
+import type { BrowserDownloadRecord } from '../electron/browser-downloads'
 import type { PoolLimits } from '../electron/pool-limits'
+import type { CaptureFormat } from '../electron/preview-capture'
+import type { PreviewUploadResult } from '../electron/preview-upload'
 
 import type { WakeIndicatorState } from './lib/wake-indicator'
 import type {
@@ -13,15 +16,6 @@ import type {
 import type { QuickEntryStatePush, QuickEntryStatus, QuickEntrySubmitPayload } from './store/quick-entry'
 
 export {}
-
-/** A file the conversation's browser downloaded into the workspace. */
-interface BrowserDownloadRecord {
-  bytes: number
-  mimeType: string
-  name: string
-  path: string
-  url: string
-}
 
 declare global {
   interface Window {
@@ -256,7 +250,9 @@ declare global {
         } | null
       } | null>
       readFileDataUrl: (filePath: string) => Promise<string>
-      /** The PDF LibreOffice prints for a Word/Excel/PowerPoint file, as a data: URL. */
+      /** An Office file converted to `target` by LibreOffice, as a data: URL:
+       *  a legacy format into the OOXML its viewer parses, or a PDF for the
+       *  Word viewer's exact-pages mode. */
       officeConvert?: (filePath: string, target: 'docx' | 'pdf' | 'pptx' | 'xlsx') => Promise<string>
       /** Where a download started in the conversation's browser should land.
        *  `null` hands the download back to the OS save prompt. */
@@ -266,7 +262,7 @@ declare global {
         paths: string[]
         selector?: string
         webContentsId: number
-      }) => Promise<{ error?: string; files?: string[]; selector?: string; success: boolean }>
+      }) => Promise<PreviewUploadResult>
       onBrowserDownload?: (callback: (record: BrowserDownloadRecord) => void) => () => void
       /** Remote non-image attach: higher dedicated cap than preview/Settings default. */
       readFileDataUrlForAttach?: (filePath: string) => Promise<string>
@@ -324,6 +320,7 @@ declare global {
       saveImageBuffer: (data: ArrayBuffer | Uint8Array, ext: string, name?: string) => Promise<string>
       /** Crop the in-app browser guest. `rect` is CSS pixels in the page viewport. */
       capturePreview?: (payload: {
+        format?: CaptureFormat
         rect?: { height: number; width: number; x: number; y: number }
         viewport?: { height: number; width: number }
         webContentsId: number

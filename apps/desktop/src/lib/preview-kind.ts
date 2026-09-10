@@ -8,7 +8,8 @@
  * opened in the source viewer.
  */
 
-import { OFFICE_PREVIEW_KIND_BY_FAMILY, officeExtensionOf, officeFamilyForPath } from '@/lib/office-format'
+import { fileExtensionOf, OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@hermes/shared/office-format'
+
 import type { PreviewTarget } from '@/store/preview'
 
 export type PreviewKind = NonNullable<PreviewTarget['previewKind']>
@@ -20,7 +21,7 @@ const IMAGE_EXTENSIONS = new Set(['.bmp', '.gif', '.jpeg', '.jpg', '.png', '.svg
  *  binary that happens to end in `.txt` still resolves to text; the loader
  *  guards that once it has the bytes. */
 export function previewKindForPath(value: string): PreviewKind {
-  const extension = officeExtensionOf(value)
+  const extension = fileExtensionOf(value)
 
   if (HTML_EXTENSIONS.has(extension)) {
     return 'html'

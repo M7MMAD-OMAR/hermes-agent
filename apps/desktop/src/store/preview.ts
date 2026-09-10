@@ -1,7 +1,7 @@
+import { OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@hermes/shared/office-format'
 import { atom, computed, type WritableAtom } from 'nanostores'
 
 import { forgetPreviewConsole } from '@/app/chat/right-rail/preview-console-store'
-import { OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@/lib/office-format'
 import { persistentAtom } from '@/lib/persisted'
 import { previewKindForPath } from '@/lib/preview-kind'
 import { readKey } from '@/lib/storage'

@@ -10,19 +10,38 @@
  * fractions, scientific notation with custom exponents).
  */
 
+import { isDateFormat } from '@office-kit/xlsx/styles'
+import { excelToDate, WINDOWS_EPOCH_MS } from '@office-kit/xlsx/utils'
+
 export type CellPrimitive = boolean | Date | null | number | string
 
-const DATE_TOKEN = /[ymdhs]/i
-/** Excel's day 0. Serial 1 is 1900-01-01, and serial 60 is its phantom leap day. */
-const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30)
 const MS_PER_DAY = 86_400_000
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+// A workbook has a handful of distinct format codes shared by every one of its
+// cells, so both parses are cached by the code they read.
+const sectionCache = new Map<string, string[]>()
+const patternCache = new Map<string, NumberPattern>()
+
 /** Split a format code on its section separators, ignoring `;` inside quotes,
  *  brackets, or escaped by a backslash. */
 export function splitFormatSections(code: string): string[] {
+  const cached = sectionCache.get(code)
+
+  if (cached) {
+    return cached
+  }
+
+  const sections = splitSections(code)
+
+  sectionCache.set(code, sections)
+
+  return sections
+}
+
+function splitSections(code: string): string[] {
   const sections: string[] = []
   let current = ''
   let quoted = false
@@ -66,53 +85,6 @@ export function splitFormatSections(code: string): string[] {
   sections.push(current)
 
   return sections
-}
-
-/** True when the section formats a date or time rather than a plain number. */
-export function isDateFormatCode(section: string): boolean {
-  let quoted = false
-
-  for (let index = 0; index < section.length; index += 1) {
-    const char = section[index]!
-
-    if (char === '\\') {
-      index += 1
-
-      continue
-    }
-
-    if (char === '"') {
-      quoted = !quoted
-
-      continue
-    }
-
-    if (quoted) {
-      continue
-    }
-
-    if (char === '[') {
-      const close = section.indexOf(']', index)
-
-      index = close < 0 ? section.length : close
-
-      continue
-    }
-
-    if (DATE_TOKEN.test(char)) {
-      return true
-    }
-  }
-
-  return false
-}
-
-export function excelSerialToDate(serial: number): Date {
-  // Serials below 61 sit before Excel's phantom 29 Feb 1900, so they are one
-  // day ahead of the real calendar unless shifted back.
-  const days = serial < 61 ? serial + 1 : serial
-
-  return new Date(EXCEL_EPOCH_MS + Math.round(days * MS_PER_DAY))
 }
 
 function pad(value: number, width: number): string {
@@ -216,6 +188,20 @@ interface NumberPattern {
 }
 
 function parseNumberPattern(section: string): NumberPattern {
+  const cached = patternCache.get(section)
+
+  if (cached) {
+    return cached
+  }
+
+  const parsed = readNumberPattern(section)
+
+  patternCache.set(section, parsed)
+
+  return parsed
+}
+
+function readNumberPattern(section: string): NumberPattern {
   let before = ''
   let after = ''
   let digits = ''
@@ -223,17 +209,21 @@ function parseNumberPattern(section: string): NumberPattern {
   let percent = 0
   let index = 0
 
+  const emit = (text: string) => {
+    if (seenDigit) {
+      after += text
+    } else {
+      before += text
+    }
+  }
+
   while (index < section.length) {
     const char = section[index]!
 
     if (char === '\\') {
       const literal = section[index + 1] ?? ''
 
-      if (seenDigit) {
-        after += literal
-      } else {
-        before += literal
-      }
+      emit(literal)
 
       index += 2
 
@@ -244,11 +234,7 @@ function parseNumberPattern(section: string): NumberPattern {
       const close = section.indexOf('"', index + 1)
       const literal = section.slice(index + 1, close < 0 ? section.length : close)
 
-      if (seenDigit) {
-        after += literal
-      } else {
-        before += literal
-      }
+      emit(literal)
 
       index = close < 0 ? section.length : close + 1
 
@@ -264,11 +250,7 @@ function parseNumberPattern(section: string): NumberPattern {
       if (currency) {
         const symbol = currency[1]!.split('-')[0]!
 
-        if (seenDigit) {
-          after += symbol
-        } else {
-          before += symbol
-        }
+        emit(symbol)
       }
 
       index = close < 0 ? section.length : close + 1
@@ -279,11 +261,7 @@ function parseNumberPattern(section: string): NumberPattern {
     if (char === '%') {
       percent += 1
 
-      if (seenDigit) {
-        after += '%'
-      } else {
-        before += '%'
-      }
+      emit('%')
 
       index += 1
 
@@ -300,11 +278,7 @@ function parseNumberPattern(section: string): NumberPattern {
 
     if (char === '_') {
       // `_x` reserves the width of x; a preview shows a space.
-      if (seenDigit) {
-        after += ' '
-      } else {
-        before += ' '
-      }
+      emit(' ')
 
       index += 2
 
@@ -317,12 +291,7 @@ function parseNumberPattern(section: string): NumberPattern {
       continue
     }
 
-    if (seenDigit) {
-      after += char
-    } else {
-      before += char
-    }
-
+    emit(char)
     index += 1
   }
 
@@ -396,7 +365,7 @@ export function formatCellValue(value: CellPrimitive, code: string | undefined):
   }
 
   const asDate = value instanceof Date
-  const numeric = asDate ? (value.getTime() - EXCEL_EPOCH_MS) / MS_PER_DAY : value
+  const numeric = asDate ? (value.getTime() - WINDOWS_EPOCH_MS) / MS_PER_DAY : value
 
   const section =
     numeric < 0 && sections[1] ? sections[1]! : numeric === 0 && sections[2] ? sections[2]! : sections[0] || 'General'
@@ -407,8 +376,8 @@ export function formatCellValue(value: CellPrimitive, code: string | undefined):
       : { align: 'right', text: generalNumber(numeric) }
   }
 
-  if (isDateFormatCode(section)) {
-    const date = asDate ? value : excelSerialToDate(numeric)
+  if (isDateFormat(section)) {
+    const date = asDate ? value : excelToDate(numeric)
 
     return { align: 'right', text: formatDate(date, section) }
   }

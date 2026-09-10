@@ -1,3 +1,4 @@
+import { isOfficePreviewKind, officeFamilyForPreviewKind } from '@hermes/shared/office-format'
 import { useStore } from '@nanostores/react'
 import type * as React from 'react'
 import type {
@@ -34,7 +35,6 @@ import { Check, Pencil, X } from '@/lib/icons'
 import { isComposerChord } from '@/lib/keybinds/chords'
 import { shikiLanguageForFilename } from '@/lib/markdown-code'
 import { normalizeFilePreviewMath } from '@/lib/markdown-preprocess'
-import { isOfficePreviewKind, officeFamilyForPreviewKind } from '@/lib/office-format'
 import { dataUrlToBlob } from '@/lib/pdf-blob'
 import { useMathPlugin } from '@/lib/use-math-plugin'
 import { cn } from '@/lib/utils'

@@ -13,8 +13,12 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-/** What a converted file can be asked to become. */
-export type OfficeConvertTarget = 'docx' | 'pdf' | 'pptx' | 'xlsx'
+import { pathToFileUrl } from '../../shared/src/file-url'
+import { type OfficeFamily, officeFamilyForPath } from '../../shared/src/office-format'
+
+/** What a converted file can be asked to become: an OOXML family a viewer
+ *  parses, or the PDF the Word viewer's exact-pages mode shows. */
+export type OfficeConvertTarget = 'pdf' | OfficeFamily
 
 const MIME_BY_TARGET: Record<OfficeConvertTarget, string> = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -23,33 +27,8 @@ const MIME_BY_TARGET: Record<OfficeConvertTarget, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 }
 
-/** The OOXML family each previewable extension belongs to. A file already in
- *  its family's OOXML form needs no conversion at all — the renderer reads its
- *  bytes straight off disk — which is why `.docx`, `.xlsx` and `.pptx` map to
- *  themselves and the check for "must convert" is `family !== extension`. */
-const FAMILY_BY_EXTENSION = new Map<string, OfficeConvertTarget>([
-  ['.doc', 'docx'],
-  ['.docx', 'docx'],
-  ['.odp', 'pptx'],
-  ['.ods', 'xlsx'],
-  ['.odt', 'docx'],
-  ['.ppt', 'pptx'],
-  ['.pptx', 'pptx'],
-  ['.rtf', 'docx'],
-  ['.xls', 'xlsx'],
-  ['.xlsx', 'xlsx']
-])
-
-export const OFFICE_PREVIEW_EXTENSIONS = new Set(FAMILY_BY_EXTENSION.keys())
-
 export function isOfficePreviewPath(filePath: string): boolean {
-  return FAMILY_BY_EXTENSION.has(path.extname(filePath).toLowerCase())
-}
-
-/** The OOXML format this file is read as, or null when it is not an Office
- *  document at all. */
-export function officeFamilyFor(filePath: string): OfficeConvertTarget | null {
-  return FAMILY_BY_EXTENSION.get(path.extname(filePath).toLowerCase()) ?? null
+  return officeFamilyForPath(filePath) !== null
 }
 
 const CONVERT_TIMEOUT_MS = 90_000
@@ -178,10 +157,4 @@ export async function officeConvertForIpc(
   const data = await fs.promises.readFile(outPath)
 
   return `data:${mimeType};base64,${data.toString('base64')}`
-}
-
-function pathToFileUrl(target: string): string {
-  const normalized = target.replace(/\\/g, '/')
-
-  return `file://${normalized.startsWith('/') ? '' : '/'}${encodeURI(normalized)}`
 }

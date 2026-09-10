@@ -13,6 +13,9 @@
 import { $rightRailActiveTabId } from '@/store/layout'
 import { $previewTabs, agentPreviewTabId } from '@/store/preview'
 
+import type { CaptureFormat } from '../../../../electron/preview-capture'
+import type { PreviewUploadResult } from '../../../../electron/preview-upload'
+
 /** Runs JS source in the pane's guest page, resolving its completion value. */
 export type PreviewScriptRunner = (code: string) => Promise<unknown>
 
@@ -50,8 +53,12 @@ export function activePreviewScriptRunner(): PreviewScriptRunner | null {
  * point at, so the model reads the same thing the user was looking at.
  */
 /** With no rect, the whole guest viewport. A rect crops it, in the guest's own
- *  CSS pixels. */
-export type PreviewCapture = (rect?: { height: number; width: number; x: number; y: number }) => Promise<string>
+ *  CSS pixels. `format` caps and re-encodes the picture on the host, which is
+ *  where the bytes already are. */
+export type PreviewCapture = (
+  rect?: { height: number; width: number; x: number; y: number },
+  format?: CaptureFormat
+) => Promise<string>
 
 const captures = new Map<string, PreviewCapture>()
 
@@ -93,10 +100,7 @@ export function agentPreviewCapture(sessionId: null | string): null | PreviewCap
  * page a local file, so the pane publishes a door to the main process rather
  * than anything a guest script could do.
  */
-export type PreviewUpload = (
-  paths: string[],
-  selector?: string
-) => Promise<{ error?: string; files?: string[]; selector?: string; success: boolean }>
+export type PreviewUpload = (paths: string[], selector?: string) => Promise<PreviewUploadResult>
 
 const uploads = new Map<string, PreviewUpload>()
 

@@ -36,6 +36,7 @@ import {
   forgetSessionOwnerHintsForConnection,
   forgetSessionOwnerHintsForSession,
   getConfiguredDefaultProjectDir,
+  getCurrentModelSource,
   getRememberedRoute,
   getRememberedSessionId,
   getRememberedWorkspaceCwd,
@@ -67,8 +68,7 @@ import {
   setSessions,
   shouldMigrateComposerScope,
   touchSessionActivity,
-  workspaceCwdForNewSession,
-  getCurrentModelSource
+  workspaceCwdForNewSession
 } from './session'
 import {
   $attentionSessionIds,

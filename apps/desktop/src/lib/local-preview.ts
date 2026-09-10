@@ -1,8 +1,8 @@
+import { pathToFileUrl } from '@hermes/shared/file-url'
+import { fileExtensionOf, previewReadsOwnBytes } from '@hermes/shared/office-format'
 import DOMPurify from 'dompurify'
 
 import { isDesktopFsRemoteMode, readDesktopFileDataUrl, readDesktopFileText } from '@/lib/desktop-fs'
-import { pathToFileUrl } from '@/lib/file-url'
-import { isOfficePreviewKind } from '@/lib/office-format'
 import { previewKindForPath } from '@/lib/preview-kind'
 import type { PreviewTarget } from '@/store/preview'
 
@@ -47,13 +47,6 @@ const LANGUAGE_BY_EXT: Record<string, string> = {
 
 function basename(value: string) {
   return value.split(/[\\/]/).filter(Boolean).pop() || value
-}
-
-function extension(value: string) {
-  const clean = value.split(/[?#]/, 1)[0] || value
-  const idx = clean.lastIndexOf('.')
-
-  return idx >= 0 ? clean.slice(idx).toLowerCase() : ''
 }
 
 function joinPath(base: string, rel: string) {
@@ -186,7 +179,7 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
     path = joinPath(cwd, raw)
   }
 
-  const ext = extension(path)
+  const ext = fileExtensionOf(path)
 
   return {
     kind: 'file',
@@ -207,9 +200,7 @@ async function enrichPreviewTarget(target: PreviewTarget | null): Promise<Previe
     !isDesktopFsRemoteMode() ||
     !target ||
     target.kind !== 'file' ||
-    target.previewKind === 'image' ||
-    target.previewKind === 'pdf' ||
-    isOfficePreviewKind(target.previewKind)
+    previewReadsOwnBytes(target.previewKind)
   ) {
     return target
   }
@@ -240,6 +231,24 @@ async function enrichPreviewTarget(target: PreviewTarget | null): Promise<Previe
   }
 }
 
+/** Re-ask the renderer's classifier which viewer a normalized target opens in.
+ *
+ *  The main process classifies too, and its vocabulary is older: it has never
+ *  known the Office kinds, so a Word file that came back through the path
+ *  normalizer was labelled `binary` and opened in the wrong place. Main's
+ *  answer still wins for anything the extension cannot decide, which is the
+ *  part it is actually better at: it has read the bytes and can say an
+ *  extensionless file is binary. */
+function withRendererPreviewKind(target: PreviewTarget): PreviewTarget {
+  if (target.kind !== 'file') {
+    return target
+  }
+
+  const kind = previewKindForPath(target.path || target.url)
+
+  return kind === 'text' ? target : { ...target, previewKind: kind }
+}
+
 export async function normalizeOrLocalPreviewTarget(
   rawTarget: string,
   cwd?: string | null
@@ -248,7 +257,7 @@ export async function normalizeOrLocalPreviewTarget(
     const normalized = await window.hermesDesktop?.normalizePreviewTarget?.(rawTarget, cwd || undefined)
 
     if (normalized) {
-      return enrichPreviewTarget(normalized)
+      return enrichPreviewTarget(withRendererPreviewKind(normalized))
     }
   } catch {
     // Running Electron may still have the old HTML-only preview IPC. Fall

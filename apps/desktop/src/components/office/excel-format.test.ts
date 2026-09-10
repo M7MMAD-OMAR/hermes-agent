@@ -1,6 +1,8 @@
+import { isDateFormat } from '@office-kit/xlsx/styles'
+import { excelToDate } from '@office-kit/xlsx/utils'
 import { describe, expect, it } from 'vitest'
 
-import { excelSerialToDate, formatCellValue, generalNumber, isDateFormatCode, splitFormatSections } from './excel-format'
+import { formatCellValue, generalNumber, splitFormatSections } from './excel-format'
 
 const text = (value: Parameters<typeof formatCellValue>[0], code?: string) => formatCellValue(value, code).text
 
@@ -10,12 +12,13 @@ describe('Excel number formats', () => {
     expect(splitFormatSections('"a;b"#')).toEqual(['"a;b"#'])
   })
 
-  it('tells a date code from a number code', () => {
-    expect(isDateFormatCode('yyyy-mm-dd')).toBe(true)
-    expect(isDateFormatCode('#,##0.00')).toBe(false)
-    // The letters that look like date tokens are inert inside a literal.
-    expect(isDateFormatCode('#,##0 "days"')).toBe(false)
-    expect(isDateFormatCode('[$SAR-401]#,##0')).toBe(false)
+  it('routes a date code to the date renderer and a number code to the number one', () => {
+    // The library decides; these pin the cases the grid depends on, including
+    // the letters that look like date tokens but are inert inside a literal.
+    expect(isDateFormat('yyyy-mm-dd')).toBe(true)
+    expect(isDateFormat('#,##0.00')).toBe(false)
+    expect(isDateFormat('#,##0 "days"')).toBe(false)
+    expect(isDateFormat('[$SAR-401]#,##0')).toBe(false)
   })
 
   it('groups thousands and keeps the format decimals', () => {
@@ -43,7 +46,7 @@ describe('Excel number formats', () => {
   })
 
   it('renders serial dates and times', () => {
-    expect(excelSerialToDate(45900).toISOString().slice(0, 10)).toBe('2025-08-31')
+    expect(excelToDate(45900).toISOString().slice(0, 10)).toBe('2025-08-31')
     expect(text(45900, 'yyyy-mm-dd')).toBe('2025-08-31')
     expect(text(45900.5, 'yyyy-mm-dd hh:mm')).toBe('2025-08-31 12:00')
     expect(text(45900.5, 'd mmm yyyy')).toBe('31 Aug 2025')

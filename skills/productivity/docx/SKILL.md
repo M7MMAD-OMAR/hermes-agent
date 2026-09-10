@@ -57,6 +57,21 @@ python scripts/docx_comments.py list out.docx
 python scripts/docx_validate.py out.docx
 ```
 
+## Arabic, Persian, Urdu, Hebrew (right-to-left)
+`docx_create.py` marks direction automatically (`"rtl": "auto"`, the
+default): every paragraph containing RTL letters gets `w:bidi` plus `w:rtl`
+on its runs, and a mostly-RTL table is laid out from the right with all its
+cells aligned. This is what keeps the full stop at the END of an Arabic line
+and `(Python)` brackets facing the right way; without it Word and
+LibreOffice treat the paragraph as left-to-right and every punctuation mark
+lands on the wrong side. Force it with `"rtl": "on"`, disable with `"off"`,
+or override per block (`"rtl": true|false`). The CLI flag `--rtl` wins
+over the spec. Edits to an existing file can call
+`docx_common.apply_rtl(doc, "auto")` before saving. Fonts are a separate
+concern: set an Arabic-capable family (Cairo, Noto Naskh Arabic, Amiri) in
+`styles`, in the complex-script slot too, or the text shapes in a fallback.
+Always convert to PDF and look at the first page before delivering.
+
 ## Quick Reference
 
 | Task | Command |

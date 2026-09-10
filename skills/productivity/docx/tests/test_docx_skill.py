@@ -94,6 +94,65 @@ def created(workdir: Path) -> Path:
     return out
 
 
+class TestRightToLeft:
+    """Arabic paragraphs come out right-to-left; Latin ones stay as they were."""
+
+    SPEC = {"blocks": [
+        {"type": "heading", "text": "تقرير بحث (Python)", "level": 1},
+        {"type": "paragraph", "text": "تم إعداد هذا التقرير بتاريخ 20 أغسطس 2026."},
+        {"type": "paragraph", "text": "This stays left-to-right."},
+        {"type": "table", "header": ["المكوّن", "الإصدار"],
+         "rows": [["بايثون", "3.14.7"]]},
+    ]}
+
+    def _xml(self, out: Path) -> str:
+        import zipfile
+        with zipfile.ZipFile(out) as z:
+            return z.read("word/document.xml").decode("utf-8")
+
+    def test_auto_marks_arabic_only(self, workdir: Path):
+        spec = workdir / "rtl.json"
+        spec.write_text(json.dumps(self.SPEC), encoding="utf-8")
+        out = workdir / "rtl.docx"
+        res = run("docx_create.py", spec, out)
+        assert res["ok"] and res["tables_rtl"] == 1
+        xml = self._xml(out)
+        # heading + paragraph + 2 header cells + 2 body cells (the numeric
+        # cell is flipped because the table it sits in is RTL)
+        assert xml.count("<w:bidi/>") == 6
+        assert "<w:bidiVisual/>" in xml
+        # The English paragraph carries no direction mark.
+        english = xml.split("This stays left-to-right.")[0].rsplit("<w:p>", 1)[-1]
+        assert "<w:bidi/>" not in english
+
+    def test_off_leaves_direction_alone(self, workdir: Path):
+        spec = workdir / "rtl-off.json"
+        spec.write_text(json.dumps({**self.SPEC, "rtl": "off"}), encoding="utf-8")
+        out = workdir / "rtl-off.docx"
+        res = run("docx_create.py", spec, out)
+        assert res["ok"] and res["paragraphs_rtl"] == 0
+        assert "<w:bidi/>" not in self._xml(out)
+
+    def test_cli_flag_beats_spec(self, workdir: Path):
+        spec = workdir / "rtl-cli.json"
+        spec.write_text(json.dumps({**self.SPEC, "rtl": "off"}), encoding="utf-8")
+        out = workdir / "rtl-cli.docx"
+        res = run("docx_create.py", spec, out, "--rtl", "on")
+        assert res["ok"] and res["paragraphs_rtl"] >= 3
+        assert "This stays left-to-right." in self._xml(out)
+
+    def test_block_override_wins(self, workdir: Path):
+        blocks = [{"type": "paragraph", "text": "Latin forced right.", "rtl": True},
+                  {"type": "paragraph", "text": "عربي مُجبر يسار.", "rtl": False}]
+        spec = workdir / "rtl-block.json"
+        spec.write_text(json.dumps({"blocks": blocks}), encoding="utf-8")
+        out = workdir / "rtl-block.docx"
+        assert run("docx_create.py", spec, out)["ok"]
+        xml = self._xml(out)
+        assert xml.count("<w:bidi/>") == 1
+        assert "Latin forced right." in xml.split("<w:bidi/>")[1]
+
+
 class TestCreateAndRead:
     def test_text_roundtrip(self, created: Path):
         text = run("docx_read.py", created, "--text")

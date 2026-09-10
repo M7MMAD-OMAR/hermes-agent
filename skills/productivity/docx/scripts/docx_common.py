@@ -92,3 +92,129 @@ def replace_in_paragraph(para, old: str, new: str) -> int:
                 runs[i].text = t[:cs] + t[ce:]
         count += 1
     return count
+
+
+# ---------------------------------------------------------------------------
+# Right-to-left text
+# ---------------------------------------------------------------------------
+
+# Arabic, Persian, Urdu and Hebrew letters. Presentation forms are included:
+# text copied out of a PDF often arrives pre-shaped.
+_RTL_CHARS = (
+    "\u0590-\u05ff"    # Hebrew
+    "\u0600-\u06ff"    # Arabic
+    "\u0750-\u077f"    # Arabic Supplement
+    "\u08a0-\u08ff"    # Arabic Extended-A
+    "\ufb1d-\ufdff"    # presentation forms A (also Hebrew)
+    "\ufe70-\ufeff"    # presentation forms B
+)
+
+
+def has_rtl_text(text: str) -> bool:
+    """True when the text contains at least one right-to-left letter."""
+    import re
+    return bool(re.search(f"[{_RTL_CHARS}]", text or ""))
+
+
+def set_paragraph_rtl(para, rtl: bool = True) -> None:
+    """Make one paragraph right-to-left (or back to left-to-right).
+
+    Two marks are needed, not one. ``w:bidi`` on the paragraph flips the base
+    direction, which is what puts the full stop at the END of an Arabic line
+    instead of the start and keeps ``(Python)`` brackets facing the right way.
+    ``w:rtl`` on each run tells the renderer the run's own script is RTL, so a
+    bold Arabic label followed by a Latin value keeps its order. Without both,
+    LibreOffice and Word render Arabic as a left-to-right paragraph and every
+    punctuation mark lands on the wrong side.
+    """
+    from docx.oxml.ns import qn
+    p_pr = para._p.get_or_add_pPr()
+    for old in p_pr.findall(qn("w:bidi")):
+        p_pr.remove(old)
+    if rtl:
+        bidi = p_pr.makeelement(qn("w:bidi"), {})
+        # Schema order: bidi sits after jc/numPr etc. python-docx's helper knows
+        # the sequence; fall back to append when the element has no successors.
+        try:
+            p_pr.insert_element_before(bidi, "w:adjustRightInd", "w:snapToGrid",
+                                       "w:spacing", "w:ind", "w:contextualSpacing",
+                                       "w:mirrorIndents", "w:suppressOverlap", "w:jc",
+                                       "w:textDirection", "w:textAlignment",
+                                       "w:textboxTightWrap", "w:outlineLvl", "w:divId",
+                                       "w:cnfStyle", "w:rPr", "w:sectPr", "w:pPrChange")
+        except Exception:
+            p_pr.append(bidi)
+    for run in para.runs:
+        r_pr = run._r.get_or_add_rPr()
+        for old in r_pr.findall(qn("w:rtl")):
+            r_pr.remove(old)
+        if rtl:
+            r_pr.append(r_pr.makeelement(qn("w:rtl"), {}))
+
+
+def set_table_rtl(table, rtl: bool = True) -> None:
+    """Lay a table out right-to-left: first column on the right."""
+    from docx.oxml.ns import qn
+    tbl_pr = table._tbl.tblPr
+    for old in tbl_pr.findall(qn("w:bidiVisual")):
+        tbl_pr.remove(old)
+    if rtl:
+        tbl_pr.append(tbl_pr.makeelement(qn("w:bidiVisual"), {}))
+
+
+def apply_rtl(doc, mode: str = "auto") -> dict:
+    """Set paragraph direction across the whole document.
+
+    ``mode``: ``"auto"`` flips every paragraph that contains RTL letters and
+    every table whose text is mostly RTL; ``"on"`` flips everything; ``"off"``
+    leaves the document as built. Returns counts for the caller's report.
+    Idempotent: running it twice yields the same XML.
+    """
+    if mode not in ("auto", "on", "off"):
+        raise ValueError(f"rtl must be auto, on or off, not {mode!r}")
+    if mode == "off":
+        return {"paragraphs_rtl": 0, "tables_rtl": 0}
+    paragraphs = 0
+    for para in iter_all_paragraphs(doc):
+        if mode == "on" or has_rtl_text(para.text):
+            set_paragraph_rtl(para, True)
+            paragraphs += 1
+    tables = 0
+    for table in _iter_all_tables(doc):
+        text = " ".join(cell.text for row in table.rows for cell in row.cells)
+        if mode == "on" or _mostly_rtl(text):
+            set_table_rtl(table, True)
+            tables += 1
+            # A cell holding only a number or a Latin token has no RTL letter
+            # of its own, yet inside an RTL table it must still align with its
+            # neighbours; otherwise the version column reads left while the
+            # rest of the row reads right.
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        if not has_rtl_text(para.text):
+                            set_paragraph_rtl(para, True)
+                            paragraphs += 1
+    return {"paragraphs_rtl": paragraphs, "tables_rtl": tables}
+
+
+def _iter_all_tables(doc):
+    def walk(tables):
+        for table in tables:
+            yield table
+            for row in table.rows:
+                for cell in row.cells:
+                    yield from walk(cell.tables)
+    yield from walk(doc.tables)
+    for section in doc.sections:
+        for part in (section.header, section.footer):
+            if part is not None:
+                yield from walk(part.tables)
+
+
+def _mostly_rtl(text: str) -> bool:
+    """More RTL letters than Latin ones. Digits and punctuation do not vote."""
+    import re
+    rtl = len(re.findall(f"[{_RTL_CHARS}]", text))
+    latin = len(re.findall(r"[A-Za-z]", text))
+    return rtl > 0 and rtl >= latin

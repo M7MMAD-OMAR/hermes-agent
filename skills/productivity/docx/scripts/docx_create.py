@@ -31,6 +31,13 @@ Spec (JSON object):
   ]
 }
 
+Direction: `"rtl": "auto" | "on" | "off"` at the top level (default
+"auto") marks every paragraph that contains Arabic, Persian, Urdu or Hebrew
+letters as right-to-left, and lays out mostly-RTL tables from the right.
+Without it Word and LibreOffice render Arabic as a left-to-right paragraph,
+so the full stop lands at the START of the line and brackets face the wrong
+way. A block may override with its own `"rtl": true|false`.
+
 Extras: `"footer_page_numbers": true` at the top level adds a
 "Page X of Y" footer built from PAGE/NUMPAGES fields, and a `toc` block
 inserts a Table of Contents field. Field results are computed by
@@ -46,6 +53,9 @@ from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_BREAK
 from docx.shared import Mm, Pt, RGBColor
+
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
+from docx_common import apply_rtl, set_paragraph_rtl, set_table_rtl  # noqa: E402
 
 
 def apply_page(doc, page: dict) -> None:
@@ -94,17 +104,22 @@ def add_runs(para, block: dict) -> None:
 
 def add_block(doc, block: dict) -> None:
     btype = block["type"]
+    # A block's own `rtl` wins over the document mode. Applied to what the
+    # block just added, AFTER the document-wide pass would otherwise run, so
+    # the two never fight: main() runs apply_rtl first, then the overrides.
+    made = []
     if btype == "heading":
-        doc.add_heading(block.get("text", ""), level=block.get("level", 1))
+        made.append(doc.add_heading(block.get("text", ""), level=block.get("level", 1)))
     elif btype == "paragraph":
         para = doc.add_paragraph(style=block.get("style"))
         add_runs(para, block)
+        made.append(para)
     elif btype == "bullet_list":
         for item in block.get("items", []):
-            doc.add_paragraph(item, style="List Bullet")
+            made.append(doc.add_paragraph(item, style="List Bullet"))
     elif btype == "numbered_list":
         for item in block.get("items", []):
-            doc.add_paragraph(item, style="List Number")
+            made.append(doc.add_paragraph(item, style="List Number"))
     elif btype == "table":
         header = block.get("header", [])
         rows = block.get("rows", [])
@@ -123,6 +138,7 @@ def add_block(doc, block: dict) -> None:
             cells = table.add_row().cells
             for i, text in enumerate(row):
                 cells[i].text = str(text)
+        made.append(table)
     elif btype == "image":
         width = Mm(block["width_mm"]) if block.get("width_mm") else None
         doc.add_picture(block["path"], width=width)
@@ -136,6 +152,25 @@ def add_block(doc, block: dict) -> None:
                    "update fields to populate.")
     else:
         raise ValueError(f"unknown block type: {btype}")
+    if "rtl" in block:
+        _RTL_OVERRIDES.append((made, bool(block["rtl"])))
+
+
+# (objects a block produced, forced direction), replayed after apply_rtl.
+_RTL_OVERRIDES: list = []
+
+
+def _replay_rtl_overrides() -> None:
+    for made, rtl in _RTL_OVERRIDES:
+        for obj in made:
+            if hasattr(obj, "rows"):
+                set_table_rtl(obj, rtl)
+                for row in obj.rows:
+                    for cell in row.cells:
+                        for para in cell.paragraphs:
+                            set_paragraph_rtl(para, rtl)
+            else:
+                set_paragraph_rtl(obj, rtl)
 
 
 def main() -> int:
@@ -144,6 +179,8 @@ def main() -> int:
         epilog="See the module docstring (top of this file) for the spec format.")
     ap.add_argument("spec", help="path to JSON spec file")
     ap.add_argument("output", help="path of .docx to write")
+    ap.add_argument("--rtl", choices=("auto", "on", "off"),
+                    help="paragraph direction; overrides the spec's \"rtl\" (default auto)")
     args = ap.parse_args()
 
     with open(args.spec, encoding="utf-8") as f:
@@ -160,6 +197,8 @@ def main() -> int:
         doc.sections[0].footer.paragraphs[0].text = spec["footer"]
     for block in spec.get("blocks", []):
         add_block(doc, block)
+    direction = apply_rtl(doc, args.rtl or spec.get("rtl", "auto"))
+    _replay_rtl_overrides()
     if spec.get("footer_page_numbers"):
         from docx_edit import _add_field
         para = doc.sections[0].footer.paragraphs[0]
@@ -169,7 +208,7 @@ def main() -> int:
         _add_field(para, " NUMPAGES ", "1")
     doc.save(args.output)
     print(json.dumps({"ok": True, "output": args.output,
-                      "blocks": len(spec.get("blocks", []))}))
+                      "blocks": len(spec.get("blocks", [])), **direction}))
     return 0
 
 

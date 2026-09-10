@@ -134,6 +134,8 @@ describe('desk', () => {
       profile: 'herwork',
       targetProfile: 'herwork',
       cwd: '/home/sbarah/herwork',
+      // A file the desk browser downloads lands beside the job's drafts.
+      downloadDir: '/home/sbarah/herwork/work',
       // Dropped files land in the desk inbox, not wherever they were dragged from.
       dropDir: '/home/sbarah/herwork/inbox',
       bundle: 'herwork'

@@ -194,7 +194,11 @@ function asyncResultBody(content: string): string | undefined {
   )
 }
 
-function timelineDisplayContent(message: SessionMessage, content: string): string {
+function timelineDisplayContent(
+  message: SessionMessage,
+  content: string,
+  displayMeta: null | Record<string, unknown>
+): string {
   if (message.display_kind === 'model_switch') {
     return 'model changed'
   }
@@ -208,7 +212,7 @@ function timelineDisplayContent(message: SessionMessage, content: string): strin
   }
 
   if (message.display_kind === 'async_delegation_complete') {
-    const count = timelineTaskCount(parseDisplayMetadata(message.display_metadata))
+    const count = timelineTaskCount(displayMeta)
 
     return count === undefined
       ? 'background agent work finished'
@@ -292,6 +296,11 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
       return
     }
 
+    // Parsed once for the whole row: the timeline line, the reactions and the
+    // outcome all read the same blob, and JSON.parse per reader showed up on
+    // the resume path for long transcripts.
+    const displayMeta = parseDisplayMetadata(message.display_metadata)
+
     const content =
       message.display_content !== undefined
         ? message.display_content
@@ -299,7 +308,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
 
     const rawDisplayContent = transcriptContent(
       message.display_kind,
-      timelineDisplayContent(message, displayContentForMessage(message.role, content))
+      timelineDisplayContent(message, displayContentForMessage(message.role, content), displayMeta)
     )
 
     const displayRole =
@@ -414,7 +423,6 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
       flushPendingTools(index)
     }
 
-    const displayMeta = parseDisplayMetadata(message.display_metadata)
     const reactions = messageReactions(displayMeta)
     const turnOutcome = message.role === 'assistant' ? messageTurnOutcome(displayMeta) : undefined
     // Gateway resume names the durable row id `row_id`; the REST transcript

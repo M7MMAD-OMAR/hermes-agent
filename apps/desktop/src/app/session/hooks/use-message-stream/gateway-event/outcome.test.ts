@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { ClientSessionState } from '@/app/types'
 import type { ChatMessage } from '@/lib/chat-messages'
+import { createClientSessionState } from '@/lib/chat-runtime'
 
 import { handleOutcomeEvent } from './outcome'
 import type { GatewayEventContext } from './types'
@@ -26,7 +27,7 @@ function context(
   overrides: Partial<GatewayEventContext> = {}
 ): { ctx: GatewayEventContext; states: Map<string, ClientSessionState>; updateSessionState: ReturnType<typeof vi.fn> } {
   const states = new Map<string, ClientSessionState>()
-  states.set('routed-session', { messages } as unknown as ClientSessionState)
+  states.set('routed-session', { ...createClientSessionState(null, messages) })
 
   const updateSessionState = vi.fn((sessionId: string, updater: (s: ClientSessionState) => ClientSessionState) => {
     const next = updater(states.get(sessionId)!)
@@ -53,8 +54,8 @@ function context(
   return { ctx, states, updateSessionState }
 }
 
-const outcomeOf = (states: Map<string, ClientSessionState>, id = 'reply'): unknown =>
-  (states.get('routed-session')!.messages as ChatMessage[]).find(m => m.id === id)?.turnOutcome
+const outcomeOf = (states: Map<string, ClientSessionState>): unknown =>
+  (states.get('routed-session')!.messages as ChatMessage[]).find(m => m.id === 'reply')?.turnOutcome
 
 describe('handleOutcomeEvent', () => {
   it('does not claim other events', () => {
@@ -63,7 +64,7 @@ describe('handleOutcomeEvent', () => {
   })
 
   it('stamps the outcome onto the last assistant message', () => {
-    const { ctx, states } = context([assistant('user' as string), assistant('reply')])
+    const { ctx, states } = context([assistant('reply-old'), assistant('reply')])
 
     expect(handleOutcomeEvent(ctx)).toBe(true)
     expect(outcomeOf(states)).toEqual(OUTCOME)
@@ -88,6 +89,27 @@ describe('handleOutcomeEvent', () => {
 
     handleOutcomeEvent(ctx)
     expect((states.get('routed-session')!.messages as ChatMessage[])[0]?.turnOutcome).toBeUndefined()
+  })
+
+  it('leaves the state object untouched when a replayed frame says the same thing', () => {
+    // The gateway replays up to 512 frames on reconnect. A new state object per
+    // replayed frame is a full message-list rebuild plus every side effect
+    // `publishSessionState` carries, for a row that did not change.
+    const { ctx, states } = context([assistant('reply', OUTCOME)])
+    const before = states.get('routed-session')!
+
+    expect(handleOutcomeEvent(ctx)).toBe(true)
+    expect(states.get('routed-session')).toBe(before)
+  })
+
+  it('repaints a model upgrade that carries the same three lists', () => {
+    // `source` is part of the compare on purpose: identical text arriving as
+    // 'model' must still replace the 'rules' row it upgrades.
+    const rules = { ...OUTCOME, source: 'rules' }
+    const { ctx, states } = context([assistant('reply', rules)])
+
+    handleOutcomeEvent(ctx)
+    expect(outcomeOf(states)).toEqual(OUTCOME)
   })
 
   it('replaces rules text with a model outcome but never the reverse', () => {

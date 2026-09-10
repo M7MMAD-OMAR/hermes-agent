@@ -694,7 +694,6 @@ def finalize_turn(
             final_response=final_response,
             interrupted=interrupted,
             errored=bool(failed),
-            turn_evidence=getattr(agent, "_next_moves_evidence", None),
         )
     except Exception:
         pass  # An outcome row is never worth failing a turn over.

@@ -5,6 +5,7 @@ import { normalizePersonalityValue } from '@/lib/chat-runtime'
 import { embeddedImageUrls, textWithoutEmbeddedImages } from '@/lib/embedded-images'
 import { parseErrorSurface } from '@/lib/error-surface'
 import { isMessagingSource, normalizeSessionSource } from '@/lib/session-source'
+import { turnOutcomesEquivalent } from '@/lib/turn-outcome'
 import { reconcileApprovalModeForProfile } from '@/store/approval-mode'
 import { requestDesktopOnboardingForCredentialWarning } from '@/store/onboarding'
 import { $activeGatewayProfile, $profiles, normalizeProfileKey } from '@/store/profile'
@@ -262,24 +263,29 @@ export function chatReactionsEquivalent(a: ChatMessage['reactions'], b: ChatMess
   )
 }
 
-/** Structural compare of the turn-outcome row (source + the three lists): it
- *  arrives as a fresh object on every resume/live stamp, so identity would
- *  repaint forever, and a rehydrate that attaches it must repaint once. */
-export function chatTurnOutcomesEquivalent(a: ChatMessage['turnOutcome'], b: ChatMessage['turnOutcome']): boolean {
-  if (a === b) {
-    return true
+/** The `display_metadata` facts that ride on an authoritative row: absent from
+ *  a live/optimistic row that has not round-tripped, and from an authoritative
+ *  row that predates the write. Both merge paths carry them the same way, so
+ *  the rule lives once: a fourth such field is one edit, not two. Reactions are
+ *  cloned because the target may outlive the source list; the outcome is a
+ *  frozen-by-convention value object copied by reference, which is what keeps
+ *  `Object.is` stable for `useHydratedOutcome`. */
+function carryPersistedFields(target: ChatMessage, source: ChatMessage): ChatMessage {
+  let merged = target
+
+  if (merged.rowId === undefined && source.rowId !== undefined) {
+    merged = { ...merged, rowId: source.rowId }
   }
 
-  if (!a || !b) {
-    return a == null && b == null
+  if (merged.reactions === undefined && source.reactions?.length) {
+    merged = { ...merged, reactions: [...source.reactions] }
   }
 
-  return (
-    a.source === b.source &&
-    a.delivered.join('\u0000') === b.delivered.join('\u0000') &&
-    a.failed.join('\u0000') === b.failed.join('\u0000') &&
-    a.open.join('\u0000') === b.open.join('\u0000')
-  )
+  if (merged.turnOutcome === undefined && source.turnOutcome) {
+    merged = { ...merged, turnOutcome: source.turnOutcome }
+  }
+
+  return merged
 }
 
 export function chatMessagesEquivalent(a: ChatMessage, b: ChatMessage): boolean {
@@ -301,7 +307,7 @@ export function chatMessagesEquivalent(a: ChatMessage, b: ChatMessage): boolean 
     // previewed final settling onto a sealed interim bubble restores the bar).
     (a.interim ?? false) !== (b.interim ?? false) ||
     !chatReactionsEquivalent(a.reactions, b.reactions) ||
-    !chatTurnOutcomesEquivalent(a.turnOutcome, b.turnOutcome)
+    !turnOutcomesEquivalent(a.turnOutcome, b.turnOutcome)
   ) {
     return false
   }
@@ -431,26 +437,12 @@ export function reconcileResumeMessages(nextMessages: ChatMessage[], previousMes
       preserved = { ...preserved, attachmentRefs: [...previous.attachmentRefs] }
     }
 
-    // Reactions and the row id come from the same authoritative rows as the
-    // text, but a live/optimistic row that hasn't round-tripped yet carries
-    // neither. Carry the cached copy forward so a reaction doesn't blink off
-    // mid-turn. NEW object every time — the runtime repository's WeakMap
-    // caches normalized ThreadMessages by ChatMessage identity.
-    if (sameTurn && preserved.rowId === undefined && previous.rowId !== undefined) {
-      preserved = { ...preserved, rowId: previous.rowId }
-    }
-
-    if (sameTurn && preserved.reactions === undefined && previous.reactions?.length) {
-      preserved = { ...preserved, reactions: [...previous.reactions] }
-    }
-
-    // The outcome row is stamped live onto this message by `handleOutcomeEvent`
-    // AFTER the turn's own message.complete resume rebuilt the list, so an
-    // authoritative row that predates the persist carries none. Carry the live
-    // copy forward so the row does not blink off between the stamp and the DB
-    // catching up.
-    if (sameTurn && preserved.turnOutcome === undefined && previous.turnOutcome) {
-      preserved = { ...preserved, turnOutcome: previous.turnOutcome }
+    // The outcome row in particular is stamped onto this message by
+    // `handleOutcomeEvent` AFTER the turn's own message.complete resume rebuilt
+    // the list, so the authoritative row predates it. Carrying the cached copy
+    // forward is what stops the row blinking off until the DB catches up.
+    if (sameTurn) {
+      preserved = carryPersistedFields(preserved, previous)
     }
 
     const previousImages = embeddedImageUrls(previousText)
@@ -538,21 +530,7 @@ const localPendingSupersedes = (local: ChatMessage, authoritative: ChatMessage):
  * must not repaint the reply as perpetually streaming.
  */
 const withAuthoritativeTurnState = (local: ChatMessage, authoritative: ChatMessage): ChatMessage => {
-  const merged: ChatMessage = { ...local, pending: authoritative.pending === true }
-
-  if (local.rowId === undefined && authoritative.rowId !== undefined) {
-    merged.rowId = authoritative.rowId
-  }
-
-  if (local.reactions === undefined && authoritative.reactions?.length) {
-    merged.reactions = [...authoritative.reactions]
-  }
-
-  if (local.turnOutcome === undefined && authoritative.turnOutcome) {
-    merged.turnOutcome = authoritative.turnOutcome
-  }
-
-  return merged
+  return carryPersistedFields({ ...local, pending: authoritative.pending === true }, authoritative)
 }
 
 export function preserveLocalPendingTurnMessages(

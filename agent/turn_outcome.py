@@ -32,7 +32,7 @@ from agent.next_moves import (
     MIN_RESPONSE_CHARS,
     NO_NEXT_MOVES_PLATFORMS,
     TurnEvidence,
-    _clip as _clip_to,
+    _clip as _clip_text,
     _main_runtime,
     auxiliary_block,
     auxiliary_flag,
@@ -43,7 +43,7 @@ from tools.todo_tool import _ACTIVE_STATUSES
 logger = logging.getLogger(__name__)
 
 # Three lists, each 0 to 3 one-sentence items. Same numbers both ends:
-# ``store/turn-outcome.ts`` refuses anything longer from an older backend.
+# ``lib/turn-outcome.ts`` refuses anything longer from an older backend.
 MAX_ITEMS = 3
 ITEM_LIMIT = 140
 
@@ -122,7 +122,7 @@ def turn_outcome_use_model(config: Optional[Mapping[str, Any]] = None) -> bool:
 
 
 def _clip(text: Any, limit: int = ITEM_LIMIT) -> str:
-    return _clip_to(text, limit)
+    return _clip_text(text, limit)
 
 
 def validate_items(raw: Any) -> List[str]:
@@ -331,13 +331,14 @@ def stage_turn_outcome(
     final_response: str,
     interrupted: bool,
     errored: bool = False,
-    turn_evidence: Optional[TurnEvidence] = None,
 ) -> None:
     """Park this turn's evidence on the agent. Silent on every gate.
 
-    ``turn_evidence`` is the ``TurnEvidence`` next moves already extracted from
-    this same snapshot, when it did; passing it saves a second walk over every
-    message and tool call of the turn.
+    Reuses the ``TurnEvidence`` next moves already extracted from this same
+    snapshot when it left one, which saves a second walk over every message and
+    tool call of the turn. Read here rather than passed in by the finalizer: a
+    caller cannot then break the reuse by reordering the two stagers, and this
+    stays a pure optimisation, extraction runs when the evidence is absent.
     """
     agent._turn_outcome_evidence = None
 
@@ -361,7 +362,8 @@ def stage_turn_outcome(
         return
 
     try:
-        turn = turn_evidence if turn_evidence is not None else extract_evidence(agent, messages_snapshot, final_response)
+        shared = getattr(agent, "_next_moves_evidence", None)
+        turn = shared if isinstance(shared, TurnEvidence) else extract_evidence(agent, messages_snapshot, final_response)
     except Exception:
         logger.debug("Turn-outcome evidence extraction failed", exc_info=True)
 

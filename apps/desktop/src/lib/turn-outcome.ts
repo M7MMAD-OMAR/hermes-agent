@@ -9,6 +9,8 @@
  * `readTurnOutcome` before anything renders them.
  */
 
+import { arraysEqual } from '@/lib/storage'
+
 export interface TurnOutcome {
   delivered: string[]
   failed: string[]
@@ -78,4 +80,26 @@ export function readTurnOutcome(raw: unknown): null | TurnOutcome {
   }
 
   return { delivered, failed, open, source: record.source === 'model' ? 'model' : 'rules' }
+}
+
+/** Structural compare of two outcome rows: it arrives as a fresh object on
+ *  every live stamp and every resume, so identity would repaint forever, while
+ *  a rehydrate that genuinely attaches one must repaint once. `source` counts:
+ *  a rules row and a model row can carry identical text, and the upgrade from
+ *  the first to the second is exactly the repaint that must not be swallowed. */
+export function turnOutcomesEquivalent(a: null | TurnOutcome | undefined, b: null | TurnOutcome | undefined): boolean {
+  if (a === b) {
+    return true
+  }
+
+  if (!a || !b) {
+    return false
+  }
+
+  return (
+    a.source === b.source &&
+    arraysEqual(a.delivered, b.delivered) &&
+    arraysEqual(a.failed, b.failed) &&
+    arraysEqual(a.open, b.open)
+  )
 }

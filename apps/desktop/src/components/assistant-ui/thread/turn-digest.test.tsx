@@ -233,14 +233,6 @@ describe('turn outcome row', () => {
 
   const replyWith = (outcome: unknown) => withOutcome(reply(), outcome)
 
-  function SessionHarness({ messages }: { messages: ThreadMessage[] }) {
-    return (
-      <ThreadRuntime messages={messages}>
-        <Thread />
-      </ThreadRuntime>
-    )
-  }
-
   beforeEach(() => {
     $toolDisclosureStates.set({})
   })
@@ -250,7 +242,7 @@ describe('turn outcome row', () => {
   })
 
   it('renders the three lines outside the fold and keeps them when the fold is collapsed', async () => {
-    const { container } = render(<SessionHarness messages={[userMessage(), interimOne(), interimTwo(), replyWith(RULES)]} />)
+    const { container } = render(<Harness messages={[userMessage(), interimOne(), interimTwo(), replyWith(RULES)]} />)
 
     await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
 
@@ -270,7 +262,7 @@ describe('turn outcome row', () => {
   })
 
   it('renders model text inside a bidi-isolated element', async () => {
-    const { container } = render(<SessionHarness messages={[userMessage(), interimOne(), interimTwo(), replyWith(MODEL)]} />)
+    const { container } = render(<Harness messages={[userMessage(), interimOne(), interimTwo(), replyWith(MODEL)]} />)
 
     await waitFor(() => expect(container.querySelector('[data-turn-outcome-source="model"]')).not.toBeNull())
     const row = container.querySelector('[data-turn-outcome]')!
@@ -280,20 +272,20 @@ describe('turn outcome row', () => {
   })
 
   it('shows a rehydrated outcome from the tail message', async () => {
-    const { container } = render(<SessionHarness messages={[userMessage(), interimOne(), replyWith(MODEL)]} />)
+    const { container } = render(<Harness messages={[userMessage(), interimOne(), replyWith(MODEL)]} />)
 
     await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
     expect(container.querySelector('[data-turn-outcome]')!.textContent).toContain('The navigation and dock styles are updated')
   })
 
   it('renders under the tail when nothing folded, and nothing at all without an outcome', async () => {
-    const { container, unmount } = render(<SessionHarness messages={[userMessage(), replyWith(RULES)]} />)
+    const { container, unmount } = render(<Harness messages={[userMessage(), replyWith(RULES)]} />)
 
     await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
     expect(container.querySelector('[data-turn-digest]')).toBeNull()
     unmount()
 
-    const bare = render(<SessionHarness messages={[userMessage('user-2', 'another'), reply()]} />)
+    const bare = render(<Harness messages={[userMessage('user-2', 'another'), reply()]} />)
     await waitFor(() => expect(bare.container.textContent).toContain('All done, both files updated.'))
     expect(bare.container.querySelector('[data-turn-outcome]')).toBeNull()
   })
@@ -306,7 +298,7 @@ describe('turn outcome row', () => {
       RULES
     )
 
-    const { container, rerender } = render(<SessionHarness messages={[userMessage(), interimOne(), interimTwo(), running]} />)
+    const { container, rerender } = render(<Harness messages={[userMessage(), interimOne(), interimTwo(), running]} />)
 
     await waitFor(() => expect(container.querySelector('[data-turn-outcome]')).not.toBeNull())
     const row = container.querySelector('[data-turn-outcome]')!
@@ -317,9 +309,12 @@ describe('turn outcome row', () => {
       RULES
     )
 
-    rerender(<SessionHarness messages={[userMessage(), interimOne(), interimTwo(), longer]} />)
+    rerender(<Harness messages={[userMessage(), interimOne(), interimTwo(), longer]} />)
 
     await waitFor(() => expect(container.textContent).toContain('nearly there'))
+    // The ROW node itself, not just its contents: a remount is the regression
+    // worth catching here, and it is what message-id churn used to cause.
+    expect(container.querySelector('[data-turn-outcome]')).toBe(row)
     expect(row.querySelector('bdi')).toBe(item)
   })
 })

@@ -49,8 +49,12 @@ const fsAllow = [
 // the versions declared here — npm nests a copy under the workspace exactly
 // when the hoisted one differs, so the pair can only ever match.
 const requireFromApp = createRequire(path.join(__dirname, 'vite.config.ts'))
-// Module ids rolldown hands to `codeSplitting` group tests are absolute paths.
-const SRC_DIR = path.resolve(__dirname, 'src') + path.sep
+// Module ids rolldown hands to `codeSplitting` group tests are absolute paths,
+// posix-separated even on Windows, which is why every other group test below
+// spells the separator `[\\/]`. Normalise here for the same reason: a `\` from
+// path.sep would silently stop matching and quietly restore the ~120 eager
+// chunks this group exists to collapse.
+const SRC_DIR = `${path.resolve(__dirname, 'src').replace(/\\/g, '/')}/`
 const reactDir = path.dirname(requireFromApp.resolve('react/package.json'))
 const reactDomDir = path.dirname(requireFromApp.resolve('react-dom/package.json'))
 
@@ -185,7 +189,7 @@ export default defineConfig(({ command }) => ({
             // without it the group would pull it in beside the small ones.
             {
               name: 'app-shared',
-              test: (id: string) => id.startsWith(SRC_DIR),
+              test: (id: string) => id.replace(/\\/g, '/').startsWith(SRC_DIR),
               minShareCount: 2,
               maxModuleSize: 2 * 1024
             },

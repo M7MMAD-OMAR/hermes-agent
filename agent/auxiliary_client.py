@@ -21,7 +21,7 @@ import threading
 import time
 import uuid
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Tuple, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse
 
 from agent.codex_headers import (
@@ -794,9 +794,8 @@ _FAST_MODEL_TASKS: Dict[str, bool] = {"next_moves": False, "title_generation": F
 
 def _task_prefers_fast_model(task: Optional[str]) -> bool:
     """Return whether an eligible task opts into fast-model routing, explicitly or by its default."""
-    return task in _FAST_MODEL_TASKS and is_truthy_value(
-        _get_auxiliary_task_config(task).get("prefer_fast_model"),
-        default=_FAST_MODEL_TASKS[task])
+    return task in _FAST_MODEL_TASKS and auxiliary_flag(
+        None, "prefer_fast_model", default=_FAST_MODEL_TASKS[task], name=task)
 
 
 # Dedicated vision models for direct providers whose main chat model differs.
@@ -5608,13 +5607,19 @@ _COMPRESSION_TIMEOUT_FLOOR_SECONDS = 300.0
 
 def _get_auxiliary_task_config(task: str) -> Dict[str, Any]:
     """Config dict for auxiliary.<task>, or {} when unavailable. Plugin-registered tasks get their
-    declared defaults layered under user config (user wins); built-in defaults live in DEFAULT_CONFIG."""
+    declared defaults layered under user config (user wins); built-in defaults live in DEFAULT_CONFIG.
+
+    Defaults quietly on ANY failure, not just ImportError: post-turn producers
+    read config from the finalizer, where a raised exception would surface as a
+    turn error. The read-only loader means a post-turn read can never trigger a
+    config migration write."""
     if not task:
         return {}
     try:
         from hermes_cli.config import load_config_readonly
         config = load_config_readonly()
-    except ImportError:
+    except Exception:
+        logger.debug("Failed to read auxiliary.%s", task, exc_info=True)
         return {}
     aux = config.get("auxiliary", {}) if isinstance(config, dict) else {}
     task_config = aux.get(task, {}) if isinstance(aux, dict) else {}
@@ -5631,6 +5636,26 @@ def _get_auxiliary_task_config(task: str) -> Dict[str, Any]:
     except Exception:
         pass  # plugin discovery failure must not break aux task config reads
     return task_config
+
+
+#: The one reader of an ``auxiliary.<task>`` block, under a public name. Post-turn
+#: producers (``agent.next_moves``, ``agent.turn_outcome``) import this rather than
+#: re-reading the config themselves, so plugin-declared defaults are layered in for
+#: them too.
+auxiliary_block = _get_auxiliary_task_config
+
+
+def auxiliary_flag(
+    block: Optional[Mapping[str, Any]], key: str, *, default: bool, name: str
+) -> bool:
+    """A truthy flag from an ``auxiliary.<name>`` block, read on demand when the
+    caller has no block in hand. Never raises: the default wins on any error."""
+    try:
+        resolved = auxiliary_block(name) if block is None else block
+
+        return is_truthy_value(resolved.get(key), default=default)
+    except Exception:
+        return default
 
 
 class CompressionFastLane(NamedTuple):

@@ -1,4 +1,4 @@
-import { readTurnOutcome } from '@/lib/turn-outcome'
+import { readTurnOutcome, turnOutcomesEquivalent } from '@/lib/turn-outcome'
 
 import type { GatewayEventContext } from './types'
 
@@ -50,21 +50,26 @@ export function handleOutcomeEvent(ctx: GatewayEventContext): boolean {
 
     // A replayed rules frame must not overwrite a model outcome already on the
     // row (the gateway replays up to 512 frames on reconnect); a model outcome
-    // does replace rules text. A fresh object per change: the runtime message
-    // repository caches normalised ThreadMessages in a WeakMap keyed by
-    // ChatMessage identity.
+    // does replace rules text.
     const standing = state.messages[lastAssistant]?.turnOutcome
 
     if (standing?.source === 'model' && outcome.source === 'rules') {
       return state
     }
 
-    return {
-      ...state,
-      messages: state.messages.map((message, index) =>
-        index === lastAssistant ? { ...message, turnOutcome: outcome } : message
-      )
+    // A frame that says what the row already says must not allocate: every
+    // returned state is a fresh message list, a WeakMap miss per message in
+    // the runtime repository, a localStorage write and a `publishSessionState`
+    // with all of its side effects.
+    if (turnOutcomesEquivalent(standing, outcome)) {
+      return state
     }
+
+    const messages = state.messages.slice()
+
+    messages[lastAssistant] = { ...messages[lastAssistant]!, turnOutcome: outcome }
+
+    return { ...state, messages }
   })
 
   return true

@@ -46,8 +46,9 @@ export type ChatMessage = {
   /** Emoji reactions on this message — one per author (see MessageReaction). */
   reactions?: MessageReaction[]
   /** The backend's post-turn outcome, persisted on the turn's final assistant
-   *  row (`display_metadata.turn_outcome`). Only rehydrated rows carry it; a
-   *  live turn's outcome arrives on `session.outcome` and lives in its store. */
+   *  row (`display_metadata.turn_outcome`). One field for both paths: a resume
+   *  rehydrates it from the row, and `handleOutcomeEvent` stamps the same field
+   *  live so the row paints before the next resume rather than after it. */
   turnOutcome?: TurnOutcome
 }
 

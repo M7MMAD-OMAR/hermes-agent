@@ -186,19 +186,14 @@ class TurnEvidence:
 def auxiliary_block(name: str) -> Dict[str, Any]:
     """The ``auxiliary.<name>`` block, or an empty dict.
 
-    Lazy import and the read-only loader, matching ``title_generator``: this
-    module is imported from agent paths where a module-level ``hermes_cli``
-    import risks circularity, and a post-turn read must never trigger a config
-    migration write. Shared by every post-turn producer (next moves, the turn
-    outcome) so the read has one shape.
+    Delegates to the one reader in ``auxiliary_client``, which also layers
+    plugin-declared defaults under user config. Lazy import: this module is
+    imported from agent paths where a module-level import risks circularity.
     """
     try:
-        from hermes_cli.config import load_config_readonly
+        from agent.auxiliary_client import auxiliary_block as read_block
 
-        config = load_config_readonly()
-        block = (config.get("auxiliary") or {}).get(name)
-
-        return block if isinstance(block, dict) else {}
+        return read_block(name)
     except Exception:
         logger.debug("Failed to read auxiliary.%s", name, exc_info=True)
 
@@ -211,11 +206,9 @@ def auxiliary_flag(
     """A truthy flag from an ``auxiliary.<name>`` block, read on demand when the
     caller has no block in hand. Never raises: the default wins on any error."""
     try:
-        from utils import is_truthy_value
+        from agent.auxiliary_client import auxiliary_flag as read_flag
 
-        resolved = auxiliary_block(name) if block is None else block
-
-        return is_truthy_value(resolved.get(key), default=default)
+        return read_flag(block, key, default=default, name=name)
     except Exception:
         return default
 

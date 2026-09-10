@@ -195,10 +195,13 @@ function useTurnDigest(indices: readonly number[], notesLabel: (count: number) =
   })
 }
 
-/** The outcome a rehydrated turn carries on its final assistant message
- *  (`metadata.custom.turnOutcome`, from `display_metadata.turn_outcome`). The
- *  selector returns the stored object itself, so Object.is holds across text
- *  deltas and nothing re-renders until the message list is rebuilt. */
+/** The outcome the turn carries on its final assistant message
+ *  (`metadata.custom.turnOutcome`, from `display_metadata.turn_outcome` on a
+ *  resume, or stamped live by `handleOutcomeEvent`). The selector returns the
+ *  stored object itself, so Object.is holds across text deltas. It does NOT
+ *  hold across a message-list rebuild, which is why the two merge paths in
+ *  `use-session-actions/utils.ts` carry the same reference forward and compare
+ *  structurally (`turnOutcomesEquivalent`) rather than by identity. */
 function useHydratedOutcome(indices: readonly number[]): TurnOutcome | undefined {
   return useAuiState(state => {
     const messages = (state as unknown as DigestThreadSlice).thread.messages

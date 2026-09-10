@@ -47,21 +47,26 @@ const INDEX = path.join(DIST, 'index.html')
 // `vendor-icons` and `app-shared` groups in vite.config.ts collapsed ~120
 // small shared-module chunks into two). Tight enough that adding a heavyweight
 // dependency to the boot graph trips it; loose enough that ordinary feature
-// work does not. A chunk count creeping back up means a group stopped
-// matching, not that the app grew.
-const MAX_BOOT_BYTES = 6.2 * 1024 * 1024
-const MAX_BOOT_CHUNKS = 40
+// work does not. Both ceilings keep roughly the ~9% margin the byte budget had
+// before the grouping: left at the old 6.2 MB / 40 they would have ratcheted
+// open to 12% and 3x, which is a guard that no longer guards.
+// A chunk count creeping back up means a group stopped matching, not that the
+// app grew.
+const MAX_BOOT_BYTES = 6 * 1024 * 1024
+const MAX_BOOT_CHUNKS = 24
 
 // Substrings matched against eager chunk filenames. Each names a library whose
 // chunk is big enough that it must never be reachable statically from the entry.
 const FORBIDDEN_IN_BOOT_GRAPH = ['shiki', 'katex', 'mermaid']
 
-// The invariant is about the LIBRARY, not the word. A dependency-free constants
-// module that shares the name (`shiki-config.ts`, 218 bytes of theme ids used
-// by both the eager highlighter and the lazy shiki chunk) is exactly the
-// pattern the lazy split relies on. The smallest real chunk of any library
-// above is katex at 253 KB, so anything under this floor is a namesake.
-const MIN_FORBIDDEN_BYTES = 16 * 1024
+// The invariant is about the LIBRARY, not the word. Our own modules that name a
+// library are the EAGER half of its lazy split, and belong on the boot graph:
+// `shiki-config.ts` is 218 bytes of theme ids, `katex-memo.ts` and the two embed
+// wrappers are the components that dynamically import the real thing. Listed by
+// name rather than excused by a size floor, so that a genuine library chunk can
+// never slip under a threshold, and so adding a new namesake to the boot graph
+// is a deliberate edit here.
+const BOOT_GRAPH_NAMESAKES = /^(shiki-config|shiki-block|katex-memo|mermaid-embed)-/
 
 const built = fs.existsSync(INDEX)
 
@@ -105,7 +110,9 @@ describe.skipIf(!built)('cold-boot payload budget', () => {
   })
 
   test.each(FORBIDDEN_IN_BOOT_GRAPH)('%s is not on the boot graph', library => {
-    const leaked = eagerChunks().filter(c => c.name.toLowerCase().includes(library) && c.bytes >= MIN_FORBIDDEN_BYTES)
+    const leaked = eagerChunks().filter(
+      c => c.name.toLowerCase().includes(library) && !BOOT_GRAPH_NAMESAKES.test(c.name)
+    )
 
     expect(
       leaked.map(c => c.name),

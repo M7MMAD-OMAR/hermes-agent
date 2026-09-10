@@ -8,7 +8,7 @@
  * makes the whole translation testable against real files.
  */
 
-import { cellValueAsPrimitive, getCachedFormulaValue, getFormulaText, isFormulaCell, isRichTextCell, richTextToString } from '@office-kit/xlsx/cell'
+import { cellValueAsPrimitive, getCachedFormulaValue, getFormulaText, isFormulaCell, isRichTextValue, richTextToString } from '@office-kit/xlsx/cell'
 import { fromArrayBuffer, loadWorkbook } from '@office-kit/xlsx/io'
 import { cellStyleToCss, getCellNumberFormat } from '@office-kit/xlsx/styles'
 import { pointToPixel } from '@office-kit/xlsx/utils'
@@ -94,13 +94,18 @@ export function decodeXmlText(value: string): string {
 }
 
 function primitiveOf(cell: unknown): CellPrimitive {
-  if (isRichTextCell(cell as never)) {
-    return decodeXmlText(richTextToString((cell as { value: never }).value))
+  const value = (cell as { value: never }).value
+
+  // The rich-text variant wraps its runs: `{ kind: 'rich-text', runs }`. Handing
+  // the wrapper to the joiner throws, and a workbook with one styled cell in it
+  // took the whole grid down with "Preview unavailable".
+  if (isRichTextValue(value)) {
+    return decodeXmlText(richTextToString(value.runs))
   }
 
-  const value = cellValueAsPrimitive((cell as { value: never }).value)
+  const primitive = cellValueAsPrimitive(value)
 
-  return typeof value === 'string' ? decodeXmlText(value) : (value as CellPrimitive)
+  return typeof primitive === 'string' ? decodeXmlText(primitive) : (primitive as CellPrimitive)
 }
 
 /** The workbook's CSS for one cell, as a React style object. The sheet's own

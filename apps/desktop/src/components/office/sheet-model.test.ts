@@ -11,7 +11,7 @@
  * back through the same door the rail uses, and asserts on the grid.
  */
 
-import { setFormula } from '@office-kit/xlsx/cell'
+import { makeRichText, makeTextRun, setCellValue, setFormula } from '@office-kit/xlsx/cell'
 import { workbookToBytes } from '@office-kit/xlsx/io'
 import { setBold, setCellBackgroundColor, setCellNumberFormat } from '@office-kit/xlsx/styles'
 import { columnLetterFromIndex } from '@office-kit/xlsx/utils'
@@ -138,5 +138,24 @@ describe('reading a workbook into the grid', () => {
     const book = await readSheetBook(await workbookToBytes(workbook))
 
     expect(book.sheets[0]!.rightToLeft).toBe(false)
+  })
+})
+
+describe('cells whose text carries formatting', () => {
+  it('reads a rich-text cell as its text', async () => {
+    // A rich-text value wraps its runs. Handing the wrapper to the joiner
+    // throws, and one styled cell used to take the whole grid down with
+    // "Preview unavailable".
+    const workbook = createWorkbook()
+    const sheet = addWorksheet(workbook, 'Notes')
+
+    setCellValue(setCell(sheet, 1, 1), {
+      kind: 'rich-text',
+      runs: makeRichText([makeTextRun('Half '), makeTextRun('bold')])
+    })
+
+    const book = await readSheetBook(await workbookToBytes(workbook))
+
+    expect(book.sheets[0]!.cells.get(cellKey(1, 1))?.text).toBe('Half bold')
   })
 })

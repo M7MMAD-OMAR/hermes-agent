@@ -31,7 +31,7 @@ import {
   revealTreePane
 } from '@/components/pane-shell/tree/store'
 import { $workspaceMode, resolveRememberedActivePane, workspaceScopeKey } from '@/components/pane-shell/workspace-scope'
-import type { WorkspaceMode } from '@/contrib/types'
+import { isOwnedWorkspace, parseWorkspaceMode, type WorkspaceMode } from '@/contrib/types'
 import { stableArray } from '@/lib/stable-array'
 import { readJson, writeJson } from '@/lib/storage'
 import type { SessionInfo } from '@/types/hermes'
@@ -824,7 +824,11 @@ export interface SessionTileWorkspaceScope {
 const TILES_KEY = 'hermes.desktop.sessionTiles.v2'
 const LEGACY_TILES_KEY = 'hermes.desktop.sessionTiles.v1'
 const TILE_PANE_PREFIX = 'session-tile:'
-const BOTS_TILE_BUCKET = '__bots_workspace__'
+// Owned-workspace tiles (Bots, HerWork) live in ONE cross-profile bucket: they
+// carry an ownerRoute naming their profile, so they must not vanish when the
+// live gateway profile changes. The stored key keeps its historical value so
+// existing persisted layouts keep loading.
+const OWNED_TILE_BUCKET = '__bots_workspace__'
 
 /** Persisted placement — `dir` + strip slot (`before`) + dock `anchor` so a
  *  restart / profile swap re-adopts tiles in the same order, not all stacked
@@ -877,9 +881,11 @@ function parseTileList(value: unknown): StoredTile[] {
                   }
                 : undefined,
             storedSessionId: raw.storedSessionId,
-            workspaceMode: raw.workspaceMode === 'bots' ? 'bots' : 'sessions',
+            // Validated over the enum, not coerced to a known pair: a persisted
+            // 'herwork' tile used to come back as 'sessions' on restart.
+            workspaceMode: parseWorkspaceMode(raw.workspaceMode),
             workspaceOwnerKey:
-              raw.workspaceMode === 'bots' && typeof raw.workspaceOwnerKey === 'string'
+              isOwnedWorkspace(parseWorkspaceMode(raw.workspaceMode)) && typeof raw.workspaceOwnerKey === 'string'
                 ? raw.workspaceOwnerKey
                 : undefined,
             workspaceTabTitle: typeof raw.workspaceTabTitle === 'string' ? raw.workspaceTabTitle : undefined
@@ -895,18 +901,18 @@ function loadTilesByProfile(): Record<string, StoredTile[]> {
   if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
     for (const [profile, list] of Object.entries(parsed as Record<string, unknown>)) {
       const tiles = parseTileList(list)
-      const key = profile === BOTS_TILE_BUCKET ? BOTS_TILE_BUCKET : normalizeProfileKey(profile)
+      const key = profile === OWNED_TILE_BUCKET ? OWNED_TILE_BUCKET : normalizeProfileKey(profile)
 
       if (tiles.length > 0) {
-        const sessionTiles = tiles.filter(tile => tile.workspaceMode !== 'bots')
-        const botTiles = tiles.filter(tile => tile.workspaceMode === 'bots')
+        const sessionTiles = tiles.filter(tile => !isOwnedWorkspace(tile.workspaceMode))
+        const botTiles = tiles.filter(tile => isOwnedWorkspace(tile.workspaceMode))
 
         if (sessionTiles.length > 0) {
           byProfile[key] = [...(byProfile[key] ?? []), ...sessionTiles]
         }
 
         if (botTiles.length > 0) {
-          byProfile[BOTS_TILE_BUCKET] = [...(byProfile[BOTS_TILE_BUCKET] ?? []), ...botTiles]
+          byProfile[OWNED_TILE_BUCKET] = [...(byProfile[OWNED_TILE_BUCKET] ?? []), ...botTiles]
         }
       }
     }
@@ -917,16 +923,16 @@ function loadTilesByProfile(): Record<string, StoredTile[]> {
 
   if (legacy.length > 0) {
     const key = normalizeProfileKey('default')
-    const sessionTiles = legacy.filter(tile => tile.workspaceMode !== 'bots')
-    const botTiles = legacy.filter(tile => tile.workspaceMode === 'bots')
+    const sessionTiles = legacy.filter(tile => !isOwnedWorkspace(tile.workspaceMode))
+    const botTiles = legacy.filter(tile => isOwnedWorkspace(tile.workspaceMode))
 
     byProfile[key] = [...(byProfile[key] ?? []), ...sessionTiles]
-    byProfile[BOTS_TILE_BUCKET] = [...(byProfile[BOTS_TILE_BUCKET] ?? []), ...botTiles]
+    byProfile[OWNED_TILE_BUCKET] = [...(byProfile[OWNED_TILE_BUCKET] ?? []), ...botTiles]
   }
 
-  if (byProfile[BOTS_TILE_BUCKET]?.length) {
-    byProfile[BOTS_TILE_BUCKET] = [
-      ...new Map(byProfile[BOTS_TILE_BUCKET].map(tile => [tile.storedSessionId, tile])).values()
+  if (byProfile[OWNED_TILE_BUCKET]?.length) {
+    byProfile[OWNED_TILE_BUCKET] = [
+      ...new Map(byProfile[OWNED_TILE_BUCKET].map(tile => [tile.storedSessionId, tile])).values()
     ]
   }
 
@@ -949,7 +955,7 @@ const profileKey = () => normalizeProfileKey($activeGatewayProfile.get())
 export const $sessionTiles = atom<SessionTile[]>(
   isSecondaryWindow() || isBrowserWindow()
     ? []
-    : [...(tilesByProfile[profileKey()] ?? []), ...(tilesByProfile[BOTS_TILE_BUCKET] ?? [])]
+    : [...(tilesByProfile[profileKey()] ?? []), ...(tilesByProfile[OWNED_TILE_BUCKET] ?? [])]
 )
 
 function persistTiles() {
@@ -964,8 +970,8 @@ function persistTiles() {
 
 function saveTiles(tiles: SessionTile[]) {
   const stored = tiles.map(toStored)
-  const sessionTiles = stored.filter(tile => tile.workspaceMode !== 'bots')
-  const botTiles = stored.filter(tile => tile.workspaceMode === 'bots')
+  const sessionTiles = stored.filter(tile => !isOwnedWorkspace(tile.workspaceMode))
+  const botTiles = stored.filter(tile => isOwnedWorkspace(tile.workspaceMode))
 
   if (sessionTiles.length > 0) {
     tilesByProfile[profileKey()] = sessionTiles
@@ -974,9 +980,9 @@ function saveTiles(tiles: SessionTile[]) {
   }
 
   if (botTiles.length > 0) {
-    tilesByProfile[BOTS_TILE_BUCKET] = botTiles
+    tilesByProfile[OWNED_TILE_BUCKET] = botTiles
   } else {
-    delete tilesByProfile[BOTS_TILE_BUCKET]
+    delete tilesByProfile[OWNED_TILE_BUCKET]
   }
 
   persistTiles()
@@ -989,7 +995,7 @@ function saveTiles(tiles: SessionTile[]) {
 // never carries tiles, so it stays out of this entirely.
 if (!isSecondaryWindow() && !isBrowserWindow()) {
   $activeGatewayProfile.subscribe(() => {
-    $sessionTiles.set([...(tilesByProfile[profileKey()] ?? []), ...(tilesByProfile[BOTS_TILE_BUCKET] ?? [])])
+    $sessionTiles.set([...(tilesByProfile[profileKey()] ?? []), ...(tilesByProfile[OWNED_TILE_BUCKET] ?? [])])
   })
 }
 
@@ -1235,14 +1241,14 @@ export function setSessionTileWorkspaceScope(storedSessionId: string, scope: Ses
   rememberBotChatScope(storedSessionId, scope)
 
   const tile = $sessionTiles.get().find(candidate => candidate.storedSessionId === storedSessionId)
-  const workspaceOwnerKey = scope.workspaceMode === 'bots' ? scope.workspaceOwnerKey : undefined
+  const workspaceOwnerKey = isOwnedWorkspace(scope.workspaceMode) ? scope.workspaceOwnerKey : undefined
   // Sessions-mode re-opens (sidebar click on an already-tiled session) pass no
   // route; that is absence of information, not a revocation — keep the exact
   // owner the tile was opened with (a branch child's parent connection) so a
   // plain re-open can't unpin the owning socket. Bot scopes stay authoritative
   // both ways: they always name their route explicitly.
-  const ownerRoute = scope.workspaceMode === 'bots' ? scope.ownerRoute : (scope.ownerRoute ?? tile?.ownerRoute)
-  const workspaceTabTitle = scope.workspaceMode === 'bots' ? scope.workspaceTabTitle : undefined
+  const ownerRoute = isOwnedWorkspace(scope.workspaceMode) ? scope.ownerRoute : (scope.ownerRoute ?? tile?.ownerRoute)
+  const workspaceTabTitle = isOwnedWorkspace(scope.workspaceMode) ? scope.workspaceTabTitle : undefined
 
   if (
     !tile ||
@@ -1527,7 +1533,7 @@ export function openSessionTile(
 
   const dock = anchor ?? focusedSessionTabAnchor() ?? undefined
 
-  const workspaceOwnerKey = workspaceScope.workspaceMode === 'bots' ? workspaceScope.workspaceOwnerKey : undefined
+  const workspaceOwnerKey = isOwnedWorkspace(workspaceScope.workspaceMode) ? workspaceScope.workspaceOwnerKey : undefined
 
   if (!tiles.some(t => aliases.includes(t.storedSessionId))) {
     saveTiles([
@@ -1548,7 +1554,7 @@ export function openSessionTile(
         storedSessionId,
         workspaceMode: workspaceScope.workspaceMode,
         workspaceOwnerKey,
-        workspaceTabTitle: workspaceScope.workspaceMode === 'bots' ? workspaceScope.workspaceTabTitle : undefined
+        workspaceTabTitle: isOwnedWorkspace(workspaceScope.workspaceMode) ? workspaceScope.workspaceTabTitle : undefined
       }
     ])
     // Adoption is async via the registry — order sync runs after the move path
@@ -1689,7 +1695,7 @@ export function focusWorkspaceOwnerSessionTile(
 ): null | string {
   const allOwned = $sessionTiles
     .get()
-    .filter(tile => tile.workspaceMode === 'bots' && tile.workspaceOwnerKey === workspaceOwnerKey)
+    .filter(tile => isOwnedWorkspace(tile.workspaceMode) && tile.workspaceOwnerKey === workspaceOwnerKey)
 
   let owned = allOwned
 
@@ -1722,11 +1728,16 @@ export function focusWorkspaceOwnerSessionTile(
   }
 
   // Most recent first, so the fallback (no remembered pane) is the newest tab.
+  // The owner key is unique across workspaces, so the tiles it owns all share
+  // one mode; read it off them rather than assuming Bot Mode.
+  // Owned tiles always carry a mode (the filter above guarantees it); `??` only
+  // satisfies the optional field on SessionTile.
+  const workspaceMode: WorkspaceMode = owned[0]!.workspaceMode ?? 'sessions'
   const paneIds = owned.map(tile => `${TILE_PANE_PREFIX}${tile.storedSessionId}`).reverse()
-  const paneId = resolveRememberedActivePane(workspaceScopeKey('bots', workspaceOwnerKey), paneIds) ?? paneIds[0]
+  const paneId = resolveRememberedActivePane(workspaceScopeKey(workspaceMode, workspaceOwnerKey), paneIds) ?? paneIds[0]
   const storedSessionId = paneId.slice(TILE_PANE_PREFIX.length)
 
-  return focusOpenSession(storedSessionId, { workspaceMode: 'bots', workspaceOwnerKey }) === 'tile'
+  return focusOpenSession(storedSessionId, { workspaceMode, workspaceOwnerKey }) === 'tile'
     ? storedSessionId
     : null
 }
@@ -1924,15 +1935,15 @@ export function dropTilesForProfile(
   // and are keyed by ownerRoute, not by bucket).
   delete tilesByProfile[name]
 
-  const botTiles = tilesByProfile[BOTS_TILE_BUCKET]
+  const botTiles = tilesByProfile[OWNED_TILE_BUCKET]
 
   if (botTiles) {
     const remaining = botTiles.filter(tile => !ownerMatches(tile.ownerRoute))
 
     if (remaining.length > 0) {
-      tilesByProfile[BOTS_TILE_BUCKET] = remaining
+      tilesByProfile[OWNED_TILE_BUCKET] = remaining
     } else {
-      delete tilesByProfile[BOTS_TILE_BUCKET]
+      delete tilesByProfile[OWNED_TILE_BUCKET]
     }
   }
 
@@ -1944,7 +1955,7 @@ export function dropTilesForProfile(
   const next = live.filter(tile =>
     // Bot tiles map to the shared Bot bucket (keyed by ownerRoute here): drop
     // the deleted profile's bots, matched by owner.
-    tile.workspaceMode === 'bots'
+    isOwnedWorkspace(tile.workspaceMode)
       ? !ownerMatches(tile.ownerRoute)
       : // Session tiles map to the owning profile's own bucket: drop only when
         // the deleted profile IS the live gateway's profile.
@@ -2015,7 +2026,7 @@ const $focusedTreePaneId = computed([$activeTreeGroup, $layoutTree, $workspaceMo
   // Mode's on-screen truth is the main zone's active TILE; only when the
   // main zone holds no tile (chat closed) does the selection answer, so a
   // genuine close still lets the home return.
-  if (workspaceMode === 'bots' && tree) {
+  if (isOwnedWorkspace(workspaceMode) && tree) {
     const mainActive = findGroupOfPane(tree, 'workspace')?.active
 
     if (mainActive?.startsWith(TILE_PANE_PREFIX)) {

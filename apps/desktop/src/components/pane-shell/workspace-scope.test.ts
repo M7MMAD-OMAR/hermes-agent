@@ -11,7 +11,9 @@ import {
   resolveRememberedActivePane,
   setWorkspaceOwnerLabel,
   setWorkspaceScope,
-  workspaceOwnerTitle
+  type WorkspaceMode,
+  workspaceOwnerTitle,
+  workspaceScopeKey
 } from './workspace-scope'
 
 afterEach(() => {
@@ -26,7 +28,7 @@ describe('workspace scope', () => {
   })
 
   it('publishes a coherent mode and owner in one batch', () => {
-    const snapshots: Array<['sessions' | 'bots', string | null]> = []
+    const snapshots: Array<[WorkspaceMode, string | null]> = []
     const capture = () => snapshots.push([$workspaceMode.get(), $workspaceOwnerKey.get()])
     const unbindMode = $workspaceMode.listen(capture)
     const unbindOwner = $workspaceOwnerKey.listen(capture)
@@ -126,5 +128,40 @@ describe('remembered active panes', () => {
 
     expect(resolveRememberedActivePane('bot-a', ['fallback-a'])).toBe('fallback-a')
     expect(resolveRememberedActivePane('bot-b', ['fallback-b'])).toBe('fallback-b')
+  })
+})
+
+// A third owned workspace (HerWork) must get the same treatment as Bots from
+// the primitive: its own scope key, its owner and `+` route kept, its owner
+// title honoured. Before this the key was hard-coded `bots:` for every
+// non-sessions mode and setWorkspaceScope nulled the owner for anything but
+// bots, so a HerWork route was dropped on the floor.
+describe('a third owned workspace', () => {
+  it('keys pane memory by mode so two workspaces never share it', () => {
+    expect(workspaceScopeKey('herwork', 'herwork:desk')).toBe('herwork:herwork:desk')
+    expect(workspaceScopeKey('bots', 'herwork:desk')).toBe('bots:herwork:desk')
+    expect(workspaceScopeKey('sessions', null)).toBe('sessions')
+    expect(workspaceScopeKey('herwork', 'herwork:desk')).not.toMatch(/^bots:/)
+  })
+
+  it('keeps the HerWork owner and its new-session route', () => {
+    const route = { connectionId: 'local', mode: 'local' as const, profile: 'herwork', targetProfile: 'herwork' }
+
+    expect(setWorkspaceScope('herwork', 'herwork:desk', { kind: 'route', route })).toBe(true)
+    expect($workspaceMode.get()).toBe('herwork')
+    expect($workspaceOwnerKey.get()).toBe('herwork:desk')
+    expect($workspaceNewSessionTarget.get()).toEqual({ kind: 'route', route })
+
+    setWorkspaceScope('sessions')
+    expect($workspaceOwnerKey.get()).toBeNull()
+    expect($workspaceNewSessionTarget.get()).toBeNull()
+  })
+
+  it('captions an owned HerWork tab by its owner label like a bot chat', () => {
+    setWorkspaceOwnerLabel('herwork:desk', 'HerWork')
+    const scope = { workspaceMode: 'herwork' as const, workspaceOwnerKey: 'herwork:desk', workspaceTabTitle: 'Desk' }
+
+    expect(workspaceOwnerTitle('Desk', scope)).toBe('HerWork')
+    expect(workspaceOwnerTitle('Q3 report', scope)).toBe('Q3 report')
   })
 })

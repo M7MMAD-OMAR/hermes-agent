@@ -16,10 +16,10 @@
 
 import { atom, batch } from 'nanostores'
 
-import type { WorkspaceMode } from '../../contrib/types'
+import { isOwnedWorkspace, type WorkspaceMode } from '../../contrib/types'
 
-/** Re-exported so workspace consumers can import it from here. */
-export type { WorkspaceMode } from '../../contrib/types'
+/** Re-exported so workspace consumers can import them from here. */
+export { isOwnedWorkspace, type WorkspaceMode } from '../../contrib/types'
 
 /** Default workspace mode when the host has not switched surfaces. */
 export const $workspaceMode = atom<WorkspaceMode>('sessions')
@@ -66,16 +66,19 @@ export function workspaceOwnerTitle(
   title: string,
   scope: { workspaceMode?: WorkspaceMode; workspaceOwnerKey?: string; workspaceTabTitle?: string } | undefined
 ): string {
-  if (scope?.workspaceMode !== 'bots' || !scope.workspaceOwnerKey || title !== scope.workspaceTabTitle) {
+  if (!scope?.workspaceMode || !isOwnedWorkspace(scope.workspaceMode) || !scope.workspaceOwnerKey || title !== scope.workspaceTabTitle) {
     return title
   }
 
   return $workspaceOwnerLabels.get()[scope.workspaceOwnerKey] ?? title
 }
 
-/** One key for window-local active-pane memory. Owner keys stay opaque. */
+/** One key for window-local active-pane memory. Owner keys stay opaque. The
+ *  mode is part of the key so two workspaces can never share pane memory even
+ *  if an owner key were reused; it used to hard-code `bots:` for every
+ *  non-sessions mode. */
 export function workspaceScopeKey(mode: WorkspaceMode, ownerKey: string | null): string {
-  return mode === 'sessions' ? 'sessions' : `bots:${ownerKey ?? ''}`
+  return mode === 'sessions' ? 'sessions' : `${mode}:${ownerKey ?? ''}`
 }
 
 function sameNewSessionTarget(a: WorkspaceNewSessionTarget | null, b: WorkspaceNewSessionTarget | null): boolean {
@@ -111,8 +114,8 @@ export function setWorkspaceScope(
   ownerKey: string | null = null,
   newSessionTarget: WorkspaceNewSessionTarget | null = null
 ): boolean {
-  const nextOwnerKey = mode === 'bots' ? ownerKey : null
-  const nextNewSessionTarget = mode === 'bots' ? newSessionTarget : null
+  const nextOwnerKey = isOwnedWorkspace(mode) ? ownerKey : null
+  const nextNewSessionTarget = isOwnedWorkspace(mode) ? newSessionTarget : null
 
   if (
     $workspaceMode.get() === mode &&

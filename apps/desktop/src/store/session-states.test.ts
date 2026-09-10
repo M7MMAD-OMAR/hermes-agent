@@ -1410,3 +1410,114 @@ describe('the draft browser is not handed over by session focus', () => {
     expect($embeddedBrowserSessions.get().has(DRAFT_BROWSER_SESSION_ID)).toBe(true)
   })
 })
+
+// S3 of docs/design/herwork-workspace.md: a persisted HerWork tile must come
+// back as HerWork. The rehydrate line used to read
+// `raw.workspaceMode === 'bots' ? 'bots' : 'sessions'`, which silently moved
+// every 'herwork' tile into Sessions on restart. Owned tiles of any workspace
+// share the one cross-profile bucket, because they carry their own profile in
+// ownerRoute and must survive a gateway-profile switch.
+describe('HerWork tiles persist as an owned workspace', () => {
+  const TILES_KEY = 'hermes.desktop.sessionTiles.v2'
+  const OWNED_BUCKET = '__bots_workspace__'
+
+  const desk = {
+    ownerRoute: { connectionId: 'local', mode: 'local' as const, profile: 'herwork', targetProfile: 'herwork' },
+    workspaceMode: 'herwork' as const,
+    workspaceOwnerKey: 'herwork:desk'
+  }
+
+  type SessionStates = typeof SessionStatesModule
+  let mod: SessionStates
+  let activeGatewayProfile: { set: (name: string) => void }
+
+  const storedTiles = (): Record<string, unknown> => {
+    const raw = window.localStorage.getItem(TILES_KEY)
+
+    return raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+  }
+
+  beforeEach(async () => {
+    window.localStorage.clear()
+    vi.resetModules()
+    mod = await import('@/store/session-states')
+    const profile = await import('@/store/profile')
+    activeGatewayProfile = profile.$activeGatewayProfile
+    activeGatewayProfile.set('default')
+    mod.$sessionTiles.set([])
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+    $activeGatewayProfile.set('default')
+    $layoutTree.set(null)
+    $selectedStoredSessionId.set(null)
+    $sessionTiles.set([])
+  })
+
+  it('stores a HerWork tile in the owned bucket, not under the gateway profile', () => {
+    mod.openSessionTile('desk-1', 'right', undefined, undefined, desk)
+
+    const stored = storedTiles()
+    expect(stored).not.toHaveProperty('default')
+    expect((stored[OWNED_BUCKET] as Array<{ workspaceMode: string }>).map(tile => tile.workspaceMode)).toEqual([
+      'herwork'
+    ])
+  })
+
+  it('rehydrates a persisted HerWork tile as HerWork after a fresh module load', async () => {
+    mod.openSessionTile('desk-1', 'right', undefined, undefined, desk)
+
+    vi.resetModules()
+    const fresh = await import('@/store/session-states')
+    const tile = fresh.$sessionTiles.get().find(candidate => candidate.storedSessionId === 'desk-1')
+
+    expect(tile).toMatchObject({ workspaceMode: 'herwork', workspaceOwnerKey: 'herwork:desk' })
+    expect(tile?.ownerRoute).toMatchObject({ profile: 'herwork' })
+  })
+
+  it('survives a gateway profile switch because it does not live in the profile bucket', async () => {
+    mod.openSessionTile('desk-1', 'right', undefined, undefined, desk)
+    activeGatewayProfile.set('writer')
+
+    vi.resetModules()
+    const profile = await import('@/store/profile')
+    profile.$activeGatewayProfile.set('writer')
+    const fresh = await import('@/store/session-states')
+
+    expect(fresh.$sessionTiles.get().map(tile => tile.storedSessionId)).toContain('desk-1')
+  })
+
+  it('rehydrates an unknown stored mode as sessions instead of dropping the tile', async () => {
+    window.localStorage.setItem(
+      TILES_KEY,
+      JSON.stringify({ default: [{ dir: 'right', storedSessionId: 'odd-1', workspaceMode: 'future-mode' }] })
+    )
+
+    // The beforeEach import already ran; a fresh module graph is what reads storage.
+    vi.resetModules()
+    const fresh = await import('@/store/session-states')
+    const tile = fresh.$sessionTiles.get().find(candidate => candidate.storedSessionId === 'odd-1')
+
+    expect(tile).toMatchObject({ workspaceMode: 'sessions' })
+    expect(tile?.workspaceOwnerKey).toBeUndefined()
+  })
+
+  it('focuses a HerWork owner tile through its own scope key, not a bots key', async () => {
+    mod.openSessionTile('desk-1', 'center', 'workspace', undefined, desk)
+    mod.openSessionTile('desk-2', 'center', 'workspace', undefined, desk)
+    const layout = await import('@/components/pane-shell/tree/store')
+    const scope = await import('@/components/pane-shell/workspace-scope')
+    layout.$layoutTree.set(
+      group(['workspace', tilePane('desk-1'), tilePane('desk-2')], { active: 'workspace', id: 'main' })
+    )
+    // Remembered under the HerWork key; a `bots:` key for the same owner must not be consulted.
+    scope.rememberActivePane(scope.workspaceScopeKey('herwork', 'herwork:desk'), tilePane('desk-1'))
+    scope.rememberActivePane(scope.workspaceScopeKey('bots', 'herwork:desk'), tilePane('desk-2'))
+
+    expect(mod.focusWorkspaceOwnerSessionTile('herwork:desk')).toBe('desk-1')
+    expect(mod.$sessionTiles.get().every(tile => tile.workspaceMode === 'herwork')).toBe(true)
+    scope.forgetActivePane(scope.workspaceScopeKey('herwork', 'herwork:desk'))
+    scope.forgetActivePane(scope.workspaceScopeKey('bots', 'herwork:desk'))
+  })
+})

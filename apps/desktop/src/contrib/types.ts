@@ -12,10 +12,28 @@ export type ContributionSource = 'core' | (string & {})
 /**
  * Which workspace surface the window is looking at. `'sessions'` is the classic
  * session workspace; `'bots'` means Bot Mode has one exact bot selected,
- * identified by an opaque owner key. Consumers ADAPT to this — it steers where
- * the `+` routes — but it never decides whether a pane renders.
+ * identified by an opaque owner key; `'herwork'` is the HerWork desk, one
+ * owner whose new chats open on the herwork profile at the desk's cwd.
+ * Consumers ADAPT to this: it steers where the `+` routes, but it never
+ * decides whether a pane renders.
  */
-export type WorkspaceMode = 'sessions' | 'bots'
+export type WorkspaceMode = 'sessions' | 'bots' | 'herwork'
+
+/** Every mode is exactly one of these values; anything else is a corrupt or
+ *  future stored value and must rehydrate as `'sessions'`, never be dropped. */
+export const WORKSPACE_MODES: readonly WorkspaceMode[] = ['sessions', 'bots', 'herwork']
+
+/** True for a workspace with an owner key and its own `+` route (Bots, HerWork).
+ *  Sessions is the ambient default and owns nothing. Sites that mean "Bot Mode
+ *  specifically" (hiding a canonical Bot Chat) keep comparing to `'bots'`. */
+export const isOwnedWorkspace = (mode: WorkspaceMode | undefined): boolean =>
+  mode !== undefined && mode !== 'sessions'
+
+export function parseWorkspaceMode(value: unknown): WorkspaceMode {
+  return typeof value === 'string' && (WORKSPACE_MODES as readonly string[]).includes(value)
+    ? (value as WorkspaceMode)
+    : 'sessions'
+}
 
 /**
  * The single, uniform primitive every surface consumes. A bar renders these as

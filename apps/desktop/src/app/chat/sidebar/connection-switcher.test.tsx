@@ -42,7 +42,9 @@ vi.mock('@/store/boot', () => ({
 
 vi.mock('@/store/windows', () => ({
   isAuxiliaryWindow: vi.fn(() => false),
-  isPeerInstanceWindow: vi.fn(() => false)
+  isBrowserWindow: vi.fn(() => false),
+  isPeerInstanceWindow: vi.fn(() => false),
+  isSecondaryWindow: vi.fn(() => false)
 }))
 
 vi.mock('@/i18n', () => ({

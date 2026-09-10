@@ -49,6 +49,8 @@ const fsAllow = [
 // the versions declared here — npm nests a copy under the workspace exactly
 // when the hoisted one differs, so the pair can only ever match.
 const requireFromApp = createRequire(path.join(__dirname, 'vite.config.ts'))
+// Module ids rolldown hands to `codeSplitting` group tests are absolute paths.
+const SRC_DIR = path.resolve(__dirname, 'src') + path.sep
 const reactDir = path.dirname(requireFromApp.resolve('react/package.json'))
 const reactDomDir = path.dirname(requireFromApp.resolve('react-dom/package.json'))
 
@@ -126,13 +128,13 @@ export default defineConfig(({ command }) => ({
     //     bundle hit ~28 MB that eval was ~1s of launch on an M-series.
     //   · Default splitting emits a chunk per shiki grammar/theme — thousands
     //     of files, which electron-builder OOMs scanning (#38888).
-    // `advancedChunks` is the middle ground: heavyweight libraries merge into
+    // `codeSplitting` groups are the middle ground: heavyweight libraries merge into
     // a handful of named vendor chunks loaded on first use, app-level dynamic
     // imports stay lazy, and the file count stays in the tens.
     chunkSizeWarningLimit: 25000,
     rolldownOptions: {
       output: {
-        advancedChunks: {
+        codeSplitting: {
           groups: [
             // Shared foundations FIRST (first match wins): an unmatched
             // module shared by the entry and a heavy chunk gets merged INTO
@@ -162,6 +164,30 @@ export default defineConfig(({ command }) => ({
             {
               name: 'vendor-util',
               test: /node_modules[\\/](lodash-es|es-toolkit|uuid|dayjs|d3-array|d3-color|d3-force|d3-interpolate|d3-time[^\\/]*|dompurify|stylis)[\\/]/
+            },
+            // @tabler/icons-react ships one module per icon. An icon the entry
+            // and a lazy chunk both use otherwise becomes its own sub-kilobyte
+            // chunk (34 of them measured on 10 Sept 2026, each a modulepreload
+            // fetch and compile before first paint). Merge the shared icons into
+            // one chunk; an icon only one chunk uses stays inlined there.
+            {
+              name: 'vendor-icons',
+              test: /node_modules[\\/]@tabler[\\/]icons-react[\\/]/,
+              minShareCount: 2
+            },
+            // The same fragmentation happens to our own modules. A hook, a store
+            // or a locale namespace that both the entry and a lazy chunk import
+            // is split out of the entry, and rolldown grouped those by importer
+            // shape into ~120 eager chunks (52 of them under 2 KB) measured on
+            // 10 Sept 2026. Merge every small shared module into one chunk
+            // instead: 14 boot files, same 5.5 MB. The module-size cap is what
+            // keeps a large component two lazy panes share OFF the boot graph;
+            // without it the group would pull it in beside the small ones.
+            {
+              name: 'app-shared',
+              test: (id: string) => id.startsWith(SRC_DIR),
+              minShareCount: 2,
+              maxModuleSize: 2 * 1024
             },
             // One chunk per heavyweight, lazy-only library family.
             // @streamdown/code lives WITH shiki because it statically imports

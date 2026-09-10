@@ -14,6 +14,7 @@
  *   · katex (253 KB, the slowest single chunk) → `lib/use-math-plugin.ts`
  *
  * Measured before the katex fix: 105 chunks / 5.97 MB. After: 104 / 5.72 MB.
+ * After the shared-module groups (10 Sept 2026): 14 / 5.51 MB.
  *
  * The two assertions below are deliberately different in kind:
  *
@@ -42,15 +43,25 @@ import { parseModuleAssetRefs } from './renderer-bundle'
 const DIST = path.join(__dirname, '..', 'dist')
 const INDEX = path.join(DIST, 'index.html')
 
-// Headroom over the measured 5.72 MB / 104 chunks. Tight enough that adding a
-// heavyweight dependency to the boot graph trips it; loose enough that ordinary
-// feature work does not.
+// Headroom over the measured 5.51 MB / 14 chunks (10 Sept 2026, after the
+// `vendor-icons` and `app-shared` groups in vite.config.ts collapsed ~120
+// small shared-module chunks into two). Tight enough that adding a heavyweight
+// dependency to the boot graph trips it; loose enough that ordinary feature
+// work does not. A chunk count creeping back up means a group stopped
+// matching, not that the app grew.
 const MAX_BOOT_BYTES = 6.2 * 1024 * 1024
-const MAX_BOOT_CHUNKS = 115
+const MAX_BOOT_CHUNKS = 40
 
 // Substrings matched against eager chunk filenames. Each names a library whose
 // chunk is big enough that it must never be reachable statically from the entry.
 const FORBIDDEN_IN_BOOT_GRAPH = ['shiki', 'katex', 'mermaid']
+
+// The invariant is about the LIBRARY, not the word. A dependency-free constants
+// module that shares the name (`shiki-config.ts`, 218 bytes of theme ids used
+// by both the eager highlighter and the lazy shiki chunk) is exactly the
+// pattern the lazy split relies on. The smallest real chunk of any library
+// above is katex at 253 KB, so anything under this floor is a namesake.
+const MIN_FORBIDDEN_BYTES = 16 * 1024
 
 const built = fs.existsSync(INDEX)
 
@@ -94,7 +105,7 @@ describe.skipIf(!built)('cold-boot payload budget', () => {
   })
 
   test.each(FORBIDDEN_IN_BOOT_GRAPH)('%s is not on the boot graph', library => {
-    const leaked = eagerChunks().filter(c => c.name.toLowerCase().includes(library))
+    const leaked = eagerChunks().filter(c => c.name.toLowerCase().includes(library) && c.bytes >= MIN_FORBIDDEN_BYTES)
 
     expect(
       leaked.map(c => c.name),

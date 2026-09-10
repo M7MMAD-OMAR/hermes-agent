@@ -10,23 +10,45 @@
 export const HERWORK_OWNER_KEY = 'herwork:desk'
 export const HERWORK_PROFILE = 'herwork'
 
+/** The separator a path is already written with.
+ *
+ *  A cwd reaches the renderer as a string, from this machine or from a remote
+ *  one, so the platform this code runs on says nothing about which separator
+ *  belongs in it. Joining a Windows home with a forward slash produced
+ *  `C:\\Users\\ada/herwork`, which every path comparison in the app treats as a
+ *  different directory from the one the desk actually opens at. */
+function separatorOf(base: string): string {
+  return base.includes('\\') && !base.includes('/') ? '\\' : '/'
+}
+
+/** Join a path segment onto a base, in the base's own separator. */
+export function deskPathJoin(base: string, segment: string): string {
+  return `${base}${separatorOf(base)}${segment}`
+}
+
 /** Absolute, never `~`: renderer stores compare cwd paths literally and the
  *  backend expands `~` only on its own side (design doc, Part 3). Empty home
  *  yields '' so a caller can fall back rather than build `/herwork`. */
 export function herworkDeskCwd(home: string): string {
   const base = home.replace(/[\\/]+$/, '')
 
-  return base ? `${base}/herwork` : ''
+  return base ? deskPathJoin(base, 'herwork') : ''
 }
 
-/** `$HOME` is not exposed to the renderer; the desk lives under the same home
- *  the given cwd does. A cwd outside a home directory (or empty) yields ''. */
-export function homeOf(cwd: string): string {
-  // Same three layouts as `lib/display-path`'s home inference; a plugin may
-  // import only the SDK, so the rule is restated rather than reused.
-  const match = /^(\/home\/[^/]+|\/Users\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)/.exec(cwd)
+/** Where home directories live, as a prefix pattern per layout.
+ *
+ *  `$HOME` is not exposed to the renderer, and a remote cwd's home is not this
+ *  machine's home even when it is, so the home is read out of the cwd itself.
+ *  The list is the shape of the answer: every layout missing from it is a user
+ *  whose desk silently falls back to the ambient directory. `/var/home` is
+ *  ostree (Fedora Silverblue, Bluefin); `/root` is a container or a login as
+ *  root, where the home has no user segment at all. */
+const HOME_LAYOUTS = /^(\/(?:var\/)?home\/[^/]+|\/Users\/[^/]+|\/root|[A-Za-z]:\\Users\\[^\\]+)(?=[/\\]|$)/
 
-  return match ? match[1]! : ''
+/** The home directory the given cwd sits under, or '' when it sits outside
+ *  one. A cwd outside a home directory (or empty) yields ''. */
+export function homeOf(cwd: string): string {
+  return HOME_LAYOUTS.exec(cwd)?.[1] ?? ''
 }
 
 export const HERWORK_BUNDLE = 'herwork'
@@ -71,7 +93,7 @@ export function herworkRoute(localConnectionId: null | string | undefined, home 
     mode: 'local',
     profile: HERWORK_PROFILE,
     targetProfile: HERWORK_PROFILE,
-    ...(cwd ? { cwd, downloadDir: `${cwd}/work`, dropDir: `${cwd}/inbox` } : {}),
+    ...(cwd ? { cwd, downloadDir: deskPathJoin(cwd, 'work'), dropDir: deskPathJoin(cwd, 'inbox') } : {}),
     bundle: HERWORK_BUNDLE
   }
 }

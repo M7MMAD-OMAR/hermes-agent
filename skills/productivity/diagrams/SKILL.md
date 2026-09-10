@@ -31,10 +31,19 @@ build those with the xlsx skill (native Excel charts) or the powerpoint skill.
 
 ## Prerequisites
 
-Node with `npx` on PATH, and a Chromium (`chromium-browser`, `chromium`, or
-Chrome). The renderer finds one itself, runs it headless with a throwaway
-profile, and never touches a real browser profile. The first run downloads the
-Mermaid CLI into the npm cache; later runs are offline.
+Node with `npx` on PATH. Without it the renderer stops and says so rather than
+failing deep inside a subprocess.
+
+A Chromium is optional but wanted. The renderer looks for `chromium`,
+`chromium-browser`, Chrome or Edge on PATH, then in the app bundles macOS and
+Windows install into, then in a Playwright cache. It runs whatever it finds
+headless with a throwaway profile and never touches a real browser profile.
+With none of them the Mermaid CLI downloads its own, which is slow and needs a
+network connection.
+
+The Mermaid CLI version is pinned in the script, so the first run downloads
+that exact version into the npm cache and every later run resolves offline from
+it. The first run does need a network connection.
 
 ## How to Run
 
@@ -44,7 +53,9 @@ scripts/diagram_render.py --code "flowchart LR; A[Order]-->B[Ship]" out/flow.svg
 scripts/diagram_render.py flow.mmd out/flow.png --theme neutral --background white --scale 3
 ```
 
-Answers with `{"ok": true, "outputs": [...], "rtl": bool}` on stdout.
+Answers with `{"ok": true, "outputs": [...], "rtl": bool}` on stdout, plus a
+`"warning"` when the diagram is right-to-left and the machine has no Arabic
+font: the labels will render as empty boxes until one is installed.
 
 | Flag | Meaning |
 |---|---|

@@ -150,12 +150,29 @@ describe('desk', () => {
   })
 
   it('derives an absolute desk path from the home the cwd lives in', () => {
-    expect(homeOf('/home/sbarah/R/Projects/x')).toBe('/home/sbarah')
-    expect(homeOf('/Users/sbarah/code')).toBe('/Users/sbarah')
+    expect(homeOf('/home/ada/projects/x')).toBe('/home/ada')
+    expect(homeOf('/Users/ada/code')).toBe('/Users/ada')
     expect(homeOf('/tmp/elsewhere')).toBe('')
-    expect(herworkDeskCwd('/home/sbarah')).toBe('/home/sbarah/herwork')
-    expect(herworkDeskCwd('/home/sbarah/')).toBe('/home/sbarah/herwork')
+    expect(herworkDeskCwd('/home/ada')).toBe('/home/ada/herwork')
+    expect(herworkDeskCwd('/home/ada/')).toBe('/home/ada/herwork')
     expect(herworkDeskCwd('')).toBe('')
+  })
+
+  it('knows the home layouts that are not /home/<name>', () => {
+    // ostree distributions (Silverblue, Bluefin) mount homes under /var.
+    expect(homeOf('/var/home/ada/notes')).toBe('/var/home/ada')
+    // A container or a root login has no user segment at all.
+    expect(homeOf('/root/work')).toBe('/root')
+    expect(homeOf('C:\\Users\\ada\\Documents')).toBe('C:\\Users\\ada')
+    // A directory that merely starts with the same letters is not a home.
+    expect(homeOf('/rootfs/stuff')).toBe('')
+    expect(homeOf('/homebrew/bin')).toBe('')
+  })
+
+  it('joins the desk path in the separator the home already uses', () => {
+    expect(herworkDeskCwd('C:\\Users\\ada')).toBe('C:\\Users\\ada\\herwork')
+    expect(herworkRoute('local-1', 'C:\\Users\\ada')?.downloadDir).toBe('C:\\Users\\ada\\herwork\\work')
+    expect(herworkRoute('local-1', '/home/ada')?.downloadDir).toBe('/home/ada/herwork/work')
   })
 })
 

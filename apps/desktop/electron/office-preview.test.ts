@@ -121,6 +121,49 @@ describe('the Office conversion door', () => {
     expect(fakeSoffice).not.toHaveBeenCalled()
   })
 
+  it('cleans up the LibreOffice profile even when the conversion fails', async () => {
+    const source = path.join(root, 'broken.odt')
+    const cacheDir = path.join(root, 'cache')
+
+    fs.writeFileSync(source, 'x')
+
+    await expect(
+      officeConvertForIpc(source, 'docx', {
+        cacheDir,
+        maxBytes: 1_000_000,
+        resolveReadableFile,
+        run: async () => {
+          throw new Error('LibreOffice conversion failed: crash')
+        },
+        sofficePath: '/usr/bin/soffice'
+      })
+    ).rejects.toThrow('crash')
+
+    const leaked = fs
+      .readdirSync(cacheDir, { recursive: true })
+      .filter(entry => String(entry).includes('profile-'))
+
+    expect(leaked).toEqual([])
+  })
+
+  it('drops converted copies that have outlived the cache window', async () => {
+    const cacheDir = path.join(root, 'cache')
+    const stale = path.join(cacheDir, 'stale-entry')
+    const source = path.join(root, 'notes.odt')
+
+    fs.mkdirSync(stale, { recursive: true })
+    fs.writeFileSync(path.join(stale, 'secret.docx'), 'a document from last week')
+    // Two days back: past the one-day window, so the sweep takes it.
+    const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+
+    fs.utimesSync(stale, old, old)
+    fs.writeFileSync(source, 'x')
+
+    await officeConvertForIpc(source, 'docx', { ...deps(), cacheDir })
+
+    expect(fs.existsSync(stale)).toBe(false)
+  })
+
   it('reports a result above the preview cap as advice, not a trace', async () => {
     const source = path.join(root, 'big.xls')
 

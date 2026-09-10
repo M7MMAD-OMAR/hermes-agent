@@ -34,9 +34,44 @@ LTR_FONT = "Inter, Helvetica, Arial, sans-serif"
 
 CHROMIUM_CANDIDATES = (
     "chromium-browser", "chromium", "google-chrome", "google-chrome-stable", "chrome",
+    "msedge",
 )
 
+# Installed browsers that put nothing on PATH. Bundles on macOS, the standard
+# install locations on Windows.
+CHROMIUM_PATHS = {
+    "darwin": (
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    ),
+    "win32": (
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    ),
+}
+
+# Where a Playwright install parks its own Chromium, per platform.
+PLAYWRIGHT_GLOBS = (
+    "chromium-*/chrome-linux/chrome",
+    "chromium-*/chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+    "chromium-*/chrome-win/chrome.exe",
+)
+
+# Pinned so a machine that renders a diagram today renders the same diagram
+# the same way next year, and so npm can answer from its cache instead of
+# resolving "latest" over the network on every run.
+MERMAID_CLI = "@mermaid-js/mermaid-cli@11.17.0"
+
 RENDER_TIMEOUT_S = 300
+
+# Directories a font file can be installed into, per platform, for the machines
+# that have no fontconfig to ask.
+FONT_DIRS = {
+    "darwin": ("/System/Library/Fonts", "/Library/Fonts", "~/Library/Fonts"),
+    "win32": (r"C:\Windows\Fonts", "~/AppData/Local/Microsoft/Windows/Fonts"),
+}
 
 
 def find_chromium():
@@ -45,33 +80,72 @@ def find_chromium():
         found = shutil.which(name)
         if found:
             return found
+    for candidate in CHROMIUM_PATHS.get(sys.platform, ()):
+        if os.access(candidate, os.X_OK):
+            return candidate
     cache = Path.home() / ".cache" / "ms-playwright"
     if cache.is_dir():
-        for entry in sorted(cache.glob("chromium-*/chrome-linux/chrome"), reverse=True):
-            if os.access(entry, os.X_OK):
-                return str(entry)
+        for pattern in PLAYWRIGHT_GLOBS:
+            for entry in sorted(cache.glob(pattern), reverse=True):
+                if os.access(entry, os.X_OK):
+                    return str(entry)
     return None
 
 
-def installed_font(candidates=RTL_FONTS):
-    """The first candidate fontconfig reports, or the last one as a fallback."""
+def _font_families():
+    """Every font family name this machine can name, as best it can be asked."""
     try:
         listed = subprocess.run(["fc-list", ":lang=ar", "family"], capture_output=True, text=True,
                                 timeout=20).stdout
+        return {name.strip() for line in listed.splitlines() for name in line.split(",")}
     except (OSError, subprocess.SubprocessError):
-        return candidates[-1]
-    families = {name.strip() for line in listed.splitlines() for name in line.split(",")}
+        pass
+
+    # No fontconfig: macOS and Windows. Match on the file name instead, which
+    # is coarser but catches a font installed under its own family name.
+    families = set()
+    for directory in FONT_DIRS.get(sys.platform, ()):
+        path = Path(directory).expanduser()
+        if not path.is_dir():
+            continue
+        for entry in path.glob("*"):
+            if entry.suffix.lower() in (".ttf", ".otf", ".ttc"):
+                families.add(entry.stem.split("-")[0])
+    return families
+
+
+def installed_font(candidates=RTL_FONTS):
+    """The first candidate this machine has, or None when it has none of them.
+
+    None is the honest answer and the caller reports it: falling back to a name
+    the machine does not have renders the diagram as empty boxes while the
+    script still says it succeeded.
+    """
+    families = _font_families()
     for candidate in candidates:
         if candidate in families:
             return candidate
-    return candidates[-1]
+    return None
 
 
-def mermaid_config(source: str, font: str = "") -> dict:
-    """Theme config for one diagram. The font is the only thing decided here."""
-    family = font or (installed_font() if RTL_RE.search(source) else LTR_FONT)
+def mermaid_config(source: str, font: str = "") -> tuple:
+    """Theme config for one diagram, and a warning when the font is missing.
 
-    return {"fontFamily": family, "themeVariables": {"fontFamily": family}}
+    The font is the only thing decided here.
+    """
+    if font:
+        return {"fontFamily": font, "themeVariables": {"fontFamily": font}}, ""
+
+    if not RTL_RE.search(source):
+        return {"fontFamily": LTR_FONT, "themeVariables": {"fontFamily": LTR_FONT}}, ""
+
+    family = installed_font()
+    if family:
+        return {"fontFamily": family, "themeVariables": {"fontFamily": family}}, ""
+
+    warning = ("No Arabic-capable font found, so the labels may render as empty boxes. "
+               "Install one of: " + ", ".join(RTL_FONTS[:-1]) + ".")
+    return {"fontFamily": RTL_FONTS[-1], "themeVariables": {"fontFamily": RTL_FONTS[-1]}}, warning
 
 
 def render(source: str, outputs, theme: str, background: str, scale: int, width: int,
@@ -82,6 +156,12 @@ def render(source: str, outputs, theme: str, background: str, scale: int, width:
     ``-o`` targets, and a second invocation would mean a second npx bootstrap
     and a second headless Chromium cold start for the same diagram.
     """
+    if not shutil.which("npx"):
+        raise RuntimeError(
+            "npx was not found on PATH. Mermaid renders through its official CLI, "
+            "so this needs Node.js installed (https://nodejs.org)."
+        )
+
     binary = find_chromium()
     with tempfile.TemporaryDirectory(prefix="mermaid-") as work:
         work_dir = Path(work)
@@ -94,13 +174,14 @@ def render(source: str, outputs, theme: str, background: str, scale: int, width:
         puppeteer_path = work_dir / "puppeteer.json"
         puppeteer_path.write_text(json.dumps(puppeteer), encoding="utf-8")
 
+        config, warning = mermaid_config(source, font)
         config_path = work_dir / "config.json"
-        config_path.write_text(json.dumps(mermaid_config(source, font)), encoding="utf-8")
+        config_path.write_text(json.dumps(config), encoding="utf-8")
 
         for output in outputs:
             output.parent.mkdir(parents=True, exist_ok=True)
             args = [
-                "npx", "--yes", "--package=@mermaid-js/mermaid-cli", "mmdc",
+                "npx", "--yes", "--prefer-offline", f"--package={MERMAID_CLI}", "mmdc",
                 "-i", str(input_path), "-o", str(output),
                 "-p", str(puppeteer_path), "-c", str(config_path),
                 "-t", theme, "-b", background,
@@ -110,12 +191,24 @@ def render(source: str, outputs, theme: str, background: str, scale: int, width:
             if width:
                 args += ["-w", str(width)]
 
-            result = subprocess.run(args, capture_output=True, text=True, timeout=RENDER_TIMEOUT_S)
+            try:
+                result = subprocess.run(args, capture_output=True, text=True,
+                                        timeout=RENDER_TIMEOUT_S)
+            except subprocess.TimeoutExpired as expired:
+                raise RuntimeError(
+                    f"Mermaid did not finish within {RENDER_TIMEOUT_S} seconds. The first run "
+                    "downloads the CLI and a headless browser, which needs a network connection."
+                ) from expired
+
             if result.returncode != 0 or not output.exists():
                 detail = (result.stderr or result.stdout or "").strip()[-600:]
-                raise RuntimeError(f"Mermaid failed to render: {detail}")
+                hint = "" if binary else (
+                    " No Chromium was found on this machine, so the CLI had to fetch its own; "
+                    "installing Chromium or Google Chrome makes this step local and much faster."
+                )
+                raise RuntimeError(f"Mermaid failed to render: {detail}{hint}")
 
-    return list(outputs)
+    return list(outputs), warning
 
 
 def main(argv=None):
@@ -147,10 +240,14 @@ def main(argv=None):
     if args.also_png and output.suffix.lower() != ".png":
         wanted.append(output.with_suffix(".png"))
 
-    written = render(source, wanted, args.theme, args.background, args.scale, args.width, args.font)
+    written, warning = render(source, wanted, args.theme, args.background, args.scale,
+                              args.width, args.font)
 
-    print(json.dumps({"ok": True, "outputs": [str(path) for path in written],
-                      "rtl": bool(RTL_RE.search(source))}, ensure_ascii=False))
+    answer = {"ok": True, "outputs": [str(path) for path in written],
+              "rtl": bool(RTL_RE.search(source))}
+    if warning:
+        answer["warning"] = warning
+    print(json.dumps(answer, ensure_ascii=False))
     return 0
 
 

@@ -67,7 +67,8 @@ import {
   setSessions,
   shouldMigrateComposerScope,
   touchSessionActivity,
-  workspaceCwdForNewSession
+  workspaceCwdForNewSession,
+  getCurrentModelSource
 } from './session'
 import {
   $attentionSessionIds,
@@ -127,6 +128,29 @@ describe('composer model persistence scope', () => {
     setCurrentModel('next-model')
     expect(window.localStorage.getItem('hermes.desktop.composer.model')).toBe('next-model')
     expect(window.localStorage.getItem('hermes.desktop.composer.model.registry.local.default')).toBeNull()
+  })
+
+  it('gives each local profile its own manual pick, default staying on the bare keys', () => {
+    const local = (profile: string) => ({ baseUrl: '', connectionId: 'local', mode: 'local', profile }) as never
+
+    setConnection(local('default'))
+    setCurrentModel('glm-5.3-flash')
+    setCurrentModelSource('manual')
+    expect(window.localStorage.getItem('hermes.desktop.composer.model')).toBe('glm-5.3-flash')
+
+    // A desk profile on the same machine starts from ITS profile default, not
+    // from whatever was picked for coding chats.
+    setConnection(local('herwork'))
+    expect($currentModel.get()).toBe('')
+    expect(getCurrentModelSource()).toBe('')
+
+    setCurrentModel('claude-sonnet-5')
+    setCurrentModelSource('manual')
+    expect(window.localStorage.getItem('hermes.desktop.composer.model.profile.herwork')).toBe('claude-sonnet-5')
+
+    // And the coding pick is still there when the user comes back.
+    setConnection(local('default'))
+    expect($currentModel.get()).toBe('glm-5.3-flash')
   })
 
   it('uses the live registry owner when the connection descriptor is stale', () => {

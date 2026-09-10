@@ -4,7 +4,7 @@
  * Three sections over one fixed desk, in the order the work flows: start a job,
  * pick up an earlier one, see what the open job produced.
  *
- *   · Jobs  — the desk's own chats, newest first. The `+` in the tab bar routes
+ *   · Jobs: the desk's own chats, newest first. The `+` in the tab bar routes
  *             here too; this button exists because the panel is where the eye
  *             already is, and because an empty desk otherwise offers no door.
  *   · Delivered  what `output/` holds, newest first, opened in the preview
@@ -12,7 +12,7 @@
  *             finished files back", so the files are the deliverable, not a
  *             detail buried in a tree. The three desk folders sit under it as
  *             doors into the file manager.
- *   · Steps — the open job's plan, the same list the composer status stack
+ *   · Steps: the open job's plan, the same list the composer status stack
  *             renders, pinned where it stays readable while the turn runs.
  *
  * Everything here reads through `@hermes/plugin-sdk`; the pane owns no state

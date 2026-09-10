@@ -48,9 +48,16 @@ function composerScopeForConnection(connection: HermesConnection | null): string
 
   // Electron may infer the sole `local` registry id onto the ordinary primary
   // descriptor. That remains the legacy single-backend path: only an explicit
-  // registry-scoped route earns a new namespace.
+  // registry-scoped route earns a registry namespace. Its DEFAULT profile keeps
+  // the historical bare keys; any other local profile gets its own suffix, so a
+  // model picked in Sessions does not silently become the model of every desk,
+  // bot or quant profile on the same machine (the HerWork desk opened on a
+  // Flash model the user had picked for a coding chat, and that model leaked
+  // its tool-call markup into the transcript).
   if (connection.mode !== 'remote' && !connection.registryScoped) {
-    return ''
+    const profile = (connection.profile || 'default').trim() || 'default'
+
+    return profile === 'default' ? '' : `.profile.${encodeURIComponent(profile)}`
   }
 
   if (connection.connectionId) {

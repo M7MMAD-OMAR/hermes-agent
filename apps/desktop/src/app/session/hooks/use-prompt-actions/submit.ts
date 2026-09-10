@@ -5,6 +5,7 @@ import type { Translations } from '@/i18n'
 import { type ChatMessage, textPart } from '@/lib/chat-messages'
 import { optimisticAttachmentRef, reviewCommentBlock } from '@/lib/chat-runtime'
 import { sanitizeComposerInput } from '@/lib/composer-input-sanitize'
+import { inlineErrorMessage } from '@/lib/error-message'
 import { setMutableRef } from '@/lib/mutable-ref'
 import { pinCommentBlock } from '@/lib/preview-pins/pin-block'
 import {
@@ -43,7 +44,6 @@ import { registerRecoveredRuntime, singleFlightSessionResume, takeRecoveredRunti
 import {
   acquireSubmitInFlight,
   type GatewayRequest,
-  inlineErrorMessage,
   isProviderSetupError,
   isSessionBusyError,
   isTargetSessionBusy,

@@ -9,7 +9,7 @@
 import { addTitleSlide, createPresentation, savePresentation } from '@office-kit/pptx'
 import { describe, expect, it } from 'vitest'
 
-import { readDeck } from './deck-model'
+import { readDeck } from './slides-model'
 
 async function deckBytes(title: string) {
   const presentation = createPresentation()

@@ -8,7 +8,7 @@
  * opened in the source viewer.
  */
 
-import { fileExtensionOf, OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@hermes/shared/office-format'
+import { fileExtensionOf, isOfficePreviewKind, OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@hermes/shared/office-format'
 
 import type { PreviewTarget } from '@/store/preview'
 
@@ -38,4 +38,14 @@ export function previewKindForPath(value: string): PreviewKind {
   const family = officeFamilyForPath(value)
 
   return family ? OFFICE_PREVIEW_KIND_BY_FAMILY[family] : 'text'
+}
+
+/** True when the viewer for this kind reads the file's bytes itself.
+ *
+ *  These viewers never want a text prefetch: an image, a PDF, and each of the
+ *  Office viewers parses the file directly, so fetching its text first is a
+ *  download of a binary nobody reads. Naming the property keeps the list from
+ *  being spelled out again wherever it matters. */
+export function previewReadsOwnBytes(kind: string | undefined): boolean {
+  return kind === 'image' || kind === 'pdf' || isOfficePreviewKind(kind)
 }

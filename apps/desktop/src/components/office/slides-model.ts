@@ -11,10 +11,23 @@
 import { getSlideNotes, getSlides, getSlideSize, getSlideTitle, loadPresentation } from '@office-kit/pptx'
 import { renderSlideToSvg } from '@office-kit/pptx-preview'
 
-import type { Deck, DeckSlide } from './slides-view'
 
 const DEFAULT_ASPECT = 16 / 9
 /** A deck longer than this previews its first slides; the rest open in the app. */
+
+export interface DeckSlide {
+  /** Rendered SVG markup for the slide, or null while it is still rendering. */
+  svg: null | string
+  notes: string
+  title: string
+}
+
+export interface Deck {
+  /** Slide aspect ratio, width over height. */
+  aspect: number
+  slides: DeckSlide[]
+}
+
 export const DECK_MAX_SLIDES = 200
 
 const UNSAFE_ELEMENTS = new Set(['embed', 'iframe', 'object', 'script'])

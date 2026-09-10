@@ -73,13 +73,3 @@ export function isOfficePreviewKind(kind: string | undefined): kind is OfficePre
 export function officeFamilyForPreviewKind(kind: OfficePreviewKind): OfficeFamily {
   return OFFICE_FAMILY_BY_PREVIEW_KIND[kind]
 }
-
-/** True when the viewer for this kind reads the file's bytes itself.
- *
- *  These viewers never want a text prefetch: an image, a PDF, and each of the
- *  Office viewers parses the file directly, so fetching its text first is a
- *  download of a binary nobody reads. Naming the property keeps the list from
- *  being spelled out again wherever it matters. */
-export function previewReadsOwnBytes(kind: string | undefined): boolean {
-  return kind === 'image' || kind === 'pdf' || isOfficePreviewKind(kind)
-}

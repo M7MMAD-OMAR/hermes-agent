@@ -9,6 +9,7 @@ import { stripAnsi } from '@/lib/ansi'
 import { type ChatMessage, textPart } from '@/lib/chat-messages'
 import { pathLabel, SLASH_COMMAND_RE } from '@/lib/chat-runtime'
 import { sanitizeComposerInput } from '@/lib/composer-input-sanitize'
+import { inlineErrorMessage } from '@/lib/error-message'
 import { triggerHaptic } from '@/lib/haptics'
 import { setMutableRef } from '@/lib/mutable-ref'
 import { normalize } from '@/lib/text'
@@ -72,7 +73,6 @@ import {
   delay,
   friendlyRemoteAttachError,
   type GatewayRequest,
-  inlineErrorMessage,
   markSessionRecentlyInterrupted,
   readFileDataUrlForAttach,
   readImageForRemoteAttach,

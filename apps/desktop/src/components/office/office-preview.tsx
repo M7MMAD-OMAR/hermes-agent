@@ -18,18 +18,18 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { PageLoader } from '@/components/page-loader'
 import { useI18n } from '@/i18n'
 import { convertDesktopOffice, openDesktopFileExternally, readDesktopOfficeBytes } from '@/lib/desktop-fs'
+import { inlineErrorMessage } from '@/lib/error-message'
 import { dataUrlToBlob } from '@/lib/pdf-blob'
 import { cn } from '@/lib/utils'
 
-import type { DeckSource } from './deck-model'
 import type { SheetBook } from './sheet-model'
-import type { Deck } from './slides-view'
+import type { Deck, DeckSource } from './slides-model'
 
 // Module-scope lazy imports: the parsers and renderers are the heavy part of
 // this feature and no chunk of it loads until a document is actually opened.
-const SheetPreview = lazy(async () => ({ default: (await import('./sheet-view')).SheetPreview }))
-const SlidesPreview = lazy(async () => ({ default: (await import('./slides-view')).SlidesPreview }))
-const WordPreview = lazy(async () => ({ default: (await import('./word-view')).WordPreview }))
+const SheetView = lazy(async () => ({ default: (await import('./sheet-view')).SheetView }))
+const SlidesView = lazy(async () => ({ default: (await import('./slides-view')).SlidesView }))
+const WordView = lazy(async () => ({ default: (await import('./word-view')).WordView }))
 
 type WordMode = 'document' | 'pages'
 
@@ -38,7 +38,7 @@ type WordMode = 'document' | 'pages'
 type Loaded =
   | { book: SheetBook; kind: 'book' }
   | { bytes: Uint8Array; kind: 'bytes' }
-  | { deck: Deck; kind: 'deck' }
+  | { deck: Deck; kind: 'slides' }
 
 /** A button that reads as a link, for the toolbars the viewers already own. */
 function ToolbarAction({ label, onClick }: { label: string; onClick: () => void }) {
@@ -79,7 +79,7 @@ export function OfficePreview({
   label: string
   reloadKey: number
 }) {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [deckSource, setDeckSource] = useState<DeckSource | null>(null)
   const [error, setError] = useState<null | string>(null)
@@ -123,7 +123,7 @@ export function OfficePreview({
             const at = next
 
             setLoaded(current => {
-              if (current?.kind !== 'deck') {
+              if (current?.kind !== 'slides') {
                 return current
               }
 
@@ -137,7 +137,7 @@ export function OfficePreview({
 
               slides[at] = { ...slide, svg }
 
-              return { deck: { ...current.deck, slides }, kind: 'deck' }
+              return { deck: { ...current.deck, slides }, kind: 'slides' }
             })
           }
         } finally {
@@ -161,7 +161,7 @@ export function OfficePreview({
 
         if (family === 'xlsx') {
           const { readSheetBook } = await import('./sheet-model')
-          const book = await readSheetBook(bytes)
+          const book = await readSheetBook(bytes, locale)
 
           if (active) {
             setLoaded({ book, kind: 'book' })
@@ -171,7 +171,7 @@ export function OfficePreview({
         }
 
         if (family === 'pptx') {
-          const { pendingDeck, readDeck } = await import('./deck-model')
+          const { pendingDeck, readDeck } = await import('./slides-model')
           const source = await readDeck(bytes)
 
           if (!active) {
@@ -179,7 +179,7 @@ export function OfficePreview({
           }
 
           setDeckSource(source)
-          setLoaded({ deck: pendingDeck(source), kind: 'deck' })
+          setLoaded({ deck: pendingDeck(source), kind: 'slides' })
 
           return
         }
@@ -187,7 +187,7 @@ export function OfficePreview({
         setLoaded({ bytes, kind: 'bytes' })
       } catch (cause) {
         if (active) {
-          setError(cause instanceof Error ? cause.message : String(cause))
+          setError(inlineErrorMessage(cause, t.preview.unavailable))
         }
       }
     }
@@ -197,7 +197,10 @@ export function OfficePreview({
     return () => {
       active = false
     }
-  }, [family, filePath, reloadKey])
+    // `locale` is a real input, not a lint appeasement: a spreadsheet renders
+    // its month and weekday names in the reader's language, so switching the
+    // interface language re-reads the workbook.
+  }, [family, filePath, locale, reloadKey, t.preview.unavailable])
 
   // The exact-pages view of a Word document is the PDF LibreOffice prints, and
   // it is only fetched when the reader asks for it.
@@ -240,10 +243,8 @@ export function OfficePreview({
   }, [family, filePath, mode, reloadKey])
 
   const openExternally = useCallback(() => {
-    void openDesktopFileExternally(filePath).catch((cause: unknown) =>
-      setError(cause instanceof Error ? cause.message : String(cause))
-    )
-  }, [filePath])
+    void openDesktopFileExternally(filePath).catch((cause: unknown) => setError(inlineErrorMessage(cause, t.preview.unavailable)))
+  }, [filePath, t.preview.unavailable])
 
   const trailing = useMemo(
     () => (
@@ -263,9 +264,9 @@ export function OfficePreview({
   if (error) {
     return (
       <div className="grid h-full place-items-center px-8 text-center">
-        <div className="max-w-sm text-xs leading-relaxed text-muted-foreground" dir="auto">
+        <div className="max-w-sm text-xs leading-relaxed text-muted-foreground">
           <div className="mb-1 text-sm font-medium text-foreground">{t.preview.unavailable}</div>
-          {error}
+          <span dir="auto">{error}</span>
         </div>
       </div>
     )
@@ -279,6 +280,7 @@ export function OfficePreview({
     return (
       <PagesView
         error={pagesError}
+        errorTitle={t.preview.unavailable}
         label={label}
         loadingLabel={t.preview.office.converting}
         trailing={trailing}
@@ -290,11 +292,11 @@ export function OfficePreview({
   return (
     <Suspense fallback={<PageLoader label={t.preview.loading} />}>
       {loaded.kind === 'book' ? (
-        <SheetPreview book={loaded.book} trailing={trailing} />
-      ) : loaded.kind === 'deck' ? (
-        <SlidesPreview deck={loaded.deck} onNeedSlide={renderSlide} trailing={trailing} />
+        <SheetView book={loaded.book} trailing={trailing} />
+      ) : loaded.kind === 'slides' ? (
+        <SlidesView deck={loaded.deck} onNeedSlide={renderSlide} trailing={trailing} />
       ) : (
-        <WordPreview bytes={loaded.bytes} trailing={trailing} />
+        <WordView bytes={loaded.bytes} trailing={trailing} />
       )}
     </Suspense>
   )
@@ -302,12 +304,14 @@ export function OfficePreview({
 
 function PagesView({
   error,
+  errorTitle,
   label,
   loadingLabel,
   trailing,
   url
 }: {
   error: null | string
+  errorTitle: string
   label: string
   loadingLabel: string
   trailing: ReactNode
@@ -318,8 +322,11 @@ function PagesView({
       <div className="flex h-7 shrink-0 items-center justify-end gap-3 border-b border-border/40 px-3">{trailing}</div>
       <div className="min-h-0 flex-1">
         {error ? (
-          <div className="grid h-full place-items-center px-8 text-center text-xs text-muted-foreground" dir="auto">
-            {error}
+          <div className="grid h-full place-items-center px-8 text-center text-xs leading-relaxed text-muted-foreground">
+            <div className="max-w-sm">
+              <div className="mb-1 text-sm font-medium text-foreground">{errorTitle}</div>
+              <span dir="auto">{error}</span>
+            </div>
           </div>
         ) : url ? (
           <iframe aria-label={label} className="h-full w-full border-0 bg-white" src={url} title={label} />

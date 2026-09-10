@@ -18,7 +18,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { numberedName } from './free-name'
+import { numberedName } from './numbered-name'
 
 /** The two partitions the docked browser's guests run on. Human tabs and
  *  agent tabs are separated so a login made in one is not silently reused by

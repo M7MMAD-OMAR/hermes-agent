@@ -42,12 +42,6 @@ export function isProviderSetupError(error: unknown) {
   return isProviderSetupErrorMessage(message)
 }
 
-export function inlineErrorMessage(error: unknown, fallback: string): string {
-  const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : fallback
-
-  return (raw.match(/Error invoking remote method '[^']+': Error: (.+)$/)?.[1] ?? raw).replace(/^Error:\s*/, '').trim()
-}
-
 export function isSessionNotFoundError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
 

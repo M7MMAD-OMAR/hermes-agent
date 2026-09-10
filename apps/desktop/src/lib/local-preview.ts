@@ -1,9 +1,9 @@
 import { pathToFileUrl } from '@hermes/shared/file-url'
-import { fileExtensionOf, previewReadsOwnBytes } from '@hermes/shared/office-format'
+import { fileExtensionOf } from '@hermes/shared/office-format'
 import DOMPurify from 'dompurify'
 
 import { isDesktopFsRemoteMode, readDesktopFileDataUrl, readDesktopFileText } from '@/lib/desktop-fs'
-import { previewKindForPath } from '@/lib/preview-kind'
+import { previewKindForPath, previewReadsOwnBytes } from '@/lib/preview-kind'
 import type { PreviewTarget } from '@/store/preview'
 
 // Mirrors `_FS_DATA_URL_MAX_BYTES` in the backend filesystem endpoint.

@@ -12,7 +12,6 @@ import {
   friendlyRemoteAttachError,
   type GatewayRequest,
   imageFilenameFromPath,
-  inlineErrorMessage,
   isSessionBusyError,
   isSessionIdCandidate,
   isSessionNotFoundError,
@@ -121,20 +120,6 @@ describe('isSessionIdCandidate', () => {
   it('rejects arbitrary text', () => {
     expect(isSessionIdCandidate('hello world')).toBe(false)
     expect(isSessionIdCandidate('abc')).toBe(false)
-  })
-})
-
-describe('inlineErrorMessage', () => {
-  it('unwraps an electron remote-method error', () => {
-    expect(inlineErrorMessage(new Error("Error invoking remote method 'x': Error: boom"), 'fallback')).toBe('boom')
-  })
-
-  it('strips a leading Error: prefix', () => {
-    expect(inlineErrorMessage(new Error('Error: nope'), 'fallback')).toBe('nope')
-  })
-
-  it('falls back for non-error, non-string input', () => {
-    expect(inlineErrorMessage(undefined, 'fallback')).toBe('fallback')
   })
 })
 

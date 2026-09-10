@@ -8,9 +8,9 @@ import path from 'node:path'
 import { ipcMain, shell } from 'electron'
 
 import { installDesktopPluginFromGit, probePluginRepo } from './desktop-plugin-install'
-import { numberedNameAsync } from './free-name'
 import { readDirForIpc } from './fs-read-dir'
 import { gitRootForIpc } from './git-root'
+import { numberedNameAsync } from './numbered-name'
 
 export interface FsIpcDeps {
   hermesHome: string

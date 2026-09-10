@@ -3527,7 +3527,9 @@ export const en: Translations = {
       openInApp: 'Open in app',
       pages: 'PAGES',
       previousSlide: 'Previous slide',
-      sheetTruncated: 'This workbook is very large. Showing the first rows of each sheet.',
+      resetZoom: 'Reset zoom',
+      sheetTruncated: 'This workbook is very large. Showing the first rows and columns of each sheet.',
+      slideNumber: index => `Slide ${index}`,
       zoomIn: 'Zoom in',
       zoomOut: 'Zoom out'
     },

@@ -46,8 +46,10 @@ export function ZoomControl({
         −
       </button>
       <button
+        aria-label={t.preview.office.resetZoom}
         className="min-w-10 rounded px-1 text-[0.625rem] tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={() => onZoom(1)}
+        title={t.preview.office.resetZoom}
         type="button"
       >
         {Math.round(zoom * 100)}%

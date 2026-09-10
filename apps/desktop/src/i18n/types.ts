@@ -3040,7 +3040,9 @@ export interface Translations {
       openInApp: string
       pages: string
       previousSlide: string
+      resetZoom: string
       sheetTruncated: string
+      slideNumber: (index: number) => string
       zoomIn: string
       zoomOut: string
     }

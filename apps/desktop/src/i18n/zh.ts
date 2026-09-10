@@ -3667,7 +3667,9 @@ export const zh: Translations = {
       openInApp: '在应用中打开',
       pages: '分页',
       previousSlide: '上一张幻灯片',
-      sheetTruncated: '此工作簿很大，仅显示每个工作表的前若干行。',
+      resetZoom: '重置缩放',
+      sheetTruncated: '此工作簿很大，仅显示每个工作表的前若干行和列。',
+      slideNumber: index => `第 ${index} 张幻灯片`,
       zoomIn: '放大',
       zoomOut: '缩小'
     },

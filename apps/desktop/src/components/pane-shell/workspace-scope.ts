@@ -42,6 +42,10 @@ export interface WorkspaceSessionRoute {
    *  before it is attached, so the agent reads a path inside the workspace
    *  rather than wherever the file happened to sit. Absent: attach in place. */
   dropDir?: string
+  /** Where a file downloaded in this workspace's browser is saved. Absent:
+   *  downloads keep the OS save prompt, which is what a browser opened
+   *  outside a workspace should do rather than write into a project. */
+  downloadDir?: string
   /** Skill bundle slug the workspace prefixes onto a fresh session's first
    *  prompt (as if the user typed `/<bundle>`). Backend consumes it once. */
   bundle?: string
@@ -112,6 +116,7 @@ function sameNewSessionTarget(a: WorkspaceNewSessionTarget | null, b: WorkspaceN
       a.route.profile === b.route.profile &&
       a.route.targetProfile === b.route.targetProfile &&
       a.route.cwd === b.route.cwd &&
+      a.route.downloadDir === b.route.downloadDir &&
       a.route.dropDir === b.route.dropDir &&
       a.route.bundle === b.route.bundle
     )

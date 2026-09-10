@@ -51,7 +51,7 @@ import { type PreviewInputEvent, registerPreviewInput } from './preview-input'
 import { PREVIEW_BROWSER_ATTR, registerPreviewNav } from './preview-nav'
 import { PreviewPinPanel } from './preview-pin-panel'
 import { registerPreviewPageReader } from './preview-reader'
-import { registerPreviewCapture, registerPreviewScriptRunner } from './preview-script-runner'
+import { registerPreviewCapture, registerPreviewScriptRunner, registerPreviewUpload } from './preview-script-runner'
 import { PreviewViewportBar } from './preview-viewport-bar'
 import { RealProfileConsentDialog } from './real-profile-consent-dialog'
 
@@ -946,6 +946,29 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       }
 
       return dataUrl
+    })
+  }, [isWebPreview, tabId])
+
+  // Publish the UPLOAD door for this tab: the main process attaches the files
+  // to the page's input, because nothing inside the guest can.
+  useEffect(() => {
+    if (!isWebPreview || !tabId) {
+      return
+    }
+
+    return registerPreviewUpload(tabId, async (paths, selector) => {
+      const webContentsId = webviewRef.current?.getWebContentsId?.()
+
+      if (typeof webContentsId !== 'number') {
+        return { error: 'That browser tab has no live page.', success: false }
+      }
+
+      return (
+        (await window.hermesDesktop.attachPreviewFiles?.({ paths, selector, webContentsId })) ?? {
+          error: 'Update Hermes Desktop to upload files from a page.',
+          success: false
+        }
+      )
     })
   }, [isWebPreview, tabId])
 

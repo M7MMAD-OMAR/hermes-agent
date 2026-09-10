@@ -49,7 +49,9 @@ export function activePreviewScriptRunner(): PreviewScriptRunner | null {
  * JavaScript can reach. Comments use it to attach a picture of what they
  * point at, so the model reads the same thing the user was looking at.
  */
-export type PreviewCapture = (rect: { height: number; width: number; x: number; y: number }) => Promise<string>
+/** With no rect, the whole guest viewport. A rect crops it, in the guest's own
+ *  CSS pixels. */
+export type PreviewCapture = (rect?: { height: number; width: number; x: number; y: number }) => Promise<string>
 
 const captures = new Map<string, PreviewCapture>()
 
@@ -74,4 +76,43 @@ export function registerPreviewCapture(tabId: string, capture: PreviewCapture): 
 /** The ACTIVE preview tab's capture. Null = nothing to photograph. */
 export function activePreviewCapture(): null | PreviewCapture {
   return activeFor(captures)
+}
+
+/** The AGENT's tab's capture, so `look` photographs the page the agent is
+ *  driving rather than whichever tab the reader happens to be looking at. */
+export function agentPreviewCapture(sessionId: null | string): null | PreviewCapture {
+  const id = agentPreviewTabId(sessionId)
+
+  return (id && captures.get(id)) || null
+}
+
+/**
+ * Puts workspace files into the guest page's file input.
+ *
+ * Registered beside the capture for the same reason: only the host can hand a
+ * page a local file, so the pane publishes a door to the main process rather
+ * than anything a guest script could do.
+ */
+export type PreviewUpload = (
+  paths: string[],
+  selector?: string
+) => Promise<{ error?: string; files?: string[]; selector?: string; success: boolean }>
+
+const uploads = new Map<string, PreviewUpload>()
+
+export function registerPreviewUpload(tabId: string, upload: PreviewUpload): () => void {
+  uploads.set(tabId, upload)
+
+  return () => {
+    if (uploads.get(tabId) === upload) {
+      uploads.delete(tabId)
+    }
+  }
+}
+
+/** The AGENT's tab's upload door. Null = no live page behind it. */
+export function agentPreviewUpload(sessionId: null | string): null | PreviewUpload {
+  const id = agentPreviewTabId(sessionId)
+
+  return (id && uploads.get(id)) || null
 }

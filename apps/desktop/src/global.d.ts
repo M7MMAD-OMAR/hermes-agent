@@ -14,6 +14,15 @@ import type { QuickEntryStatePush, QuickEntryStatus, QuickEntrySubmitPayload } f
 
 export {}
 
+/** A file the conversation's browser downloaded into the workspace. */
+interface BrowserDownloadRecord {
+  bytes: number
+  mimeType: string
+  name: string
+  path: string
+  url: string
+}
+
 declare global {
   interface Window {
     hermesDesktop: {
@@ -249,6 +258,16 @@ declare global {
       readFileDataUrl: (filePath: string) => Promise<string>
       /** The PDF LibreOffice prints for a Word/Excel/PowerPoint file, as a data: URL. */
       officeConvert?: (filePath: string, target: 'docx' | 'pdf' | 'pptx' | 'xlsx') => Promise<string>
+      /** Where a download started in the conversation's browser should land.
+       *  `null` hands the download back to the OS save prompt. */
+      setBrowserDownloadDir?: (directory: null | string) => Promise<null | string>
+      /** Put workspace files into a page's file input, as the picker would. */
+      attachPreviewFiles?: (payload: {
+        paths: string[]
+        selector?: string
+        webContentsId: number
+      }) => Promise<{ error?: string; files?: string[]; selector?: string; success: boolean }>
+      onBrowserDownload?: (callback: (record: BrowserDownloadRecord) => void) => () => void
       /** Remote non-image attach: higher dedicated cap than preview/Settings default. */
       readFileDataUrlForAttach?: (filePath: string) => Promise<string>
       /** Settings → Chat: max size for local files loaded as data URLs (attach/preview). */

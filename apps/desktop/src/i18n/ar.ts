@@ -2702,6 +2702,7 @@ export const ar = defineLocale({
     renderedPreview: 'المعاينة',
     office: {
       converting: 'طباعة الصفحات بدقة عبر ليبر أوفيس',
+      downloaded: 'نُزّل إلى مجلد العمل',
       document: 'المستند',
       emptyBook: 'ما في أوراق بهذا المصنّف.',
       emptyDeck: 'ما في شرائح بهذا العرض.',

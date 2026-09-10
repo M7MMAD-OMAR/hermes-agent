@@ -3031,6 +3031,7 @@ export interface Translations {
     /** The native Word, spreadsheet and deck viewers. */
     office: {
       converting: string
+      downloaded: string
       document: string
       emptyBook: string
       emptyDeck: string

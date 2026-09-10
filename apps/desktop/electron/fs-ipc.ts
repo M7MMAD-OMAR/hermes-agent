@@ -10,6 +10,7 @@ import { ipcMain, shell } from 'electron'
 import { installDesktopPluginFromGit, probePluginRepo } from './desktop-plugin-install'
 import { readDirForIpc } from './fs-read-dir'
 import { gitRootForIpc } from './git-root'
+import { numberedNameAsync } from './free-name'
 
 export interface FsIpcDeps {
   hermesHome: string
@@ -253,21 +254,17 @@ export function registerFsIpc({
   })
 }
 
-/** `name`, or `name (2)`, `name (3)`... whichever does not yet exist in `dir`.
- *  The extension stays at the end so the copy still opens with the right app. */
+/** The copy's destination: `name` in `dir`, numbered if that is taken. */
 async function freeNameIn(dir: string, name: string): Promise<string> {
-  const ext = path.extname(name)
-  const stem = ext ? name.slice(0, -ext.length) : name
-
-  for (let n = 1; n < 1000; n += 1) {
-    const candidate = path.join(dir, n === 1 ? name : `${stem} (${n})${ext}`)
-
+  const free = await numberedNameAsync(name, async candidate => {
     try {
-      await fs.promises.access(candidate)
-    } catch {
-      return candidate
-    }
-  }
+      await fs.promises.access(path.join(dir, candidate))
 
-  throw new Error('Could not find a free file name')
+      return true
+    } catch {
+      return false
+    }
+  })
+
+  return path.join(dir, free)
 }

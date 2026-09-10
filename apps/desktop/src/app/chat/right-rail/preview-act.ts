@@ -34,8 +34,14 @@ import { agentPreviewTabId } from '@/store/preview'
 import { consoleSince } from './preview-console-digest'
 import { clickAt, glideTo, pointerPlaced, pressKey, selectAll, typeText, wheelBy } from './preview-drive'
 import { agentPreviewInput, type PreviewInputHandle } from './preview-input'
+import { shrinkLook } from './preview-look'
 import { agentPreviewNav } from './preview-nav'
-import { agentPreviewScriptRunner, type PreviewScriptRunner } from './preview-script-runner'
+import {
+  agentPreviewCapture,
+  agentPreviewScriptRunner,
+  agentPreviewUpload,
+  type PreviewScriptRunner
+} from './preview-script-runner'
 
 /** Verbs the pane owns; a guest page cannot drive its own history. `navigate`
  *  is handled separately — it is the one that carries an argument. */
@@ -513,6 +519,55 @@ function consoleSinceForAgentTab(sessionId: null | string) {
   return id ? consoleSince(id) : null
 }
 
+/** Photograph the page the agent is driving. No rect: the whole viewport. */
+async function lookAtPage(sessionId: null | string): Promise<PreviewActResult> {
+  const capture = agentPreviewCapture(sessionId)
+
+  if (!capture) {
+    return { error: NOTHING_OPEN, success: false }
+  }
+
+  try {
+    const image = await capture()
+
+    if (!image.startsWith('data:image/')) {
+      return { error: 'The page could not be photographed.', success: false }
+    }
+
+    return { acted: 'look', image: await shrinkLook(image), success: true }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error), success: false }
+  }
+}
+
+/** Put workspace files into the page's file input. Paths arrive as one text
+ *  field, newline separated, so a form taking several files is one call. */
+async function uploadToPage(
+  action: Omit<PreviewActAction, 'kind'> & { kind: string },
+  sessionId: null | string
+): Promise<PreviewActResult> {
+  const upload = agentPreviewUpload(sessionId)
+
+  if (!upload) {
+    return { error: NOTHING_OPEN, success: false }
+  }
+
+  const paths = String(action.text ?? '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  if (!paths.length) {
+    return { error: 'upload needs the path of the file to attach.', success: false }
+  }
+
+  const result = await upload(paths, action.selector)
+
+  return result.success
+    ? { acted: 'upload', note: `Attached ${result.files?.length ?? paths.length} file(s) to ${result.selector}.`, success: true }
+    : { error: result.error ?? 'The file could not be attached.', success: false }
+}
+
 async function runPreviewAction(
   action: Omit<PreviewActAction, 'kind'> & { kind: string },
   sessionId: null | string
@@ -555,6 +610,19 @@ async function runPreviewAction(
     // Navigation is fire-and-forget through the webview; the new document has
     // its own refs, so the agent has to re-inventory either way.
     return { acted: nav, note: NAVIGATED_NOTE, success: true }
+  }
+
+  // A photograph of the page, so the model can see what it is driving rather
+  // than infer it from an element inventory. Handled before the script runner
+  // is resolved: Chromium takes the picture on the host side and no guest-page
+  // JavaScript is involved.
+  if (action.kind === 'look') {
+    return lookAtPage(sessionId)
+  }
+
+  // Handing the page a file is also the host's job, for the same reason.
+  if (action.kind === 'upload') {
+    return uploadToPage(action, sessionId)
   }
 
   const run = agentPreviewScriptRunner(sessionId)

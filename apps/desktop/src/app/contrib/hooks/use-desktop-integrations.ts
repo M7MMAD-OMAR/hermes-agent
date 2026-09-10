@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { closeActiveTab } from '@/app/chat/close-tab'
+import { useBrowserDownloads } from '@/app/chat/hooks/use-browser-downloads'
 import { commandFocusedPreview } from '@/app/chat/right-rail/preview-nav'
 import { openSession } from '@/app/open-session'
 import { chatSessionIdFromDeepLink } from '@/lib/chat-deep-link'
@@ -365,6 +366,10 @@ export function useDesktopIntegrations({
 
     return () => unsubscribe?.()
   }, [])
+
+  // A file the conversation's browser downloads lands in the workspace and
+  // opens in the rail.
+  useBrowserDownloads()
 
   // File > Open Folder… — same open-folder-as-project upsert as the ⌘O keybind.
   useEffect(() => {

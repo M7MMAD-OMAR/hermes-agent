@@ -233,6 +233,14 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   readWindowBelow: () => ipcRenderer.invoke('hermes:window:readBelow'),
   readFileDataUrl: filePath => ipcRenderer.invoke('hermes:readFileDataUrl', filePath),
   officeConvert: (filePath, target) => ipcRenderer.invoke('hermes:officeConvert', filePath, target),
+  setBrowserDownloadDir: directory => ipcRenderer.invoke('hermes:preview:setDownloadDir', directory),
+  attachPreviewFiles: payload => ipcRenderer.invoke('hermes:preview:attachFiles', payload),
+  onBrowserDownload: callback => {
+    const listener = (_event, record) => callback(record)
+    ipcRenderer.on('hermes:preview:download', listener)
+
+    return () => ipcRenderer.removeListener('hermes:preview:download', listener)
+  },
   readFileDataUrlForAttach: filePath => ipcRenderer.invoke('hermes:readFileDataUrlForAttach', filePath),
   dataUrlReadMax: {
     get: () => ipcRenderer.invoke('hermes:data-url-read-max:get'),

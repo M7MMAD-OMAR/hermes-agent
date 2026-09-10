@@ -3518,6 +3518,7 @@ export const en: Translations = {
     linkHint: '⌘/Ctrl-click for preview pane',
     office: {
       converting: 'Printing exact pages with LibreOffice',
+      downloaded: 'Downloaded to this workspace',
       document: 'DOCUMENT',
       emptyBook: 'This workbook has no sheets.',
       emptyDeck: 'This presentation has no slides.',

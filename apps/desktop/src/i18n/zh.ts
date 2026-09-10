@@ -3658,6 +3658,7 @@ export const zh: Translations = {
     renderedPreview: '预览',
     office: {
       converting: '正在用 LibreOffice 打印精确分页',
+      downloaded: '已下载到该工作区',
       document: '文档',
       emptyBook: '此工作簿没有工作表。',
       emptyDeck: '此演示文稿没有幻灯片。',

@@ -273,7 +273,9 @@ import { loadNativeTokenSet, type NativeTokenStoreIo, persistNativeTokenSet } fr
 import { chatDeepLink, decorateNotificationBody, parseNotifyCapabilities } from './notification-body-link'
 import { serializeJsonBody, setJsonRequestHeaders } from './oauth-net-request'
 import { LEGACY_OAUTH_PARTITION, resolveOauthPartition } from './oauth-partition'
+import { BROWSER_PARTITIONS, type BrowserDownloadRecord, handleBrowserDownload } from './browser-downloads'
 import { officeConvertForIpc } from './office-preview'
+import { attachFilesToPreviewInput } from './preview-upload'
 import { createParentStartMarkerResolver, parentWatchdogEnv } from './parent-process-identity'
 import { registerPetOverlayIpc } from './pet-overlay-ipc'
 import {
@@ -7318,34 +7320,68 @@ function isMediaCapturePermission(permission, details) {
   return mediaTypes.includes('audio') || mediaTypes.includes('video')
 }
 
-// Chromium-initiated downloads (renderer anchor/blob downloads, drag-outs)
-// land here. Without a handler the OS save dialog opens with the process cwd
-// as the default directory (win-unpacked in packaged installs) and whatever
-// extensionless name the anchor carried. Route every download to the user's
-// Downloads directory and guarantee a MIME-derived extension.
-function installDownloadHandling() {
-  session.defaultSession.on('will-download', (_event, item) => {
-    const suggested = item.getFilename() || 'download'
-    const hasExtension = Boolean(path.extname(suggested))
-    const extension = hasExtension ? '' : extensionForMimeType(item.getMimeType())
-    const filename = `${suggested}${extension}`
+// Where a download started inside the conversation's browser should land.
+// Set by the renderer from the focused workspace, and cleared when there is
+// no workspace to put files in — see `browser-downloads.ts`.
+let browserDownloadDir: null | string = null
 
-    try {
-      item.setSaveDialogOptions({
-        title: 'Save File',
-        defaultPath: path.join(app.getPath('downloads'), filename),
-        filters:
-          extension || /^image\//i.test(item.getMimeType() || '')
-            ? [
-                { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] },
-                { name: 'All Files', extensions: ['*'] }
-              ]
-            : undefined
-      })
-    } catch {
-      // No Downloads directory to offer — keep Chromium's default prompt.
+function broadcastBrowserDownload(record: BrowserDownloadRecord) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    const { webContents } = win
+
+    if (webContents && !webContents.isDestroyed()) {
+      webContents.send('hermes:preview:download', record)
     }
-  })
+  }
+}
+
+// The save prompt every download falls back to. Without it the OS dialog
+// opens with the process cwd as the default directory (win-unpacked in
+// packaged installs) and whatever extensionless name the anchor carried.
+function applyDownloadSaveDialog(item) {
+  const suggested = item.getFilename() || 'download'
+  const hasExtension = Boolean(path.extname(suggested))
+  const extension = hasExtension ? '' : extensionForMimeType(item.getMimeType())
+  const filename = `${suggested}${extension}`
+
+  try {
+    item.setSaveDialogOptions({
+      title: 'Save File',
+      defaultPath: path.join(app.getPath('downloads'), filename),
+      filters:
+        extension || /^image\//i.test(item.getMimeType() || '')
+          ? [
+              { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] },
+              { name: 'All Files', extensions: ['*'] }
+            ]
+          : undefined
+    })
+  } catch {
+    // No Downloads directory to offer — keep Chromium's default prompt.
+  }
+}
+
+// Chromium-initiated downloads (renderer anchor/blob downloads, drag-outs)
+// land here. The conversation's browser runs its guests on their own
+// partitions, which `defaultSession` never covers, so each one is wired too:
+// a file fetched while working on a task goes to the task's folder instead of
+// through a dialog, and the conversation is told it arrived.
+function installDownloadHandling() {
+  session.defaultSession.on('will-download', (_event, item) => applyDownloadSaveDialog(item))
+
+  for (const partition of BROWSER_PARTITIONS) {
+    session.fromPartition(partition).on('will-download', (_event, item) => {
+      const taken = handleBrowserDownload(item, {
+        destinationDir: () => browserDownloadDir,
+        extensionForMimeType,
+        onSaved: broadcastBrowserDownload
+      })
+
+      if (!taken) {
+        applyDownloadSaveDialog(item)
+      }
+    })
+  }
 }
 
 function installMediaPermissions() {
@@ -16999,6 +17035,41 @@ ipcMain.handle('hermes:readFileDataUrl', async (_event, filePath) => {
 
 // Word, Excel and PowerPoint have no renderer in the rail; LibreOffice prints
 // them to PDF and the PDF viewer takes it from there (office-preview.ts).
+// The renderer owns the answer to "where does a download belong": it knows
+// which conversation is focused and which workspace folder it works in.
+// Put a workspace file into a page's file input. The renderer cannot do this
+// itself: a guest page is never handed a local path, by design. The host can,
+// through Chromium's own protocol, and the page sees what it would have seen
+// from the picker.
+ipcMain.handle('hermes:preview:attachFiles', async (_event, payload) => {
+  const contents = electronWebContents.fromId(Number(payload?.webContentsId))
+
+  if (!contents || contents.isDestroyed()) {
+    return { error: 'That browser tab is gone.', success: false }
+  }
+
+  return attachFilesToPreviewInput(
+    Array.isArray(payload?.paths) ? payload.paths.map(String) : [],
+    String(payload?.selector ?? ''),
+    {
+      debugger: contents.debugger,
+      resolveReadableFile: target => resolveReadableFileForIpc(target, { purpose: 'Browser upload' })
+    }
+  )
+})
+
+ipcMain.handle('hermes:preview:setDownloadDir', (_event, directory) => {
+  if (!directory) {
+    browserDownloadDir = null
+
+    return null
+  }
+
+  browserDownloadDir = resolveRequestedPathForIpc(directory, { purpose: 'Browser downloads' })
+
+  return browserDownloadDir
+})
+
 ipcMain.handle('hermes:officeConvert', async (_event, filePath, target) => {
   return officeConvertForIpc(filePath, target, {
     maxBytes: dataUrlReadMaxBytesFromMb(dataUrlReadMaxMb),

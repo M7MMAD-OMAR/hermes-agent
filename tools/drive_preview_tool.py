@@ -13,7 +13,8 @@ from typing import Callable, Optional
 from tools.desktop_ui import passthrough_json
 from tools.registry import registry, tool_error
 
-ACTIONS = ("elements", "navigate", "click", "hover", "type", "scroll", "press", "strobe", "back", "forward", "reload")
+ACTIONS = ("elements", "look", "navigate", "click", "hover", "type", "upload", "scroll", "press", "strobe",
+           "back", "forward", "reload")
 SCROLL_TO = ("top", "bottom")
 
 # Verbs that need something to act on — a ref from the last inventory, or a
@@ -36,6 +37,8 @@ def drive_preview_tool(
         return tool_error(f"{verb} needs a ref from action='elements' (e.g. 'btn-sign-in') or a CSS selector.")
     if verb == "type" and text is None:
         return tool_error("type needs the text to enter.")
+    if verb == "upload" and not text:
+        return tool_error("upload needs the file path in `text` (one per line for several).")
     if verb == "press" and not key:
         return tool_error("press needs a key, e.g. 'Enter' or 'Escape'.")
     if verb == "navigate" and not url:
@@ -56,7 +59,26 @@ def drive_preview_tool(
         return tool_error(f"Failed to act on the in-app browser: {exc}")
     if not raw:
         return tool_error("The action timed out, or no GUI window answered. Open a page with open_preview first.")
+    if verb == "look":
+        return _look_answer(raw, text or "")
     return passthrough_json(raw)
+
+
+def _look_answer(raw, question: str):
+    """A photograph is not text: hand it to the vision path, which attaches the
+    image itself when the provider takes one and returns its path when not."""
+    import json as _json
+
+    from tools.preview_look import look_result
+
+    try:
+        payload = _json.loads(raw) if isinstance(raw, (bytes, str)) else dict(raw)
+    except (TypeError, ValueError):
+        return passthrough_json(raw)
+    if not isinstance(payload, dict):
+        return passthrough_json(raw)
+
+    return look_result(payload, question)
 
 
 ACT_PREVIEW_SCHEMA = {
@@ -93,7 +115,7 @@ ACT_PREVIEW_SCHEMA = {
             "action": {
                 "type": "string",
                 "enum": list(ACTIONS),
-                "description": "Start with 'elements'.",
+                "description": "Start with 'elements'; 'look' to see the page.",
             },
             "ref": {
                 "type": "string",
@@ -101,9 +123,12 @@ ACT_PREVIEW_SCHEMA = {
             },
             "selector": {
                 "type": "string",
-                "description": "CSS selector fallback. Prefer ref.",
+                "description": "CSS selector fallback. Prefer ref. upload: which file input (default input[type=file]).",
             },
-            "text": {"type": "string", "description": "type: the text."},
+            "text": {
+                "type": "string",
+                "description": "type: the text. look: what to look for. upload: the file path, one per line.",
+            },
             "url": {"type": "string", "description": "navigate: the address, in the tab you drive."},
             "submit": {
                 "type": "boolean",

@@ -66,7 +66,20 @@ export interface PreviewActAction {
   /** `pin`/`unpin`/`hold` never reach the engine — they resolve their targets
    *  through `locate`/`elements` and then talk to the overlay — but they arrive
    *  on the same wire. */
-  kind: 'click' | 'elements' | 'hold' | 'hover' | 'locate' | 'pin' | 'press' | 'scroll' | 'strobe' | 'type' | 'unpin'
+  kind:
+    | 'click'
+    | 'elements'
+    | 'hold'
+    | 'hover'
+    | 'locate'
+    | 'look'
+    | 'pin'
+    | 'press'
+    | 'scroll'
+    | 'strobe'
+    | 'type'
+    | 'unpin'
+    | 'upload'
   /** locate: also give the target keyboard focus, for a key press that must not
    *  be preceded by a click (which would activate the control instead). */
   focus?: boolean
@@ -102,6 +115,8 @@ export interface PreviewActResult {
    *  the page changed too much for a delta to be the cheaper answer. */
   elements?: PreviewElement[]
   error?: string
+  /** `look`: the page as a PNG data URL, for the model's own eyes. */
+  image?: string
   note?: string
   /** Viewport centre of a located target, for aiming real pointer input at it. */
   point?: { x: number; y: number }

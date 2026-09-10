@@ -51,8 +51,6 @@ export interface SheetView {
   /** How many leading rows and columns stay pinned. */
   frozenColumns: number
   frozenRows: number
-  /** Ranges covered by a merge, minus their anchor cell. */
-  hidden: Set<string>
   merges: SheetMerge[]
   name: string
   rightToLeft: boolean
@@ -245,7 +243,6 @@ function readSheet(workbook: unknown, name: string): SheetView {
   }
 
   const merges: SheetMerge[] = []
-  const hidden = new Set<string>()
 
   for (const range of getMergedCells(sheet) ?? []) {
     const area = range as { maxCol: number; maxRow: number; minCol: number; minRow: number }
@@ -255,14 +252,6 @@ function readSheet(workbook: unknown, name: string): SheetView {
     const colSpan = Math.abs(area.maxCol - area.minCol) + 1
 
     merges.push({ col: startCol, colSpan, row: startRow, rowSpan })
-
-    for (let row = startRow; row < startRow + rowSpan; row += 1) {
-      for (let col = startCol; col < startCol + colSpan; col += 1) {
-        if (row !== startRow || col !== startCol) {
-          hidden.add(cellKey(row, col))
-        }
-      }
-    }
   }
 
   const columnWidths = new Map<number, number>()
@@ -311,7 +300,6 @@ function readSheet(workbook: unknown, name: string): SheetView {
     columns,
     frozenColumns,
     frozenRows,
-    hidden,
     merges,
     name,
     // A sheet Excel saved records its own direction. One written by a library

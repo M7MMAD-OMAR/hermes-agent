@@ -1,7 +1,9 @@
 import { atom, computed, type WritableAtom } from 'nanostores'
 
 import { forgetPreviewConsole } from '@/app/chat/right-rail/preview-console-store'
+import { OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@/lib/office-format'
 import { persistentAtom } from '@/lib/persisted'
+import { previewKindForPath } from '@/lib/preview-kind'
 import { readKey } from '@/lib/storage'
 import { normalize } from '@/lib/text'
 
@@ -147,17 +149,81 @@ function isPdfFileTarget(target: PreviewTarget): boolean {
   }
 }
 
-/** Upgrade tabs persisted by builds that classified PDFs as generic binary.
- * Without this restore-time migration, an already-open PDF keeps taking the
- * obsolete raw-binary path after Desktop itself has been upgraded. */
+/** A path that picked up the closing `**` of the bold marker it was written
+ *  inside. The file never existed under that name, so the tab could only ever
+ *  fail; an asterisk is not a character real paths end with. */
+const STRAY_MARKUP_TAIL = /\*+$/
+
+function withoutStrayMarkup(target: PreviewTarget): PreviewTarget {
+  if (target.kind !== 'file' || !STRAY_MARKUP_TAIL.test(target.url)) {
+    return target
+  }
+
+  const trim = (value: string | undefined) => (value === undefined ? undefined : value.replace(STRAY_MARKUP_TAIL, ''))
+  const path = trim(target.path)
+  const url = trim(target.url) ?? target.url
+
+  return {
+    ...target,
+    label: trim(target.label) ?? target.label,
+    ...(path === undefined ? {} : { path }),
+    // The tab was classified while its extension still read `.docx**`, so its
+    // kind is whatever an unknown suffix falls back to. Ask again now that the
+    // name is the file's real one.
+    previewKind: previewKindForPath(path || url),
+    source: trim(target.source) ?? target.source,
+    url
+  }
+}
+
+/** Office files were one `office` kind while they all previewed as the same
+ *  printed PDF. Each family now has its own viewer, so a tab persisted under
+ *  the old kind has to be re-pointed or it renders as "no inline preview". */
+function withCurrentOfficeKind(target: PreviewTarget): PreviewTarget {
+  if (target.kind !== 'file' || (target.previewKind as string | undefined) !== 'office') {
+    return target
+  }
+
+  const family = officeFamilyForPath(target.path || target.url)
+
+  return { ...target, previewKind: family ? OFFICE_PREVIEW_KIND_BY_FAMILY[family] : 'binary' }
+}
+
+/** Upgrade tabs persisted by earlier builds: PDFs classified as generic
+ * binary, Office files classified under the single retired `office` kind, and
+ * paths that swallowed the markdown emphasis they were written inside. Without
+ * these restore-time migrations an already-open tab keeps failing after
+ * Desktop itself has been upgraded, and the only fix a reader has is to close
+ * and reopen it. */
 export function decodePreviewTabs(raw: string): PreviewTab[] {
   const parsed = JSON.parse(raw) as unknown
 
-  return (Array.isArray(parsed) ? parsed.filter(isPreviewTab) : []).map(tab =>
-    isPdfFileTarget(tab.target) && tab.target.previewKind === 'binary'
-      ? { ...tab, target: { ...tab.target, previewKind: 'pdf' as const } }
-      : tab
-  )
+  const restored = (Array.isArray(parsed) ? parsed.filter(isPreviewTab) : []).map(tab => {
+    const repaired = withCurrentOfficeKind(withoutStrayMarkup(tab.target))
+
+    const target =
+      isPdfFileTarget(repaired) && repaired.previewKind === 'binary'
+        ? { ...repaired, previewKind: 'pdf' as const }
+        : repaired
+
+    return target === tab.target ? tab : { ...tab, id: previewTabId(target), target }
+  })
+
+  // Repairing a path can land a tab on an id another tab already holds: the
+  // broken `prd.docx**` and the working `prd.docx` were both open at once. A
+  // list holding two of one id has no single answer to "select this tab", so
+  // the first one wins and the duplicate is dropped.
+  const seen = new Set<string>()
+
+  return restored.filter(tab => {
+    if (seen.has(tab.id)) {
+      return false
+    }
+
+    seen.add(tab.id)
+
+    return true
+  })
 }
 
 export const $previewTabs = persistentAtom<PreviewTab[]>(TABS_STORAGE_KEY, [], {

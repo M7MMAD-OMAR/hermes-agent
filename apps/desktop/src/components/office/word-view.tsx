@@ -20,7 +20,12 @@ export function WordPreview({ bytes, trailing }: { bytes: Uint8Array; trailing?:
   const { t } = useI18n()
   const contentRef = useRef<HTMLDivElement>(null)
   const styleRef = useRef<HTMLDivElement>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
+  // Until the reader picks a zoom, the page is scaled to the rail's width. A
+  // 8.5in sheet is wider than the rail at 100%, and a document whose right
+  // margin is off-screen is exactly what a preview must not be.
+  const [autoFit, setAutoFit] = useState(true)
   const [error, setError] = useState<null | string>(null)
   const [rendering, setRendering] = useState(true)
 
@@ -78,10 +83,39 @@ export function WordPreview({ bytes, trailing }: { bytes: Uint8Array; trailing?:
     }
   }, [bytes])
 
+  // Re-fit whenever the rail changes width, and once the first render lands.
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    const content = contentRef.current
+
+    if (!autoFit || !scroller || !content || rendering || typeof ResizeObserver !== 'function') {
+      return
+    }
+
+    const fit = () => {
+      const page = content.querySelector('section') as HTMLElement | null
+      const pageWidth = page?.offsetWidth ?? 0
+
+      if (!pageWidth || !scroller.clientWidth) {
+        return
+      }
+
+      setZoom(Math.min(1, Math.max(0.35, Math.round(((scroller.clientWidth - 24) / pageWidth) * 100) / 100)))
+    }
+
+    const observer = new ResizeObserver(fit)
+
+    observer.observe(scroller)
+    fit()
+
+    return () => observer.disconnect()
+  }, [autoFit, rendering])
+
   const step = (delta: number) => {
     const index = ZOOM_STEPS.indexOf(zoom)
     const next = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, (index < 0 ? 4 : index) + delta))]
 
+    setAutoFit(false)
     setZoom(next ?? 1)
   }
 
@@ -99,7 +133,10 @@ export function WordPreview({ bytes, trailing }: { bytes: Uint8Array; trailing?:
         </button>
         <button
           className="min-w-10 rounded px-1 text-[0.625rem] tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          onClick={() => setZoom(1)}
+          onClick={() => {
+            setAutoFit(false)
+            setZoom(1)
+          }}
           type="button"
         >
           {Math.round(zoom * 100)}%
@@ -113,7 +150,7 @@ export function WordPreview({ bytes, trailing }: { bytes: Uint8Array; trailing?:
           +
         </button>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-auto bg-neutral-200 dark:bg-neutral-800">
+      <div className="relative min-h-0 flex-1 overflow-auto bg-neutral-200 dark:bg-neutral-800" ref={scrollerRef}>
         {rendering && (
           <div className="absolute inset-0 z-10 bg-background/70">
             <PageLoader label={t.preview.loading} />

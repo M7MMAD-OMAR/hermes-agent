@@ -2,12 +2,10 @@ import DOMPurify from 'dompurify'
 
 import { isDesktopFsRemoteMode, readDesktopFileDataUrl, readDesktopFileText } from '@/lib/desktop-fs'
 import { pathToFileUrl } from '@/lib/file-url'
-import { isOfficePreviewKind, OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@/lib/office-format'
+import { isOfficePreviewKind } from '@/lib/office-format'
+import { previewKindForPath } from '@/lib/preview-kind'
 import type { PreviewTarget } from '@/store/preview'
 
-const HTML_EXTENSIONS = new Set(['.htm', '.html'])
-const IMAGE_EXTENSIONS = new Set(['.bmp', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp'])
-const PDF_EXTENSIONS = new Set(['.pdf'])
 // Mirrors `_FS_DATA_URL_MAX_BYTES` in the backend filesystem endpoint.
 const REMOTE_HTML_PREVIEW_MAX_BYTES = 16 * 1024 * 1024
 const REMOTE_HTML_PREVIEW_MAX_BASE64_BYTES = Math.ceil(REMOTE_HTML_PREVIEW_MAX_BYTES / 3) * 4
@@ -189,10 +187,6 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
   }
 
   const ext = extension(path)
-  const isHtml = HTML_EXTENSIONS.has(ext)
-  const isImage = IMAGE_EXTENSIONS.has(ext)
-  const isPdf = PDF_EXTENSIONS.has(ext)
-  const officeFamily = officeFamilyForPath(path)
 
   return {
     kind: 'file',
@@ -202,15 +196,7 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
     // Renderer fallback can't stat/sniff without reading; assume text unless
     // image/html/pdf extension says otherwise. LocalFilePreview still guards
     // binary/large files when readFileText/readFileDataUrl returns metadata.
-    previewKind: isHtml
-      ? 'html'
-      : isImage
-        ? 'image'
-        : isPdf
-          ? 'pdf'
-          : officeFamily
-            ? OFFICE_PREVIEW_KIND_BY_FAMILY[officeFamily]
-            : 'text',
+    previewKind: previewKindForPath(path),
     source: raw,
     url: pathToFileUrl(path)
   }

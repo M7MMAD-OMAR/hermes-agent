@@ -96,7 +96,7 @@ describe('reading a workbook into the grid', () => {
     expect(cells.get(cellKey(4, 3))?.formula).toBe('SUM(C2:C3)')
   })
 
-  it('records a merged range once and hides the cells it covers', async () => {
+  it('records a merged range once, anchored at its top-left cell', async () => {
     const { sheet, workbook } = await buildWorkbook([
       ['Title', '', ''],
       ['a', 'b', 'c']
@@ -108,8 +108,6 @@ describe('reading a workbook into the grid', () => {
     const view = book.sheets[0]!
 
     expect(view.merges).toEqual([{ col: 1, colSpan: 3, row: 1, rowSpan: 1 }])
-    expect(view.hidden.has(cellKey(1, 2))).toBe(true)
-    expect(view.hidden.has(cellKey(2, 2))).toBe(false)
   })
 
   it('reads an Arabic sheet right to left even when the file does not say so', async () => {

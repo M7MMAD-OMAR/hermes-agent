@@ -492,6 +492,9 @@ export function actInPageCore(
 
     return answer({
       acted: 'looking at ' + describe(el),
+      // A click here opens the OS file picker, which nothing in this app can
+      // answer and which blocks the turn until a person cancels it.
+      fileInput: tag === 'INPUT' && String((el as HTMLInputElement).type || '').toLowerCase() === 'file',
       point: { x: spot.clientX, y: spot.clientY },
       success: true,
       // Real typing starts with a triple-click to clear the field. On anything

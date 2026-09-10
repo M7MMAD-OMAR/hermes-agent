@@ -115,7 +115,9 @@ export interface PreviewActResult {
    *  the page changed too much for a delta to be the cheaper answer. */
   elements?: PreviewElement[]
   error?: string
-  /** `look`: the page as a PNG data URL, for the model's own eyes. */
+  /** locate: the target is a file input, which no click can usefully open. */
+  fileInput?: boolean
+  /** `look`: the page as a picture, for the model's own eyes. */
   image?: string
   note?: string
   /** Viewport centre of a located target, for aiming real pointer input at it. */

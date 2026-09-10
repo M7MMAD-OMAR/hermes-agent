@@ -374,6 +374,17 @@ async function driveAction(
     return { error: 'Could not work out where that element is on screen.', success: false }
   }
 
+  // Clicking a file input opens the OS picker. Nothing in this app can answer
+  // that dialog, so the turn stops until a person cancels it, and the agent is
+  // left believing it clicked something. `upload` is the door that works.
+  if (found.fileInput && action.kind !== 'hover') {
+    return {
+      error:
+        'That is a file input, and clicking it opens a file dialog this app cannot answer. Use action="upload" with the file path in `text` instead.',
+      success: false
+    }
+  }
+
   await glideTo(input, found.point)
 
   if (action.kind === 'click') {

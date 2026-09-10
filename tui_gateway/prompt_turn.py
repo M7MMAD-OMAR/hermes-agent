@@ -10,8 +10,11 @@ post-turn follow-ups (queued prompt, goal continuation, notifications).
 from __future__ import annotations
 
 import dataclasses
+import logging
 
 from .method_ctx import HandlerRegistry, bind_module
+
+logger = logging.getLogger(__name__)
 
 _registry = HandlerRegistry()
 
@@ -432,6 +435,34 @@ class _TurnRun:
     receipt_attempted: bool = False
 
 
+def _apply_pending_bundle(session: dict, text: Any) -> Any:
+    """Prefix the FIRST user prompt of a workspace-owned session with its skill bundle.
+
+    ``session["pending_bundle"]`` is set once by ``session.create`` (HerWork names ``herwork``) and
+    cleared here whatever happens, so a second prompt is never prefixed and a bundle that does not
+    resolve does not block the turn. Runs after the profile home is bound above, because bundles
+    resolve from ``<HERMES_HOME>/skill-bundles`` and a profile-scoped session must see its own.
+    Produces exactly what a typed ``/<bundle> <text>`` would, so caching and role alternation are
+    untouched; the user did not type the command, the workspace did.
+    """
+    bundle = session.pop("pending_bundle", None)
+    if not bundle or not isinstance(text, str):
+        return text
+    if session.get("history"):
+        return text  # not the first prompt: the flag is stale, drop it
+    try:
+        from agent.skill_bundles import build_bundle_invocation_message, resolve_bundle_command_key
+        key = resolve_bundle_command_key(str(bundle))
+        built = build_bundle_invocation_message(key, text) if key else None
+    except Exception:
+        logger.debug("pending bundle %r failed to build; sending the prompt unprefixed", bundle, exc_info=True)
+        return text
+    if not built:
+        logger.debug("pending bundle %r did not resolve under the session home; prompt sent unprefixed", bundle)
+        return text
+    return built[0]
+
+
 def _prepare_turn_input(sid: str, session: dict, st: _TurnRun, text: Any, images: list[str]):
     """Bind scopes, sync the agent, snapshot history, build the run message; returns
     ``(prompt, run_message, cols, streamer)`` or None when @-expansion was refused.
@@ -472,7 +503,7 @@ def _prepare_turn_input(sid: str, session: dict, st: _TurnRun, text: Any, images
     _register_session_cwd(session)
     cols = session.get("cols", 80)
     streamer = make_stream_renderer(cols)
-    prompt = text
+    prompt = _apply_pending_bundle(session, text)
     if isinstance(prompt, str) and "@" in prompt:
         from agent.context_references import preprocess_context_references
         from agent.model_metadata import get_model_context_length

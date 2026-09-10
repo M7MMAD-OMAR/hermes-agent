@@ -748,6 +748,8 @@ export function useSessionActions({
       options?: {
         anchor?: string
         before?: null | string
+        /** Skill bundle the backend prefixes onto the first prompt (workspace-owned sessions). */
+        bundle?: string
         cwd?: null | string
         draft?: string
         listed?: boolean
@@ -774,7 +776,10 @@ export function useSessionActions({
 
         const params = {
           ...(await desktopSessionCreateParams(cwd, capturedRoute)),
-          ...(workspaceScope.workspaceMode === 'bots' ? { hidden: true } : {})
+          // Bots only: canonical Bot Chats are born hidden. Other owned
+          // workspaces (HerWork) are ordinary visible sessions.
+          ...(workspaceScope.workspaceMode === 'bots' ? { hidden: true } : {}),
+          ...(options?.bundle ? { bundle: options.bundle } : {})
         }
 
         // Same lease chain as createBackendSessionForSend: owner socket held

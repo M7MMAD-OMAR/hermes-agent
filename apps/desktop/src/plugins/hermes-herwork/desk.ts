@@ -27,20 +27,38 @@ export function homeOf(cwd: string): string {
   return match ? match[1]! : ''
 }
 
+export const HERWORK_BUNDLE = 'herwork'
+
 export type HerworkRoute = {
   connectionId: string
   mode: 'local'
   profile: string
   targetProfile: string
+  /** Absolute desk path; omitted when the home cannot be derived, in which
+   *  case the session opens at the ambient cwd rather than at `/herwork`. */
+  cwd?: string
+  /** The mode bundle the backend prefixes onto the first prompt. */
+  bundle: string
 }
 
 /** The `+` route for a new desk chat: the local connection on the herwork
- *  profile, or `null` when no local connection is known yet. Pure so it is
- *  testable; the caller decides how to publish it. */
-export function herworkRoute(localConnectionId: null | string | undefined): HerworkRoute | null {
+ *  profile, at the desk, with the mode bundle; or `null` when no local
+ *  connection is known yet. Pure so it is testable; the caller publishes it. */
+export function herworkRoute(localConnectionId: null | string | undefined, home = ''): HerworkRoute | null {
   const connectionId = String(localConnectionId ?? '').trim()
 
-  return connectionId
-    ? { connectionId, mode: 'local', profile: HERWORK_PROFILE, targetProfile: HERWORK_PROFILE }
-    : null
+  if (!connectionId) {
+    return null
+  }
+
+  const cwd = herworkDeskCwd(home)
+
+  return {
+    connectionId,
+    mode: 'local',
+    profile: HERWORK_PROFILE,
+    targetProfile: HERWORK_PROFILE,
+    ...(cwd ? { cwd } : {}),
+    bundle: HERWORK_BUNDLE
+  }
 }

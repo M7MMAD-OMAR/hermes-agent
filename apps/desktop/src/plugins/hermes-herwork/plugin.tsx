@@ -12,9 +12,6 @@
  * group chats, no cron pane, no hidden canonical chat. HerWork sessions are
  * ordinary visible sessions that happen to live in a workspace.
  *
- * Desk cwd on the route arrives in the next step (design doc, Part 6 step 4);
- * until then a desk chat opens on the herwork profile at the ambient cwd.
- *
  * Design: docs/design/herwork-workspace.md.
  */
 
@@ -22,7 +19,7 @@ import type { ChatEmptyProps, HermesPlugin } from '@hermes/plugin-sdk'
 import { CHAT_EMPTY_AREA, host } from '@hermes/plugin-sdk'
 
 import { HerworkChatEmpty } from './chat-empty'
-import { HERWORK_OWNER_KEY, herworkRoute } from './desk'
+import { HERWORK_OWNER_KEY, herworkRoute, homeOf } from './desk'
 import { HERWORK_LOCALES, HERWORK_PLUGIN_ID } from './i18n'
 import { HerworkPane } from './pane'
 
@@ -32,7 +29,9 @@ export const HERWORK_PANE_ID = `${HERWORK_PLUGIN_ID}:pane`
  *  blocked target rather than a dead `+`: a blocked target never disables the
  *  `+`, it falls back to an ordinary session (workspace-scope.ts). */
 export function enterHerwork(): void {
-  const route = herworkRoute(host.activeConnectionId())
+  // The desk lives under the same home the ambient cwd does; `$HOME` itself
+  // is not exposed to the renderer.
+  const route = herworkRoute(host.activeConnectionId(), homeOf(host.state.cwd.get()))
 
   host.setWorkspaceScope(
     'herwork',

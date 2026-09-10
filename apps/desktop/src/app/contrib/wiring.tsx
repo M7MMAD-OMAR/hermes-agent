@@ -947,11 +947,18 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     const workspaceMode = $workspaceMode.get()
 
     if (isOwnedWorkspace(workspaceMode) && workspaceNewSessionTarget?.kind === 'route' && workspaceOwnerKey) {
+      const { bundle, cwd, ...route } = workspaceNewSessionTarget.route
+
       void openNewSessionTile('center', {
+        // A workspace that owns a desk names its cwd on the route (HerWork);
+        // one that does not (Bots) leaves it undefined and gets the ambient
+        // new-session cwd exactly as before.
+        ...(cwd ? { cwd } : {}),
+        ...(bundle ? { bundle } : {}),
         listed: false,
-        route: workspaceNewSessionTarget.route,
+        route,
         workspaceScope: {
-          ownerRoute: workspaceNewSessionTarget.route,
+          ownerRoute: route,
           workspaceMode,
           workspaceOwnerKey
         }

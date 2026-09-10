@@ -34,6 +34,13 @@ export interface WorkspaceSessionRoute {
   mode?: 'local' | 'remote'
   profile: string
   targetProfile?: string
+  /** Absolute working directory a fresh session in this workspace opens at.
+   *  Carried on the route rather than resolved from the Projects store so the
+   *  main chat's cwd is never redirected by a workspace it is not in. */
+  cwd?: string
+  /** Skill bundle slug the workspace prefixes onto a fresh session's first
+   *  prompt (as if the user typed `/<bundle>`). Backend consumes it once. */
+  bundle?: string
 }
 
 /** Where the shared `+` / session.newTab command should aim in this workspace.
@@ -99,7 +106,9 @@ function sameNewSessionTarget(a: WorkspaceNewSessionTarget | null, b: WorkspaceN
       a.route.connectionId === b.route.connectionId &&
       a.route.mode === b.route.mode &&
       a.route.profile === b.route.profile &&
-      a.route.targetProfile === b.route.targetProfile
+      a.route.targetProfile === b.route.targetProfile &&
+      a.route.cwd === b.route.cwd &&
+      a.route.bundle === b.route.bundle
     )
   }
 

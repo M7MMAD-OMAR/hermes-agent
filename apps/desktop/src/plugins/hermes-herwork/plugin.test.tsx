@@ -127,13 +127,18 @@ afterEach(() => {
 })
 
 describe('desk', () => {
-  it('routes a desk chat to the herwork profile on the local connection', () => {
-    expect(herworkRoute('local-1')).toEqual({
+  it('routes a desk chat to the herwork profile at the desk with the mode bundle', () => {
+    expect(herworkRoute('local-1', '/home/sbarah')).toEqual({
       connectionId: 'local-1',
       mode: 'local',
       profile: 'herwork',
-      targetProfile: 'herwork'
+      targetProfile: 'herwork',
+      cwd: '/home/sbarah/herwork',
+      bundle: 'herwork'
     })
+    // Unknown home: no cwd on the route (never `/herwork`), bundle still set.
+    expect(herworkRoute('local-1')).toMatchObject({ bundle: 'herwork' })
+    expect(herworkRoute('local-1')).not.toHaveProperty('cwd')
     expect(herworkRoute('')).toBeNull()
     expect(herworkRoute(null)).toBeNull()
   })
@@ -154,7 +159,7 @@ describe('entering HerWork', () => {
 
     expect(mocks.setWorkspaceScope).toHaveBeenCalledWith('herwork', HERWORK_OWNER_KEY, {
       kind: 'route',
-      route: { connectionId: 'local-1', mode: 'local', profile: 'herwork', targetProfile: 'herwork' }
+      route: expect.objectContaining({ connectionId: 'local-1', profile: 'herwork', bundle: 'herwork' })
     })
   })
 

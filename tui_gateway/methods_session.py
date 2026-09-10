@@ -323,6 +323,11 @@ def _(rid, params: dict) -> dict:
             "create_service_tier_override": create_service_tier_override,
             "parent_session_id": parent_session_id, "pending_title": _str_param(params, "title") or None,
             "pending_hidden": _flag(params, "hidden"), "room_plumbing": _flag(params, "room_plumbing"),
+            # One-shot: a workspace that owns this session (HerWork) names the skill bundle its first
+            # prompt is prefixed with, exactly as a typed `/<bundle>` would. Consumed in
+            # _prepare_turn_input on the first user prompt only; a bundle that fails to resolve there
+            # is dropped silently, since a missing bundle must not block the turn.
+            "pending_bundle": (_str_param(params, "bundle").strip().lstrip("/") or None),
             "follow_profile_config": _flag(params, "follow_profile_config"),
             "profile_home": str(profile_home) if profile_home is not None else None,
             "running": False, "session_key": key, "show_reasoning": _load_show_reasoning(), "source": source,

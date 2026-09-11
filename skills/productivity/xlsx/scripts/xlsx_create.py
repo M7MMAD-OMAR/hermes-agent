@@ -53,6 +53,11 @@ Cell object keys (all optional except value/formula):
   valign         "top" | "center" | "bottom"
   wrap           boolean (wrap text)
 
+House style: the workbook is quieted down to the house design system
+(gridlines off, one header rule, one face, a frozen header) unless the
+spec says `"theme": false` or the command line says `--no-theme`. Set
+`"header_rows"` when the header is more than one row deep.
+
 Usage:
   xlsx_create.py spec.json out.xlsx
   xlsx_create.py - out.xlsx   (spec on stdin)
@@ -66,6 +71,7 @@ import json
 import re
 import sys
 from datetime import date, datetime
+from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, PieChart, Reference
@@ -253,6 +259,13 @@ def apply_rtl(ws, mode="auto"):
     return False
 
 
+def _house():
+    """The house design system, if this skill was installed beside it."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from house_common import load_house_style  # noqa: PLC0415
+    return load_house_style()
+
+
 def has_formulas(ws):
     """True when any cell holds a formula, so the file should recalculate."""
     return any(
@@ -269,6 +282,9 @@ def main(argv=None):
     ap.add_argument("--rtl", choices=("auto", "on", "off"),
                     help="right-to-left sheet layout; default auto, or the "
                          "spec's \"rtl\" key")
+    ap.add_argument("--no-theme", action="store_true",
+                    help="leave the workbook on openpyxl's defaults instead of "
+                         "the house design system")
     args = ap.parse_args(argv)
 
     if args.spec == "-":
@@ -288,6 +304,16 @@ def main(argv=None):
         if apply_rtl(ws, sheet_spec.get("rtl", rtl_mode)):
             rtl_sheets.append(ws.title)
         formulas = formulas or has_formulas(ws)
+    # Gridlines off, one header treatment, one face. Explicit fills, bold
+    # and colors from the spec are left alone.
+    themed = None
+    house = None if args.no_theme else _house()
+    if house is not None:
+        theme = house.theme_from_spec(spec)
+        if theme is not None:
+            house.theme_xlsx(wb, theme,
+                             header_rows=int(spec.get("header_rows", 1)))
+            themed = theme.name
     for name, ref in spec.get("defined_names", {}).items():
         wb.defined_names[name] = DefinedName(name, attr_text=ref)
     # A library writes the formula and no result, so a reader that does not
@@ -296,7 +322,7 @@ def main(argv=None):
     if spec.get("full_calc_on_load", formulas):
         wb.calculation.fullCalcOnLoad = True
     wb.save(args.output)
-    print(json.dumps({"ok": True, "output": args.output,
+    print(json.dumps({"ok": True, "output": args.output, "theme": themed,
                       "sheets": wb.sheetnames, "rtl_sheets": rtl_sheets},
                      ensure_ascii=False))
     return 0

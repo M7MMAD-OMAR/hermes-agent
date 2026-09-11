@@ -7,6 +7,9 @@ Spec format (UTF-8 JSON):
   "author": "example-author",
   "page_size": "A4",            // or "letter" (default: A4)
   "page_numbers": true,          // default true
+  "theme": false,                // opt out of the house design system,
+                                 // or name one: "slate", or an object
+                                 // {"name": "editorial", "accent": "B4482E"}
   "elements": [
     {"type": "heading", "text": "Section 1", "level": 1},
     {"type": "paragraph", "text": "Body text..."},
@@ -21,6 +24,17 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+
+
+def _house():
+    """The house design system, if this skill was installed beside it."""
+    import pathlib
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    try:
+        from house_common import load_house_style
+    except ImportError:
+        return None
+    return load_house_style()
 
 
 def _reconfigure_stdio() -> None:
@@ -51,7 +65,19 @@ def build_pdf(spec: dict, out_path: str) -> int:
         return 2
 
     page_size = letter if str(spec.get("page_size", "A4")).lower() == "letter" else A4
-    styles = getSampleStyleSheet()
+    # reportlab's sample stylesheet is Times-Roman body under Helvetica-Bold
+    # headings at sizes nobody chose. The house stylesheet replaces it with
+    # the same type scale the Word and deck paths use.
+    house = None if spec.get("theme") is False else _house()
+    table_style_for = None
+    theme_name = None
+    if house is not None:
+        theme = house.theme_from_spec(spec)
+        if theme is not None:
+            styles, table_style_for = house.pdf_styles(theme)
+            theme_name = theme.name
+    if house is None or table_style_for is None:
+        styles = getSampleStyleSheet()
     story = []
     for el in spec.get("elements", []):
         etype = el.get("type")
@@ -66,16 +92,19 @@ def build_pdf(spec: dict, out_path: str) -> int:
             if not rows:
                 continue
             table = Table(rows, repeatRows=1 if el.get("header", True) else 0)
-            style = [
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-            if el.get("header", True):
-                style += [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            if table_style_for is not None:
+                table.setStyle(table_style_for(len(rows)))
+            else:
+                style = [
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ]
-            table.setStyle(TableStyle(style))
+                if el.get("header", True):
+                    style += [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ]
+                table.setStyle(TableStyle(style))
             story.append(table)
             story.append(Spacer(1, 10))
         elif etype == "image":
@@ -111,7 +140,8 @@ def build_pdf(spec: dict, out_path: str) -> int:
         author=spec.get("author", ""),
     )
     doc.build(story, onFirstPage=draw_page_number, onLaterPages=draw_page_number)
-    print(json.dumps({"output": out_path, "elements": len(spec.get("elements", []))}))
+    print(json.dumps({"output": out_path, "theme": theme_name,
+                      "elements": len(spec.get("elements", []))}))
     return 0
 
 

@@ -9,18 +9,18 @@ metadata:
   hermes:
     # Ordered by how well each term DISCRIMINATES: the index keeps the first
     # three that the description does not already say, so the words a user
-    # actually types for this job come first and "productivity" — which
-    # matches everything — comes last.
+    # actually types for this job come first and "productivity", which
+    # matches everything, comes last.
     tags: [report, deck, spreadsheet, invoice, letter, resume, herwork, workspace, productivity]
     category: productivity
-    related_skills: [docx, powerpoint, xlsx, pdf, architecture-diagram, excalidraw, grounded-citations, obsidian]
+    related_skills: [docx, powerpoint, xlsx, pdf, house-style, humanizer, excalidraw, grounded-citations, obsidian]
 ---
 
 # HerWork Mode
 
 A full work environment for Hermes: you act as a colleague with a shared
-desk. The user hands you work — write a report, build a deck, fill a
-spreadsheet, research on the web, organize a folder — and you deliver
+desk. The user hands you work, a report to write, a deck to build, a
+spreadsheet to fill, research to run, a folder to organize, and you deliver
 finished files plus a short summary of what you did.
 
 This skill is the orchestration layer. It does not replace the document
@@ -57,7 +57,7 @@ gave you" without attaching paths.
 ## Show the plan
 
 Any job with more than one artifact starts with a `todo` list before the work.
-The user watches it to know what is in flight — a transcript they have to
+The user watches it to know what is in flight; a transcript they have to
 re-read is not progress reporting.
 
 ## Research is first-class
@@ -83,6 +83,34 @@ The desk's browser does four things a page needs:
 which page and which account it wants, and ask the user to log in themselves.
 Never type a password, and never accept terms on their behalf. The session
 persists after they do, so you only ever ask once.
+
+## How it has to read
+
+A file nobody can tell was written by a machine is the job, not a bonus.
+Before you write a word of the deliverable, read
+`references/writing-and-translation.md` in the `house-style` skill. It is
+short, and it carries the rules that a reader notices first.
+
+The three that are broken most often:
+
+- **No em dash and no en dash.** In any language, in any deliverable, in
+  any file this desk produces. Use a comma, a colon, or two sentences.
+  The lint treats this as an error, not a warning.
+- **Say what is done, not what is intended.** "aims to", "is committed
+  to", "seeks to" and their Arabic equivalents convert something a reader
+  can check into something nobody can argue with. Cut them.
+- **Translation is rewriting, not substitution.** Translate the meaning
+  for the reader in front of you: re-cut the sentences, take the register
+  the target language actually uses, and never carry an English image
+  into Arabic word for word. A target text that keeps the source's
+  sentence boundaries reads as foreign even when every word is right.
+  Fix the terminology in a glossary before you start, and back-translate
+  only the ten highest-stakes sentences as a check.
+
+Two tests to run over your own draft, per card, caption and list item:
+swap the subject for a competitor (still true? delete it), then cover the
+description and read the label (the description adds nothing? delete the
+field, do not reword it).
 
 ## Draw it, do not describe it
 
@@ -119,7 +147,24 @@ empty boxes.
    tabs, and a deck slide by slide. A doubled bullet, a table reading the
    wrong way, a column of blanks where formulas should be: all of these pass
    a text read and fail a glance.
-5. **Deliver.** Move — do not copy — the finished file from `work/` to
+
+   **Then run the lint, every time:**
+
+   ```bash
+   python <skills>/productivity/house-style/scripts/style_lint.py output.docx
+   ```
+
+   It exits non-zero on a long dash or a slide past the word ceiling, and
+   warns about stock Office faces, type-size soup, a spreadsheet still
+   wearing its grey grid, and prose that hedges instead of saying. Fix
+   what it finds in the source spec and rebuild; do not hand-edit the
+   output file.
+
+   For a deck, also render it and look: `pptx_render.py deck.pptx
+   --outdir render` writes one PNG per slide. Text that overflows its box
+   is the commonest defect in generated output and it passes every text
+   check there is.
+5. **Deliver.** Move, do not copy, the finished file from `work/` to
    `output/`, and add a row to `output/MANIFEST.md`:
 
    ```
@@ -139,7 +184,7 @@ empty boxes.
    Offer the obvious next iteration (shorter, different tone, Arabic
    version, ...).
 
-## Routing — which tool for which job
+## Routing: which tool for which job
 
 | Job | Use |
 | --- | --- |
@@ -147,14 +192,15 @@ empty boxes.
 | Slide decks | `powerpoint` skill |
 | Spreadsheets, data tables, budgets | `xlsx` skill |
 | Reading or producing PDFs | `pdf` skill |
-| Scanned documents, images of text | `ocr-and-documents` skill |
-| Any Arabic or RTL deliverable | `arabic-rtl-documents` skill |
+| Scanned documents, images of text | `pdf` skill, `references/ocr-extraction.md` |
+| Any Arabic or RTL deliverable | `scripts/arabic_style.py` here, after the create script |
 | Diagrams as a file (flow, sequence, architecture) | `diagrams` skill |
 | Hand-drawn-style diagrams and boards | `excalidraw` skill |
 | A diagram inside the chat, not a file | a ```mermaid fenced block |
 | An illustration or generated picture | native `image_generate` tool |
 | Anything asserting researched facts | `grounded-citations` skill |
-| Stress-testing a document before it ships | `adversarial-doc-review` skill |
+| Type, color and layout of any deliverable | `house-style` skill (applied by default) |
+| Prose that reads as machine-written | `house-style` lint, then the `humanizer` skill |
 | Web research, reading pages, filling web forms | the desk browser: `desktop_preview` + `drive_preview` |
 | A second, headless browser for bulk fetching | native `browser_*` tools |
 | GUI apps with no API (desktop clicks) | `computer-use` skill |
@@ -169,27 +215,47 @@ task needs it, follow the safety rules below (say what you'd install and
 wait for approval).
 
 Load the document skill for the format you're about to produce before
-producing it — each one has scripts and conventions that prevent broken
+producing it. Each one has scripts and conventions that prevent broken
 files (e.g. the docx tracked-changes and templating CLIs).
+
+## Type, color and layout
+
+You do not choose them per job. The `house-style` skill carries one type
+scale, one neutral palette, one spacing grid and one set of table and
+chart rules, and the four create scripts apply it by default: the JSON
+they print back names the theme under `"theme"`. Read that skill when a
+user asks for their own brand color (`"theme": {"accent": "1F4E79"}`),
+when they want a different look (`"theme": "slate"` or `"mono"`), or when
+you want to know why a number is what it is.
+
+Three passes, in this order, and the order is load-bearing:
+
+1. the create script builds the file and applies the house system,
+2. the same script runs the RTL pass,
+3. you run `arabic_style.style_docx` / `style_pptx` last.
+
+The house pass sets sizes, colors, spacing and the Latin face. The Arabic
+pass owns the complex-script slot. Run them the other way round and the
+Arabic text quietly returns to a fallback face.
 
 ## Arabic typography
 
-Any deliverable that contains Arabic MUST use the **Cairo** font — the
+Any deliverable that contains Arabic MUST use the **Cairo** font. The
 office-suite default (Calibri) renders Arabic badly. Use the helper at
 `scripts/arabic_style.py` in this skill's directory:
 
-- docx: `style_docx(doc)` after building the Document — covers named styles
+- docx: `style_docx(doc)` after building the Document, covers named styles
   AND every run (body, nested tables, text boxes, headers/footers), because
   a run with direct formatting overrides its style
-- pptx: `style_pptx(prs)` after building the Presentation — covers tables,
+- pptx: `style_pptx(prs)` after building the Presentation, covers tables,
   grouped shapes at any nesting depth, and speaker notes
 - pdf (reportlab): `register_pdf_font()`, then draw with
   `canvas.setFont("Cairo", size)` and pass every Arabic string through
-  `shape_arabic(text)` — never `arabic_reshaper` + `get_display` directly
+  `shape_arabic(text)`, never `arabic_reshaper` + `get_display` directly
 
-Setting `font.name` alone is NOT enough — Arabic is shaped from the
+Setting `font.name` alone is NOT enough. Arabic is shaped from the
 complex-script font slot (`w:cs` in docx, `a:cs` in pptx), which these
-helpers also set. Call them AFTER all content is added — they font what is
+helpers also set. Call them AFTER all content is added: they font what is
 in the document at call time, and runs added later carry only their style.
 Text in monospace styles (code, macros, preformatted) is deliberately left
 alone. `register_pdf_font` locates the Cairo TTF across
@@ -211,7 +277,7 @@ document notices.
 
 `shape_arabic` is not optional for PDFs. reportlab draws codepoint by
 codepoint with no shaper, and Cairo carries only 89 of the 144
-Presentation Forms-B codepoints a reshaper emits — isolated alef and teh
+Presentation Forms-B codepoints a reshaper emits. Isolated alef and teh
 are among the missing, so a plain reshape+bidi renders «المبيعات» as
 «▯لمبيعا▯» in a file that otherwise looks finished. `shape_arabic` checks
 each shaped character against the registered font's own cmap and folds the
@@ -221,7 +287,7 @@ Word and PowerPoint shape the text themselves at open time.
 ## Safety rules (non-negotiable)
 
 - **Write only inside `~/herwork/`** unless the user explicitly gives a
-  target path. Never modify a user's original file in place — copy it to
+  target path. Never modify a user's original file in place, copy it to
   `work/` first and edit the copy.
 - `inbox/` is read-only. Deliverables go to `output/`, never back into
   `inbox/`.

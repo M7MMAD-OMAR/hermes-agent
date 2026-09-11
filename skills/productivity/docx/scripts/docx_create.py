@@ -38,6 +38,14 @@ Without it Word and LibreOffice render Arabic as a left-to-right paragraph,
 so the full stop lands at the START of the line and brackets face the wrong
 way. A block may override with its own `"rtl": true|false`.
 
+House style: the document is type-set to the house design system unless
+the spec says `"theme": false` or the command line says `--no-theme`. A
+preset name (`"theme": "slate"`) or an object
+(`"theme": {"name": "editorial", "accent": "B4482E"}`) picks a different
+one. The pass sets the named styles, the page margins (unless the spec
+sets `page`), and table rules; anything the spec states explicitly keeps
+winning.
+
 Extras: `"footer_page_numbers": true` at the top level adds a
 "Page X of Y" footer built from PAGE/NUMPAGES fields, and a `toc` block
 inserts a Table of Contents field. Field results are computed by
@@ -56,6 +64,7 @@ from docx.shared import Mm, Pt, RGBColor
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from docx_common import apply_rtl, set_paragraph_rtl, set_table_rtl  # noqa: E402
+from house_common import load_house_style  # noqa: E402
 
 
 def apply_page(doc, page: dict) -> None:
@@ -181,6 +190,9 @@ def main() -> int:
     ap.add_argument("output", help="path of .docx to write")
     ap.add_argument("--rtl", choices=("auto", "on", "off"),
                     help="paragraph direction; overrides the spec's \"rtl\" (default auto)")
+    ap.add_argument("--no-theme", action="store_true",
+                    help="build on Word's stock template instead of the house "
+                         "design system")
     args = ap.parse_args()
 
     with open(args.spec, encoding="utf-8") as f:
@@ -197,6 +209,16 @@ def main() -> int:
         doc.sections[0].footer.paragraphs[0].text = spec["footer"]
     for block in spec.get("blocks", []):
         add_block(doc, block)
+    # The house pass sets the named styles, the page and the tables. It
+    # runs before the direction pass and before any Arabic font pass, and
+    # it fills in only what the spec left unset, so a spec always wins.
+    themed = None
+    house = None if args.no_theme else load_house_style()
+    if house is not None:
+        theme = house.theme_from_spec(spec)
+        if theme is not None:
+            house.theme_docx(doc, theme, set_page=not spec.get("page"))
+            themed = theme.name
     direction = apply_rtl(doc, args.rtl or spec.get("rtl", "auto"))
     _replay_rtl_overrides()
     if spec.get("footer_page_numbers"):
@@ -208,7 +230,8 @@ def main() -> int:
         _add_field(para, " NUMPAGES ", "1")
     doc.save(args.output)
     print(json.dumps({"ok": True, "output": args.output,
-                      "blocks": len(spec.get("blocks", [])), **direction}))
+                      "blocks": len(spec.get("blocks", [])),
+                      "theme": themed, **direction}))
     return 0
 
 

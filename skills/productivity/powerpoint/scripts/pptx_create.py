@@ -30,6 +30,12 @@ Spec format (all positions/sizes in inches, colors as RRGGBB hex):
                   "series": {"North": [10, 20], "South": [7, 13]}}]}
   ]
 }
+House style: every deck is type-set to the house design system (type
+scale, neutral palette, styled tables and charts) unless the spec says
+`"theme": false` or the command line says `--no-theme`. Pick another with
+`"theme": "slate"` or `"theme": {"name": "editorial", "accent": "1F4E79"}`.
+Anything the spec sets explicitly, such as a bullet size or color, wins.
+
 Layouts: title, title_content, section, two_content, title_only, blank
 Chart types: bar, bar_h, line, pie   Shape types: rectangle,
 rounded_rectangle, oval, diamond, right_arrow, chevron
@@ -46,6 +52,7 @@ from pptx.enum.chart import XL_CHART_TYPE
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.util import Inches, Pt
 
+from house_common import load_house_style
 from pptx_common import apply_rtl, strip_typed_bullet
 
 LAYOUTS = {"title": 0, "title_content": 1, "section": 2,
@@ -198,6 +205,9 @@ def main(argv=None):
     parser.add_argument("--rtl", choices=("auto", "on", "off"),
                         help="right-to-left pass; default auto, or the spec's "
                              "\"rtl\" key")
+    parser.add_argument("--no-theme", action="store_true",
+                        help="build on the stock Office template instead of "
+                             "the house design system")
     args = parser.parse_args(argv)
 
     with open(args.spec, encoding="utf-8") as fh:
@@ -212,11 +222,21 @@ def main(argv=None):
     for slide_spec in spec.get("slides", []):
         build_slide(prs, slide_spec)
 
+    # Type, color and chart styling, applied to the finished deck. It
+    # fills in only what the spec left unset, and it runs before the
+    # direction pass and before any Arabic font pass.
+    themed = None
+    house = None if args.no_theme else load_house_style()
+    if house is not None:
+        theme = house.theme_from_spec(spec)
+        if theme is not None:
+            house.theme_pptx(prs, theme)
+            themed = theme.name
     rtl_counts = apply_rtl(prs, args.rtl or spec.get("rtl", "auto"))
 
     prs.save(args.output)
     print(json.dumps({"ok": True, "output": args.output,
-                      "slides": len(prs.slides._sldIdLst),
+                      "slides": len(prs.slides._sldIdLst), "theme": themed,
                       "rtl_paragraphs": rtl_counts["paragraphs"],
                       "rtl_cells": rtl_counts["cells"]}))
     return 0

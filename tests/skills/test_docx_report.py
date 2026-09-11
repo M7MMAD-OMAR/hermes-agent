@@ -369,6 +369,10 @@ def test_the_untouched_path_still_builds_the_same_bytes(tmp_path):
     installed on the host, so a themed run is only comparable against
     itself on the same machine at the same moment.
     """
+    # The baseline is the last commit before the report key landed, not
+    # HEAD. Against HEAD this test skipped itself the moment the feature
+    # merged, and a test that can never run again guards nothing.
+    baseline = "cca1068126"
     old_dir = tmp_path / "old"
     old_dir.mkdir()
     scripts = SCRIPT.parent
@@ -376,13 +380,13 @@ def test_the_untouched_path_still_builds_the_same_bytes(tmp_path):
                  "docx_edit.py"):
         blob = subprocess.run(
             ["git", "show",
-             f"HEAD:skills/productivity/docx/scripts/{name}"],
+             f"{baseline}:skills/productivity/docx/scripts/{name}"],
             cwd=str(REPO), capture_output=True, text=True)
         if blob.returncode != 0:
-            pytest.skip(f"{name} is not in HEAD")
+            pytest.skip(f"{name} is not in {baseline}; shallow clone?")
         (old_dir / name).write_text(blob.stdout, encoding="utf-8")
-    if "report" in (old_dir / "docx_create.py").read_text(encoding="utf-8"):
-        pytest.skip("HEAD already carries the report key")
+    assert "\"report\"" not in (old_dir / "docx_create.py").read_text(
+        encoding="utf-8"), "the baseline commit already has the report key"
     spec = {"header": "H", "footer": "F", "footer_page_numbers": True,
             "blocks": [
                 {"type": "heading", "text": "Title", "level": 1},

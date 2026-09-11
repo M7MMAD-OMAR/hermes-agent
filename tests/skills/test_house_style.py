@@ -224,6 +224,92 @@ def test_pptx_pass_sizes_the_title_and_keeps_the_body_off_a_chart(hs):
         "the body column must stop before the shape the spec placed"
 
 
+def test_a_long_title_steps_down_the_scale_and_the_body_clears_it(hs):
+    """The overflow guard, in both scripts.
+
+    fit_title is the documented reason a long title does not print over
+    the first bullet, and until this test existed nothing called it with
+    a title long enough to step down, so the whole ladder could have been
+    deleted without a single failure.
+    """
+    pytest.importorskip("pptx")
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+
+    theme = hs.load_theme()
+    long_title = ("Revenue grew thirty four percent across two product "
+                  "families while gaskets fell after the July price move")
+    size, lines = hs.fit_title(long_title, 12.0, theme.deck)
+    assert size < theme.deck["title"], "a twenty word title must step down"
+    assert lines <= 2
+    short = hs.fit_title("Revenue grew", 12.0, theme.deck)
+    assert short[0] == theme.deck["title"], "a short title keeps its size"
+
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    slide = prs.slides.add_slide(prs.slide_layouts[1])
+    slide.shapes.title.text = long_title
+    slide.placeholders[1].text_frame.text = "Handles carried the quarter"
+    hs.theme_pptx(prs, theme)
+
+    title = slide.shapes.title
+    body = slide.placeholders[1]
+    assert title.text_frame.paragraphs[0].runs[0].font.size == Pt(size)
+    title_bottom = (title.top + title.height) / 914400
+    assert body.top / 914400 >= title_bottom - 0.01, \
+        "the body must start below the title box, not inside it"
+
+
+def test_an_arabic_long_title_gets_its_own_leading_and_still_clears(hs):
+    """Arabic leading is looser, so the same title needs a taller band."""
+    pytest.importorskip("pptx")
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    theme = hs.load_theme()
+    arabic = ("نمت الإيرادات أربعة وثلاثين بالمئة على عائلتين من المنتجات "
+              "بينما تراجعت الحشوات بعد تعديل السعر في تموز")
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    slide = prs.slides.add_slide(prs.slide_layouts[1])
+    slide.shapes.title.text = arabic
+    slide.placeholders[1].text_frame.text = "المقابض حملت الربع"
+    hs.theme_pptx(prs, theme)
+
+    title, body = slide.shapes.title, slide.placeholders[1]
+    assert (body.top / 914400) >= (title.top + title.height) / 914400 - 0.01
+    assert title.text_frame.paragraphs[0].line_spacing == 1.25, \
+        "an Arabic title takes the tighter display leading, not the body one"
+
+
+def test_a_sized_run_inside_a_table_cell_is_left_alone(hs):
+    """The one place the docx pass writes a run size directly.
+
+    The old test asserted this on a body paragraph, where the pass never
+    touches runs at all, so the assertion could not fail and the real
+    path went unguarded.
+    """
+    pytest.importorskip("docx")
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+
+    doc = Document()
+    table = doc.add_table(rows=2, cols=2)
+    cell = table.cell(1, 0)
+    run = cell.paragraphs[0].add_run("deliberately large")
+    run.font.size = Pt(19)
+    run.font.color.rgb = RGBColor.from_string("FF00FF")
+    run.font.bold = False
+    header = table.cell(0, 0).paragraphs[0].add_run("Product")
+
+    hs.theme_docx(doc, hs.load_theme())
+
+    assert run.font.size == Pt(19), "a sized cell run must survive the pass"
+    assert str(run.font.color.rgb) == "FF00FF"
+    assert run.font.bold is False, "an explicit weight is a decision too"
+    assert header.font.size is not None, "the header still gets the house size"
+
+
 def test_pptx_pass_respects_explicit_run_formatting(hs):
     pytest.importorskip("pptx")
     from pptx import Presentation

@@ -132,14 +132,53 @@ def test_media_inventory_reads_the_package_not_the_object_model(inspector,
 
 
 def test_a_missing_helper_says_so_instead_of_reporting_no_comments(inspector,
-                                                                   tmp_path):
-    report = inspector.inspect(_docx(tmp_path), lint=False)
-    comments = report["review"]["comments"]
-    # Either a real helper answered, or the source explains itself. What
-    # must never happen is a silent empty list that reads as "no comments".
-    assert "source" in comments
-    if "data" not in comments:
-        assert comments["source"], "an unavailable source must be named"
+                                                                   tmp_path,
+                                                                   monkeypatch):
+    """The failure this section exists to prevent, reproduced three ways.
+
+    Asserting it against a checkout where every helper is installed tests
+    the success branch and nothing else, which is how a silent empty list
+    would have shipped green.
+    """
+    doc = _docx(tmp_path)
+
+    # 1. the helper is not installed at all
+    monkeypatch.setattr(inspector, "_skill_script", lambda skill, name: None)
+    comments = inspector.inspect(doc, lint=False)["review"]["comments"]
+    assert comments["items"] == []
+    assert "not installed" in comments["source"]
+    assert "data" not in comments, "an absent helper must not look like a read"
+
+    # 2. the helper is there and exits non-zero
+    angry = tmp_path / "angry.py"
+    angry.write_text("import sys\nsys.stderr.write('boom')\nsys.exit(3)\n",
+                     encoding="utf-8")
+    monkeypatch.setattr(inspector, "_skill_script", lambda s, n: angry)
+    comments = inspector.inspect(doc, lint=False)["review"]["comments"]
+    assert "exited 3" in comments["source"]
+    assert comments["items"] == []
+    assert "boom" in comments.get("stderr", "")
+
+    # 3. the helper is there and prints something that is not JSON
+    chatty = tmp_path / "chatty.py"
+    chatty.write_text("print('all good, no comments here')\n",
+                      encoding="utf-8")
+    monkeypatch.setattr(inspector, "_skill_script", lambda s, n: chatty)
+    comments = inspector.inspect(doc, lint=False)["review"]["comments"]
+    assert comments["items"] == []
+    assert "no JSON" in comments.get("note", "")
+
+
+def test_a_present_helper_is_actually_read(inspector, tmp_path, monkeypatch):
+    """The other half: a helper that answers must reach the report."""
+    speaking = tmp_path / "speaking.py"
+    speaking.write_text(
+        "import json\nprint(json.dumps({'threads': [{'id': '7'}]}))\n",
+        encoding="utf-8")
+    monkeypatch.setattr(inspector, "_skill_script", lambda s, n: speaking)
+    comments = inspector.inspect(_docx(tmp_path),
+                                 lint=False)["review"]["comments"]
+    assert comments["data"]["threads"][0]["id"] == "7"
 
 
 def test_unsupported_extension_is_refused(inspector, tmp_path):

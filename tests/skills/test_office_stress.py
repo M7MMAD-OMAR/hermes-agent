@@ -419,13 +419,19 @@ def test_five_hundred_paragraphs_and_fifty_threads_stay_workable(tmp_path):
             "-o", str(nxt))
         current = nxt
     elapsed = time.monotonic() - started
+    per_op = elapsed / 50
 
     listed = threads(current)
     assert len(listed) == 50
     assert all(t["anchored_text"] for t in listed), "anchors went missing"
-    # Generous: this is a smoke alarm for accidental quadratic behaviour,
-    # not a benchmark.
-    assert elapsed < 180, f"50 comments on a 500 paragraph file took {elapsed:.0f}s"
+    # A budget with real teeth. Each operation opens the package, edits
+    # the XML and writes it back, measured at 0.07s on this machine on
+    # 11 September 2026. The ceiling leaves room for a loaded box and
+    # still trips on the accidentally quadratic walk, which would put a
+    # fiftieth comment well past a second.
+    assert per_op < 1.0, (
+        f"{per_op:.2f}s per comment on a 500 paragraph file, "
+        f"{elapsed:.0f}s for fifty")
 
     report = run(INSPECT, str(current), "--no-lint", "--section", "summary")
     assert report["summary"]["paragraphs"] >= 500

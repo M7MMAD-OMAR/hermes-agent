@@ -226,7 +226,7 @@ export function BotRow({ bot, onDelete, onEdit, onGroup, onNewSection, showHandl
     <RowButton
       aria-label={rowTooltip}
       className={cn(
-        'flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-md px-2 py-2 text-left transition-colors',
+        'flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-md px-2 py-2 text-start transition-colors',
         'hover:bg-(--chrome-action-hover)',
         isActive && 'bg-(--ui-row-active-background)',
         // The row being dragged fades in place; the browser's drag image is
@@ -258,7 +258,7 @@ export function BotRow({ bot, onDelete, onEdit, onGroup, onNewSection, showHandl
         <div className="flex items-baseline justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             {/* The session row's own lead cell, so a bot's name sits on the
-                same left edge as every session name above it in the rail. */}
+                same leading edge as every session name above it in the rail. */}
             <SidebarRowLead>
               <SessionStatusDot storedSessionId={canonicalSessionId} />
             </SidebarRowLead>
@@ -273,7 +273,12 @@ export function BotRow({ bot, onDelete, onEdit, onGroup, onNewSection, showHandl
               </Tip>
             ) : null}
             <Tip label={rowTooltip}>
-              <span className="min-w-0 truncate text-[0.8125rem] font-medium">{displayName(bot, meta)}</span>
+              {/* The name is whatever the owner called the bot, so it reads its
+                  direction from its own text. The row around it starts with
+                  status glyphs and translated chrome instead. */}
+              <span className="min-w-0 truncate text-[0.8125rem] font-medium" dir="auto">
+                {displayName(bot, meta)}
+              </span>
             </Tip>
           </div>
           {attention ? (
@@ -298,7 +303,9 @@ export function BotRow({ bot, onDelete, onEdit, onGroup, onNewSection, showHandl
             ) : null}
             {showHandle && displayPreview ? <span className="shrink-0 text-(--ui-text-quaternary)">·</span> : null}
             {displayPreview ? (
-              <span className={cn('min-w-0 truncate', fromBot && 'italic')}>{displayPreview}</span>
+              <span className={cn('min-w-0 truncate', fromBot && 'italic')} dir="auto">
+                {displayPreview}
+              </span>
             ) : null}
           </div>
         ) : null}
@@ -418,18 +425,18 @@ export function BotRow({ bot, onDelete, onEdit, onGroup, onNewSection, showHandl
                 key={section.id}
                 onSelect={() => void moveBotsToSection([bot], section.id)}
               >
-                <Codicon className="mr-1.5" name="folder" />
+                <Codicon className="me-1.5" name="folder" />
                 {section.name}
               </ContextMenuItem>
             ))}
             {sections.length ? <ContextMenuSeparator /> : null}
             <ContextMenuItem onSelect={() => onNewSection(bot)}>
-              <Codicon className="mr-1.5" name="new-folder" />
+              <Codicon className="me-1.5" name="new-folder" />
               {b.sections.newSectionEllipsis}
             </ContextMenuItem>
             {currentSectionId ? (
               <ContextMenuItem onSelect={() => void moveBotsToSection([bot], null)}>
-                <Codicon className="mr-1.5" name="inbox" />
+                <Codicon className="me-1.5" name="inbox" />
                 {b.sections.removeFromSection}
               </ContextMenuItem>
             ) : null}
@@ -490,7 +497,7 @@ export function GroupRow({ active, group, members, needsYou, onOpen, onDisband }
     <RowButton
       aria-label={`${group}, ${members.length} bots, ${availabilityLabel}`}
       className={cn(
-        'flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-md px-2 py-2 text-left transition-colors',
+        'flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-md px-2 py-2 text-start transition-colors',
         'hover:bg-(--chrome-action-hover)',
         active && 'bg-(--ui-row-active-background)'
       )}
@@ -523,7 +530,7 @@ export function GroupRow({ active, group, members, needsYou, onOpen, onDisband }
           <Tip label={availabilityLabel}>
             <span
               aria-label={availabilityLabel}
-              className="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-(--ui-bg-primary) text-[0.625rem] text-amber-600 ring-1 ring-(--ui-stroke-tertiary) dark:text-amber-300"
+              className="absolute -bottom-0.5 -end-0.5 flex size-4 items-center justify-center rounded-full bg-(--ui-bg-primary) text-[0.625rem] text-amber-600 ring-1 ring-(--ui-stroke-tertiary) dark:text-amber-300"
             >
               <Codicon name="debug-disconnect" />
             </span>
@@ -532,7 +539,9 @@ export function GroupRow({ active, group, members, needsYou, onOpen, onDisband }
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-medium">{group}</span>
+          <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-medium" dir="auto">
+            {group}
+          </span>
           {needsYou ? (
             <Tip label={b.group.needsYourInput}>
               <Codicon aria-label={b.roster.needsInput} className="shrink-0 text-(--ui-accent)" name="question" />
@@ -544,7 +553,9 @@ export function GroupRow({ active, group, members, needsYou, onOpen, onDisband }
             </span>
           ) : null}
         </div>
-        <div className="min-w-0 truncate text-xs text-(--ui-text-tertiary)">{preview}</div>
+        <div className="min-w-0 truncate text-xs text-(--ui-text-tertiary)" dir="auto">
+          {preview}
+        </div>
       </div>
     </RowButton>
   )

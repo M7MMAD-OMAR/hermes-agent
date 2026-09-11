@@ -247,7 +247,7 @@ function AssigneeMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="-mx-1 inline-flex max-w-full items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-(--chrome-action-hover)"
+          className="-mx-1 inline-flex max-w-full items-center gap-1.5 rounded px-1 py-0.5 text-start transition-colors hover:bg-(--chrome-action-hover)"
           type="button"
         >
           {current ? (
@@ -266,7 +266,7 @@ function AssigneeMenu({
           <DropdownMenuItem key={profile.name} onSelect={() => onReassign(profile.name)}>
             <Avatar name={profile.name} size="0.875rem" />
             {profile.name}
-            {profile.name === current && <Codicon className="ml-auto" name="check" size="0.8rem" />}
+            {profile.name === current && <Codicon className="ms-auto" name="check" size="0.8rem" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -319,7 +319,7 @@ function CommentComposer({
     <div className="flex flex-col gap-1.5">
       <div className="relative">
         <Textarea
-          className={cn('field-sizing-content max-h-40 min-h-0 resize-none', running ? 'pr-[3.5rem]' : 'pr-[5rem]')}
+          className={cn('field-sizing-content max-h-40 min-h-0 resize-none', running ? 'pe-[3.5rem]' : 'pe-[5rem]')}
           onChange={event => setBody(event.target.value)}
           onKeyDown={event => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -333,7 +333,7 @@ function CommentComposer({
           value={body}
         />
         <Button
-          className="absolute top-1 right-1"
+          className="absolute top-1 end-1"
           disabled={!body.trim() || pending}
           onClick={submit}
           size="xs"
@@ -397,7 +397,9 @@ function DescriptionSection({ body, onSave }: { body: null | string | undefined;
           </Button>
         </div>
       ) : body ? (
-        <p className="whitespace-pre-wrap text-[0.8125rem] text-(--ui-text-secondary)">{body}</p>
+        <p className="whitespace-pre-wrap text-[0.8125rem] text-(--ui-text-secondary)" dir="auto">
+          {body}
+        </p>
       ) : (
         <p className="text-[0.8125rem] text-(--ui-text-quaternary)">{k.noDescription}</p>
       )}
@@ -508,7 +510,7 @@ function EstimateSection({ id }: { id: string }) {
             <Tip label={k.reEstimate}>
               <Button
                 aria-label={k.reEstimate}
-                className="ml-auto"
+                className="ms-auto"
                 disabled={est.isPending}
                 onClick={() => est.mutate()}
                 size="icon-xs"
@@ -674,7 +676,11 @@ export function TaskDrawer({
   }
 
   return (
-    <div className="absolute inset-y-0 right-0 z-20 flex w-[26rem] flex-col border-l border-(--ui-stroke-tertiary) bg-(--ui-bg-elevated) duration-150 ease-out animate-in fade-in slide-in-from-right-4">
+    // The drawer lives on the inline-end edge, so English keeps it on the right
+    // and Arabic mirrors it to the left, with its border on the edge that faces
+    // the board either way. The enter animation moves to the matching logical
+    // utility so the panel always slides in from the edge it settles on.
+    <div className="absolute inset-y-0 end-0 z-20 flex w-[26rem] flex-col border-s border-(--ui-stroke-tertiary) bg-(--ui-bg-elevated) duration-150 ease-out animate-in fade-in slide-in-from-end-4">
       <header className="flex flex-col gap-2 px-4 pt-3.5 pb-3">
         <div className="flex items-center gap-2">
           {task ? (
@@ -687,7 +693,7 @@ export function TaskDrawer({
               {shortId(task.id)}
             </span>
           )}
-          <div className="ml-auto flex items-center gap-0.5">
+          <div className="ms-auto flex items-center gap-0.5">
             {task && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -740,8 +746,11 @@ export function TaskDrawer({
             </button>
           </div>
         </div>
+        {/* The title is user-written, so it picks its own direction from its own
+            first strong character. On the header row above it the first strong
+            character would be a translated label instead. */}
         {task && (
-          <h2 className="text-sm leading-snug font-semibold text-foreground" data-selectable-text="true">
+          <h2 className="text-sm leading-snug font-semibold text-foreground" data-selectable-text="true" dir="auto">
             {task.title || task.id}
           </h2>
         )}
@@ -853,10 +862,15 @@ export function TaskDrawer({
                   {detail.comments.map(comment => (
                     <li className="text-[0.75rem]" key={comment.id}>
                       <span className="font-medium text-(--ui-text-secondary)">{comment.author}</span>
-                      <span className="ml-2 text-[0.625rem] text-(--ui-text-quaternary)">
+                      <span className="ms-2 text-[0.625rem] text-(--ui-text-quaternary)">
                         {ago(comment.created_at)}
                       </span>
-                      <p className="whitespace-pre-wrap text-(--ui-text-tertiary)">{comment.body}</p>
+                      {/* The comment body carries its own direction. The <li> above
+                          it starts with the author name, which would decide for
+                          the whole row instead. */}
+                      <p className="whitespace-pre-wrap text-(--ui-text-tertiary)" dir="auto">
+                        {comment.body}
+                      </p>
                     </li>
                   ))}
                 </ul>
@@ -887,7 +901,7 @@ export function TaskDrawer({
                               {extra}
                             </span>
                           )}
-                          <span className="ml-auto shrink-0 text-(--ui-text-quaternary)">{ago(event.created_at)}</span>
+                          <span className="ms-auto shrink-0 text-(--ui-text-quaternary)">{ago(event.created_at)}</span>
                         </li>
                       )
                     })}
@@ -915,7 +929,7 @@ export function TaskDrawer({
                                 {duration(run.started_at, run.ended_at)}
                               </span>
                             )}
-                            <span className="ml-auto shrink-0 text-(--ui-text-quaternary)">
+                            <span className="ms-auto shrink-0 text-(--ui-text-quaternary)">
                               {ago(run.ended_at ?? run.started_at)}
                             </span>
                           </div>

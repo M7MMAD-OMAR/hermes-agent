@@ -446,7 +446,7 @@ export function RoutineDetailDialog({ job, onClose, open }: RoutineDetailDialogP
             {rows.map(row => (
               <div className="flex items-baseline justify-between gap-3 text-xs" key={row.label}>
                 <span className="shrink-0 text-(--ui-text-tertiary)">{row.label}</span>
-                <span className="min-w-0 truncate text-right">{row.value}</span>
+                <span className="min-w-0 truncate text-end">{row.value}</span>
               </div>
             ))}
           </div>
@@ -535,7 +535,7 @@ export function RoutineRow({ job, onOpen, owner }: RoutineRowProps) {
         /* and delete control are siblings, so opening the details can never */
         /* swallow a toggle (and a nested button would be invalid markup). */}
         <RowButton
-          className="flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-foreground"
+          className="flex min-w-0 flex-1 items-center gap-2 text-start transition-colors hover:text-foreground"
           onClick={() => onOpen?.(job)}
           title={c.manage}
         >
@@ -568,7 +568,7 @@ export function RoutineRow({ job, onOpen, owner }: RoutineRowProps) {
           </Button>
         </Tip>
       </div>
-      <div className="flex items-center justify-between gap-2 pl-3.5">
+      <div className="flex items-center justify-between gap-2 ps-3.5">
         <span className="inline-flex items-center gap-1 rounded-full border border-(--ui-stroke-secondary) px-1.5 py-0.5 text-[0.65rem] text-(--ui-text-tertiary)">
           <Codicon className="text-[0.7rem]" name="calendar" />
           {scheduleLabel(job.schedule)}

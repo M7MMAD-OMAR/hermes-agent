@@ -757,16 +757,16 @@ export function BotsPane() {
             </Tip>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onSelect={() => setCreateOpen(true)}>
-                <Codicon className="mr-1.5" name="hubot" />
+                <Codicon className="me-1.5" name="hubot" />
                 {b.bot.newTitle}
               </DropdownMenuItem>
               <DropdownMenuItem disabled={activeSourceRoster.length < 2} onSelect={() => setGroupCreateOpen(true)}>
-                <Codicon className="mr-1.5" name="organization" />
+                <Codicon className="me-1.5" name="organization" />
                 {b.group.newTitle}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => setSectionDialog({ mode: 'create' })}>
-                <Codicon className="mr-1.5" name="new-folder" />
+                <Codicon className="me-1.5" name="new-folder" />
                 {b.sections.newSection}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -835,7 +835,7 @@ export function BotsPane() {
                 {gatewayOptions.length > 1 ? <DropdownMenuSeparator /> : null}
                 {gatewayOptions.length > 1 ? (
                   <DropdownMenuItem onSelect={() => setGatewayFilter('all')}>
-                    <Codicon className="mr-1.5" name="globe" />
+                    <Codicon className="me-1.5" name="globe" />
                     <span className="min-w-0 flex-1">All gateways</span>
                     {gatewayFilter === 'all' ? <Codicon name="check" /> : null}
                   </DropdownMenuItem>
@@ -853,7 +853,7 @@ export function BotsPane() {
                           onSelect={() => setGatewayFilter(option.connectionId)}
                         >
                           <GatewayKindGlyph
-                            className={cn('mr-1.5', !status.available && 'text-amber-600 dark:text-amber-300')}
+                            className={cn('me-1.5', !status.available && 'text-amber-600 dark:text-amber-300')}
                             kind={option.kind}
                           />
                           <span className="min-w-0 flex-1 truncate">{option.label || option.connectionId}</span>
@@ -959,7 +959,7 @@ export function BotsPane() {
                 ) : (
                   <RowButton
                     aria-expanded={hiddenExpanded}
-                    className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-[0.6875rem] font-medium text-(--ui-text-tertiary) transition-colors hover:bg-(--chrome-action-hover) hover:text-foreground"
+                    className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-start text-[0.6875rem] font-medium text-(--ui-text-tertiary) transition-colors hover:bg-(--chrome-action-hover) hover:text-foreground"
                     onClick={() => $showHiddenBots.set(!hiddenExpanded)}
                   >
                     <DisclosureCaret open={hiddenExpanded} />

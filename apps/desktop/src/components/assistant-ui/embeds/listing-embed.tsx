@@ -7,7 +7,7 @@ import { ImageLightbox } from '@/components/chat/zoomable-image'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
 import { useImageDownload } from '@/hooks/use-image-download'
-import { useI18n } from '@/i18n'
+import { useDirection, useI18n } from '@/i18n'
 import { ExternalLink } from '@/lib/external-link'
 import { type Listing, parseListings, specLine } from '@/lib/listing-embed'
 import { cn } from '@/lib/utils'
@@ -132,6 +132,7 @@ function ListingCard({ listing }: { listing: Listing }) {
  * which is where a big image belongs anyway.
  */
 function ListingGallery({ address, images }: { address: string; images: string[] }) {
+  const direction = useDirection()
   const { t } = useI18n()
   const [broken, setBroken] = useState<string[]>([])
   const [openAt, setOpenAt] = useState<number | null>(null)
@@ -142,15 +143,22 @@ function ListingGallery({ address, images }: { address: string; images: string[]
   const position = openAt === null ? 0 : Math.min(openAt, live.length - 1)
   const { download, saving } = useImageDownload(live[position])
 
-  // Page the set inside the lightbox — a full-size photo is the right place
-  // to go through 40 frames, and the arrow keys are what hands reach for.
+  // Page the set inside the lightbox: a full-size photo is the right place to
+  // go through 40 frames, and the arrow keys are what hands reach for.
   useEffect(() => {
     if (openAt === null || live.length < 2) {
       return
     }
 
+    // The arrows follow the reading direction, the way they do in the slide
+    // deck (office/slides-view.tsx). In Arabic the set advances leftwards, so
+    // the left arrow is the one that means "next" and a fixed ArrowRight would
+    // walk the gallery backwards.
+    const forward = direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
+    const backward = direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft'
+
     const onKey = (event: KeyboardEvent) => {
-      const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+      const delta = event.key === forward ? 1 : event.key === backward ? -1 : 0
 
       if (delta !== 0) {
         event.preventDefault()
@@ -161,7 +169,7 @@ function ListingGallery({ address, images }: { address: string; images: string[]
     window.addEventListener('keydown', onKey)
 
     return () => window.removeEventListener('keydown', onKey)
-  }, [live.length, openAt])
+  }, [direction, live.length, openAt])
 
   if (live.length === 0) {
     return null

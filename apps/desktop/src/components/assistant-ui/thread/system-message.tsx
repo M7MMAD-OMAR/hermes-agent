@@ -40,7 +40,7 @@ export const SystemMessage: FC = () => {
   // The self-improvement review saved something to memory/skills — the same
   // kind of event as a landed `memory` write, so it wears the same chrome:
   // brain glyph with the gold→purple glow, gradient label, purple detail,
-  // left-aligned in the reading column like every other scaffold line.
+  // aligned to the reading edge of the column like every other scaffold line.
   const reviewNote = text.match(REVIEW_NOTE_RE)
 
   if (reviewNote?.groups) {
@@ -87,7 +87,7 @@ export const SystemMessage: FC = () => {
   if (slashStatus?.groups) {
     const output = slashStatus.groups.output.trim()
     // Single-line status (e.g. "model → x") reads best centered inline; padded
-    // multiline output (catalogs, usage tables) needs left-aligned, wider room
+    // multiline output (catalogs, usage tables) needs start-aligned, wider room
     // or the column alignment breaks.
     const multiline = output.includes('\n')
 
@@ -95,7 +95,7 @@ export const SystemMessage: FC = () => {
       <MessagePrimitive.Root
         className={cn(
           'w-[60%] max-w-[44rem] self-center px-2 py-0.5 text-[0.6875rem] leading-5 text-muted-foreground/60',
-          multiline ? 'text-left' : 'text-center'
+          multiline ? 'text-start' : 'text-center'
         )}
         data-role="system"
         data-slot="aui_system-message-root"
@@ -109,7 +109,7 @@ export const SystemMessage: FC = () => {
             <LinkifiedText className="whitespace-pre-wrap" explicitOnly pretty={false} text={output} />
           </>
         )}{' '}
-        <MessageTimelineTimestamp className={cn(multiline ? 'mt-0.5 block' : 'ml-1.5')} />
+        <MessageTimelineTimestamp className={cn(multiline ? 'mt-0.5 block' : 'ms-1.5')} />
       </MessagePrimitive.Root>
     )
   }
@@ -120,13 +120,13 @@ export const SystemMessage: FC = () => {
     <MessagePrimitive.Root
       className={cn(
         'w-[60%] max-w-[44rem] self-center px-2 py-0.5 text-[0.6875rem] leading-5 text-muted-foreground/55',
-        multiline ? 'text-left' : 'text-center'
+        multiline ? 'text-start' : 'text-center'
       )}
       data-role="system"
       data-slot="aui_system-message-root"
     >
       <LinkifiedText className="whitespace-pre-wrap" explicitOnly pretty={false} text={text} />{' '}
-      <MessageTimelineTimestamp className={cn(multiline ? 'mt-0.5 block' : 'ml-1.5')} />
+      <MessageTimelineTimestamp className={cn(multiline ? 'mt-0.5 block' : 'ms-1.5')} />
     </MessagePrimitive.Root>
   )
 }

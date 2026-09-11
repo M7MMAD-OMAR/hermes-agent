@@ -1587,6 +1587,20 @@ body.guest-pointer-lock :is(webview, iframe) {
   text-align: left;
 }
 
+/* A diff is code, and code reads left to right whatever language the app is in.
+   Unscoped on purpose: diffs render in tool cards, the review panel and the
+   preview pane, all outside the assistant-markdown subtree the rule above is
+   nested in. Without this the whole box inherits RTL under Arabic, a row that
+   starts with a neutral (`+`, `-`, `{`, `//`) flips to the other edge and the
+   indentation runs from the right, which makes a hunk unreadable. `isolate`
+   keeps the box from voting on, or being reordered by, the surrounding run. */
+[data-slot='diff-lines'],
+[data-slot='file-diff-panel'] {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+
 [data-slot='aui_user-message-root'] {
   top: var(--sticky-human-top);
 }

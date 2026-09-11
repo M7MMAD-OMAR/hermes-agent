@@ -137,7 +137,7 @@ const InterAgentCollapsedNotice: FC<{ sender: string }> = ({ sender }) => (
       <summary className="cursor-pointer select-none text-center text-muted-foreground/45 hover:text-muted-foreground/70">
         show reply
       </summary>
-      <div className="mt-1 max-w-[36rem] rounded-lg border border-(--ui-stroke-tertiary) px-3 py-2 text-left text-[0.75rem] leading-5 text-foreground/85">
+      <div className="mt-1 max-w-[36rem] rounded-lg border border-(--ui-stroke-tertiary) px-3 py-2 text-start text-[0.75rem] leading-5 text-foreground/85">
         {MESSAGE_PARTS}
       </div>
     </details>
@@ -602,7 +602,7 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
     <div className="relative flex w-full shrink-0 items-center justify-end gap-1.5">
       {durationS !== undefined && (
         <span
-          className="mr-auto select-none px-0.5 text-[0.6875rem] leading-5 tabular-nums text-muted-foreground"
+          className="me-auto select-none px-0.5 text-[0.6875rem] leading-5 tabular-nums text-muted-foreground"
           data-slot="aui_turn-duration"
           title={t.assistant.thread.turnDuration(formatElapsed(durationS))}
         >

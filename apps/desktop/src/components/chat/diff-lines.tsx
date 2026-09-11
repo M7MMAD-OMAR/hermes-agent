@@ -63,6 +63,10 @@ const PREVIEW_OVERSCAN_LINES = 400
 // `overscroll-y-auto` so reaching the box's top/bottom hands the wheel back to
 // the page (no scroll-trap); `overscroll-x-contain` keeps a trackpad's sideways
 // overscroll on long code lines from firing browser back/forward navigation.
+// Both boxes that carry this class (`diff-lines`, `file-diff-panel`) are forced
+// to `direction: ltr` in styles.css, so every physical class below (`border-l`,
+// `left-0`, `pr-*`, `text-right`) is deliberate: inside that island left really
+// is the start of the line, in Arabic as much as in English.
 const DIFF_BOX_CLASS =
   '-mx-1.5 -mb-1.5 max-h-[12rem] max-w-none min-w-0 overflow-auto overscroll-x-contain overscroll-y-auto font-mono text-[0.7rem] leading-relaxed text-(--ui-text-secondary)'
 
@@ -644,7 +648,10 @@ export function FileDiffPanel({
   // full-Shiki-of-every-line freeze on large diffs). With `showLineNumbers` a
   // VS Code-style gutter (new number for context/adds, old for removals) sits in
   // a left column; the scroller owns scroll so the overview ruler (an absolute
-  // sibling) stays viewport-fixed.
+  // sibling) stays viewport-fixed. The gutter keeps physical `left-0` /
+  // `text-right` rather than logical `start-0` / `text-end`: this subtree is an
+  // LTR island (see DIFF_BOX_CLASS), so logical would resolve to the same edge
+  // and only hide the fact that the column is pinned to where code starts.
   return (
     <div className={cn(DIFF_BOX_CLASS, 'relative overflow-hidden', className)} data-slot="file-diff-panel">
       <div

@@ -139,7 +139,12 @@ export const SyntaxHighlighter: FC<HermesSyntaxHighlighterProps> = ({
   const plain = defer || exceedsHighlightBudget(content)
 
   return (
-    <CodeCard data-streaming={defer ? 'true' : undefined}>
+    // `dir="ltr"` because the card holds source, which reads left to right in
+    // every locale. The styles.css rule for `code-card` only reaches fences
+    // inside assistant markdown, and this renderer is also used outside it.
+    // With the card pinned to LTR the copy button's physical `right-1.5` is
+    // correct as written: it sits at the end of the line in Arabic too.
+    <CodeCard data-streaming={defer ? 'true' : undefined} dir="ltr">
       <CopyButton
         appearance="inline"
         className="absolute right-1.5 top-1.5 z-10 h-5 gap-0 rounded-md px-1 opacity-0 transition-opacity group-hover/code:opacity-100 focus-visible:opacity-100"

@@ -18,13 +18,17 @@ const VIEWPORT = '[data-slot="aui_thread-viewport"]'
 const HOVER_CLOSE_MS = 140
 
 const ROW_CLASS =
-  'row-hover relative flex w-full min-w-0 max-w-full select-none overflow-hidden rounded-md px-2 py-1 text-left outline-hidden'
+  'row-hover relative flex w-full min-w-0 max-w-full select-none overflow-hidden rounded-md px-2 py-1 text-start outline-hidden'
 
 // Surface (border-color/bg/shadow/blur) comes from the shared
 // `[data-slot='thread-timeline-popover']` rule in styles.css, so it's 1:1 with
 // the dropdown/select/dialog menus. We only own layout + the border/radius here.
+// `end-full` (not `right-full`), because the rail is pinned to the viewport's
+// trailing edge and the flyout has to open inward from it. Physical `right-*`
+// put both on the right under Arabic, which threw the list off-screen across
+// the message column.
 const POPOVER_SHELL =
-  'absolute right-full top-1/2 z-50 max-h-[min(22rem,calc(100vh-8rem))] w-80 max-w-[min(20rem,calc(100vw-2rem))] -translate-y-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border p-1 text-popover-foreground transition-[opacity,transform] duration-100 ease-out group-hover/timeline:transition-none'
+  'absolute end-full top-1/2 z-50 max-h-[min(22rem,calc(100vh-8rem))] w-80 max-w-[min(20rem,calc(100vw-2rem))] -translate-y-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border p-1 text-popover-foreground transition-[opacity,transform] duration-100 ease-out group-hover/timeline:transition-none'
 
 function userPromptText(content: unknown): string {
   if (typeof content === 'string') {
@@ -322,7 +326,7 @@ const ActiveThreadTimeline: FC = () => {
   return (
     <div
       aria-label="Conversation timeline"
-      className="group/timeline pointer-events-auto absolute right-0 top-1/2 z-40 flex -translate-y-1/2 flex-col items-end"
+      className="group/timeline pointer-events-auto absolute end-0 top-1/2 z-40 flex -translate-y-1/2 flex-col items-end"
       data-slot="thread-timeline"
       data-suppress-pane-reveal=""
       onMouseEnter={keepOpen}
@@ -365,7 +369,11 @@ const TimelinePopover: FC<{
     <div
       className={cn(
         POPOVER_SHELL,
-        open ? 'pointer-events-auto opacity-100 translate-x-0' : 'pointer-events-none translate-x-1 opacity-0'
+        open
+          ? 'pointer-events-auto translate-x-0 opacity-100'
+          : // The closed state rests a hair toward the rail, so the mirrored layout
+            // needs the mirrored nudge.
+            'pointer-events-none translate-x-1 opacity-0 rtl:-translate-x-1'
       )}
       data-slot="thread-timeline-popover"
     >
@@ -400,7 +408,7 @@ const TimelineTicks: FC<{
     {entries.map((entry, index) => (
       <button
         aria-label={entry.preview}
-        className="flex h-2 w-7 cursor-pointer items-center justify-end pr-1"
+        className="flex h-2 w-7 cursor-pointer items-center justify-end pe-1"
         key={entry.id}
         onClick={() => onJump(entry.id)}
         type="button"

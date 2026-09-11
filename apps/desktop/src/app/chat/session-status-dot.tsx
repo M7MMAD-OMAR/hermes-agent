@@ -180,7 +180,7 @@ export function SessionStatusDot({ storedSessionId, session, branchStem, chip, c
         <span
           aria-hidden="true"
           className={cn(
-            'ml-1 shrink-0 rounded px-1 text-[0.625rem] font-medium uppercase leading-4 tracking-wide',
+            'ms-1 shrink-0 rounded px-1 text-[0.625rem] font-medium uppercase leading-4 tracking-wide',
             CHIP_VARIANTS[dotState]!.className
           )}
         >

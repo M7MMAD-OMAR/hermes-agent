@@ -1475,7 +1475,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
             <div className="min-w-0 flex-1">
               <Tip label={copy.openTarget(currentUrl)}>
                 <a
-                  className="pointer-events-auto inline max-w-full truncate text-left text-xs font-medium text-foreground underline-offset-4 decoration-current/20 transition-colors hover:text-primary hover:underline"
+                  className="pointer-events-auto inline max-w-full truncate text-start text-xs font-medium text-foreground underline-offset-4 decoration-current/20 transition-colors hover:text-primary hover:underline"
                   href={isRemoteHtmlTarget ? undefined : currentUrl}
                   onClick={event => {
                     if (isRemoteHtmlTarget) {

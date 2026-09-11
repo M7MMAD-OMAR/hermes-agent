@@ -145,7 +145,7 @@ function EmbeddedTab({
         <Tip label={agentLabel}>
           <span
             aria-label={agentLabel}
-            className="ml-1.5 shrink-0 text-(--ui-accent)"
+            className="ms-1.5 shrink-0 text-(--ui-accent)"
             data-agent-tab=""
             role="img"
           >
@@ -155,7 +155,7 @@ function EmbeddedTab({
       )}
       <button
         aria-label={browserTabLabel(tab.target)}
-        className={cn('min-w-0 max-w-40 truncate py-0.5 text-left', tab.agent ? 'pl-1 pr-2' : 'px-2')}
+        className={cn('min-w-0 max-w-40 truncate py-0.5 text-start', tab.agent ? 'ps-1 pe-2' : 'px-2')}
         onClick={event => {
           // ⌘-click closes, matching PaneTab — claimed before the activate so a
           // closing click can't also select the tab it just removed.
@@ -174,7 +174,7 @@ function EmbeddedTab({
       </button>
       <button
         aria-label={closeLabel}
-        className="mr-1 hidden rounded p-px hover:bg-(--ui-hover) group-hover:block"
+        className="me-1 hidden rounded p-px hover:bg-(--ui-hover) group-hover:block"
         onClick={onClose}
         tabIndex={-1}
         type="button"

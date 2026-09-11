@@ -1208,7 +1208,7 @@ export function ChatBar({
         />
       </ComposerPrimitive.Input>
       {/* The send control lives INSIDE the field, bottom-right. `pointer-events`
-        stay on: it is a real button, and the editor's pr-12 keeps text clear. */}
+        stay on: it is a real button, and the editor's pe-12 keeps text clear. */}
       <div className="absolute bottom-[0.3125rem] end-1 z-2">{sendControl}</div>
     </div>
   )

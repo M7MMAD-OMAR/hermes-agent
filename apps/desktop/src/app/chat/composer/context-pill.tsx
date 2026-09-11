@@ -138,7 +138,7 @@ export function ContextPill({
               />
             </span>
             {!compact && (
-              <span className="min-w-6 text-right">
+              <span className="min-w-6 text-end">
                 {known && clamped !== null ? `${clamped}%` : '—'}
               </span>
             )}

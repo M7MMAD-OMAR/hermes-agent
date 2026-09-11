@@ -925,7 +925,7 @@ function FleetDivider({
   const marker = (
     <span
       aria-hidden="true"
-      className={cn('flex h-5 shrink-0 items-center gap-0.5', first ? 'mr-0.5' : 'mx-0.5')}
+      className={cn('flex h-5 shrink-0 items-center gap-0.5', first ? 'me-0.5' : 'mx-0.5')}
       data-connection-id={connectionId}
       data-reachable={reachable}
       data-slot="profile-rail-divider"
@@ -1281,7 +1281,7 @@ function ProfileSquare({
                     {remoteHost && (
                       <span
                         aria-hidden="true"
-                        className="absolute -right-0.5 -top-0.5 grid size-2 place-items-center rounded-full bg-(--ui-panel-background)"
+                        className="absolute -end-0.5 -top-0.5 grid size-2 place-items-center rounded-full bg-(--ui-panel-background)"
                         data-slot="profile-remote-badge"
                       >
                         <Codicon name="globe" size="0.5rem" />

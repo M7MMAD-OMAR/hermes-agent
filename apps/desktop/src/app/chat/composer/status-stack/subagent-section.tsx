@@ -46,7 +46,7 @@ function RosterRow({
   return (
     <button
       aria-expanded={expanded}
-      className="flex w-full min-w-0 items-start gap-2 px-2 py-1 text-left"
+      className="flex w-full min-w-0 items-start gap-2 px-2 py-1 text-start"
       onClick={onToggle}
       ref={enterRef}
       type="button"

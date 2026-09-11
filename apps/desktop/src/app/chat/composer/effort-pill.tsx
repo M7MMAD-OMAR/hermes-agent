@@ -184,7 +184,7 @@ export function EffortPill({
                   {/* Travelled portion, ending under the thumb's centre. */}
                   <div
                     aria-hidden
-                    className="pointer-events-none absolute left-0 h-5 rounded-full bg-(--ui-control-hover-background) transition-[width] duration-150"
+                    className="pointer-events-none absolute start-0 h-5 rounded-full bg-(--ui-control-hover-background) transition-[width] duration-150"
                     style={{
                       width: `calc(${activeFraction} * (100% - var(--effort-thumb)) + var(--effort-thumb) / 2)`
                     }}

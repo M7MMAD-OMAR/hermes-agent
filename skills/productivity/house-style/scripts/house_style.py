@@ -205,7 +205,10 @@ DOC_TYPE = {
     "title": 28, "h1": 22, "h2": 17, "h3": 14, "h4": 11,
     "body": 11, "lead": 12, "quote": 11,
     "table": 10, "table_head": 10,
-    "caption": 9, "footer": 9,
+    # A hanging label on an aside is 80 percent of body, the size Tufte
+    # sets a margin note at. It is a role of the system, not an
+    # improvised size, which is why the lint knows about it.
+    "caption": 9, "kicker": 8, "footer": 9,
 }
 
 SHEET_TYPE = {"body": 11, "head": 11, "title": 14, "note": 9}

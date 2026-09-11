@@ -858,7 +858,7 @@ def add_callout(doc, spec: dict, theme=_AUTO):
         # published examples carry one or the other and never both.
         if label:
             kicker, run = new_paragraph(label if rtl else label.upper(),
-                                        _doc_size(theme, "caption", 9) - 1,
+                                        _doc_size(theme, "kicker", 8),
                                         bold=True, color=accent_text)
             if not rtl:
                 _track(run, 12)

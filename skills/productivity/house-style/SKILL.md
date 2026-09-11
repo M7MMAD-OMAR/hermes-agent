@@ -213,7 +213,10 @@ and only one of them is safe to act on.
   renderers, so an overflow check against it is wrong in both directions.
 - **The lint reads the file, not your intentions.** Run it on the file
   you are about to deliver, not on the draft you rendered from.
-- **Overflow is invisible to the lint.** It reads text and formatting,
-  not geometry. Render the deck (`pptx_render.py`) and look at the PNGs;
-  the commonest defect in generated output is text that runs past its
-  box, and it passes every text check ever written.
+- **The lint now reads geometry, but it does not render.** It measures
+  text against its box, flags a shape off the slide or inside the safe
+  margin, finds overlapping boxes, and resolves what is actually behind
+  a text run through z-order before scoring its contrast. The line count
+  is an estimate, not a render, so the number is approximate even where
+  the spill is real. Rendering (`pptx_render.py`) is still the last
+  check before a deck ships.

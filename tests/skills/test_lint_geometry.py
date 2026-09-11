@@ -92,6 +92,17 @@ def _panel(slide, box, fill, *, name):
     return shape
 
 
+def _fill_shape_text(shape, text, *, size, color):
+    from pptx.dml.color import RGBColor
+    from pptx.util import Pt
+
+    run = shape.text_frame.paragraphs[0].add_run()
+    run.text = text
+    run.font.size = Pt(size)
+    run.font.color.rgb = RGBColor.from_string(color)
+    return shape
+
+
 def _rules(findings, name):
     return [f for f in findings if f["rule"] == name]
 
@@ -249,6 +260,27 @@ def test_two_overlapping_cards_are_reported_as_a_pair(lint, tmp_path):
     assert "2.00 x 1.60 in" in hits[0]["detail"]
 
 
+def test_two_plain_text_boxes_that_collide_are_reported(lint, tmp_path):
+    """The commonest real collision: a title band pushed into the body.
+
+    Neither box has a fill, so no backdrop exclusion can quiet it, which
+    is the point: nothing is behind anything, the words are simply on top
+    of each other.
+    """
+    prs, slide = _deck()
+    _textbox(slide, (0.7, 0.7, 12.0, 1.4), "A title that took two lines",
+             name="title band", size=40)
+    _textbox(slide, (0.7, 1.8, 7.5, 3.0), "The first bullet of the body",
+             name="body band")
+    path = tmp_path / "collide.pptx"
+    prs.save(str(path))
+
+    hits = _rules(lint.geometry_findings(path), "shape_overlap")
+    assert len(hits) == 1
+    assert "title band" in hits[0]["detail"]
+    assert "body band" in hits[0]["detail"]
+
+
 def test_a_card_behind_its_own_text_is_not_an_overlap(lint, tmp_path):
     prs, slide = _deck()
     _panel(slide, (1.0, 2.0, 6.0, 2.0), "F2F0EB", name="house card")
@@ -309,6 +341,35 @@ def test_large_type_is_held_to_the_lower_floor(lint, tmp_path):
     names = " ".join(f["detail"] for f in hits)
     assert "stat label" in names
     assert "stat value" not in names
+
+
+def test_a_filled_callout_is_the_backdrop_for_its_own_text(lint, tmp_path):
+    """White on a dark callout is right, and it is the deck we ship.
+
+    Resolving the backdrop from the shapes underneath only, and stopping
+    there, scored the white text against the white slide behind the
+    callout and called a correct shape unreadable.
+    """
+    prs, slide = _deck()
+    panel = _panel(slide, (8.0, 2.0, 3.0, 1.0), "1F4E79", name="callout")
+    _fill_shape_text(panel, "Ship in October", size=18, color="FFFFFF")
+    path = tmp_path / "callout.pptx"
+    prs.save(str(path))
+
+    assert _rules(lint.geometry_findings(path), "low_contrast_in_place") == []
+
+
+def test_a_pale_callout_still_fails_on_its_own_fill(lint, tmp_path):
+    prs, slide = _deck()
+    panel = _panel(slide, (8.0, 2.0, 3.0, 1.0), "F2F0EB", name="callout")
+    _fill_shape_text(panel, "Ship in October", size=18, color="FFFFFF")
+    path = tmp_path / "pale.pptx"
+    prs.save(str(path))
+
+    hits = _rules(lint.geometry_findings(path), "low_contrast_in_place")
+    # The slide behind the callout is white, so only the shape's own fill
+    # can put this hex in the finding.
+    assert hits and "F2F0EB" in hits[0]["detail"]
 
 
 def test_contrast_is_skipped_over_a_picture(lint, tmp_path):
@@ -407,6 +468,10 @@ CLEAN_SPEC = {"slides": [
      "attribution": "Head of Support"},
     {"layout": "closing", "text": "Ship the pricing change in October.",
      "contact": "finance@example.com"},
+    {"layout": "blank", "title": "Callout",
+     "shapes": [{"type": "rounded_rectangle", "left": 8, "top": 2,
+                 "width": 3, "height": 1, "fill": "1F4E79",
+                 "text": "Ship in October", "text_color": "FFFFFF"}]},
 ]}
 
 
@@ -432,6 +497,50 @@ def test_a_house_deck_has_no_geometry_findings(lint, clean_deck):
     """
     findings = lint.geometry_findings(clean_deck)
     assert findings == [], findings
+
+
+def test_an_arabic_cover_is_not_called_an_overflow(lint, tmp_path):
+    """The estimate is one character from a second line, the page is not.
+
+    A 31 character Arabic title at 56 pt across a 30 character measure
+    rounds up to two lines and sets as one. Rendered at 100 dpi it fills
+    a little over half its band.
+    """
+    spec = tmp_path / "deck.json"
+    spec.write_text(json.dumps({"slides": [
+        {"layout": "title", "title": "مراجعة الربع الثالث لعام الشركة",
+         "subtitle": "الإدارة المالية، تشرين الأول"},
+        {"layout": "cards", "title": "ما الذي تغير",
+         "cards": [{"label": "التسعير", "body": "خطة واحدة تدفع سنويا."},
+                   {"label": "التسجيل", "body": "خطوتان بدل تسع."}]},
+    ]}, ensure_ascii=False), encoding="utf-8")
+    deck = tmp_path / "deck.pptx"
+    run = subprocess.run([sys.executable, str(PPTX_CREATE), str(spec),
+                          str(deck)], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+
+    findings = lint.geometry_findings(deck)
+    assert findings == [], findings
+
+
+def test_the_safe_margin_follows_the_canvas_in_hand(lint, tmp_path):
+    """A 4:3 deck is a smaller sheet, not a deck with fatter margins.
+
+    Held against the 13.333 in geometry unscaled, every shape on a 10 in
+    canvas that sits correctly at 0.5 in reads as inside the margin.
+    """
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(10), Inches(7.5)
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    # 0.667 in on the 13.333 in canvas is 0.5 in on this one.
+    _textbox(slide, (0.5, 1.0, 9.0, 0.5), "On the grid", name="body")
+    path = tmp_path / "four_three.pptx"
+    prs.save(str(path))
+
+    assert _rules(lint.geometry_findings(path), "out_of_margin") == []
 
 
 def test_only_geometry_returns_geometry_alone(lint, clean_deck):

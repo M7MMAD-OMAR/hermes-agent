@@ -465,7 +465,12 @@ function Column({
           onClick={onToggle}
           type="button"
         >
-          <Codicon name="chevron-left" size="0.75rem" />
+          {/* The glyph points at the edge the column collapses toward, which
+              mirrors with the board. A plugin cannot read the app's locale
+              context, so the flip is a CSS variant rather than a hook. */}
+          <span className="grid rtl:-scale-x-100">
+            <Codicon name="chevron-left" size="0.75rem" />
+          </span>
         </button>
       </header>
       <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">

@@ -127,10 +127,10 @@ function TopCenterStack({
       {expanded && older.map(n => <NotificationItem key={n.id} notification={n} />)}
       {older.length > 0 && (
         <div className={cn(STACK_SURFACE, 'flex min-h-8 items-center justify-between rounded-lg px-3 text-xs')}>
-          <Button className="-ml-2" onClick={onToggleExpanded} size="xs" type="button" variant="text">
+          <Button className="-ms-2" onClick={onToggleExpanded} size="xs" type="button" variant="text">
             {expanded ? copy.hide : copy.show} {copy.more(older.length)}
           </Button>
-          <Button className="-mr-2" onClick={clearNotifications} size="xs" type="button" variant="text">
+          <Button className="-me-2" onClick={clearNotifications} size="xs" type="button" variant="text">
             {copy.clearAll}
           </Button>
         </div>
@@ -210,7 +210,7 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
   return (
     <Alert
       aria-live={notification.kind === 'error' ? 'assertive' : 'polite'}
-      className={cn(STACK_SURFACE, 'grid-cols-[auto_minmax(0,1fr)_auto] pr-2.5')}
+      className={cn(STACK_SURFACE, 'grid-cols-[auto_minmax(0,1fr)_auto] pe-2.5')}
       role={notification.kind === 'error' ? 'alert' : 'status'}
       variant={styles.variant}
     >
@@ -221,13 +221,19 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
       )}
       <div className="col-start-2 min-w-0">
         {notification.title && (
-          <AlertTitle className={toastTitleClassName()} title={notification.title}>
+          <AlertTitle className={toastTitleClassName()} dir="auto" title={notification.title}>
             {notification.title}
           </AlertTitle>
         )}
         <AlertDescription className="col-start-auto">
-          <p className="m-0 wrap-break-word">{renderMessage(notification.message, accent)}</p>
-          {notification.meta && <p className="m-0 text-xs text-muted-foreground tabular-nums">{notification.meta}</p>}
+          <p className="m-0 wrap-break-word" dir="auto">
+            {renderMessage(notification.message, accent)}
+          </p>
+          {notification.meta && (
+            <p className="m-0 text-xs text-muted-foreground tabular-nums" dir="auto">
+              {notification.meta}
+            </p>
+          )}
           {hasDetail && <NotificationDetail detail={notification.detail || ''} />}
           {notification.action && (
             <Button
@@ -247,7 +253,7 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
       </div>
       <Button
         aria-label={copy.dismiss}
-        className="col-start-3 -mr-1 text-muted-foreground"
+        className="col-start-3 -me-1 text-muted-foreground"
         onClick={() => dismissNotification(notification.id)}
         size="icon-xs"
         type="button"
@@ -270,6 +276,7 @@ function NotificationDetail({ detail }: { detail: string }) {
         <pre
           className="max-h-32 whitespace-pre-wrap wrap-break-word font-mono text-[0.6875rem] leading-relaxed"
           data-selectable-text="true"
+          dir="auto"
         >
           {detail}
         </pre>

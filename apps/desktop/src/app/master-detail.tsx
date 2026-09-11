@@ -89,15 +89,23 @@ export function MasterDetail({
 
     event.preventDefault()
     const startX = event.clientX
-    const startWidth = (grid.children[0] as HTMLElement).getBoundingClientRect().width
-    const max = Math.max(SPLIT_MIN_LEFT_PX, grid.getBoundingClientRect().width - SPLIT_MIN_RIGHT_PX)
+    const gridBox = grid.getBoundingClientRect()
+    const listBox = (grid.children[0] as HTMLElement).getBoundingClientRect()
+    // The grid mirrors under RTL, so the list is not always the left column,
+    // while the pointer axis still runs left to right. Read which physical edge
+    // of the grid the list is pinned to instead of assuming: widening always
+    // means the seam moved away from that outer edge, so the delta's sign has
+    // to flip when the list sits on the right. Same trick the embedded browser
+    // panel's seam uses.
+    const listOnLeft = listBox.left <= gridBox.left + 1
+    const startWidth = listBox.width
+    const max = Math.max(SPLIT_MIN_LEFT_PX, gridBox.width - SPLIT_MIN_RIGHT_PX)
     setDragging(true)
 
     const onMove = (move: globalThis.PointerEvent) => {
-      setPaneWidthOverride(
-        resizeId,
-        Math.round(Math.min(max, Math.max(SPLIT_MIN_LEFT_PX, startWidth + (move.clientX - startX))))
-      )
+      const delta = listOnLeft ? move.clientX - startX : startX - move.clientX
+
+      setPaneWidthOverride(resizeId, Math.round(Math.min(max, Math.max(SPLIT_MIN_LEFT_PX, startWidth + delta))))
     }
 
     const onUp = () => {
@@ -128,13 +136,13 @@ export function MasterDetail({
             {list}
             <div className="relative grid min-h-0 min-w-0">
               <div
-                className="group/vsash absolute inset-y-0 left-0 z-10 hidden w-1 -translate-x-1/2 cursor-col-resize sm:block"
+                className="group/vsash absolute inset-y-0 start-0 z-10 hidden w-1 -translate-x-1/2 cursor-col-resize sm:block"
                 onDoubleClick={() => setPaneWidthOverride(resizeId, undefined)}
                 onPointerDown={startSplitDrag}
               >
                 <div
                   className={cn(
-                    'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors',
+                    'absolute inset-y-0 start-1/2 w-px -translate-x-1/2 transition-colors',
                     dragging ? 'bg-(--ui-stroke-secondary)' : 'group-hover/vsash:bg-(--ui-stroke-secondary)'
                   )}
                 />
@@ -178,7 +186,7 @@ export function DetailColumn({
         <div className="mx-auto max-w-2xl space-y-5 px-5 py-4">{children}</div>
       </div>
       {footer && (
-        <div className="mx-auto w-full max-w-2xl shrink-0 px-5 pb-3 pt-1.5 text-right text-[0.65rem] text-muted-foreground/50">
+        <div className="mx-auto w-full max-w-2xl shrink-0 px-5 pb-3 pt-1.5 text-end text-[0.65rem] text-muted-foreground/50">
           {footer}
         </div>
       )}
@@ -283,7 +291,7 @@ export function DetailPane({
       </div>
       <header className="flex h-9 shrink-0 items-center gap-2 px-3">
         <span className="min-w-0 truncate text-xs font-medium text-foreground">{title}</span>
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        <div className="ms-auto flex shrink-0 items-center gap-1.5">
           {actions}
           <Tip label={collapsed ? t.common.expand : t.common.collapse}>
             <Button
@@ -315,7 +323,7 @@ export function DetailPane({
 // left, overflow kebab on the right.
 export function ListStrip({ left, right }: { left?: ReactNode; right?: ReactNode }) {
   return (
-    <div className="mb-1 flex h-6 shrink-0 items-center justify-between gap-2 pl-2 pr-1">
+    <div className="mb-1 flex h-6 shrink-0 items-center justify-between gap-2 ps-2 pe-1">
       <div className="flex min-w-0 items-center gap-1.5">{left}</div>
       <div className="flex shrink-0 items-center gap-1.5">{right}</div>
     </div>
@@ -464,7 +472,7 @@ export function CapRow({
       id={rowId}
     >
       <RowButton
-        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md pl-2 pr-1.5 text-left"
+        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md ps-2 pe-1.5 text-start"
         onClick={onSelect}
       >
         <span className="min-w-0 flex-1">
@@ -489,12 +497,12 @@ export function CapRow({
         )}
       </RowButton>
       {action != null ? (
-        <span className="mr-1.5 flex shrink-0 items-center">{action}</span>
+        <span className="me-1.5 flex shrink-0 items-center">{action}</span>
       ) : (
         <Switch
           aria-label={toggleLabel ?? title}
           checked={enabled}
-          className={cn('mr-1.5 shrink-0 cursor-pointer', !enabled && 'opacity-60')}
+          className={cn('me-1.5 shrink-0 cursor-pointer', !enabled && 'opacity-60')}
           disabled={busy}
           onCheckedChange={onToggle}
           size="xs"

@@ -20,7 +20,7 @@ import { HighlightMatches } from '@/components/ui/highlight-matches'
 import { KbdCombo } from '@/components/ui/kbd'
 import { getHermesConfigRecord, listAllProfileSessions } from '@/hermes'
 import { useMediaQuery } from '@/hooks/use-media-query'
-import { useI18n } from '@/i18n'
+import { useDirection, useI18n } from '@/i18n'
 import { sessionTitle } from '@/lib/chat-runtime'
 import {
   Activity,
@@ -335,8 +335,11 @@ const PaletteRow = memo(function PaletteRow({
   search: string
 }) {
   const Icon = item.icon
+  // The submenu chevron is navigation, not decoration, so it points the way the
+  // palette actually drills in: toward the end of the row in either direction.
+  const SubmenuChevron = useDirection() === 'rtl' ? ChevronLeft : ChevronRight
   // The row's live keybind, else a static modifier-variant hint (⌘↵). One slot,
-  // so every downstream `ml-auto` fallback below keeps working unchanged.
+  // so every downstream `ms-auto` fallback below keeps working unchanged.
   // `bindingsFor`, not a raw lookup: a plugin's action is contributed after
   // $bindings was seeded, so its combo only resolves through the fallback chain.
   const combo = (item.action ? bindingsFor(item.action, bindings)[0] : undefined) ?? item.comboHint
@@ -366,10 +369,10 @@ const PaletteRow = memo(function PaletteRow({
         <span className={cn(HUD_NOTE, HUD_NOTE_VARIANT[item.detailVariant ?? 'muted'])}>{item.detail}</span>
       )}
       {combo && (
-        <KbdCombo className={cn('ml-auto', modPreview ? 'opacity-90' : 'opacity-55')} combo={combo} size="sm" />
+        <KbdCombo className={cn('ms-auto', modPreview ? 'opacity-90' : 'opacity-55')} combo={combo} size="sm" />
       )}
-      {item.to && <ChevronRight className={cn('size-3.5 shrink-0 text-muted-foreground/70', !combo && 'ml-auto')} />}
-      {item.active && <Check className={cn('size-3.5 shrink-0 text-primary', !combo && !item.to && 'ml-auto')} />}
+      {item.to && <SubmenuChevron className={cn('size-3.5 shrink-0 text-muted-foreground/70', !combo && 'ms-auto')} />}
+      {item.active && <Check className={cn('size-3.5 shrink-0 text-primary', !combo && !item.to && 'ms-auto')} />}
     </CommandItem>
   )
 })
@@ -551,6 +554,8 @@ export function CommandPalette() {
 
 function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   const { t } = useI18n()
+  // Back points the way you came from, which is the start edge in either script.
+  const BackChevron = useDirection() === 'rtl' ? ChevronRight : ChevronLeft
   const pendingPage = useStore($commandPalettePage)
   const pendingSeed = useStore($commandPaletteSeed)
   const bindings = useStore($bindings)
@@ -1552,11 +1557,11 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
           <HighlightWatcher onValue={handleHighlight} />
           {activePage && (
             <button
-              className="flex w-full items-center gap-1.5 border-b border-border px-3 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
+              className="flex w-full items-center gap-1.5 border-b border-border px-3 py-1.5 text-start text-xs text-muted-foreground transition-colors hover:text-foreground"
               onClick={goBack}
               type="button"
             >
-              <ChevronLeft className="size-3.5" />
+              <BackChevron className="size-3.5" />
               <span>{t.commandCenter.back}</span>
               <span className="text-muted-foreground/50">/</span>
               <span className="font-medium text-foreground">{activePage.title}</span>

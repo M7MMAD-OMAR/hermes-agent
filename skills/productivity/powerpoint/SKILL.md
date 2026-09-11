@@ -207,6 +207,8 @@ sibling `house-style` skill is not installed beside this one. The pass
 fills in only what the spec left unset, so an explicit size, color or
 fill in the spec still wins.
 
+Tables are ruled in both directions in a quiet grey, with a tinted header row and numbers right aligned. `{"theme": {"table_style": "rules"}}` switches to three horizontal rules and no vertical ones.
+
 Change it or drop it with `"theme": "slate"`,
 `"theme": {"name": "editorial", "accent": "1F4E79"}`, or
 `"theme": false` in the spec, or `--no-theme` on the command line. The

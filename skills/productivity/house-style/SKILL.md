@@ -115,12 +115,17 @@ The short version:
   `python scripts/house_style.py --check-contrast`.
 - **Spacing.** 4 pt atom, 8 pt step. A 16:9 slide is 960 x 540 pt, and
   540 is not divisible by 8, which is why the atom is 4.
-- **Tables.** No vertical rules. A reader still has to tell one column
-  from the next, so the work is done by a tinted header band (a filled
-  accent band on a slide, a light accent tint in a document), a bold
-  first column, row banding once the table is long, and numbers right
-  aligned under a right aligned header. Word's "Table Grid", which boxes
-  every cell, reads as a spreadsheet screenshot.
+- **Tables.** Ruled in both directions by default, in a grey light
+  enough to sit under the text: a half point hairline inside, a full
+  point around the edge, a tinted header band, a bold first column, a
+  very quiet band on alternate rows once the table is long, and numbers
+  right aligned under a right aligned header. Word's own "Table Grid" is
+  not that: it rules every cell in near black, which is what makes a
+  table shout.
+
+  `{"theme": {"table_style": "rules"}}`, or `HERMES_HOUSE_TABLE=rules`,
+  switches to the booktabs convention instead: three horizontal rules,
+  nothing vertical, for a document that wants the quieter print look.
 - **Charts.** One accent hue unless the data has a real categorical
   dimension, no gridlines, no legend for a single series, numbers on the
   bars instead of a value axis.

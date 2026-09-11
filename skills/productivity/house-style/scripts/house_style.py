@@ -147,7 +147,9 @@ class Palette:
     paper: str          # page and slide background
     surface: str        # cards, table header bands, callouts
     muted: str          # captions, sources, secondary text
-    line: str           # hairlines, table rules, chart gridlines
+    line: str           # hairlines, chart gridlines
+    grid: str           # table rules, both directions
+    band: str           # the quieter of two alternating table rows
     accent: str         # rules, keylines, the first data series
     accent_soft: str    # accent at background strength
     accent_text: str    # accent dark enough to set text in
@@ -158,21 +160,21 @@ class Palette:
 
 _EDITORIAL = Palette(
     ink="1B1A18", paper="FFFFFF", surface="F6F3EE", muted="6E685F",
-    line="D9D2C7", accent="B4482E", accent_soft="F6E7E2", accent_text="8E3823",
+    line="D9D2C7", grid="CFC9C0", band="F8F6F3", accent="B4482E", accent_soft="F6E7E2", accent_text="8E3823",
     positive="3F6B4F", negative="9B3226",
     series=["B4482E", "27566B", "C9922B", "6E685F", "9BB0A5"],
 )
 
 _SLATE = Palette(
     ink="15181D", paper="FFFFFF", surface="F3F5F8", muted="5B6675",
-    line="D5DBE3", accent="27566B", accent_soft="E4EBF0", accent_text="1E4354",
+    line="D5DBE3", grid="C9D0DA", band="F7F9FB", accent="27566B", accent_soft="E4EBF0", accent_text="1E4354",
     positive="2F6B57", negative="A33B33",
     series=["27566B", "C08A3E", "5E7B8C", "3F6B4F", "9AA7B4"],
 )
 
 _MONO = Palette(
     ink="111111", paper="FFFFFF", surface="F4F4F4", muted="6B6B6B",
-    line="D8D8D8", accent="111111", accent_soft="EDEDED", accent_text="111111",
+    line="D8D8D8", grid="CCCCCC", band="F7F7F7", accent="111111", accent_soft="EDEDED", accent_text="111111",
     positive="3F6B4F", negative="9B3226",
     series=["111111", "5A5A5A", "8C8C8C", "B5B5B5", "D8D8D8"],
 )
@@ -281,11 +283,19 @@ def line_spacing_for(text: str, *, latin: float = 1.20,
     return arabic if is_arabic(text) else latin
 
 
+# How a table is ruled. "grid" rules every column and row in a quiet grey,
+# which is what most readers of a business document expect and ask for.
+# "rules" is the booktabs convention: three horizontal rules, nothing
+# vertical. Both keep the header band and the banding.
+TABLE_STYLES = ("grid", "rules")
+
+
 @dataclass
 class Theme:
     name: str
     palette: Palette
     fonts: dict
+    table_style: str = "grid"
     deck: dict = field(default_factory=lambda: dict(DECK_TYPE))
     doc: dict = field(default_factory=lambda: dict(DOC_TYPE))
     sheet: dict = field(default_factory=lambda: dict(SHEET_TYPE))
@@ -300,6 +310,7 @@ class Theme:
     def as_dict(self) -> dict:
         return {
             "name": self.name, "palette": self.palette.__dict__,
+            "table_style": self.table_style,
             "fonts": self.fonts, "deck_type": self.deck, "doc_type": self.doc,
             "sheet_type": self.sheet, "geometry": self.geometry,
             "page": self.page, "limits": LIMITS,
@@ -366,7 +377,7 @@ def resolve_font(candidates, fallback: str | None = None) -> str:
 
 
 def load_theme(name: str | None = None, accent: str | None = None,
-               fonts: dict | None = None) -> Theme:
+               fonts: dict | None = None, table_style: str | None = None) -> Theme:
     """Build a theme. ``HERMES_HOUSE_THEME``/``HERMES_HOUSE_ACCENT`` win
     when the caller passes nothing, so a user can set the house look once
     for every deliverable the desk produces."""
@@ -385,7 +396,13 @@ def load_theme(name: str | None = None, accent: str | None = None,
     }
     if fonts:
         resolved.update({k: v for k, v in fonts.items() if v})
-    return Theme(name=str(name).lower(), palette=palette, fonts=resolved)
+    style = (table_style or os.environ.get("HERMES_HOUSE_TABLE")
+             or "grid").lower()
+    if style not in TABLE_STYLES:
+        raise ValueError(f"unknown table style {style!r}; "
+                         f"have {list(TABLE_STYLES)}")
+    return Theme(name=str(name).lower(), palette=palette, fonts=resolved,
+                 table_style=style)
 
 
 def theme_from_spec(spec: dict | None) -> Theme | None:
@@ -405,7 +422,7 @@ def theme_from_spec(spec: dict | None) -> Theme | None:
         return load_theme(value)
     if isinstance(value, dict):
         return load_theme(value.get("name"), value.get("accent"),
-                          value.get("fonts"))
+                          value.get("fonts"), value.get("table_style"))
     raise ValueError('"theme" must be false, a preset name, or an object')
 
 
@@ -585,16 +602,29 @@ def _docx_table(table, theme: Theme):
 
     p, t = theme.palette, theme.doc
     tbl_pr = table._tbl.tblPr
-    _docx_borders(tbl_pr, {
-        "top": {"val": "single", "sz": 8, "color": p.ink},
-        "bottom": {"val": "single", "sz": 8, "color": p.ink},
-        "left": {"val": "none", "sz": 0, "color": "auto"},
-        "right": {"val": "none", "sz": 0, "color": "auto"},
-        # Booktabs: three rules and nothing else. Rules between every body
-        # row turn a table into a spreadsheet screenshot.
-        "insideH": {"val": "none", "sz": 0, "color": "auto"},
-        "insideV": {"val": "none", "sz": 0, "color": "auto"},
-    })
+    if theme.table_style == "grid":
+        # Every column and row ruled, in a grey light enough to sit under
+        # the text rather than compete with it. sz is eighths of a point,
+        # so 4 is a half point hairline and 8 is a full point.
+        hair = {"val": "single", "sz": 4, "color": p.grid}
+        _docx_borders(tbl_pr, {
+            "top": {"val": "single", "sz": 8, "color": p.grid},
+            "bottom": {"val": "single", "sz": 8, "color": p.grid},
+            "left": {"val": "single", "sz": 8, "color": p.grid},
+            "right": {"val": "single", "sz": 8, "color": p.grid},
+            "insideH": hair,
+            "insideV": hair,
+        })
+    else:
+        _docx_borders(tbl_pr, {
+            "top": {"val": "single", "sz": 8, "color": p.ink},
+            "bottom": {"val": "single", "sz": 8, "color": p.ink},
+            "left": {"val": "none", "sz": 0, "color": "auto"},
+            "right": {"val": "none", "sz": 0, "color": "auto"},
+            # Booktabs: three rules and nothing else.
+            "insideH": {"val": "none", "sz": 0, "color": "auto"},
+            "insideV": {"val": "none", "sz": 0, "color": "auto"},
+        })
     rows = table.rows
     banded = len(rows) > 5
     # In an RTL table w:jc "right" means the logical end, so a right
@@ -609,9 +639,14 @@ def _docx_table(table, theme: Theme):
             if header:
                 _docx_shade(cell, p.accent_soft)
                 _docx_borders(cell._tc.get_or_add_tcPr(), {
-                    "bottom": {"val": "single", "sz": 8, "color": p.ink}})
+                    "bottom": {"val": "single", "sz": 8,
+                               "color": p.grid if theme.table_style == "grid"
+                               else p.ink}})
             elif banded and r % 2 == 0:
-                _docx_shade(cell, p.surface)
+                # The band is a whisper under a ruled grid; two loud
+                # separations doing one job is what makes a table shout.
+                _docx_shade(cell, p.band if theme.table_style == "grid"
+                            else p.surface)
             for para in cell.paragraphs:
                 para.paragraph_format.space_before = Pt(4)
                 para.paragraph_format.space_after = Pt(4)
@@ -947,6 +982,31 @@ def is_cover(slide) -> bool:
     return name in _COVER_LAYOUTS[:2]
 
 
+def _pptx_cell_borders(cell, hex_color, width_pt=0.75):
+    """Rule a table cell on all four sides.
+
+    python-pptx exposes no border API, so the line elements go in by
+    hand. They must sit in schema order inside a:tcPr, which is why each
+    one is inserted at the front in reverse: lnL, lnR, lnT, lnB.
+    """
+    from pptx.oxml.ns import qn
+    from pptx.util import Pt
+
+    tc_pr = cell._tc.get_or_add_tcPr()
+    for tag in ("a:lnB", "a:lnT", "a:lnR", "a:lnL"):
+        existing = tc_pr.find(qn(tag))
+        if existing is not None:
+            tc_pr.remove(existing)
+        line = tc_pr.makeelement(qn(tag), {"w": str(Pt(width_pt)),
+                                           "cap": "flat", "cmpd": "sng",
+                                           "algn": "ctr"})
+        fill = tc_pr.makeelement(qn("a:solidFill"), {})
+        color = tc_pr.makeelement(qn("a:srgbClr"), {"val": hex_color})
+        fill.append(color)
+        line.append(fill)
+        tc_pr.insert(0, line)
+
+
 def _pptx_cell_fill(cell, hex_color):
     from pptx.dml.color import RGBColor
     cell.fill.solid()
@@ -973,8 +1033,12 @@ def _pptx_table(table, theme: Theme):
         for c, cell in enumerate(row.cells):
             if header:
                 _pptx_cell_fill(cell, p.accent)
+            elif theme.table_style == "grid":
+                _pptx_cell_fill(cell, p.paper if r % 2 else p.band)
             else:
                 _pptx_cell_fill(cell, p.paper if r % 2 else p.surface)
+            if theme.table_style == "grid":
+                _pptx_cell_borders(cell, p.grid)
             cell.margin_left = cell.margin_right = Pt(12)
             cell.margin_top = cell.margin_bottom = Pt(7)
             for para, run in _pptx_runs(cell.text_frame):
@@ -1111,7 +1175,10 @@ def theme_xlsx(wb, theme: Theme | None = None, *, header_rows: int = 1,
     body_font = theme.fonts["body"]
     head_rule = Side(style="thin", color=f"FF{p.ink}")
     head_fill = PatternFill("solid", fgColor=f"FF{p.accent_soft}")
-    zebra = PatternFill("solid", fgColor=f"FF{p.surface}")
+    zebra = PatternFill("solid", fgColor=f"FF{p.band}")
+    hair = Side(style="thin", color=f"FF{p.grid}")
+    grid_border = Border(left=hair, right=hair, top=hair, bottom=hair)
+    grid = theme.table_style == "grid"
     counts = {"sheets": 0, "header_cells": 0, "cells": 0, "rtl_sheets": 0}
 
     for ws in wb.worksheets:
@@ -1145,16 +1212,21 @@ def theme_xlsx(wb, theme: Theme | None = None, *, header_rows: int = 1,
                     # A border the spec drew is a decision. Only an
                     # untouched header row gets the house rule.
                     if not _xlsx_has_border(cell):
-                        cell.border = Border(bottom=head_rule)
+                        cell.border = (Border(left=hair, right=hair, top=hair,
+                                              bottom=head_rule) if grid
+                                       else Border(bottom=head_rule))
                     if cell.fill.fgColor.rgb in (None, "00000000"):
                         cell.fill = head_fill
                     cell.alignment = Alignment(
                         horizontal=cell.alignment.horizontal or "left",
                         vertical="center", wrap_text=True)
-                elif (zebra_from and ws.max_row >= zebra_from
-                      and cell.row % 2 == 0
-                      and cell.fill.fgColor.rgb in (None, "00000000")):
-                    cell.fill = zebra
+                else:
+                    if grid and not _xlsx_has_border(cell):
+                        cell.border = grid_border
+                    if (zebra_from and ws.max_row >= zebra_from
+                            and cell.row % 2 == 0
+                            and cell.fill.fgColor.rgb in (None, "00000000")):
+                        cell.fill = zebra
         if header_rows and ws.freeze_panes is None and ws.max_row > header_rows:
             ws.freeze_panes = ws.cell(row=header_rows + 1, column=1).coordinate
         # An Arabic sheet reads from the right, column A included. This is

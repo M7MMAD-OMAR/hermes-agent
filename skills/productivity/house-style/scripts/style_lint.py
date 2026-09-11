@@ -35,7 +35,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from house_style import LIMITS, is_arabic, load_theme  # noqa: E402
+from house_style import LIMITS, is_arabic, load_theme, luminance  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Prose rules
@@ -186,12 +186,14 @@ def read_text_file(path: Path):
     return path.read_text(encoding="utf-8", errors="replace"), []
 
 
-def _docx_has_vertical_rules(table) -> bool:
-    """Read the borders the table actually carries, not its style name.
+def _docx_loud_rules(table) -> bool:
+    """A ruled table is fine. A table ruled in near black is not.
 
-    The house pass rewrites the borders on the table itself and leaves the
-    style name alone, so a name check reports a boxed table that renders
-    with three rules.
+    The house grid is a light grey hairline, which a reader takes as
+    structure. Word's own "Table Grid" rules every cell in the automatic
+    color, which lands close to black and is what makes a pasted table
+    shout across a page. So this reads the color and the weight rather
+    than asking whether rules exist at all.
     """
     from docx.oxml.ns import qn
 
@@ -199,10 +201,19 @@ def _docx_has_vertical_rules(table) -> bool:
     if borders is None:
         style = getattr(table.style, "name", "") or ""
         return "grid" in style.lower()
-    for edge in ("insideV", "left", "right"):
+    for edge in ("insideV", "insideH", "left", "right", "top", "bottom"):
         node = borders.find(qn(f"w:{edge}"))
-        if node is not None and node.get(qn("w:val")) not in (None, "none",
-                                                             "nil"):
+        if node is None or node.get(qn("w:val")) in (None, "none", "nil"):
+            continue
+        color = (node.get(qn("w:color")) or "auto").lstrip("#")
+        if color.lower() == "auto":
+            return True
+        try:
+            if luminance(color) < 0.45:
+                return True
+        except ValueError:
+            return True
+        if int(node.get(qn("w:sz")) or 0) > 12:
             return True
     return False
 
@@ -234,11 +245,10 @@ def read_docx(path: Path):
         if style.font.size:
             sizes.add(round(style.font.size.pt, 1))
     for table in doc.tables:
-        if _docx_has_vertical_rules(table):
-            findings.append(_f("warn", "boxed_table", _where(path),
-                               "vertical rules between every column; a typeset "
-                               "table has three horizontal rules and none "
-                               "vertical"))
+        if _docx_loud_rules(table):
+            findings.append(_f("warn", "loud_table_rules", _where(path),
+                               "table ruled in near black; the house grid is a "
+                               "light grey hairline that sits under the text"))
             break
         for row in table.rows:
             for cell in row.cells:

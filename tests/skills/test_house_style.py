@@ -103,6 +103,40 @@ def test_arabic_detection_and_leading(hs):
 # ---------------------------------------------------------------------------
 
 
+def test_docx_grid_rules_every_column_and_row(hs):
+    """The default table is a full grid in a quiet grey."""
+    pytest.importorskip("docx")
+    from docx import Document
+    from docx.oxml.ns import qn
+
+    doc = Document()
+    table = doc.add_table(rows=3, cols=3)
+    table.cell(0, 0).text = "Product"
+    theme = hs.load_theme()
+    hs.theme_docx(doc, theme)
+
+    borders = table._tbl.tblPr.find(qn("w:tblBorders"))
+    for edge in ("insideV", "insideH", "left", "right", "top", "bottom"):
+        node = borders.find(qn(f"w:{edge}"))
+        assert node is not None and node.get(qn("w:val")) == "single", edge
+        assert node.get(qn("w:color")) == theme.palette.grid, edge
+
+
+def test_docx_rules_style_is_still_booktabs(hs):
+    pytest.importorskip("docx")
+    from docx import Document
+    from docx.oxml.ns import qn
+
+    doc = Document()
+    doc.add_table(rows=2, cols=2)
+    hs.theme_docx(doc, hs.load_theme(table_style="rules"))
+
+    borders = doc.tables[0]._tbl.tblPr.find(qn("w:tblBorders"))
+    for edge in ("insideV", "left", "right", "insideH"):
+        node = borders.find(qn(f"w:{edge}"))
+        assert node is not None and node.get(qn("w:val")) == "none", edge
+
+
 def test_docx_pass_respects_an_explicit_size_and_quiets_the_table(hs):
     pytest.importorskip("docx")
     from docx import Document
@@ -116,7 +150,7 @@ def test_docx_pass_respects_an_explicit_size_and_quiets_the_table(hs):
     table.style = "Table Grid"
     table.cell(0, 0).text = "Product"
 
-    hs.theme_docx(doc, hs.load_theme())
+    hs.theme_docx(doc, hs.load_theme(table_style="rules"))
 
     assert run.font.size == Pt(37), "an explicit size must survive the pass"
     assert doc.styles["Normal"].font.size == Pt(11)
@@ -242,11 +276,20 @@ def test_xlsx_pass_quiets_the_sheet(hs):
 
     hs.theme_xlsx(wb, hs.load_theme())
 
-    assert ws.sheet_view.showGridLines is False
+    assert ws.sheet_view.showGridLines is False, "Excel's own grid stays off"
     assert ws.freeze_panes == "A2"
     assert ws["A1"].font.bold is True
     assert ws["A1"].border.bottom.style == "thin"
-    assert ws["A2"].border.bottom.style is None, "no rule between body rows"
+    # The data region carries its own ruling, in the house grey.
+    assert ws["A2"].border.left.style == "thin"
+    assert ws["A2"].border.left.color.rgb.endswith(hs.load_theme().palette.grid)
+
+    plain = Workbook()
+    sheet = plain.active
+    sheet.append(["Region", "Revenue"])
+    sheet.append(["North", 100])
+    hs.theme_xlsx(plain, hs.load_theme(table_style="rules"))
+    assert sheet["A2"].border.left.style is None, "rules style stays unruled"
 
 
 def test_xlsx_pass_respects_an_explicit_color_and_size(hs):
@@ -266,6 +309,28 @@ def test_xlsx_pass_respects_an_explicit_color_and_size(hs):
     assert ws["A1"].font.color.rgb == "FF00FF00", "a header color must survive"
     assert ws["A1"].font.size == 18
     assert ws["A2"].font.color.rgb == "FFFF0000"
+
+
+def test_pptx_grid_rules_the_table_cells(hs):
+    pytest.importorskip("pptx")
+    from pptx import Presentation
+    from pptx.oxml.ns import qn
+    from pptx.util import Inches
+
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    table = slide.shapes.add_table(3, 2, Inches(1), Inches(1), Inches(6),
+                                   Inches(2)).table
+    table.cell(0, 0).text = "Product"
+    theme = hs.load_theme()
+    hs.theme_pptx(prs, theme)
+
+    tc_pr = table.rows[1].cells[0]._tc.get_or_add_tcPr()
+    for tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
+        line = tc_pr.find(qn(tag))
+        assert line is not None, tag
+        color = line.find(qn("a:solidFill")).find(qn("a:srgbClr"))
+        assert color.get("val") == theme.palette.grid
 
 
 def test_xlsx_pass_keeps_a_border_the_spec_drew(hs):
@@ -311,6 +376,27 @@ def test_pdf_styles_replace_the_reportlab_sample(hs):
 # ---------------------------------------------------------------------------
 # The lint
 # ---------------------------------------------------------------------------
+
+
+def test_lint_passes_a_house_grid_and_flags_a_black_one(hs, lint, tmp_path):
+    """A ruled table is the house default. A near black grid is not."""
+    pytest.importorskip("docx")
+    from docx import Document
+
+    housed = tmp_path / "housed.docx"
+    doc = Document()
+    table = doc.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "Product"
+    table.cell(1, 0).text = "Handles"
+    hs.theme_docx(doc, hs.load_theme())
+    doc.save(str(housed))
+    assert "loud_table_rules" not in {f["rule"] for f in lint.lint(housed)}
+
+    stock = tmp_path / "stock.docx"
+    plain = Document()
+    plain.add_table(rows=2, cols=2).style = "Table Grid"
+    plain.save(str(stock))
+    assert "loud_table_rules" in {f["rule"] for f in lint.lint(stock)}
 
 
 def test_lint_fails_on_a_long_dash(lint, tmp_path):

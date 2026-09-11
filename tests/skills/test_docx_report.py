@@ -10,6 +10,7 @@ finished when the "report" key is there, and unchanged when it is not.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import zipfile
@@ -406,7 +407,25 @@ def test_the_untouched_path_still_builds_the_same_bytes(tmp_path):
         assert run.returncode == 0, run.stderr
         with zipfile.ZipFile(target) as z:
             outs[label] = {n: z.read(n) for n in sorted(z.namelist())}
-    assert outs["old"].keys() == outs["new"].keys()
-    for name in outs["old"]:
-        assert outs["old"][name] == outs["new"][name], f"{name} changed"
+    # Exactly one thing is allowed to have moved. The direction pass used
+    # to materialize an empty header and footer just by reading them, so
+    # a document that asked for neither shipped with four parts it never
+    # wanted. Those parts, the references to them and the two indexes
+    # that list them are the whole diff; anything else is a regression.
+    gone = outs["old"].keys() - outs["new"].keys()
+    assert gone and all("header" in n or "footer" in n for n in gone), \
+        f"the untouched path lost something it should have kept: {gone}"
+    assert not outs["new"].keys() - outs["old"].keys(), \
+        "the untouched path gained a part"
+
+    indexes = {"[Content_Types].xml", "word/_rels/document.xml.rels"}
+    reference = re.compile(rb"<w:(header|footer)Reference[^>]*/>")
+    for name in outs["old"].keys() & outs["new"].keys():
+        if name in indexes:
+            continue
+        old_bytes, new_bytes = outs["old"][name], outs["new"][name]
+        if name == "word/document.xml":
+            old_bytes = reference.sub(b"", old_bytes)
+            new_bytes = reference.sub(b"", new_bytes)
+        assert old_bytes == new_bytes, f"{name} changed"
     assert scripts.exists()

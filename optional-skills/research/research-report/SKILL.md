@@ -1,6 +1,6 @@
 ---
 name: research-report
-description: Turn an open question into a researched, sourced report a decision can be made from.
+description: Turn a question into a sourced, decidable report.
 version: 1.0.0
 author: Nous Research
 license: MIT
@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [research, report, market, competitors, evidence, sources, docx]
     category: research
-    related_skills: [diagrams, docx, grounded-citations, herwork, adversarial-doc-review]
+    related_skills: [diagrams, docx, grounded-citations, herwork, house-style]
 ---
 
 # Research Report Skill

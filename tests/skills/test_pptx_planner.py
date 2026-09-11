@@ -264,3 +264,45 @@ def test_the_split_deck_still_passes_the_geometry_lint(tmp_path):
          "--only", "geometry", "--json"], capture_output=True, text=True)
     findings = json.loads(lint.stdout)["findings"]
     assert findings == [], f"splitting produced a broken slide: {findings}"
+
+
+# ---------------------------------------------------------------------------
+# Growing, which is fitting in the other direction
+# ---------------------------------------------------------------------------
+
+
+def test_a_short_statement_grows_into_the_room_it_was_given(create, style):
+    short = "One customer carries a fifth of the book."
+    long_one = ("One customer now carries a fifth of the book and the "
+                "contract renews in March, so the negotiation starts in "
+                "January and the whole quarter turns on it.")
+    base = style.type["section"]
+
+    grown = create._grow_to_fill(style, short, base, style.content_w, 6.0,
+                                 1.15, style.type["cover_title"])
+    assert grown > base, "a one line statement in a full slide reads as lost"
+    assert grown in set(style.type.values()), \
+        "growing means the next role up the scale, not an invented size"
+    assert grown <= style.type["cover_title"]
+
+    assert create._grow_to_fill(style, long_one, base, style.content_w, 6.0,
+                                1.15, style.type["cover_title"]) == base, \
+        "text that already fills the frame is left alone"
+
+
+def test_growing_is_capped_and_never_leaves_the_scale(create, style, tmp_path):
+    pytest.importorskip("pptx")
+    from pptx import Presentation
+
+    report = build(tmp_path, [
+        {"layout": "statement", "kicker": "THE POINT", "text": "Two words."},
+        {"layout": "quote", "text": "We took the margin.",
+         "attribution": "Head of Sales"},
+    ], name="grown")
+    sizes = {round(run.font.size.pt)
+             for slide in Presentation(str(report["path"])).slides
+             for shape in slide.shapes if shape.has_text_frame
+             for para in shape.text_frame.paragraphs for run in para.runs
+             if run.font.size}
+    roles = set(style.type.values())
+    assert sizes <= roles, f"off scale sizes reached the deck: {sizes - roles}"

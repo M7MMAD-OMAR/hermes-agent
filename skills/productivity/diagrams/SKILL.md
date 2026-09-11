@@ -1,6 +1,6 @@
 ---
 name: diagrams
-description: Draw diagrams with Mermaid and render them to SVG and PNG for documents, decks and reports.
+description: Draw Mermaid diagrams and render them to SVG and PNG.
 version: 1.0.0
 author: Nous Research
 license: MIT

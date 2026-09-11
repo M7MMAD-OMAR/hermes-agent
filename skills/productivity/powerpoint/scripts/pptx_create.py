@@ -192,6 +192,7 @@ class DeckStyle:
             self.color.update(vars(theme.palette))
             self.fonts.update(theme.fonts)
         self.is_arabic = getattr(house, "is_arabic", None) or _local_is_arabic
+        self.house = house
 
         self.width = prs.slide_width / 914400
         self.height = prs.slide_height / 914400
@@ -350,6 +351,37 @@ def _slide_title(slide, style, spec, rtl):
               align=_start_align(rtl), anchor=MSO_ANCHOR.TOP)
 
 
+def _grow_to_fill(style, text, size_pt, width_in, height_in, spacing,
+                  ceiling_pt):
+    """Scale a short line up so a large frame is not mostly air.
+
+    The opposite of fitting, and it needs a tighter leash: a two word
+    statement blown up to fill a slide is its own kind of wrong. It
+    never passes the next role up the scale, so a grown statement still
+    belongs to the same type system, and it does nothing at all once the
+    text takes more than one line, where the frame is doing its job
+    already.
+    """
+    house = getattr(style, "house", None)
+    if house is None or not text:
+        return size_pt
+    family = style.fonts.get("heading")
+    if house.estimate_lines(text, width_in, size_pt, family) > 1:
+        return size_pt
+    factor = house.fill_factor(text, width_in, height_in, size_pt,
+                               leading=spacing, family=family, ceiling=1.6)
+    grown = min(size_pt * factor, ceiling_pt)
+    # Snap to the scale. A continuous factor gives 51 pt, which is on no
+    # role of anything and is exactly the size soup the lint reports, so
+    # growing means taking the next role up, not inventing a size.
+    roles = sorted({v for v in style.type.values()
+                    if size_pt <= v <= ceiling_pt})
+    for role in reversed(roles):
+        if role <= grown:
+            return role if role - size_pt >= 2 else size_pt
+    return size_pt
+
+
 def _content_band(style, spec):
     """Where the content starts, given whether a title took its band."""
     top = style.body_top if spec.get("title") else style.margin_top
@@ -359,8 +391,12 @@ def _content_band(style, spec):
 def _compose_statement(slide, spec, style, rtl):
     text = str(_first(spec, "text", "statement", "title") or "")
     kicker = _first(spec, "kicker")
-    size = style.type["section"]
     spacing = _leading(style, text, 1.15, 1.4)
+    # A statement is the whole slide, so a short one grows into the room
+    # it was given rather than sitting small in the middle of it.
+    size = _grow_to_fill(style, text, style.type["section"], style.content_w,
+                         style.height - 2 * style.margin_top, spacing,
+                         style.type["cover_title"])
     text_h = _text_height(text, size, style.content_w, spacing)
     kicker_h = style.type["kicker"] * 1.2 / 72
     total = text_h + (kicker_h + _GAP if kicker else 0)
@@ -644,10 +680,14 @@ def _compose_timeline(slide, spec, style, rtl):
 def _compose_quote(slide, spec, style, rtl):
     text = str(_first(spec, "text", "quote", "title") or "")
     who = _first(spec, "attribution", "author", "source")
-    size = style.type["lead"]
     spacing = _leading(style, text, 1.35, 1.6)
     # A 24 pt quote across the full 12 in measure runs past 90 characters.
     width = min(style.content_w, 10.0)
+    # A one line quote in a full slide reads as a caption that got lost,
+    # so it grows, capped at the section size so it stays under a title.
+    size = _grow_to_fill(style, text, style.type["lead"], width,
+                         style.height - 2 * style.margin_top, spacing,
+                         style.type["section"])
     left = (style.width - style.margin_x - width) if rtl else style.margin_x
     quote_h = _text_height(text, size, width, spacing)
     who_h = style.type["body_sm"] * 1.3 / 72

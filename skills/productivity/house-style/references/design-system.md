@@ -862,3 +862,40 @@ Steps 4, 7, 9 and 10 are the ones that separate this from a template filler. Ste
 - [Humanities and Social Sciences Communications, Recreating relevance: translated Arabic idioms](https://www.nature.com/articles/s41599-024-02961-2)
 
 **Primary sources read on this machine** (not public URLs): the bundled Claude `pptx`, `xlsx` and `docx` skills (`SKILL.md` in each), the bundled `dataviz` skill (`references/color-formula.md`, `references/marks-and-anatomy.md`, `references/anti-patterns.md`), and the local `institutional-copy` skill (`SKILL.md` and `references/tells.md`). The deck anti-pattern list in 3.6, the mark specs in 7.3, the color checks in 3.4, the Excel formats in 6.3 and the tells catalogue in 8.1 come from those files directly.
+
+
+---
+
+## 10. Adopted practice, recorded September 2026
+
+Three rules taken from a study of a bilingual deck generator built for
+Arabic first, kept here because they are mechanisms rather than looks.
+
+**Measure the text, do not count its characters.** A character count says
+an Arabic line and a Latin line of the same length are the same width,
+and they are not. The house system measures against the installed face
+and, where the imaging library has raqm, the Arabic is shaped before it
+is measured. Everything that fits, grows or paginates reads from that one
+measurement, so the builder and the lint never disagree.
+
+**Fit in the model, never in the renderer.** PowerPoint's own shrink on
+overflow recomputes its scale factor when the file opens, so the deck
+that ships is not the deck that was checked. The type size is resolved
+before the file is written.
+
+**Grow as well as shrink, and snap to the scale.** A short line in a
+large frame reads as a caption that got lost. Growing is capped by the
+next role up the type scale rather than by a continuous factor, because
+a factor gives 51 pt, which is on no role of anything and is exactly the
+size soup the lint reports.
+
+Three more rules, for any future feature that reads a brand out of an
+image, taken from the same study's literature sweep:
+
+- Analyze one image per call and merge the answers deterministically.
+  Vision models aggregate several images badly.
+- Never let a model free-type a hex value. Measure the colors from the
+  pixels and let the model only assign roles to what was measured.
+- Never let a model name a font. Have it return a typographic attribute
+  vector and match that against a curated table with a deterministic
+  scorer, then fix contrast afterwards by nudging lightness only.

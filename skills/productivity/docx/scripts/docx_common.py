@@ -5,17 +5,30 @@ from __future__ import annotations
 
 
 def iter_all_paragraphs(doc, include_headers_footers: bool = True):
-    """Yield every paragraph in body, tables (recursively), headers, footers."""
+    """Yield every paragraph in body, tables (recursively), headers, footers.
+
+    A header or footer that is linked to the previous section is skipped
+    rather than read. Reading one CREATES the part: python-docx
+    materializes an empty header where the document had none, and a
+    document that arrived with nothing in its footer leaves with a footer
+    part it never asked for. A pass that only sets direction or fonts
+    must not change what is in the package.
+    """
     yield from _iter_container(doc)
     if include_headers_footers:
         for section in doc.sections:
-            for part in (
-                section.header, section.footer,
-                section.first_page_header, section.first_page_footer,
-                section.even_page_header, section.even_page_footer,
-            ):
-                if part is not None:
-                    yield from _iter_container(part)
+            for name in ("header", "footer", "first_page_header",
+                         "first_page_footer", "even_page_header",
+                         "even_page_footer"):
+                part = getattr(section, name, None)
+                if part is None:
+                    continue
+                try:
+                    if part.is_linked_to_previous:
+                        continue
+                except (AttributeError, ValueError):
+                    pass
+                yield from _iter_container(part)
 
 
 def _iter_container(container):
@@ -252,8 +265,17 @@ def _iter_all_tables(doc):
     yield from walk(doc.tables)
     for section in doc.sections:
         for part in (section.header, section.footer):
-            if part is not None:
-                yield from walk(part.tables)
+            if part is None:
+                continue
+            # Reading .tables on an inherited part creates it, the same
+            # trap as reading .paragraphs. A document that arrived with
+            # no footer must leave with no footer.
+            try:
+                if part.is_linked_to_previous:
+                    continue
+            except (AttributeError, ValueError):
+                pass
+            yield from walk(part.tables)
 
 
 def _has_latin_letters(text: str) -> bool:

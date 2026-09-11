@@ -230,6 +230,26 @@ Every choice, degradation and split is reported under `plan` in the
 output JSON. A deck that fits carries no `plan` key at all, because
 nothing was changed.
 
+## Two scripts on one slide
+
+A paragraph has one base direction, its runs do not, and the deck format
+makes that trap sharper than Word does. In WordprocessingML `w:rtl` is an
+element whose absence means false. In DrawingML `rtl` is an attribute
+whose absence means **inherit**, so a Latin run inside an Arabic
+paragraph picks up the paragraph's own direction unless it is explicitly
+told otherwise.
+
+So the direction pass writes all three cases down: an Arabic run gets
+`rtl="1"`, a Latin run `rtl="0"`, and a run of digits or punctuation
+takes the paragraph's value because it has no script of its own. A slide
+that is mostly Latin but quotes Arabic keeps its base direction and only
+the Arabic runs are marked, so a centred title keeps the alignment it
+inherited.
+
+Table cells, grouped shapes at any depth and speaker notes are all
+covered, and the pass never materialises a notes part it did not find.
+Running it twice leaves the slide XML byte identical.
+
 ## Embedding the faces, so Arabic survives the trip
 
 A .pptx carries a font NAME and the reader's machine resolves it. For

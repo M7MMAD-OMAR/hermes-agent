@@ -4,7 +4,8 @@
 
 Subcommands:
   list          JSON per comment: id, author, initials, date, text,
-                anchored_text, para_id, parent_id, resolved, reply_ids.
+                anchored_text, context, para_id, parent_id, resolved,
+                reply_ids.
                 --json threads returns the same records as a thread tree.
   add           add a comment anchored to the first occurrence of --target
   reply         reply in thread to an existing comment by --id
@@ -296,6 +297,27 @@ def _anchored_texts(doc) -> dict:
     return {cid: "".join(parts) for cid, parts in anchored.items()}
 
 
+def _comment_contexts(doc) -> dict:
+    """Map comment id to the paragraph text its reference sits in.
+
+    Word anchors a comment to a range, but LibreOffice writes a point
+    comment: a w:commentReference with no w:commentRangeStart around it.
+    For those, ``anchored_text`` is honestly empty and this is the only
+    thing that tells a reader what the comment is about, so the listing
+    carries both.
+    """
+    contexts: dict[str, str] = {}
+    for root in iter_part_roots(doc):
+        for para in root.iter(q("p")):
+            refs = [el.get(q("id")) for el in para.iter(q("commentReference"))]
+            if not refs:
+                continue
+            text = "".join(t.text or "" for t in para.iter(q("t")))
+            for cid in refs:
+                contexts.setdefault(cid, text.strip())
+    return contexts
+
+
 def _comment_paragraphs(comment):
     return [p for p in comment.iter(q("p"))]
 
@@ -406,6 +428,7 @@ def list_comments(doc) -> list:
     if root is None:
         return []
     anchored = _anchored_texts(doc)
+    contexts = _comment_contexts(doc)
     index = thread_index(doc)
     positions = reference_order(doc)
     replies: dict[str, list] = {cid: [] for cid in index["order"]}
@@ -425,6 +448,7 @@ def list_comments(doc) -> list:
                     "date": comment.get(q("date")),
                     "text": _comment_text(comment),
                     "anchored_text": anchored.get(cid, ""),
+                    "context": contexts.get(cid, ""),
                     "para_id": record.get("para_id"),
                     "parent_id": record.get("parent_id"),
                     "resolved": bool(record.get("resolved")),

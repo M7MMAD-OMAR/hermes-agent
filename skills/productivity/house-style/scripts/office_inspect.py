@@ -174,7 +174,8 @@ def inspect_docx(path: Path) -> dict:
                       "media": _media_from_zip(path, "word/media/")},
         "review": {"tracked_changes": revisions,
                    "comments": _run_helper("docx", "docx_comments.py",
-                                           ["list", str(path), "--json"])},
+                                           ["list", str(path), "--json",
+                                            "threads"])},
         "targets": targets,
     }
 

@@ -737,12 +737,23 @@ BUILDERS = {"chart": add_chart, "image": add_picture, "shape": add_shape}
 
 
 def add_graphic(doc, block: dict, theme=_AUTO):
-    """Dispatch one chart, image or shape block onto a document."""
+    """Dispatch one block onto a document.
+
+    Charts, pictures and shapes are built here. Anything else is handed
+    to the create script's own block builder, because appending a figure
+    to somebody's report almost always means appending a heading and a
+    caption with it, and splitting that across two commands is how the
+    caption ends up on the wrong page.
+    """
     kind = str(block.get("type", "")).lower()
     build = BUILDERS.get(kind)
     if build is None:
-        raise ValueError(f"not a graphics block: {kind!r}; "
-                         f"have {sorted(BUILDERS)}")
+        try:
+            from docx_create import add_block  # noqa: PLC0415  (cycle)
+        except ImportError:
+            raise ValueError(f"not a graphics block: {kind!r}; "
+                             f"have {sorted(BUILDERS)}") from None
+        return add_block(doc, block)
     spec = dict(block)
     if kind == "chart":
         spec["type"] = block.get("chart") or block.get("chart_type") or "column"

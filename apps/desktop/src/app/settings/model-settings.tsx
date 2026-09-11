@@ -1183,7 +1183,12 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
             </Button>
           </div>
           <div className="mb-2 text-xs text-muted-foreground">
-            Default: <span className="font-mono">{moa.default_preset}</span>
+            {/* LTR island: the preset name sits inside a sentence, so RTL would otherwise
+                reorder its punctuation against the surrounding text. */}
+            Default:{' '}
+            <span className="font-mono" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+              {moa.default_preset}
+            </span>
           </div>
           <div className="grid gap-1">
             {currentMoaPreset.reference_models.map((slot, index) => (

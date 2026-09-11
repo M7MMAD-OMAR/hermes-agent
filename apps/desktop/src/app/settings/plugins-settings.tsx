@@ -113,7 +113,7 @@ function PluginLine({
 }) {
   return (
     <div className="flex items-start gap-3 rounded-lg py-2" id={id}>
-      <div className="min-w-0 flex-1 pr-4">
+      <div className="min-w-0 flex-1 pe-4">
         <div className="flex flex-wrap items-center gap-2 text-[length:var(--conversation-text-font-size)] font-medium text-foreground">
           {title}
         </div>

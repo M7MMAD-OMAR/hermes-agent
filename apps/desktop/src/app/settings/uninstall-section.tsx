@@ -137,7 +137,15 @@ export function UninstallSection() {
               This removes {pendingOption.consequence}. This can&apos;t be undone.
             </p>
             {summary?.running_app_path && (
-              <p className="mt-1 font-mono text-[0.68rem] text-muted-foreground/60">App: {summary.running_app_path}</p>
+              <p className="mt-1 font-mono text-[0.68rem] text-muted-foreground/60">
+                {/* LTR island: the path's slashes and dots must not reorder under RTL.
+                    dir="auto" would not do, since an Arabic folder name inside the path
+                    would flip it. The "App:" label stays outside so it can mirror. */}
+                App:{' '}
+                <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+                  {summary.running_app_path}
+                </span>
+              </p>
             )}
             {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -160,7 +168,7 @@ export function UninstallSection() {
               {visibleOptions.map(opt => (
                 <button
                   className={cn(
-                    'flex items-start gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-left transition',
+                    'flex items-start gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-start transition',
                     'hover:border-destructive/40 hover:bg-destructive/5'
                   )}
                   key={opt.mode}

@@ -256,7 +256,7 @@ function ConnectedProviderRow({
 
   return (
     <div className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-[6px] transition-colors hover:bg-(--ui-control-hover-background)">
-      <RowButton className="min-w-0 px-3 py-2.5 text-left" onClick={() => onSelect(provider)}>
+      <RowButton className="min-w-0 px-3 py-2.5 text-start" onClick={() => onSelect(provider)}>
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[length:var(--conversation-text-font-size)] font-semibold">{title}</span>
           <span className="inline-flex shrink-0 items-center gap-1 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
@@ -271,7 +271,7 @@ function ConnectedProviderRow({
           </p>
         )}
       </RowButton>
-      <div className="flex items-center gap-1 pr-2">
+      <div className="flex items-center gap-1 pe-2">
         <Trail className="size-4 text-muted-foreground transition group-hover:text-foreground" />
         {canDisconnect && (
           <Button
@@ -329,7 +329,7 @@ function LocalEndpointRow({ onOpen }: { onOpen: (reason: null | string) => void 
 
   return (
     <RowButton
-      className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-[6px] px-3 py-2.5 text-left transition-colors hover:bg-(--ui-control-hover-background)"
+      className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-[6px] px-3 py-2.5 text-start transition-colors hover:bg-(--ui-control-hover-background)"
       onClick={() => onOpen(null)}
     >
       <div className="flex min-w-0 flex-col gap-0.5">

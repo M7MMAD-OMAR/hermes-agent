@@ -47,6 +47,21 @@ def house():
 
 
 @pytest.fixture(scope="module")
+def graphics():
+    scripts = REPO / "skills" / "productivity" / "docx" / "scripts"
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    import docx_graphics  # noqa: PLC0415
+
+    return docx_graphics
+
+
+@pytest.fixture(scope="module")
+def theme(house):
+    return house.load_theme()
+
+
+@pytest.fixture(scope="module")
 def picture(tmp_path_factory) -> Path:
     """A small PNG with a known, un-square aspect ratio."""
     from PIL import Image
@@ -314,3 +329,120 @@ def test_the_package_still_validates_with_every_graphic_in_it(tmp_path, picture)
         capture_output=True, text=True)
     assert validate.returncode == 0, validate.stdout
     assert json.loads(validate.stdout)["ok"]
+
+# ---------------------------------------------------------------------------
+# Callouts: paragraphs, not boxes
+# ---------------------------------------------------------------------------
+
+
+def _pbdr_sides(paragraph):
+    from docx.oxml.ns import qn
+
+    pr = paragraph._p.find(qn("w:pPr"))
+    borders = pr.find(qn("w:pBdr")) if pr is not None else None
+    if borders is None:
+        return {}
+    out = {}
+    for child in borders:
+        side = child.tag.split("}")[1]
+        out[side] = (child.get(qn("w:sz")), child.get(qn("w:color")))
+    return out
+
+
+def test_the_rules_callout_is_a_rule_a_label_and_a_hairline(graphics, theme,
+                                                            tmp_path):
+    from docx import Document
+
+    doc = Document()
+    graphics.add_callout(doc, {"style": "rules", "kicker": "the risk",
+                               "text": "One customer is 22 percent."}, theme)
+    paras = [p for p in doc.paragraphs if p.text.strip()]
+    assert [p.text for p in paras] == ["THE RISK", "One customer is 22 percent."]
+    kicker, body = paras
+    assert _pbdr_sides(kicker)["top"][1] == theme.palette.ink
+    assert _pbdr_sides(body)["bottom"][1] == theme.palette.grid
+    assert "left" not in _pbdr_sides(body), "no stripe down the side"
+    assert kicker.runs[0].font.bold is True
+
+
+def test_the_quote_callout_carries_no_rule_and_no_fill(graphics, theme):
+    from docx import Document
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
+
+    doc = Document()
+    graphics.add_callout(doc, {"style": "quote", "text": "A short quote.",
+                               "label": "Head of Sales"}, theme)
+    quote = doc.paragraphs[0]
+    assert _pbdr_sides(quote) == {}, "the whitespace is the emphasis"
+    pr = quote._p.find(qn("w:pPr"))
+    assert pr.find(qn("w:shd")) is None, "a quote takes no fill"
+    assert quote.runs[0].font.size == Pt(theme.doc["body"] + 2)
+    assert quote.paragraph_format.left_indent == \
+        quote.paragraph_format.right_indent, "indented equally so it mirrors"
+
+
+def test_the_lead_callout_is_a_bold_phrase_and_nothing_else(graphics, theme):
+    from docx import Document
+
+    doc = Document()
+    graphics.add_callout(doc, {"style": "lead", "label": "The risk",
+                               "text": "One customer is 22 percent."}, theme)
+    para = doc.paragraphs[0]
+    assert para.runs[0].text == "The risk."
+    assert para.runs[0].font.bold is True
+    assert para.runs[-1].font.bold in (False, None)
+    assert _pbdr_sides(para) == {}
+
+
+def test_an_arabic_callout_mirrors_and_keeps_its_letters_untracked(graphics,
+                                                                   theme):
+    from docx import Document
+    from docx.oxml.ns import qn
+
+    doc = Document()
+    graphics.add_callout(doc, {"style": "rules", "kicker": "الخطر",
+                               "text": "زبون واحد يشكل 22 بالمئة."}, theme)
+    for para in doc.paragraphs[:2]:
+        pr = para._p.find(qn("w:pPr"))
+        assert pr.find(qn("w:bidi")) is not None, "an Arabic callout mirrors"
+    kicker = doc.paragraphs[0]
+    assert kicker.text == "الخطر", "Arabic has no upper case to force"
+    rpr = kicker.runs[0]._r.find(qn("w:rPr"))
+    assert rpr.find(qn("w:spacing")) is None, \
+        "tracking breaks the joins between Arabic letters"
+
+
+def test_a_floating_box_has_no_outline_and_no_rounded_corners(graphics, theme,
+                                                              tmp_path):
+    """The shape a reader recognises as generated, made impossible by
+    default. An outline is opt in, and the corners are square."""
+    from docx import Document
+
+    doc = Document()
+    graphics.add_shape(doc, {"text": "Key point", "width_mm": 120,
+                             "height_mm": 20}, theme)
+    out = tmp_path / "box.docx"
+    doc.save(str(out))
+    xml = out.read_bytes()
+    import zipfile
+    body = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert 'prst="roundRect"' not in body, "no rounded corners by default"
+    assert "<a:ln><a:noFill/></a:ln>" in body, "no outline by default"
+
+    doc2 = Document()
+    graphics.add_shape(doc2, {"text": "Key point", "line": "B4482E"}, theme)
+    out2 = tmp_path / "outlined.docx"
+    doc2.save(str(out2))
+    outlined = zipfile.ZipFile(out2).read("word/document.xml").decode("utf-8")
+    assert "B4482E" in outlined, "an outline the spec asked for still appears"
+
+
+def test_an_unknown_callout_style_is_refused(graphics, theme):
+    from docx import Document
+
+    with pytest.raises(ValueError):
+        graphics.add_callout(Document(), {"style": "neon", "text": "x"}, theme)
+    with pytest.raises(ValueError):
+        graphics.add_callout(Document(), {"style": "rules", "text": "  "},
+                             theme)

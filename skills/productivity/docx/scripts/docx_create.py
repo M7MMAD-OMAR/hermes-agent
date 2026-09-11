@@ -30,8 +30,10 @@ Spec (JSON object):
     {"type": "chart", "chart": "column", "title": "Revenue by quarter",
      "categories": ["Q1", "Q2"], "series": {"2025": [12, 18]},
      "height_mm": 70},
-    {"type": "shape", "text": "Key point", "shape": "rounded",
-     "width_mm": 120, "height_mm": 24},
+    {"type": "callout", "style": "rules", "kicker": "the risk",
+     "text": "One customer is 22 percent of the book."},
+    {"type": "shape", "text": "Key point", "width_mm": 120,
+     "height_mm": 24},
     {"type": "caption", "text": "Revenue by quarter", "kind": "figure"},
     {"type": "page_break"},
     {"type": "toc"}
@@ -42,6 +44,12 @@ Graphics: three blocks carry the pictures. All three read their colors,
 fonts and sizes from the house theme, so a spec names data and not a
 look.
 
+  callout an aside that FLOWS with the text: "rules" (a rule, a small
+          caps label, a hairline under it), "quote" (indented and larger,
+          no rule and no fill), "lead" (a bold lead in phrase, nothing
+          else) or "block" (a flat tint, square corners, no outline).
+          Prefer this over "shape": a rounded box with a fill and a
+          border is the most recognisable shape in generated documents.
   chart   a real DrawingML chart part plus the workbook behind it, so a
           reader can click it in Word and edit the numbers. `chart`
           (or `chart_type`) is bar, column, line or pie; `categories` is
@@ -316,6 +324,9 @@ def add_block(doc, block: dict, counts: dict | None = None, theme=None) -> None:
         # is carried under its own key rather than fighting the block type.
         spec["type"] = block.get("chart") or block.get("chart_type") or "column"
         made.append(add_chart(doc, spec, theme))
+    elif btype == "callout":
+        from docx_graphics import add_callout
+        made.append(add_callout(doc, block, theme))
     elif btype == "shape":
         from docx_graphics import add_shape
         made.append(add_shape(doc, block, theme))
@@ -636,7 +647,7 @@ def main() -> int:
     if any(counts.values()):
         extras["captions"] = {k: v for k, v in counts.items() if v}
     kinds = [b.get("type") for b in spec.get("blocks", [])]
-    for kind in ("chart", "image", "shape"):
+    for kind in ("chart", "image", "shape", "callout"):
         if kinds.count(kind):
             extras[f"{kind}s"] = kinds.count(kind)
     # The house pass sets the named styles, the page and the tables. It

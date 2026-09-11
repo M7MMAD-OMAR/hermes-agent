@@ -645,18 +645,22 @@ def set_alt_text(para, text: str) -> int:
 # ---------------------------------------------------------------------------
 
 def add_shape(doc, spec: dict, theme=_AUTO):
-    """A text box or callout: a rectangle with words in it.
+    """A floating text box, for the rare case that needs one.
 
-    House fill and ink, a hairline in the house rule color, and nothing
-    else: no accent stripe down the side and no drop shadow, both of
-    which read as a template rather than as a document.
+    Prefer ``add_callout``: a callout that flows with the text moves
+    with the paragraph it belongs to, and a floating box does not.
+
+    The default look is a flat tinted rectangle with square corners and
+    no outline. A rounded rectangle with a fill and a thin border around
+    it is the single most recognisable shape in generated documents, so
+    an outline here is opt in through ``"line"``.
     """
     theme = _theme(theme)
-    geometry = SHAPE_GEOMETRY.get(str(spec.get("shape", "rounded")).lower(),
-                                  "roundRect")
+    geometry = SHAPE_GEOMETRY.get(str(spec.get("shape", "rectangle")).lower(),
+                                  "rect")
     fill = spec.get("fill") or (theme.palette.surface if theme else "F2F2F2")
     ink = spec.get("color") or (theme.palette.ink if theme else "000000")
-    outline = spec.get("line") or (theme.palette.line if theme else "D9D9D9")
+    outline = spec.get("line")
     size_pt = spec.get("size_pt") or _doc_size(theme, "body", 11)
     text = str(spec.get("text", ""))
     rtl = spec.get("rtl")
@@ -677,8 +681,9 @@ def add_shape(doc, spec: dict, theme=_AUTO):
         f'<a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
         f'<a:prstGeom prst="{geometry}"><a:avLst/></a:prstGeom>'
         f'<a:solidFill><a:srgbClr val="{_hex(fill)}"/></a:solidFill>'
-        '<a:ln w="9525"><a:solidFill>'
-        f'<a:srgbClr val="{_hex(outline)}"/></a:solidFill></a:ln>'
+        + (f'<a:ln w="9525"><a:solidFill>'
+           f'<a:srgbClr val="{_hex(outline)}"/></a:solidFill></a:ln>'
+           if outline else '<a:ln><a:noFill/></a:ln>') +
         '</wps:spPr>'
         f'<wps:txbx><w:txbxContent>{paragraphs}</w:txbxContent></wps:txbx>'
         '<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="144000" '
@@ -733,7 +738,186 @@ def _hex(color: str) -> str:
 # Command line
 # ---------------------------------------------------------------------------
 
-BUILDERS = {"chart": add_chart, "image": add_picture, "shape": add_shape}
+# ---------------------------------------------------------------------------
+# Callouts, which are paragraphs and not boxes
+# ---------------------------------------------------------------------------
+
+CALLOUT_STYLES = ("rules", "quote", "lead", "block")
+
+
+def _pbdr(paragraph, side: str, eighths: int, color: str, space: int):
+    """One paragraph border. python-docx has no API for these."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    pr = paragraph._p.get_or_add_pPr()
+    borders = pr.find(qn("w:pBdr"))
+    if borders is None:
+        borders = OxmlElement("w:pBdr")
+        pr.append(borders)
+    node = borders.find(qn(f"w:{side}"))
+    if node is None:
+        node = OxmlElement(f"w:{side}")
+        borders.append(node)
+    node.set(qn("w:val"), "single")
+    node.set(qn("w:sz"), str(eighths))
+    node.set(qn("w:space"), str(space))
+    node.set(qn("w:color"), _hex(color))
+
+
+def _pshade(paragraph, color: str):
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    pr = paragraph._p.get_or_add_pPr()
+    shade = pr.find(qn("w:shd"))
+    if shade is None:
+        shade = OxmlElement("w:shd")
+        pr.append(shade)
+    shade.set(qn("w:val"), "clear")
+    shade.set(qn("w:color"), "auto")
+    shade.set(qn("w:fill"), _hex(color))
+
+
+def _track(run, thousandths: int):
+    """Letter spacing, in twentieths of a point. Latin only.
+
+    Arabic is cursive and tracking breaks the joins between letters, so
+    the caller must not reach this with Arabic text.
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    rpr = run._r.get_or_add_rPr()
+    spacing = OxmlElement("w:spacing")
+    spacing.set(qn("w:val"), str(thousandths))
+    rpr.append(spacing)
+
+
+def add_callout(doc, spec: dict, theme=_AUTO):
+    """An aside that flows with the text it belongs to.
+
+    Four treatments, all of them paragraph properties rather than a
+    floating shape, because a shape stays where it was dropped while the
+    text around it moves.
+
+      rules   a rule above, a small caps label, the text, a hairline
+              under it. This is how a report sets a named aside.
+      quote   indented both sides and set larger, with no rule and no
+              fill at all. The whitespace is the emphasis.
+      lead    a bold lead in phrase and then the sentence, no decoration
+              whatever. The most human of the four.
+      block   a flat tint, square corners, no outline, for a note that
+              has to be visibly separate from the argument.
+
+    What none of them has: a rounded rectangle with a fill and a thin
+    border around it, which is the shape a reader recognises as
+    generated before reading a word of it.
+    """
+    from docx.shared import Cm, Pt, RGBColor
+
+    theme = _theme(theme)
+    style = str(spec.get("style", "rules")).lower()
+    if style not in CALLOUT_STYLES:
+        raise ValueError(f"unknown callout style {style!r}; "
+                         f"have {list(CALLOUT_STYLES)}")
+    text = str(spec.get("text", "")).strip()
+    if not text:
+        raise ValueError("a callout needs text")
+    label = str(spec.get("kicker") or spec.get("label") or "").strip()
+    rtl = spec.get("rtl")
+    rtl = _mostly_rtl(text) if rtl is None else bool(rtl)
+
+    palette = theme.palette if theme is not None else None
+    ink = spec.get("color") or (palette.ink if palette else "000000")
+    muted = palette.muted if palette else "666666"
+    accent_text = palette.accent_text if palette else "000000"
+    grid = palette.grid if palette else "CCCCCC"
+    band = palette.band if palette else "F7F7F7"
+    body_pt = spec.get("size_pt") or _doc_size(theme, "body", 11)
+    face = theme.fonts["body"] if theme is not None else None
+
+    def new(text_value, size, *, bold=False, color=None, spacing=None):
+        para = doc.add_paragraph()
+        run = para.add_run(text_value)
+        run.font.size = Pt(size)
+        run.font.bold = bold
+        if face:
+            run.font.name = face
+        run.font.color.rgb = RGBColor.from_string(_hex(color or ink))
+        if spacing:
+            para.paragraph_format.line_spacing = spacing
+        return para, run
+
+    made = []
+    if style == "rules":
+        if label:
+            kicker, run = new(label if rtl else label.upper(),
+                              _doc_size(theme, "caption", 9) - 1,
+                              bold=True, color=accent_text)
+            if not rtl:
+                _track(run, 30)          # small caps need air, Arabic does not
+            _pbdr(kicker, "top", 8, ink, 7)
+            kicker.paragraph_format.space_before = Pt(16)
+            kicker.paragraph_format.space_after = Pt(3)
+            made.append(kicker)
+        body, _ = new(text, body_pt)
+        if not label:
+            _pbdr(body, "top", 8, ink, 7)
+            body.paragraph_format.space_before = Pt(16)
+        _pbdr(body, "bottom", 4, grid, 9)
+        body.paragraph_format.space_after = Pt(16)
+        made.append(body)
+    elif style == "quote":
+        body, _ = new(text, body_pt + 2, spacing=1.35)
+        fmt = body.paragraph_format
+        fmt.left_indent = Cm(1.1)
+        fmt.right_indent = Cm(1.1)
+        fmt.space_before = Pt(14)
+        fmt.space_after = Pt(14)
+        if label:
+            source, _ = new(label, _doc_size(theme, "caption", 9),
+                            color=muted)
+            source.paragraph_format.left_indent = Cm(1.1)
+            source.paragraph_format.right_indent = Cm(1.1)
+            source.paragraph_format.space_after = Pt(14)
+            made.append(source)
+        made.insert(0, body)
+    elif style == "lead":
+        body = doc.add_paragraph()
+        if label:
+            lead = body.add_run(label if label.endswith((".", "؟", "!", ":"))
+                                else label + ".")
+            lead.font.bold = True
+            lead.font.size = Pt(body_pt)
+            if face:
+                lead.font.name = face
+            lead.font.color.rgb = RGBColor.from_string(_hex(ink))
+            body.add_run(" ")
+        rest = body.add_run(text)
+        rest.font.size = Pt(body_pt)
+        if face:
+            rest.font.name = face
+        rest.font.color.rgb = RGBColor.from_string(_hex(ink))
+        body.paragraph_format.space_before = Pt(10)
+        body.paragraph_format.space_after = Pt(10)
+        made.append(body)
+    else:                                   # block
+        body, _ = new(text, body_pt)
+        _pshade(body, spec.get("fill") or band)
+        fmt = body.paragraph_format
+        fmt.left_indent = Cm(0.45)
+        fmt.right_indent = Cm(0.45)
+        fmt.space_before = Pt(12)
+        fmt.space_after = Pt(12)
+        made.append(body)
+
+    for para in made:
+        set_paragraph_rtl(para, rtl)
+    return made[0]
+
+BUILDERS = {"chart": add_chart, "image": add_picture,
+            "shape": add_shape, "callout": add_callout}
 
 
 def add_graphic(doc, block: dict, theme=_AUTO):

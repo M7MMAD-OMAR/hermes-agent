@@ -198,8 +198,8 @@ data and not for a look:
  "width_mm": 150, "height_mm": 80}
 {"type": "image", "path": "site.png", "width_mm": 90,
  "caption": "The site at dawn", "alt": "A low building at dawn"}
-{"type": "shape", "text": "One customer is 22 percent of the book.",
- "shape": "rounded", "width_mm": 150, "height_mm": 18}
+{"type": "callout", "style": "rules", "kicker": "the risk",
+ "text": "One customer is 22 percent of the book."}
 ```
 
 The chart is a genuine `word/charts/chart1.xml` part with its own
@@ -207,6 +207,28 @@ embedded workbook, not a picture of a chart: the reader can click it in
 Word, see the numbers and change them. Colors, type sizes and the
 no-gridlines treatment come from the house theme, and `bar`, `column`,
 `line` and `pie` are the kinds.
+
+### An aside is a paragraph, not a box
+
+A rounded rectangle with a fill and a thin border around it is the most
+recognisable shape in a generated document, so the callout block sets an
+aside the way a typeset report does, with paragraph properties that flow
+with the text around them:
+
+| `style` | What it is |
+| --- | --- |
+| `rules` (default) | a rule above, a small caps label, the text, a hairline under it |
+| `quote` | indented both sides and set larger, no rule and no fill: the whitespace carries it |
+| `lead` | a bold lead in phrase and then the sentence, no decoration at all |
+| `block` | a flat tint, square corners, no outline, for a note that must sit apart |
+
+All four mirror in Arabic, and the small caps treatment is dropped there,
+because Arabic has no upper case and tracking breaks the joins between
+its letters.
+
+`{"type": "shape", ...}` still exists for the rare case that genuinely
+needs a floating box. Its default is now a flat tint with square corners
+and no outline; an outline is opt in with `"line"`.
 
 Append graphics to a document that already exists with
 `docx_graphics.py blocks.json out.docx --into existing.docx`.

@@ -126,6 +126,12 @@ The short version:
   `{"theme": {"table_style": "rules"}}`, or `HERMES_HOUSE_TABLE=rules`,
   switches to the booktabs convention instead: three horizontal rules,
   nothing vertical, for a document that wants the quieter print look.
+- **Asides.** A callout is a paragraph, not a box: a rule with a small
+  caps label, or an indent with larger type, or a bold lead in phrase. A
+  rounded rectangle with a fill and a border is the shape a reader
+  recognises as generated before reading a word of it, so the docx
+  callout block has no such style and the floating box lost its outline
+  and its rounded corners.
 - **Charts.** One accent hue unless the data has a real categorical
   dimension, no gridlines, no legend for a single series, numbers on the
   bars instead of a value axis.

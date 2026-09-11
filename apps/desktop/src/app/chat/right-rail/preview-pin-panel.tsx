@@ -24,9 +24,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { $annotateToggleRequest, $attachPinsRequest } from '@/app/chat/right-rail/preview-pin-requests'
 import { Codicon } from '@/components/ui/codicon'
+import { useI18n } from '@/i18n/context'
 import { dataUrlToBlob } from '@/lib/embedded-images'
 import { orderedShots, pinAttachmentLabel } from '@/lib/preview-pins/pin-block'
-import { allPins, mergeReport, normalizePageUrl, otherPages, type PinBook, pinsForPage } from '@/lib/preview-pins/pin-book'
+import {
+  allPins,
+  mergeReport,
+  normalizePageUrl,
+  otherPages,
+  type PinBook,
+  pinsForPage
+} from '@/lib/preview-pins/pin-book'
 import { $pinBook, setPinBook } from '@/lib/preview-pins/pin-book-store'
 import type { PreviewPin } from '@/lib/preview-pins/types'
 import { cn } from '@/lib/utils'
@@ -72,6 +80,8 @@ const POLL_IDLE_MS = 1_600
 const COLLAPSED_ROWS = 2
 
 export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
+  const { t } = useI18n()
+  const copy = t.preview.pins
   const book = useStore($pinBook)
   const [pins, setPins] = useState<PreviewPin[]>([])
   const [armed, setArmed] = useState(false)
@@ -510,9 +520,9 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
 
     if (await deliverPrompt({ attachments: parts, mode: 'now', text })) {
       await markDelivered([pin.id], true)
-      notify({ kind: 'success', message: 'Comment sent to the chat.', title: 'Sent' })
+      notify({ kind: 'success', message: copy.sentMessage, title: copy.sentTitle })
     } else {
-      notify({ kind: 'error', message: 'No conversation is open to receive it.', title: 'Could not send' })
+      notify({ kind: 'error', message: copy.sendFailedMessage, title: copy.sendFailedTitle })
     }
   }
 
@@ -525,9 +535,9 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
 
     if (await deliverPrompt({ attachments: parts, mode: 'queue', text })) {
       await markDelivered([pin.id], true)
-      notify({ kind: 'success', message: 'Comment parked in the queue.', title: 'Queued' })
+      notify({ kind: 'success', message: copy.queuedMessage, title: copy.queuedTitle })
     } else {
-      notify({ kind: 'error', message: 'No conversation is open to queue it in.', title: 'Could not queue' })
+      notify({ kind: 'error', message: copy.queueFailedMessage, title: copy.queueFailedTitle })
     }
   }
 
@@ -568,10 +578,10 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       delivered
         ? {
             kind: 'success',
-            message: `${sending.length} comment${sending.length === 1 ? '' : 's'} ready in the composer`,
-            title: 'Added to chat'
+            message: copy.addedMessage(sending.length),
+            title: copy.addedTitle
           }
-        : { kind: 'error', message: 'No composer window is open to receive them.', title: 'Could not add to chat' }
+        : { kind: 'error', message: copy.addFailedMessage, title: copy.addFailedTitle }
     )
 
     if (delivered) {
@@ -625,18 +635,16 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
           type="button"
         >
           <Codicon name="comment-draft" size="0.8125rem" />
-          {armed ? 'Commenting' : 'Comment'}
+          {armed ? copy.commenting : copy.comment}
         </button>
 
         <span className="truncate text-muted-foreground">
-          {!live ? 'no live page' : armed ? 'click an element, or drag a region · Esc to stop' : `${openCount} open`}
+          {!live ? copy.noLivePage : armed ? copy.armedHint : copy.openCount(openCount)}
           {/* Comments left on pages the user has since navigated away from.
               Without this the panel looks empty on a fresh page and the review
               they already wrote appears to have been lost. */}
           {!armed && elsewhere.count > 0 && (
-            <span className="ms-1 text-muted-foreground/70">
-              · {elsewhere.count} on {elsewhere.pages} other page{elsewhere.pages === 1 ? '' : 's'}
-            </span>
+            <span className="ms-1 text-muted-foreground/70">{copy.elsewhere(elsewhere.count, elsewhere.pages)}</span>
           )}
         </span>
 
@@ -645,19 +653,19 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
             className="rounded px-2 py-1 hover:bg-muted disabled:opacity-40"
             disabled={!openCount && !elsewhere.count}
             onClick={() => void attach()}
-            title="Add every pending comment, across every page, to the chat"
+            title={copy.sendAllTitle}
             type="button"
           >
-            Send all
+            {copy.sendAll}
           </button>
           <button
             className="rounded px-2 py-1 hover:bg-muted disabled:opacity-40"
             disabled={!pins.length && !elsewhere.count}
             onClick={() => void clearEverything()}
-            title="Discard the whole review, every page"
+            title={copy.clearTitle}
             type="button"
           >
-            Clear
+            {copy.clear}
           </button>
         </div>
       </div>
@@ -685,20 +693,20 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
                 />
               ) : null}
               <span className="min-w-0 flex-1 truncate">
-                <span className="font-medium">{pin.target || 'region'}</span>
+                <span className="font-medium">{pin.target || copy.region}</span>
                 {(pin.shots?.length ?? 0) > 1 && (
-                  <span className="ms-1 text-muted-foreground">·{pin.shots!.length} images</span>
+                  <span className="ms-1 text-muted-foreground">{copy.imageCount(pin.shots!.length)}</span>
                 )}
                 {/* A pin that came back on a weak rung is worth seeing. The
                     comment is still attached to something, but not to the
                     thing the page promised it. */}
-                {pin.orphaned && <span className="ms-1.5 text-amber-500">· detached</span>}
-                <span className="ms-1.5 text-muted-foreground">{pin.comment || 'no comment yet'}</span>
+                {pin.orphaned && <span className="ms-1.5 text-amber-500">{copy.detached}</span>}
+                <span className="ms-1.5 text-muted-foreground">{pin.comment || copy.noComment}</span>
               </span>
               <button
                 className="rounded px-1 hover:bg-muted"
                 onClick={() => void sendOne(pin)}
-                title="Send this comment to the chat now"
+                title={copy.sendNow}
                 type="button"
               >
                 <Codicon name="send" size="0.75rem" />
@@ -706,7 +714,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
               <button
                 className="rounded px-1 hover:bg-muted"
                 onClick={() => void queueOne(pin)}
-                title="Add this comment to the conversation's queue"
+                title={copy.queue}
                 type="button"
               >
                 <Codicon name="list-ordered" size="0.75rem" />
@@ -714,7 +722,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
               <button
                 className="rounded px-1 hover:bg-muted"
                 onClick={() => void togglePinResolved(pin.id).then(sync)}
-                title={pin.resolved ? 'Reopen' : 'Mark resolved'}
+                title={pin.resolved ? copy.reopen : copy.resolve}
                 type="button"
               >
                 <Codicon name={pin.resolved ? 'circle-outline' : 'check'} size="0.75rem" />
@@ -722,7 +730,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
               <button
                 className="rounded px-1 hover:bg-muted"
                 onClick={() => void removePin(pin.id).then(sync)}
-                title="Delete"
+                title={copy.delete}
                 type="button"
               >
                 <Codicon name="trash" size="0.75rem" />
@@ -738,7 +746,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
           onClick={() => setExpanded(open => !open)}
           type="button"
         >
-          {expanded ? 'Show fewer' : `Show all ${pending.length}`}
+          {expanded ? copy.showFewer : copy.showAll(pending.length)}
         </button>
       )}
     </div>

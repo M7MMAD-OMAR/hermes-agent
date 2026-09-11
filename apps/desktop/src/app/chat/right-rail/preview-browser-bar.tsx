@@ -236,7 +236,7 @@ export function PreviewBrowserBar({
       <PaneStripGlyph
         active={viewportOpen}
         icon={<Codicon name="device-mobile" size="0.8125rem" />}
-        label="Screen size"
+        label={copy.screenSize}
         onSelect={onToggleViewport}
       />
       <PaneStripGlyph

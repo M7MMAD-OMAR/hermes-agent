@@ -3561,7 +3561,54 @@ export const ru = defineLocale({
       loadFailedConsole: (code, message) => `Не удалось загрузить${code ? ` (${code})` : ''}: ${message}`,
       unreachableDescription: 'Страница предпросмотра недоступна.',
       openTarget: url => `Открыть ${url}`,
-      fallbackTitle: 'Предпросмотр'
+      fallbackTitle: 'Предпросмотр',
+      screenSize: 'Размер экрана'
+    },
+    viewport: {
+      fit: 'По размеру',
+      fitTitle: 'Заполнить панель, как раньше',
+      width: 'Ширина области просмотра',
+      height: 'Высота области просмотра',
+      rotate: 'Повернуть',
+      rotateTitle: 'Поменять ширину и высоту местами',
+      mobile: 'мобильный'
+    },
+    pins: {
+      comment: 'Комментарий',
+      commenting: 'Комментирование',
+      noLivePage: 'нет активной страницы',
+      armedHint: 'нажмите на элемент или выделите область · Esc для выхода',
+      openCount: count => `${count} ${RU_NOUN(count, 'открыт', 'открыто', 'открыто')}`,
+      elsewhere: (count, pages) =>
+        `· ${count} ${RU_NOUN(count, 'комментарий', 'комментария', 'комментариев')} на ${pages} ${RU_NOUN(pages, 'другой странице', 'других страницах', 'других страницах')}`,
+      sendAll: 'Отправить все',
+      sendAllTitle: 'Добавить в чат все ожидающие комментарии со всех страниц',
+      clear: 'Очистить',
+      clearTitle: 'Отбросить весь обзор, на всех страницах',
+      region: 'область',
+      imageCount: count => `·${count} ${RU_NOUN(count, 'изображение', 'изображения', 'изображений')}`,
+      detached: '· откреплён',
+      noComment: 'комментария пока нет',
+      sendNow: 'Отправить этот комментарий в чат сейчас',
+      queue: 'Добавить этот комментарий в очередь разговора',
+      reopen: 'Открыть заново',
+      resolve: 'Отметить решённым',
+      delete: 'Удалить',
+      showFewer: 'Показать меньше',
+      showAll: count => `Показать все (${count})`,
+      sentTitle: 'Отправлено',
+      sentMessage: 'Комментарий отправлен в чат.',
+      sendFailedTitle: 'Не удалось отправить',
+      sendFailedMessage: 'Нет открытого разговора, чтобы его принять.',
+      queuedTitle: 'В очереди',
+      queuedMessage: 'Комментарий добавлен в очередь.',
+      queueFailedTitle: 'Не удалось добавить в очередь',
+      queueFailedMessage: 'Нет открытого разговора, чтобы поставить его в очередь.',
+      addedTitle: 'Добавлено в чат',
+      addedMessage: count =>
+        `${count} ${RU_NOUN(count, 'комментарий готов', 'комментария готовы', 'комментариев готовы')} в поле ввода`,
+      addFailedTitle: 'Не удалось добавить в чат',
+      addFailedMessage: 'Нет открытого окна ввода, чтобы их принять.'
     }
   },
   zones: {

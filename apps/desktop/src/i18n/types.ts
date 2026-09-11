@@ -3132,6 +3132,53 @@ export interface Translations {
       fallbackTitle: string
       comments: string
       cancelComment: string
+      screenSize: string
+    }
+    /** The viewport bar under the address bar: presets, free size, rotate. */
+    viewport: {
+      fit: string
+      fitTitle: string
+      width: string
+      height: string
+      rotate: string
+      rotateTitle: string
+      mobile: string
+    }
+    /** The pin panel: commenting on a live page and sending it to the chat. */
+    pins: {
+      comment: string
+      commenting: string
+      noLivePage: string
+      armedHint: string
+      openCount: (count: number) => string
+      elsewhere: (count: number, pages: number) => string
+      sendAll: string
+      sendAllTitle: string
+      clear: string
+      clearTitle: string
+      region: string
+      imageCount: (count: number) => string
+      detached: string
+      noComment: string
+      sendNow: string
+      queue: string
+      reopen: string
+      resolve: string
+      delete: string
+      showFewer: string
+      showAll: (count: number) => string
+      sentTitle: string
+      sentMessage: string
+      sendFailedTitle: string
+      sendFailedMessage: string
+      queuedTitle: string
+      queuedMessage: string
+      queueFailedTitle: string
+      queueFailedMessage: string
+      addedTitle: string
+      addedMessage: (count: number) => string
+      addFailedTitle: string
+      addFailedMessage: string
     }
   }
 

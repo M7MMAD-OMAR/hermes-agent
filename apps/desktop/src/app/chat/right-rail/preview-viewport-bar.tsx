@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
+import { useI18n } from '@/i18n/context'
 import {
   customViewport,
   parseEdge,
@@ -28,6 +29,8 @@ interface PreviewViewportBarProps {
 }
 
 export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewViewportBarProps) {
+  const { t } = useI18n()
+  const copy = t.preview.viewport
   const [width, setWidth] = useState('')
   const [height, setHeight] = useState('')
 
@@ -62,10 +65,10 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
           viewport ? 'bg-muted hover:bg-muted/70' : 'bg-primary text-primary-foreground'
         )}
         onClick={() => onChange(null)}
-        title="Fill the pane, as before"
+        title={copy.fitTitle}
         type="button"
       >
-        Fit
+        {copy.fit}
       </button>
 
       {VIEWPORT_PRESETS.map(preset => (
@@ -78,7 +81,7 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
           )}
           key={preset.id}
           onClick={() => onChange(preset)}
-          title={`${preset.width}×${preset.height}${preset.mobile ? ' · mobile' : ''}`}
+          title={`${preset.width}×${preset.height}${preset.mobile ? ` · ${copy.mobile}` : ''}`}
           type="button"
         >
           {preset.label}
@@ -88,7 +91,7 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
       <div className="ms-auto flex items-center gap-1">
         {/* Free values, because no preset list is ever the size someone needs. */}
         <input
-          aria-label="Viewport width"
+          aria-label={copy.width}
           className="w-14 rounded border border-border/60 bg-background px-1.5 py-1 text-center tabular-nums"
           inputMode="numeric"
           onBlur={applyCustom}
@@ -103,7 +106,7 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
         />
         <span className="text-muted-foreground">×</span>
         <input
-          aria-label="Viewport height"
+          aria-label={copy.height}
           className="w-14 rounded border border-border/60 bg-background px-1.5 py-1 text-center tabular-nums"
           inputMode="numeric"
           onBlur={applyCustom}
@@ -117,11 +120,11 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
           value={height}
         />
         <button
-          aria-label="Rotate"
+          aria-label={copy.rotate}
           className="rounded px-1.5 py-1 hover:bg-muted disabled:opacity-40"
           disabled={!viewport}
           onClick={() => viewport && onChange(rotateViewport(viewport))}
-          title="Swap width and height"
+          title={copy.rotateTitle}
           type="button"
         >
           <Codicon name="screen-normal" size="0.8125rem" />
@@ -131,7 +134,7 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
       {viewport && (
         <span className="w-full text-muted-foreground">
           {viewportLabel(viewport, scale)}
-          {viewport.mobile && ' · mobile'}
+          {viewport.mobile && ` · ${copy.mobile}`}
         </span>
       )}
     </div>

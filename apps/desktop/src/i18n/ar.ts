@@ -57,6 +57,7 @@ export const ar = defineLocale({
     }
   },
   common: {
+    tryHint: term => `جرّب “${term}”`,
     apply: 'تطبيق',
     back: 'رجوع',
     save: 'حفظ',
@@ -435,6 +436,7 @@ export const ar = defineLocale({
       empty: 'لا توجد إضافات سطح مكتب مثبتة بعد.',
       kinds: { bundled: 'مضمّنة', disk: 'على القرص', runtime: 'وقت التشغيل' },
       agent: {
+        toggleFailed: name => `تعذّر تبديل ${name}`,
         appliesTo: 'ينطبق على:',
         blurb:
           'إضافات ثبّتها في خلفية Hermes: أدوات ومهارات وخوادم MCP وخطافات وأوامر مائلة. الإضافات المحمولة هي حزم Agent Plugins (مهارات وحزم MCP تعمل في وكلاء آخرين أيضا). تنطبق مفاتيح التبديل على الجلسات الجديدة.',
@@ -452,6 +454,11 @@ export const ar = defineLocale({
         updateBackendToManage: 'حدّث خلفية Hermes لإدارة هذه الإضافة من سطح المكتب.'
       },
       installModal: {
+        missingEnv: vars => `متغيرات بيئة ناقصة: ${vars}. أضفها في الإعدادات ← المفاتيح.`,
+        agentTargetLocal: profile => `يُثبَّت في خلفية ${profile} (~/.hermes/plugins/)`,
+        desktopSuccess: name => `تم تثبيت إضافة سطح المكتب ${name}`,
+        agentSuccess: name => `تم تثبيت إضافة الوكيل ${name}`,
+        agentTargetRemote: profile => `يُثبَّت في الواجهة الخلفية المتصلة ${profile}`,
         agentFailed: 'فشل تثبيت إضافة الوكيل',
         agentLabel: 'إضافة وكيل',
         description: 'راجع محتويات هذا المستودع قبل تثبيت أي شيء.',
@@ -562,6 +569,8 @@ export const ar = defineLocale({
       }
     },
     appearance: {
+      uiScaleDesc: percent =>
+        `يضبط حجم النص وعناصر التحكم في التطبيق كله. تعمل أيضًا Cmd/Ctrl مع + و - و 0. الحالي: ${percent}%.`,
       title: 'المظهر',
       intro: 'خصص مظهر Hermes Desktop.',
       colorMode: 'نمط الألوان',
@@ -930,6 +939,10 @@ export const ar = defineLocale({
       manageInKeys: 'الإدارة في مفاتيح API'
     },
     gateway: {
+      cloudStatusLabel: status => `الحالة: ${status}`,
+      cloudConnectedTo: name => `متصل بـ ${name}.`,
+      cloudOrgRole: role => `الدور: ${role}`,
+      sshReachable: (host, platform) => `متاح: ${host} (${platform})، تم العثور على Hermes`,
       loading: 'جار تحميل إعدادات البوابة...',
       unavailableTitle: 'إعدادات البوابة غير متاحة',
       unavailableDesc: 'جسر IPC في سطح المكتب لا يوفّر إعدادات البوابة.',
@@ -1080,6 +1093,23 @@ export const ar = defineLocale({
       editsProfile: profile => `تنطبق التغييرات في هذه الصفحة على الملف الشخصي «${profile}».`
     },
     mcp: {
+      disableTool: tool => `تعطيل ${tool}`,
+      costTokens: tokens => `~${tokens} رمز/استدعاء`,
+      catalogInstallStarted: name => `جارٍ تثبيت ${name}... يسري على الجلسات الجديدة بعد الانتهاء.`,
+      disableServer: name => `تعطيل ${name}`,
+      enableTool: tool => `تفعيل ${tool}`,
+      capabilitySummary: (tools, prompts, resources) =>
+        `تم تفعيل ${[`${tools} أداة`, ...(prompts ? [`${prompts} موجّه`] : []), ...(resources ? [`${resources} مورد`] : [])].join('، ')}`,
+      toggleFailed: (name, enabled) => `تعذّر ${enabled ? 'تفعيل' : 'تعطيل'} ${name}`,
+      enableServer: name => `تفعيل ${name}`,
+      authenticatedMessage: (server, count) => `${server}: ${count} أداة`,
+      catalogEnvPrompt: name => `يتطلب ${name} بيانات اعتماد`,
+      serverDisabled: name => `تم تعطيل ${name}، ويسري ذلك على الجلسات الجديدة.`,
+      testOk: count => `تم الاتصال، ${count} ${count === 1 ? 'أداة متاحة' : 'أدوات متاحة'}`,
+      importConfirmMany: count => `إضافة ${count} خادمًا إلى mcp.json`,
+      usage30d: uses => `${uses} استخدام/30 يومًا`,
+      catalogInstallFailed: name => `فشل تثبيت ${name}`,
+      serverEnabled: name => `تم تفعيل ${name}، ويسري ذلك على الجلسات الجديدة.`,
       loading: 'جار تحميل خوادم MCP...',
       failedLoad: 'فشل تحميل إعدادات MCP',
       nameRequiredTitle: 'الاسم مطلوب',
@@ -1271,6 +1301,14 @@ export const ar = defineLocale({
       autoArchiveTitle: 'أرشفة المحادثات الراكدة تلقائيا'
     },
     toolsets: {
+      modelSelectedMessage: model => `${model} يسري على الجلسات الجديدة.`,
+      webExtractActive: backend => `الاستخراج: ${backend}`,
+      modelCount: count => (count === 1 ? `نموذج واحد` : `${count} نماذج`),
+      webSearchActive: backend => `البحث: ${backend}`,
+      failedSelectCapability: provider => `تعذّر تعيين ${provider}`,
+      nousAuthNeededMessage: provider => `تم حفظ ${provider} لكنه لن يُفعَّل حتى تسجّل الدخول إلى Nous Portal.`,
+      failedSelectModel: model => `فشل اختيار ${model}`,
+      webCapabilitySelectedMessage: (provider, capability) => `أصبح ${provider} يتولى ${capability} الويب.`,
       loadingConfig: 'جار تحميل الإعدادات',
       savedTitle: 'تم حفظ بيانات الاعتماد',
       savedMessage: key => `تم تحديث ${key}.`,
@@ -1340,6 +1378,8 @@ export const ar = defineLocale({
       postSetupInstalledHint: 'مثبّت. أعد تشغيل الإعداد فقط إذا تعطل شيء ما.',
       postSetupRerun: 'إعادة تشغيل الإعداد',
       terminalBackend: {
+        failedSelect: backend => `تعذّر اختيار ${backend}`,
+        selectedMessage: backend => `صارت أوامر الطرفية تُنفَّذ عبر ${backend}. يسري ذلك على الجلسات الجديدة.`,
         failedLoad: 'تعذر تحميل خلفيات الطرفية',
         inUse: 'قيد الاستخدام',
         loading: 'جار فحص خلفيات التنفيذ…',
@@ -1358,6 +1398,11 @@ export const ar = defineLocale({
       webUsedForSearch: 'خلفية البحث'
     },
     connections: {
+      duplicateSsh: label => `يوجد بالفعل اتصال بمضيف SSH هذا (“${label}”).`,
+      duplicateUrl: label => `يوجد اتصال بعنوان البوابة هذا بالفعل (“${label}”).`,
+      removeConfirmDesc: label =>
+        `ستتم إزالة “${label}” من هذا التطبيق. لن يطرأ أي تغيير على النسخة نفسها، ويمكنك إضافتها مرة أخرى في أي وقت.`,
+      sameBackendHint: label => `الواجهة الخلفية نفسها المستخدمة في “${label}”`,
       addConnection: 'إضافة اتصال',
       cancel: 'إلغاء',
       cloudAddHint:
@@ -1412,6 +1457,30 @@ export const ar = defineLocale({
       urlTitle: 'رابط البوابة'
     },
     localModels: {
+      deleteConfirm: model => `حذف ${model} من القرص؟`,
+      activateDoneToast: model => `المحادثات الجديدة تستخدم ${model}.`,
+      updateDetail: (next, current) =>
+        `إصدار أحدث من llama.cpp (${next}) جاهز للتثبيت، وأنت تستخدم ${current}. تواصل النماذج عملها أثناء التنزيل.`,
+      downloadDoneToast: model => `${model} جاهز.`,
+      vram: label => `ذاكرة GPU: ${label}`,
+      pillUpTo: max => `سياق حتى ${max}`,
+      activateFailed: model => `تعذّر التبديل إلى ${model}`,
+      quickstartDoneToast: model => `تم إعداد ${model}، المحادثات الجديدة تعمل على هذا الجهاز.`,
+      downloadProgress: (done, total) => `جارٍ تنزيل ${done} من ${total}`,
+      runtimeInstalledDetail: (tag, backend) =>
+        `الإصدار ${tag}، خلفية ${backend}. يتولّى Hermes تشغيل الخادم وإدارته نيابة عنك.`,
+      pillFullContext: max => `سياق كامل بحجم ${max}`,
+      updateToast: next => `تتوفر نسخة أحدث من المحرك المحلي (${next}). حدّثها من الإعدادات ← النماذج المحلية.`,
+      quickstartDetailReady: model =>
+        `نقرة واحدة تجعل ${model} نموذجك الافتراضي للمحادثات الجديدة. كل شيء يعمل على هذا الجهاز.`,
+      downloadAction: size => `تنزيل · ${size}`,
+      runtimeReady: backend => `جاهز · ${backend}`,
+      deleted: model => `تم حذف ${model}.`,
+      downloadFailed: model => `فشل تنزيل ${model}`,
+      upToDateDetail: (tag, backend) => `يعمل llama.cpp ${tag} (${backend})، وهو أحدث إصدار يوفّره Hermes.`,
+      quickstartDetail: (model, size) =>
+        `نقرة واحدة تهيّئ كل شيء: المحرك المحلي، و${model} (تنزيل بحجم ${size})، ونموذجك الافتراضي للمحادثات الجديدة. لا شيء يغادر هذا الحاسوب.`,
+      ram: label => `ذاكرة ${label}`,
       activating: 'جار البدء…',
       activeDetail: 'تستخدم المحادثات الجديدة هذا النموذج، ويُحمَّل عند إرسال أول رسالة',
       activeNotLoaded: 'يُحمَّل عند أول رسالة',
@@ -1503,6 +1572,10 @@ export const ar = defineLocale({
       useAction: 'استخدام'
     },
     managedUpdates: {
+      scopesRestored: profiles => `الملفات التعريفية المستعادة: ${profiles}`,
+      receiptVersions: (pre, post) => `${pre} ← ${post}`,
+      receipt: (id, outcome) => `الإيصال ${id} · ${outcome}`,
+      scopeNotRestored: (profile, error) => `تعذّرت استعادة الملف الشخصي “${profile}”: ${error}`,
       alreadyRunning: 'التحديث جار بالفعل',
       failed: 'فشل التحديث',
       intro:
@@ -1522,6 +1595,11 @@ export const ar = defineLocale({
     }
   },
   skills: {
+    emptyNoneAvailable: noun => `لا توجد ${noun} متاحة بعد.`,
+    bulkUpdated: count => `تم تحديث ${count} ${count === 1 ? 'عنصر' : 'عناصر'} للجلسات الجديدة.`,
+    emptyNothingMatches: query => `لا توجد نتائج مطابقة لـ “${query}”.`,
+    emptyNoneFound: noun => `لا توجد نتائج لـ ${noun}`,
+    usageCount: count => `استُخدم ${count}×`,
     tabSkills: 'المهارات',
     tabToolsets: 'مجموعات الأدوات',
     all: 'الكل',
@@ -1557,6 +1635,13 @@ export const ar = defineLocale({
     edit: 'تحرير',
     enableAll: 'تفعيل الكل',
     hub: {
+      installStarted: name => `جارٍ تثبيت ${name}...`,
+      findings: count => (count === 1 ? `نتيجة واحدة` : `${count} نتائج`),
+      alreadyInstalled: name => `"${name}" مثبّت بالفعل`,
+      timedOut: sources => `انتهت المهلة: ${sources}`,
+      uninstallStarted: name => `جارٍ إزالة ${name}...`,
+      resultCount: (count, ms) =>
+        `${count} ${count === 1 ? 'نتيجة' : 'نتائج'}${ms !== null ? ` خلال ${ms} مللي ثانية` : ''}`,
       actionFailed: 'فشل إجراء المهارة',
       actionLog: 'سجل الإجراءات',
       close: 'إغلاق',
@@ -1621,6 +1706,7 @@ export const ar = defineLocale({
     visionModelLink: 'اختر نموذج الرؤية من الإعدادات ← النماذج'
   },
   agents: {
+    ageDays: days => `قبل ${days} يوم`,
     extendedTranscript: 'سجل موسّع',
     transcriptTruncated: 'عرض أحدث 16 KiB',
     transcriptUnavailable: 'السجل المباشر غير متاح',
@@ -1662,6 +1748,8 @@ export const ar = defineLocale({
     tokens: value => `${value} رمز`
   },
   commandCenter: {
+    newSessionInProject: project => `جلسة جديدة في ${project}`,
+    openFolderAt: path => `فتح المجلد كمشروع: ${path}`,
     close: 'إغلاق',
     paletteTitle: 'لوحة الأوامر',
     back: 'رجوع',
@@ -1830,6 +1918,13 @@ export const ar = defineLocale({
     logLevel: 'المستوى',
     logSearchPlaceholder: 'تصفية أسطر السجل...',
     maintenance: {
+      resetDone: files => `تم حذف ${files}.`,
+      curatorLastRun: when => `آخر تشغيل ${when}`,
+      resetConfirm: target => `هل تريد حذف ${target}؟ لا يمكن التراجع عن هذا الإجراء.`,
+      actionFailed: name => `تعذّر بدء ${name}`,
+      bytes: size => size,
+      actionStarted: name => `بدأ ${name}، جارٍ تتبّع السجل...`,
+      memoryProvider: name => `المزوّد النشط: ${name}`,
       backup: 'إنشاء نسخة احتياطية',
       backupDesc: 'ضغط الإعدادات والذكريات والمهارات والجلسات',
       builtinMemory: 'مضمّنة',
@@ -1871,6 +1966,16 @@ export const ar = defineLocale({
     projects: 'المشاريع'
   },
   messaging: {
+    waitingSince: minutes => (minutes < 1 ? 'الآن' : `قبل ${minutes} دقيقة`),
+    approvedUser: name => `تمت الموافقة على ${name}`,
+    pendingAria: count => `${count} ${count === 1 ? 'طلب اقتران' : 'طلبات اقتران'} قيد الانتظار`,
+    failedRevoke: name => `تعذّر إلغاء صلاحية ${name}`,
+    revokeDesc: name => `سيفقد ${name} صلاحية الوصول ولن يتم التعرّف عليه عند رسالته التالية.`,
+    pendingRequests: count => `الطلبات المعلّقة (${count})`,
+    failedApprove: name => `تعذّرت الموافقة على ${name}`,
+    revokeAria: name => `إبطال ${name}`,
+    revokedUser: name => `تم إلغاء صلاحية ${name}`,
+    approvedUsers: count => `المستخدمون المعتمدون (${count})`,
     search: 'بحث',
     loading: 'جار التحميل...',
     loadFailed: 'فشل التحميل',
@@ -2171,12 +2276,18 @@ export const ar = defineLocale({
     displayNameTitle: 'تسمية هذا الوكيل',
     editSoul: 'تحرير SOUL.md…',
     fleet: {
+      deleteOn: gateway => ` على ${gateway}`,
+      gateway: gateway => `الملفات التعريفية على ${gateway}`,
+      switchTo: (name, gateway) => `التبديل إلى ${name} على ${gateway}`,
+      onGateway: (name, gateway) => `${name} · ${gateway}`,
+      gatewayUnreachable: gateway => `${gateway} · غير متاح`,
       allOnGateway: 'كل الملفات الشخصية على هذه البوابة'
     },
     renameMenu: 'إعادة تسمية…',
     search: 'ابحث في الملفات الشخصية...'
   },
   cron: {
+    count: count => `${count} ${count === 1 ? 'مهمة' : 'مهام'}`,
     close: 'إغلاق',
     modelImpact: {
       title: 'تحتاج المهام المجدولة إلى المراجعة',
@@ -2467,6 +2578,8 @@ export const ar = defineLocale({
     missingBody: 'لم يعد هذا الناتج موجودًا في السجل المحلي.'
   },
   sidebar: {
+    messageCount: count => `${count} ${count === 1 ? 'رسالة' : 'رسائل'}`,
+    toolCallCount: count => `${count} ${count === 1 ? 'استدعاء أداة' : 'استدعاءات أدوات'}`,
     gatewayGroups: {
       grouping: 'البوابة والملف الشخصي',
       rename: 'إعادة تسمية المجموعة',
@@ -2511,6 +2624,11 @@ export const ar = defineLocale({
     noSessions: 'لا توجد جلسات بعد',
     noFilterMatches: 'لا توجد جلسات تطابق عوامل التصفية هذه',
     projects: {
+      branchOff: () => ({
+        after: '',
+        before: 'تفريع من '
+      }),
+      movedTo: name => `نُقل إلى ${name}`,
       folderNeedsAttention: 'مجلدات المصادر تحتاج مراجعة',
       folderMissing: 'المجلد غير موجود',
       folderUnavailable: 'تعذر الوصول إلى المجلد',
@@ -2602,6 +2720,7 @@ export const ar = defineLocale({
     loadMore: 'تحميل المزيد',
     loadCount: step => `تحميل ${step} أخرى`,
     row: {
+      messageCount: count => `${count} ${count === 1 ? 'رسالة' : 'رسائل'}`,
       pin: 'تثبيت',
       unpin: 'إلغاء التثبيت',
       markUnread: 'وضع علامة كغير مقروء',
@@ -2662,6 +2781,10 @@ export const ar = defineLocale({
     }
   },
   composer: {
+    wakeWordOff: phrase => `كلمة التنبيه: "${phrase}"، معطّلة`,
+    wakeWordListening: phrase => `كلمة التنبيه: "${phrase}"، جارٍ الاستماع`,
+    queuedPaused: count => `${count} في الانتظار، متوقفة مؤقتًا`,
+    wakeWordPausedVoice: phrase => `كلمة التنبيه: "${phrase}"، متوقفة مؤقتًا أثناء المحادثة الصوتية`,
     message: 'الرسالة',
     wakingProfile: profile => `جار إيقاظ ${profile}`,
     placeholderStarting: 'جار بدء Hermes...',
@@ -2789,6 +2912,7 @@ export const ar = defineLocale({
       }
     },
     cronSuggestions: {
+      tip: phrase => `“${phrase}” تبدو مهمة متكررة، شغّلها وفق جدول زمني بدلًا من ذلك`,
       done: 'تم تحديدها للجدولة',
       doneTip: 'أرسلها وسينشئ الوكيل المهمة',
       label: 'جدولة هذا',
@@ -2801,16 +2925,29 @@ export const ar = defineLocale({
       tip: 'يعمل GitHub هنا عبر مهارات gh CLI، انقر لربط حسابك'
     },
     mcpSuggestions: {
+      tip: keyword => `مقترح لأنك ذكرت “${keyword}”، انقر للاتصال`,
+      connectFailed: server => `تعذّر الاتصال بـ ${server}`,
+      label: server => `إضافة ${server}`,
+      added: server => `تمت إضافة ${server}`,
+      connecting: server => `جارٍ الاتصال بـ ${server}…`,
       addedTip: 'تم الاتصال، وأدواته جاهزة في هذه المحادثة',
       cancelTip: 'انقر للإلغاء'
     },
     queueResume: 'استئناف',
     queueResumeTip: 'أوقفه زر «إيقاف» مؤقتا، استأنف إرسال الأدوار في الطابور',
     repairSuggestions: {
+      tip: server => `فشل للتو استدعاء ${server} بخطأ في الاتصال`,
+      failed: server => `تعذّرت إعادة الاتصال بـ ${server}`,
+      label: server => `إعادة الاتصال بـ ${server}`,
+      done: server => `أُعيد الاتصال بـ ${server}`,
+      working: server => `جارٍ إعادة الاتصال بـ ${server}…`,
       doneTip: 'بيانات الاعتماد الجديدة فعّالة في هذه المحادثة',
       workingTip: 'انقر للإلغاء'
     },
     skillSuggestions: {
+      label: skill => `استخدام المهارة: ${skill}`,
+      done: skill => `تمت إضافة /${skill}`,
+      tip: skill => `ذكرت “${skill}”، انقر للبدء بهذه المهارة`,
       doneTip: 'تُحمّل المهارة عند الإرسال'
     },
     speakReplies: 'قراءة الردود بصوت عال',
@@ -3045,6 +3182,9 @@ export const ar = defineLocale({
     }
   },
   install: {
+    testSucceeded: (baseUrl, version) => `تم الاتصال بـ ${baseUrl}${version ? ` (${version})` : ''}.`,
+    signInWith: provider => `تسجيل الدخول عبر ${provider}`,
+    authNeedsOauth: provider => `سجّل الدخول عبر ${provider} قبل اختبار هذه البوابة.`,
     stageStates: {
       pending: 'قيد الانتظار',
       running: 'جار التثبيت',
@@ -3270,6 +3410,12 @@ export const ar = defineLocale({
       messagingPlatforms: 'منصات المراسلة'
     },
     statusbar: {
+      connectionCloudTooltip: host => `Hermes Cloud · ${host}`,
+      connectionCloud: host => `السحابة: ${host}`,
+      connectionRemoteTooltip: host => `عن بُعد · ${host}`,
+      connectionRemote: host => `عن بُعد: ${host}`,
+      connectionSshTooltip: host => `SSH · ${host}`,
+      connectionSsh: host => `SSH: ${host}`,
       accountUsagePanel: {
         empty: 'لا توجد اشتراكات مربوطة',
         loading: 'جارٍ فحص الخطط…',
@@ -3394,6 +3540,7 @@ export const ar = defineLocale({
       tokensPerSecondTitle: 'توكنات الإخراج في الثانية، بمتوسط آخر 10 استدعاءات للنموذج'
     },
     approvalMode: {
+      ariaLabel: mode => `وضع الموافقة: ${mode}`,
       manual: 'يدوي',
       manualDescription: 'يسأل قبل الإجراءات التي تتطلب موافقة',
       off: 'معطل',
@@ -3638,6 +3785,7 @@ export const ar = defineLocale({
   },
   assistant: {
     thread: {
+      loadingLocalModel: model => `جارٍ تحميل ${model} إلى الذاكرة`,
       loadingSession: 'جار تحميل الجلسة...',
       showEarlier: 'عرض الرسائل الأقدم',
       loadingResponse: 'جار تحميل الرد...',
@@ -3723,6 +3871,7 @@ export const ar = defineLocale({
       alwaysAllow: 'السماح دائما'
     },
     clarify: {
+      lateAnswer: (question, choice) => `بخصوص "${question}"، إجابتي: ${choice}`,
       notReady: 'غير جاهز',
       gatewayDisconnected: 'البوابة غير متصلة',
       sendFailed: 'فشل الإرسال',
@@ -3932,6 +4081,15 @@ export const ar = defineLocale({
       }
     },
     mcpSetup: {
+      toolCount: count => (count === 1 ? 'أداة واحدة' : `${count} أدوات`),
+      installed: server => `تم تثبيت ${server}`,
+      failed: server => `فشل إعداد ${server}`,
+      authorizeTitle: server => `هل تريد السماح لخادم MCP باسم ${server}؟`,
+      authorized: server => `تم تفويض ${server}`,
+      enableTitle: server => `هل تريد تفعيل خادم MCP باسم ${server}؟`,
+      notInCatalog: server => `“${server}” غير موجود في كتالوج MCP`,
+      enabled: server => `تم تفعيل ${server}`,
+      installTitle: server => `هل تريد إضافة خادم MCP الخاص بـ ${server}؟`,
       authorizeAction: 'تفويض',
       catalogSource: 'من الكتالوج المعتمد من Nous',
       decline: 'ليس الآن',
@@ -4103,6 +4261,7 @@ export const ar = defineLocale({
     }
   },
   billingBlock: {
+    titleProvider: provider => `نفد الرصيد: ${provider}`,
     addCredits: 'إضافة رصيد',
     dismiss: 'تجاهل',
     fallbackMessage: 'نفد الرصيد من حسابك. أضف رصيدا للمتابعة.',
@@ -4114,6 +4273,8 @@ export const ar = defineLocale({
     previous: 'المطابقة السابقة'
   },
   starmap: {
+    importSuccess: nodes => `تم تحميل خريطة تضم ${nodes} ${nodes === 1 ? 'عقدة' : 'عقد'}.`,
+    subtitle: (nodes, clusters) => `${nodes} مهارة ضمن ${clusters} فئة`,
     close: 'إغلاق خريطة الذاكرة',
     copied: 'تم النسخ!',
     copy: 'نسخ رمز الخريطة',
@@ -4139,6 +4300,13 @@ export const ar = defineLocale({
     viewGraph: 'الرسم'
   },
   webhooks: {
+    deleteFailed: name => `تعذّر حذف "${name}"`,
+    createFailed: detail => `تعذّر الإنشاء: ${detail}`,
+    disabled: name => `معطّل: "${name}"`,
+    restartFailed: detail => `تعذّرت إعادة تشغيل البوابة${detail}`,
+    enabled: name => `مُفعَّل: "${name}"`,
+    toggleFailed: (name, enabled) => `فشل ${enabled ? 'تشغيل' : 'إيقاف'} "${name}"`,
+    subscriptions: count => `الاشتراكات (${count})`,
     all: '(الكل)',
     copy: 'نسخ',
     create: 'إنشاء',

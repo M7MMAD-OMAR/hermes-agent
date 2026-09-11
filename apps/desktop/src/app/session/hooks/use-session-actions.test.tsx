@@ -4418,13 +4418,13 @@ describe('removeSession / archiveSession profile routing (#78836)', () => {
 // owner after session.create. The create RPC already rode
 // requestGatewayForAgent(capturedRoute); but the optimistic row was stamped
 // from $activeGatewayProfile (still `default` in All-profiles / Bot routing)
-// and no owner hint was recorded, so the first turn ran on omar while every
+// and no owner hint was recorded, so the first turn ran on ops while every
 // later session-scoped RPC resolved the row as `default` → "session not
-// found" on the default backend, and the orphaned omar runtime was eventually
+// found" on the default backend, and the orphaned ops runtime was eventually
 // ws-orphan-reaped.
 describe('routed fresh chat keeps its exact owner across turns', () => {
-  const route: SessionProfileRoute = { connectionId: 'local', mode: 'local', profile: 'omar' }
-  const STORED = 'stored-omar-fresh'
+  const route: SessionProfileRoute = { connectionId: 'local', mode: 'local', profile: 'ops' }
+  const STORED = 'stored-ops-fresh'
 
   afterEach(() => {
     cleanup()
@@ -4460,9 +4460,9 @@ describe('routed fresh chat keeps its exact owner across turns', () => {
       return {} as never
     })
 
-    // The owning backend, local::omar. Anything else 4001s.
+    // The owning backend, local::ops. Anything else 4001s.
     vi.mocked(requestGatewayForAgent).mockImplementation(async (connectionId, profile, method) => {
-      if (connectionId === 'local' && profile === 'omar') {
+      if (connectionId === 'local' && profile === 'ops') {
         if (method === 'session.create') {
           return { session_id: RUNTIME_SESSION_ID, stored_session_id: STORED } as never
         }
@@ -4473,7 +4473,7 @@ describe('routed fresh chat keeps its exact owner across turns', () => {
       throw new Error(`Session not found (${connectionId}::${profile}, ${method})`)
     })
 
-    // Ambient profile = default; the draft is routed at local::omar.
+    // Ambient profile = default; the draft is routed at local::ops.
     $activeGatewayProfile.set('default')
     $newChatProfile.set(route.profile)
     $newChatRoute.set({ ...route })
@@ -4485,7 +4485,7 @@ describe('routed fresh chat keeps its exact owner across turns', () => {
     let runtimeId: null | string = null
 
     await act(async () => {
-      runtimeId = await handle!.createBackendSessionForSend('hello omar')
+      runtimeId = await handle!.createBackendSessionForSend('hello ops')
     })
 
     expect(runtimeId).toBe(RUNTIME_SESSION_ID)
@@ -4504,15 +4504,15 @@ describe('routed fresh chat keeps its exact owner across turns', () => {
         ? `${followupOwner.connectionId}::${followupOwner.profile}`
         : followupOwner
 
-    // The exact failing shape: the foreground socket is omar's, the follow-up
+    // The exact failing shape: the foreground socket is ops's, the follow-up
     // routes to default.
     expect({ followupOwner: followupOwnerKey, foregroundScope }).not.toEqual({
       followupOwner: 'default',
-      foregroundScope: 'conn:local::omar'
+      foregroundScope: 'conn:local::ops'
     })
     expect({ followupOwner: followupOwnerKey, foregroundScope }).toEqual({
-      followupOwner: 'local::omar',
-      foregroundScope: 'conn:local::omar'
+      followupOwner: 'local::ops',
+      foregroundScope: 'conn:local::ops'
     })
 
     // Both owner records carry the route, and the ambient profile never moved.
@@ -4520,18 +4520,18 @@ describe('routed fresh chat keeps its exact owner across turns', () => {
     expect($sessions.get().find(session => sessionMatchesStoredId(session, STORED))).toMatchObject({
       connection_id: 'local',
       is_default_profile: false,
-      profile: 'omar'
+      profile: 'ops'
     })
     expect($activeGatewayProfile.get()).toBe('default')
   })
 
-  it('integration: both turns hit local::omar with default ambient — no session-not-found, no orphaned runtime', async () => {
+  it('integration: both turns hit local::ops with default ambient, no session-not-found, no orphaned runtime', async () => {
     const { ambientRequest, runtimeId } = await createRoutedFreshChat()
 
     const submitTurn = (text: string) =>
       requestForSessionProfile(ownerFor(STORED), ambientRequest, 'prompt.submit', { session_id: runtimeId, text })
 
-    // First turn on omar.
+    // First turn on ops.
     await expect(submitTurn('first turn')).resolves.toEqual({ ok: true })
 
     // Keep default as the ambient profile (All-profiles / Bot routing never
@@ -4542,14 +4542,14 @@ describe('routed fresh chat keeps its exact owner across turns', () => {
     const submits = vi.mocked(requestGatewayForAgent).mock.calls.filter(call => call[2] === 'prompt.submit')
 
     expect(submits.map(call => [call[0], call[1], (call[3] as { text: string }).text])).toEqual([
-      ['local', 'omar', 'first turn'],
-      ['local', 'omar', 'second turn']
+      ['local', 'ops', 'first turn'],
+      ['local', 'ops', 'second turn']
     ])
     // No session-not-found: the default backend never saw a session-scoped RPC.
     expect(ambientRequest).not.toHaveBeenCalledWith('prompt.submit', expect.anything())
     expect(ambientRequest.mock.calls.filter(call => typeof call[1]?.session_id === 'string')).toEqual([])
     // No ws_orphan_reap: the client never closed or abandoned the runtime it
-    // minted on omar — no session.close on any route, the binding stands.
+    // minted on ops, no session.close on any route, the binding stands.
     expect(vi.mocked(requestGatewayForAgent).mock.calls.filter(call => call[2] === 'session.close')).toEqual([])
     expect(ambientRequest).not.toHaveBeenCalledWith('session.close', expect.anything())
     expect(getSessionOwnerHint(STORED)).toEqual(route)

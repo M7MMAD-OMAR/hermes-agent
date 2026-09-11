@@ -34,28 +34,28 @@ afterEach(() => {
 })
 
 describe('foregroundSessionScopes: owner hold across the create → foreground gap', () => {
-  const omar = { connectionId: 'local', mode: 'local' as const, profile: 'omar' }
+  const ops = { connectionId: 'local', mode: 'local' as const, profile: 'ops' }
 
   it('names the owner from the moment a routed create returns, before anything is selected or tiled', () => {
-    holdSessionOwnerUntilForeground('stored-fresh', omar)
+    holdSessionOwnerUntilForeground('stored-fresh', ops)
 
-    expect(foregroundSessionScopes()).toEqual(new Set(['conn:local::omar']))
+    expect(foregroundSessionScopes()).toEqual(new Set(['conn:local::ops']))
   })
 
   it('retires once the foreground publication covers it (selected primary thread / mounted tile)', () => {
-    holdSessionOwnerUntilForeground('stored-fresh', omar)
-    setSessionOwnerHint('stored-fresh', omar)
+    holdSessionOwnerUntilForeground('stored-fresh', ops)
+    setSessionOwnerHint('stored-fresh', ops)
 
     // Selected, but the runtime's event scope is not known yet: the hold is
     // still the only thing naming the owner socket, so it stays.
     $selectedStoredSessionId.set('stored-fresh')
-    expect(foregroundSessionScopes()).toEqual(new Set(['conn:local::omar']))
+    expect(foregroundSessionScopes()).toEqual(new Set(['conn:local::ops']))
 
     // The first event from the owner socket records the runtime's scope; the
     // selected-thread rung now covers it and the hold retires for good.
-    recordSessionEventScope({ connectionId: 'local', profile: 'omar', session_id: 'rt-fresh' })
+    recordSessionEventScope({ connectionId: 'local', profile: 'ops', session_id: 'rt-fresh' })
     setActiveSessionId('rt-fresh')
-    expect(foregroundSessionScopes()).toEqual(new Set(['conn:local::omar']))
+    expect(foregroundSessionScopes()).toEqual(new Set(['conn:local::ops']))
     setActiveSessionId(null)
     $selectedStoredSessionId.set(null)
     _resetSessionOwnerHintsForTests()
@@ -91,7 +91,7 @@ describe('foregroundSessionScopes: owner hold across the create → foreground g
   it('is released explicitly by the caller (failed create / drift close) and expires on its own', () => {
     vi.useFakeTimers()
 
-    const release = holdSessionOwnerUntilForeground('stored-a', omar)
+    const release = holdSessionOwnerUntilForeground('stored-a', ops)
     holdSessionOwnerUntilForeground('stored-b', { connectionId: 'homelab', profile: 'worker' })
 
     release()
@@ -100,7 +100,7 @@ describe('foregroundSessionScopes: owner hold across the create → foreground g
     releaseSessionOwnerHold('stored-b')
     expect(foregroundSessionScopes()).toEqual(new Set())
 
-    holdSessionOwnerUntilForeground('stored-c', omar)
+    holdSessionOwnerUntilForeground('stored-c', ops)
     vi.advanceTimersByTime(60_000 + 1)
     expect(foregroundSessionScopes()).toEqual(new Set())
   })
@@ -110,12 +110,12 @@ describe('foregroundSessionScopes: owner hold across the create → foreground g
     const revisions: number[] = []
     const off = $sessionOwnerHoldRevision.subscribe(value => revisions.push(value))
 
-    const release = holdSessionOwnerUntilForeground('stored-release', omar)
+    const release = holdSessionOwnerUntilForeground('stored-release', ops)
     const afterHold = revisions.at(-1)!
     release()
     expect(revisions.at(-1)).toBeGreaterThan(afterHold)
 
-    holdSessionOwnerUntilForeground('stored-expiry', omar)
+    holdSessionOwnerUntilForeground('stored-expiry', ops)
     const beforeExpiry = revisions.at(-1)!
     vi.advanceTimersByTime(60_000 + 1)
     expect(revisions.at(-1)).toBeGreaterThan(beforeExpiry)
@@ -125,7 +125,7 @@ describe('foregroundSessionScopes: owner hold across the create → foreground g
   })
 
   it('ignores blank ids, null owners and profile-only owners map to the legacy pool key', () => {
-    holdSessionOwnerUntilForeground('  ', omar)
+    holdSessionOwnerUntilForeground('  ', ops)
     holdSessionOwnerUntilForeground('stored-null', null)
     holdSessionOwnerUntilForeground('stored-legacy', 'research')
 

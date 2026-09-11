@@ -169,7 +169,12 @@ export function Intro({ personality, seed }: IntroProps) {
       <div className="w-full min-w-0">
         <Wordmark className="mb-1" text={WORDMARK} />
 
-        <p className="m-0 text-center leading-normal tracking-tight">{copy.body}</p>
+        {/* The intro copy is authored English, not a translated string, so the
+            paragraph decides its own direction. Without this it inherits the
+            Arabic chrome and the sentence ends with its full stop on the left. */}
+        <p className="m-0 text-center leading-normal tracking-tight" dir="auto">
+          {copy.body}
+        </p>
       </div>
     </div>
   )

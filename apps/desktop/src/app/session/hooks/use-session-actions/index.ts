@@ -599,9 +599,9 @@ export function useSessionActions({
           // session-scoped RPC can resolve this session's owner. The route is
           // the only authority: in All-profiles / Bot routing the ambient
           // $activeGatewayProfile stays on `default` while the session lives on
-          // `capturedRoute` (e.g. local::omar). Without this hint the optimistic
+          // `capturedRoute` (e.g. local::ops). Without this hint the optimistic
           // row (stamped from ambient) was the only owner record, so the first
-          // turn ran on omar and every later session-scoped RPC resolved the row
+          // turn ran on ops and every later session-scoped RPC resolved the row
           // as `default` and 4001'd "session not found".
           if (stored && capturedRoute) {
             setSessionOwnerHint(stored, capturedRoute)

@@ -263,12 +263,12 @@ export const $newChatRoute = atom<AgentProfileRoute | null>(null)
 
 // The registry source captured TOGETHER with a $newChatProfile intent
 // (selectProfile / newSessionInProfile / a connection switch / `/profile`).
-// A profile is not a machine-global name: "omar" picked while the remote
-// registry source `homelab` is active means homelab::omar — the exact registry
+// A profile is not a machine-global name: "ops" picked while the remote
+// registry source `homelab` is active means homelab::ops, the exact registry
 // entry whose WebSocket will mint the runtime. Without this the profile-rail
 // path (which deliberately clears $newChatRoute) reduced the owner to the bare
-// string "omar", and every follow-up RPC dialed requestGatewayForProfile
-// ("omar") — a DIFFERENT socket than the one that created the session —
+// string "ops", and every follow-up RPC dialed requestGatewayForProfile
+// ("ops"), a DIFFERENT socket than the one that created the session,
 // and 4001'd "session not found" (#94071). null = the intent dials the legacy
 // profile-only path (a v1 primary with no registry identity, or a named
 // profile pick on the explicit `local` source — see profilePickConnectionId).

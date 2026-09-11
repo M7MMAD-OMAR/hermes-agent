@@ -101,13 +101,13 @@ describe('knownOwnerForSession / requestForOwnedSession', () => {
 
   it('resolves a main-pane runtime id to its EXACT owner via the mirror + the hint, then the tagged row', () => {
     publishSessionState('rt-main', createClientSessionState('stored-main'))
-    setSessionOwnerHint('stored-main', { connectionId: 'local', profile: 'omar' })
+    setSessionOwnerHint('stored-main', { connectionId: 'local', profile: 'ops' })
 
-    expect(knownOwnerForSession('rt-main')).toEqual({ connectionId: 'local', profile: 'omar' })
+    expect(knownOwnerForSession('rt-main')).toEqual({ connectionId: 'local', profile: 'ops' })
 
     _resetSessionOwnerHintsForTests()
-    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-main', profile: 'omar' })])
-    expect(knownOwnerForSession('rt-main')).toEqual({ connectionId: 'local', profile: 'omar' })
+    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-main', profile: 'ops' })])
+    expect(knownOwnerForSession('rt-main')).toEqual({ connectionId: 'local', profile: 'ops' })
 
     setSessions([makeSessionInfo({ id: 'stored-main', profile: 'coder' })])
     expect(knownOwnerForSession('rt-main')).toBe('coder')
@@ -115,7 +115,7 @@ describe('knownOwnerForSession / requestForOwnedSession', () => {
 
   it('fails closed with an explicit owner-resolution error instead of the ambient socket', async () => {
     // Somewhere to misroute to: two profiles exist.
-    $profiles.set([{ name: 'default' }, { name: 'omar' }] as never)
+    $profiles.set([{ name: 'default' }, { name: 'ops' }] as never)
     const ambient = vi.fn(async () => ({ ok: true }))
 
     await expect(
@@ -134,10 +134,10 @@ describe('knownOwnerForSession / requestForOwnedSession', () => {
   it('routes a connection-tagged orphan runtime through the owner its inbound event recorded (#97511)', () => {
     // Registry topology, multiple profiles, no tile/hint/row binding for the
     // runtime — the approval.request event itself proved the exact owner.
-    $profiles.set([{ name: 'default' }, { name: 'omar' }] as never)
-    recordSessionEventScope({ connectionId: 'homelab', profile: 'omar', session_id: 'rt-unbound' })
+    $profiles.set([{ name: 'default' }, { name: 'ops' }] as never)
+    recordSessionEventScope({ connectionId: 'homelab', profile: 'ops', session_id: 'rt-unbound' })
 
-    expect(knownOwnerForSession('rt-unbound')).toEqual({ connectionId: 'homelab', profile: 'omar' })
+    expect(knownOwnerForSession('rt-unbound')).toEqual({ connectionId: 'homelab', profile: 'ops' })
 
     // An event without a profile tag still records the 'default' convention
     // every other owner source uses.
@@ -148,24 +148,24 @@ describe('knownOwnerForSession / requestForOwnedSession', () => {
   it('still prefers the durable stored owner when a stale runtime ledger entry collides with a stored id (#97511)', () => {
     // Pathological collision: some dead runtime's id equals a live stored id.
     // The persisted hint (durable identity) must outrank the ledger entry.
-    setSessionOwnerHint('stored-live', { connectionId: 'local', profile: 'omar' })
+    setSessionOwnerHint('stored-live', { connectionId: 'local', profile: 'ops' })
     recordSessionEventScope({ connectionId: 'spark', profile: 'default', session_id: 'stored-live' })
 
-    expect(knownOwnerForSession('stored-live')).toEqual({ connectionId: 'local', profile: 'omar' })
+    expect(knownOwnerForSession('stored-live')).toEqual({ connectionId: 'local', profile: 'ops' })
   })
 
   it('keeps failing closed for untagged or unknown runtimes in multi-profile topology (#97511)', () => {
-    $profiles.set([{ name: 'default' }, { name: 'omar' }] as never)
+    $profiles.set([{ name: 'default' }, { name: 'ops' }] as never)
     // Untagged events carry no connectionId and record nothing.
-    recordSessionEventScope({ profile: 'omar', session_id: 'rt-untagged' })
+    recordSessionEventScope({ profile: 'ops', session_id: 'rt-untagged' })
 
     expect(knownOwnerForSession('rt-untagged')).toBeUndefined()
     expect(knownOwnerForSession('rt-never-seen')).toBeUndefined()
   })
 
   it('drops the recorded event owner together with the runtime state (#97511)', () => {
-    recordSessionEventScope({ connectionId: 'homelab', profile: 'omar', session_id: 'rt-dropped' })
-    expect(knownOwnerForSession('rt-dropped')).toEqual({ connectionId: 'homelab', profile: 'omar' })
+    recordSessionEventScope({ connectionId: 'homelab', profile: 'ops', session_id: 'rt-dropped' })
+    expect(knownOwnerForSession('rt-dropped')).toEqual({ connectionId: 'homelab', profile: 'ops' })
 
     dropSessionState('rt-dropped')
     expect(knownOwnerForSession('rt-dropped')).toBeUndefined()

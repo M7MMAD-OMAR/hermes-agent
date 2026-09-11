@@ -55,7 +55,7 @@ function dispatcher(
     ambientRequest,
     request: createSessionRpcDispatcher({
       ambientRequest: ambientRequest as never,
-      runtimeIdByStoredSessionIdRef: { current: new Map([['stored-omar', 'rt-omar']]) },
+      runtimeIdByStoredSessionIdRef: { current: new Map([['stored-ops', 'rt-ops']]) },
       selectedStoredSessionIdRef: { current: selectedStoredSessionId },
       sessionStateByRuntimeIdRef: { current: new Map() }
     })
@@ -65,7 +65,7 @@ function dispatcher(
 beforeEach(() => {
   gatewayMocks.activeConnectionId = 'local'
   $connectionsRegistry.set({ connections: [{ id: 'local' }] } as never)
-  $profiles.set([{ name: 'default' }, { name: 'omar' }] as never)
+  $profiles.set([{ name: 'default' }, { name: 'ops' }] as never)
   probe.resolveSessionOwner.mockResolvedValue(undefined)
 })
 
@@ -120,7 +120,7 @@ describe('createSessionRpcDispatcher: fail closed', () => {
   it('fails closed as soon as there is somewhere to misroute to: a second profile, or a live registry source', async () => {
     gatewayMocks.activeConnectionId = null
     $connectionsRegistry.set(null)
-    $profiles.set([{ name: 'default' }, { name: 'omar' }] as never)
+    $profiles.set([{ name: 'default' }, { name: 'ops' }] as never)
     await expect(dispatcher().request('session.resume', { session_id: 'stored-x' })).rejects.toSatisfy(
       isSessionOwnerResolutionError
     )
@@ -136,13 +136,13 @@ describe('createSessionRpcDispatcher: fail closed', () => {
 
 describe('createSessionRpcDispatcher: exact owner rungs', () => {
   it('routes by the connection-tagged row when the hint is gone (runtime id translated to the stored id)', async () => {
-    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-omar', profile: 'omar' })])
+    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-ops', profile: 'ops' })])
     const { ambientRequest, request } = dispatcher()
 
-    await expect(request('prompt.submit', { session_id: 'rt-omar', text: 'again' })).resolves.toEqual({ routed: true })
+    await expect(request('prompt.submit', { session_id: 'rt-ops', text: 'again' })).resolves.toEqual({ routed: true })
 
-    expect(gatewayMocks.requestGatewayForAgent).toHaveBeenCalledWith('local', 'omar', 'prompt.submit', {
-      session_id: 'rt-omar',
+    expect(gatewayMocks.requestGatewayForAgent).toHaveBeenCalledWith('local', 'ops', 'prompt.submit', {
+      session_id: 'rt-ops',
       text: 'again'
     })
     expect(ambientRequest).not.toHaveBeenCalled()
@@ -150,14 +150,14 @@ describe('createSessionRpcDispatcher: exact owner rungs', () => {
   })
 
   it('prefers the exact hint over an untagged row profile, and the probe result over nothing', async () => {
-    setSessions([makeSessionInfo({ id: 'stored-omar', profile: 'default' })])
-    setSessionOwnerHint('stored-omar', { connectionId: 'local', profile: 'omar' })
+    setSessions([makeSessionInfo({ id: 'stored-ops', profile: 'default' })])
+    setSessionOwnerHint('stored-ops', { connectionId: 'local', profile: 'ops' })
 
-    await expect(dispatcher().request('session.interrupt', { session_id: 'rt-omar' })).resolves.toEqual({
+    await expect(dispatcher().request('session.interrupt', { session_id: 'rt-ops' })).resolves.toEqual({
       routed: true
     })
-    expect(gatewayMocks.requestGatewayForAgent).toHaveBeenLastCalledWith('local', 'omar', 'session.interrupt', {
-      session_id: 'rt-omar'
+    expect(gatewayMocks.requestGatewayForAgent).toHaveBeenLastCalledWith('local', 'ops', 'session.interrupt', {
+      session_id: 'rt-ops'
     })
 
     _resetSessionOwnerHintsForTests()
@@ -177,14 +177,14 @@ describe('createSessionRpcDispatcher: exact owner rungs', () => {
     // $sessions — its row lives in the sidebar's cron slice. The row rung must
     // see that slice, or the approval raised inside a cron chat fails closed
     // with SessionOwnerResolutionError and can never be answered.
-    setCronSessions([makeSessionInfo({ id: 'stored-cron', profile: 'omar', source: 'cron' })])
+    setCronSessions([makeSessionInfo({ id: 'stored-cron', profile: 'ops', source: 'cron' })])
     const { ambientRequest, request } = dispatcher()
 
     await expect(
       request('approval.respond', { choice: 'once', request_id: 'req-1', session_id: 'stored-cron' })
     ).resolves.toEqual({ profiled: true })
     expect(gatewayMocks.requestGatewayForProfile).toHaveBeenLastCalledWith(
-      'omar',
+      'ops',
       'approval.respond',
       {
         choice: 'once',
@@ -210,28 +210,28 @@ describe('createSessionRpcDispatcher: exact owner rungs', () => {
 
 describe('createSessionRpcDispatcher: stale runtime recovery', () => {
   it('requests a durable rebind for the visible session after a structured 4001', async () => {
-    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-omar', profile: 'omar' })])
+    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-ops', profile: 'ops' })])
     gatewayMocks.requestGatewayForAgent.mockRejectedValueOnce(
       Object.assign(new Error('runtime was reaped'), { code: 4001 })
     )
-    const { request } = dispatcher(undefined, 'stored-omar')
+    const { request } = dispatcher(undefined, 'stored-ops')
 
-    await expect(request('process.list', { session_id: 'rt-omar' })).rejects.toThrow('runtime was reaped')
+    await expect(request('process.list', { session_id: 'rt-ops' })).rejects.toThrow('runtime was reaped')
 
-    expect(sessionMocks.requestSessionResume).toHaveBeenCalledWith('stored-omar', {
+    expect(sessionMocks.requestSessionResume).toHaveBeenCalledWith('stored-ops', {
       connectionId: 'local',
-      profile: 'omar'
+      profile: 'ops'
     })
   })
 
   it('does not let a background 4001 pull a different session into the foreground', async () => {
-    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-omar', profile: 'omar' })])
+    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-ops', profile: 'ops' })])
     gatewayMocks.requestGatewayForAgent.mockRejectedValueOnce(
       Object.assign(new Error('session not found'), { code: 4001 })
     )
     const { request } = dispatcher(undefined, 'stored-other')
 
-    await expect(request('process.list', { session_id: 'rt-omar' })).rejects.toThrow('session not found')
+    await expect(request('process.list', { session_id: 'rt-ops' })).rejects.toThrow('session not found')
 
     expect(sessionMocks.requestSessionResume).not.toHaveBeenCalled()
   })
@@ -243,24 +243,24 @@ describe('createSessionRpcDispatcher: stale runtime recovery', () => {
     // The rebind decision moved to requestSessionResume (store/session-removal),
     // which drops resume requests for a removal-pending id — this seam only has
     // to keep surfacing the error to its caller.
-    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-omar', profile: 'omar' })])
-    sessions.set(new Set(['stored-omar']))
+    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-ops', profile: 'ops' })])
+    sessions.set(new Set(['stored-ops']))
     gatewayMocks.requestGatewayForAgent.mockRejectedValueOnce(
       Object.assign(new Error('session not found'), { code: 4001 })
     )
-    const { request } = dispatcher(undefined, 'stored-omar')
+    const { request } = dispatcher(undefined, 'stored-ops')
 
-    await expect(request('process.list', { session_id: 'rt-omar' })).rejects.toThrow('session not found')
+    await expect(request('process.list', { session_id: 'rt-ops' })).rejects.toThrow('session not found')
   })
 
   it('does not interpret an unrelated coded RPC failure as a stale runtime', async () => {
-    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-omar', profile: 'omar' })])
+    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-ops', profile: 'ops' })])
     gatewayMocks.requestGatewayForAgent.mockRejectedValueOnce(
       Object.assign(new Error('tool output says session not found'), { code: 5007 })
     )
-    const { request } = dispatcher(undefined, 'stored-omar')
+    const { request } = dispatcher(undefined, 'stored-ops')
 
-    await expect(request('process.list', { session_id: 'rt-omar' })).rejects.toThrow(
+    await expect(request('process.list', { session_id: 'rt-ops' })).rejects.toThrow(
       'tool output says session not found'
     )
 
@@ -268,13 +268,13 @@ describe('createSessionRpcDispatcher: stale runtime recovery', () => {
   })
 
   it('leaves the warm resume lifecycle to recover its own session.activate failure', async () => {
-    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-omar', profile: 'omar' })])
+    setSessions([makeSessionInfo({ connection_id: 'local', id: 'stored-ops', profile: 'ops' })])
     gatewayMocks.requestGatewayForAgent.mockRejectedValueOnce(
       Object.assign(new Error('session not found'), { code: 4001 })
     )
-    const { request } = dispatcher(undefined, 'stored-omar')
+    const { request } = dispatcher(undefined, 'stored-ops')
 
-    await expect(request('session.activate', { session_id: 'rt-omar' })).rejects.toThrow('session not found')
+    await expect(request('session.activate', { session_id: 'rt-ops' })).rejects.toThrow('session not found')
 
     expect(sessionMocks.requestSessionResume).not.toHaveBeenCalled()
   })

@@ -993,6 +993,13 @@
      otherwise wrap and double the empty composer's height. */
   white-space: nowrap;
   text-overflow: ellipsis;
+  /* The hint is not always in the interface's language: a post-turn Next Move
+     is written by the model, and a locale can fall back to the English string.
+     `plaintext` is the generated-content equivalent of `dir="auto"`, so each
+     hint resolves from its own first strong character. Without it an English
+     hint inside an Arabic composer renders with its question mark on the
+     left, and the ellipsis clips the beginning of the sentence. */
+  unicode-bidi: plaintext;
   pointer-events: none;
   user-select: none;
 }

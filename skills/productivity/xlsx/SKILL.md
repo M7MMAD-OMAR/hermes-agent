@@ -198,6 +198,25 @@ calculate shows an empty cell. `xlsx_create.py` therefore sets
 `"full_calc_on_load": false` to opt out, or run `xlsx_recalc.py` to bake
 values in.
 
+## Comments and notes
+
+`scripts/xlsx_comments.py` covers both kinds a workbook can carry: the
+legacy note that `xlsx_edit.py --note` writes, and the threaded comment
+that a reviewer leaves in modern Excel or the web app.
+
+```bash
+python scripts/xlsx_comments.py list book.xlsx
+python scripts/xlsx_comments.py add book.xlsx --sheet Data --cell B7 \
+    --text "Stale figure?" --author Reviewer
+python scripts/xlsx_comments.py reply book.xlsx --id "{GUID}" \
+    --text "Refreshed today." --author Hermes
+python scripts/xlsx_comments.py resolve book.xlsx --id "{GUID}"
+```
+
+The threaded parts are written into the package directly, because
+openpyxl drops the parts it does not model. Charts, pivots and images in
+the workbook survive a comment edit, and there is a test that says so.
+
 ## Pitfalls
 
 - **openpyxl does not calculate.** Formula results are available only

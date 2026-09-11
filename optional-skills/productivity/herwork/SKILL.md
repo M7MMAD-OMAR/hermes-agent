@@ -112,6 +112,36 @@ swap the subject for a competitor (still true? delete it), then cover the
 description and read the label (the description adds nothing? delete the
 field, do not reword it).
 
+## Somebody else's file
+
+Two habits, and they are the difference between a fast edit and a broken
+file.
+
+**Read it first, with one command.**
+
+```bash
+python <skills>/productivity/house-style/scripts/office_inspect.py theirs.docx
+```
+
+It reports the outline, the tables, the charts, the pictures, the
+comments and the tracked changes, plus a `targets` section giving the
+exact flag for every editable thing. Edit by those addresses rather than
+by guessing an index, and the change lands where you meant it.
+
+**Answer the comments in the file, not in chat.** Every format now keeps
+a real thread:
+
+| Format | Script | What it does |
+| --- | --- | --- |
+| .docx | `docx/scripts/docx_comments.py` | list, add, reply, resolve, reopen, delete |
+| .pptx | `powerpoint/scripts/pptx_comments.py` | the same, on modern threaded comments |
+| .xlsx | `xlsx/scripts/xlsx_comments.py` | the same, plus legacy notes |
+| .pdf | `pdf/scripts/pdf_annotate.py` | notes and highlights, replies, review state |
+
+Read the thread, do the work the comment asks for, reply saying what you
+changed, then resolve it. A reviewer who has to diff the file to find out
+what you did will do it once and not again.
+
 ## Draw it, do not describe it
 
 A flow, an architecture, a comparison, a timeline: draw it.
@@ -200,6 +230,9 @@ empty boxes.
 | An illustration or generated picture | native `image_generate` tool |
 | Anything asserting researched facts | `grounded-citations` skill |
 | Type, color and layout of any deliverable | `house-style` skill (applied by default) |
+| Reading a file before you change it | `house-style`: `scripts/office_inspect.py <file>` |
+| A chart, a picture or a callout inside a Word file | `docx` skill: `scripts/docx_graphics.py` |
+| Comments: read them, answer them, resolve them | the format's own comments script (see below) |
 | Prose that reads as machine-written | `house-style` lint, then the `humanizer` skill |
 | Stress-testing a document before it ships | `adversarial-doc-review` skill when installed |
 | Web research, reading pages, filling web forms | the desk browser: `desktop_preview` + `drive_preview` |

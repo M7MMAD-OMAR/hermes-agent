@@ -102,6 +102,29 @@ python scripts/pdf_meta.py doc.pdf --list-attachments | --extract-attachments di
 
 The pass fills in only what the spec left unset, so an explicit size, color or fill in the spec still wins. Change it or drop it with `"theme": "slate"`, `"theme": {"name": "editorial", "accent": "1F4E79"}`, or `"theme": false` in the spec; `pdf_create.py` has no command-line flag for it. The env vars `HERMES_HOUSE_THEME` and `HERMES_HOUSE_ACCENT` set it globally.
 
+## Comments on a PDF
+
+`scripts/pdf_annotate.py` reads the comments a reviewer left, answers
+them in place and adds new ones, with pypdf and no other dependency.
+
+```bash
+python scripts/pdf_annotate.py list contract.pdf
+python scripts/pdf_annotate.py add contract.pdf -o out.pdf \
+    --anchor-text "Termination" --type highlight \
+    --contents "Which notice period?" --author Reviewer
+python scripts/pdf_annotate.py reply out.pdf -o out2.pdf --id <id> \
+    --contents "Thirty days." --author Hermes
+python scripts/pdf_annotate.py resolve out2.pdf -o out3.pdf --id <id>
+```
+
+A note can be placed by `--anchor-text`, which finds the words on the
+page, or by `--page` with an explicit `--rect`. A reply carries `/IRT`
+and `/RT /R`, which is what makes a reader group it under the comment it
+answers, and its icon sits in the margin rather than on top of the
+sentence. Resolving writes the review state annotation from the PDF
+specification; the `list` output names which viewers honour it, since
+support varies and Acrobat is not the only reader in the world.
+
 ## Pitfalls
 
 - **Scanned PDFs**: empty `extract_text()` plus page images means there is no text layer. Route to `references/ocr-extraction.md`; do not fabricate text.

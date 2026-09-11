@@ -172,6 +172,29 @@ styles, table_style = pdf_styles(theme)   # reportlab
 as JSON, which is the quickest way to hand the tokens to something that
 is not Python, such as an HTML deck or a diagram.
 
+## Reading a file somebody else made
+
+`scripts/office_inspect.py` walks a .docx, .pptx, .xlsx or .pdf and
+prints one report: what is in it, and the address of every editable
+thing.
+
+```bash
+python scripts/office_inspect.py report.docx
+python scripts/office_inspect.py deck.pptx --section targets
+```
+
+Six sections: `summary` (counts), `structure` (headings, slides, sheets,
+pages), `inventory` (tables, charts, pictures with their sizes),
+`review` (comments and tracked changes, threaded where the format has
+threads), `targets` (the exact flag to hand an edit command, so a change
+is a command and not a guess) and `lint` (the same findings
+`style_lint.py` prints).
+
+Comments come from the sibling skills' own comment scripts. When one is
+not installed, the report says so under `review.source` rather than
+reporting no comments: "none" and "could not look" are different answers
+and only one of them is safe to act on.
+
 ## Pitfalls
 
 - **Do not run an applier before the content exists.** It fonts what is

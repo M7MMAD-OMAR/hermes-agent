@@ -237,6 +237,27 @@ already runs the first two in that order.
 own, so `"• Overview"` renders as `"• • Overview"`. `pptx_create.py` strips a
 leading bullet glyph as a safety net, but the spec should not carry one.
 
+## Comments on a deck
+
+`scripts/pptx_comments.py` handles both comment systems PowerPoint has:
+the legacy per slide comments and the modern threaded ones that current
+PowerPoint and the web app write. It reads both and writes the modern
+kind.
+
+```bash
+python scripts/pptx_comments.py list deck.pptx
+python scripts/pptx_comments.py add deck.pptx --slide 3 \
+    --text "Is this the closing figure?" --author Reviewer
+python scripts/pptx_comments.py reply deck.pptx --id "{GUID}" \
+    --text "Yes, from the Q3 close." --author Hermes
+python scripts/pptx_comments.py resolve deck.pptx --id "{GUID}"
+```
+
+Each comment reports its slide, author, time, text, the shape it is
+anchored to, its thread parent and whether the thread is resolved.
+`reopen` clears the resolved mark, `delete` takes the thread and its
+replies together.
+
 ## Pitfalls
 
 - **Run splitting**: PowerPoint fragments paragraph text into runs at

@@ -186,6 +186,54 @@ libreoffice`). If neither exists, tell the user PDF conversion is
 unavailable in this environment rather than improvising, python-docx
 cannot render PDFs, and layout fidelity requires a real renderer.
 
+## Charts, pictures and shapes
+
+`scripts/docx_graphics.py` puts real graphics in a Word file, and
+`docx_create.py` reaches it through three block types, so a spec asks for
+data and not for a look:
+
+```jsonc
+{"type": "chart", "chart": "column", "title": "Revenue by quarter",
+ "categories": ["Q1", "Q2", "Q3"], "series": {"Revenue": [120, 140, 188]},
+ "width_mm": 150, "height_mm": 80}
+{"type": "image", "path": "site.png", "width_mm": 90,
+ "caption": "The site at dawn", "alt": "A low building at dawn"}
+{"type": "shape", "text": "One customer is 22 percent of the book.",
+ "shape": "rounded", "width_mm": 150, "height_mm": 18}
+```
+
+The chart is a genuine `word/charts/chart1.xml` part with its own
+embedded workbook, not a picture of a chart: the reader can click it in
+Word, see the numbers and change them. Colors, type sizes and the
+no-gridlines treatment come from the house theme, and `bar`, `column`,
+`line` and `pie` are the kinds.
+
+Append graphics to a document that already exists with
+`docx_graphics.py blocks.json out.docx --into existing.docx`.
+
+Captions are their own block, `{"type": "caption", "text": "...",
+"kind": "figure"}`, numbered per kind through the document, and they use
+the Arabic words when the caption is Arabic.
+
+## Comments, as a conversation
+
+`scripts/docx_comments.py` reads and writes the whole review thread, not
+just single comments:
+
+```bash
+python scripts/docx_comments.py list draft.docx --json
+python scripts/docx_comments.py add draft.docx --anchor "price move" \
+    --text "Which month?" --author Reviewer -o out.docx
+python scripts/docx_comments.py reply draft.docx --id 3 \
+    --text "July" --author Hermes -o out.docx
+python scripts/docx_comments.py resolve draft.docx --id 3 -o out.docx
+```
+
+A reply carries the `w15:commentEx` parent that makes Word draw it inside
+the thread rather than as a second loose comment, and resolving a thread
+resolves its replies with it. `delete-thread` removes a whole thread and
+its anchors; `delete` takes one comment.
+
 ## Pitfalls
 
 - **Tokens split across runs.** Word often fragments text into several

@@ -25,12 +25,41 @@ Spec (JSON object):
     {"type": "table", "header": ["Col1", "Col2"],
      "rows": [["1", "2"]], "style": "Light Grid Accent 1",
      "header_bold": true},
-    {"type": "image", "path": "pic.png", "width_mm": 60},
+    {"type": "image", "path": "pic.png", "width_mm": 60,
+     "caption": "The site at dawn", "alt": "A low building at dawn"},
+    {"type": "chart", "chart": "column", "title": "Revenue by quarter",
+     "categories": ["Q1", "Q2"], "series": {"2025": [12, 18]},
+     "height_mm": 70},
+    {"type": "shape", "text": "Key point", "shape": "rounded",
+     "width_mm": 120, "height_mm": 24},
     {"type": "caption", "text": "Revenue by quarter", "kind": "figure"},
     {"type": "page_break"},
     {"type": "toc"}
   ]
 }
+
+Graphics: three blocks carry the pictures. All three read their colors,
+fonts and sizes from the house theme, so a spec names data and not a
+look.
+
+  chart   a real DrawingML chart part plus the workbook behind it, so a
+          reader can click it in Word and edit the numbers. `chart`
+          (or `chart_type`) is bar, column, line or pie; `categories` is
+          the axis; `series` is {"name": [values]} or a list of
+          {"name", "values"}. One series takes the accent hue and no
+          legend, several take theme.palette.series in order with a
+          legend below. Bar and column carry their numbers on the marks
+          and drop the value axis; nothing carries gridlines.
+  image   `path` plus `width_mm` (the aspect follows), an optional `alt`
+          written to wp:docPr/@descr where a screen reader finds it, and
+          an optional `caption` which is numbered with the caption
+          blocks, in one sequence.
+  shape   a text box or callout: `text`, `shape` ("rect" or "rounded"),
+          `width_mm`, `height_mm`, and `anchored` for a floating box
+          with square wrap. House fill and ink, a hairline rule, no
+          accent stripe and no shadow. Arabic text inside a shape is
+          marked right-to-left as it is built, because the document-wide
+          direction pass cannot reach inside a drawing.
 
 Report front matter: a top-level `"report"` key turns the flat block list
 into a finished document. Every part of it is opt in, and a spec without
@@ -226,7 +255,7 @@ def align_cell(cell, alignment) -> None:
         para.alignment = alignment
 
 
-def add_block(doc, block: dict, counts: dict | None = None) -> None:
+def add_block(doc, block: dict, counts: dict | None = None, theme=None) -> None:
     btype = block["type"]
     # A block's own `rtl` wins over the document mode. Applied to what the
     # block just added, AFTER the document-wide pass would otherwise run, so
@@ -269,8 +298,27 @@ def add_block(doc, block: dict, counts: dict | None = None) -> None:
             _NUMERIC_COLUMNS.append((table, figures))
         made.append(table)
     elif btype == "image":
-        width = Mm(block["width_mm"]) if block.get("width_mm") else None
-        doc.add_picture(block["path"], width=width)
+        from docx_graphics import add_picture
+        label = None
+        if block.get("caption"):
+            # Figures are numbered in one sequence whether the caption
+            # rides on the image block or stands as its own block.
+            if counts is None:
+                counts = new_caption_counts()
+            counts["figure"] = counts.get("figure", 0) + 1
+            label = caption_label("figure", counts["figure"],
+                                  str(block["caption"]))
+        made.extend(add_picture(doc, block, theme, caption_text=label))
+    elif btype == "chart":
+        from docx_graphics import add_chart
+        spec = dict(block)
+        # The block says "chart", the chart spec says "type", so the kind
+        # is carried under its own key rather than fighting the block type.
+        spec["type"] = block.get("chart") or block.get("chart_type") or "column"
+        made.append(add_chart(doc, spec, theme))
+    elif btype == "shape":
+        from docx_graphics import add_shape
+        made.append(add_shape(doc, block, theme))
     elif btype == "caption":
         kind = block.get("kind", "figure")
         if kind not in CAPTION_WORDS:
@@ -581,9 +629,16 @@ def main() -> int:
             extras["update_fields"] = set_update_fields_on_open(doc)
     counts = new_caption_counts()
     for block in spec.get("blocks", []):
-        add_block(doc, block, counts)
+        # The theme is handed to the blocks because a chart and a shape
+        # carry their own colors inside a drawing, where the house pass
+        # that runs after this loop can never reach them.
+        add_block(doc, block, counts, theme)
     if any(counts.values()):
         extras["captions"] = {k: v for k, v in counts.items() if v}
+    kinds = [b.get("type") for b in spec.get("blocks", [])]
+    for kind in ("chart", "image", "shape"):
+        if kinds.count(kind):
+            extras[f"{kind}s"] = kinds.count(kind)
     # The house pass sets the named styles, the page and the tables. It
     # runs before the direction pass and before any Arabic font pass, and
     # it fills in only what the spec left unset, so a spec always wins.

@@ -359,10 +359,64 @@ def test_the_rules_callout_is_a_rule_a_label_and_a_hairline(graphics, theme,
     paras = [p for p in doc.paragraphs if p.text.strip()]
     assert [p.text for p in paras] == ["THE RISK", "One customer is 22 percent."]
     kicker, body = paras
-    assert _pbdr_sides(kicker)["top"][1] == theme.palette.ink
-    assert _pbdr_sides(body)["bottom"][1] == theme.palette.grid
-    assert "left" not in _pbdr_sides(body), "no stripe down the side"
+    # A labelled aside carries one rule, above the label. A second rule
+    # under it is the redundancy that reads as a template.
+    assert _pbdr_sides(kicker)["top"][1] == theme.palette.grid
+    assert _pbdr_sides(body) == {}
     assert kicker.runs[0].font.bold is True
+
+
+def test_an_unlabelled_rules_callout_is_a_band_between_two_hairlines(graphics,
+                                                                     theme):
+    from docx import Document
+
+    doc = Document()
+    graphics.add_callout(doc, {"style": "rules",
+                               "text": "One customer is 22 percent."}, theme)
+    sides = _pbdr_sides(doc.paragraphs[0])
+    assert set(sides) == {"top", "bottom"}
+    assert sides["top"] == sides["bottom"], "one weight, one colour"
+    assert sides["top"][0] == "4", "half a point, the quietest rule that reads"
+
+
+def test_the_edge_callout_puts_its_rule_on_the_leading_side(graphics, theme):
+    """w:pBdr has no logical start side, so the generator picks it."""
+    from docx import Document
+
+    doc = Document()
+    graphics.add_callout(doc, {"style": "edge", "text": "An English aside."},
+                         theme)
+    graphics.add_callout(doc, {"style": "edge", "text": "ملاحظة عربية هنا."},
+                         theme)
+    english, arabic = doc.paragraphs[0], doc.paragraphs[1]
+    assert set(_pbdr_sides(english)) == {"left"}
+    assert english.paragraph_format.left_indent is not None
+    assert set(_pbdr_sides(arabic)) == {"right"}, \
+        "a left rule would sit on the trailing edge of an Arabic line"
+    # The indent is logical: w:ind w:left is the start side under w:bidi,
+    # so both directions carry the same property and mirror themselves.
+    assert arabic.paragraph_format.left_indent is not None
+    assert arabic.paragraph_format.right_indent is None
+
+
+def test_the_block_callout_pads_its_tint(graphics, theme):
+    """Word paints a paragraph fill tight against the glyphs.
+
+    The only padding a paragraph gets is the space on its borders, so
+    the tint is padded by a border in the tint's own colour.
+    """
+    from docx import Document
+    from docx.oxml.ns import qn
+
+    doc = Document()
+    graphics.add_callout(doc, {"style": "block", "text": "A note."}, theme)
+    para = doc.paragraphs[0]
+    pr = para._p.find(qn("w:pPr"))
+    fill = pr.find(qn("w:shd")).get(qn("w:fill"))
+    sides = _pbdr_sides(para)
+    assert set(sides) == {"left", "right", "top", "bottom"}
+    assert all(color == fill for _, color in sides.values()), \
+        "the padding border must be invisible, so it takes the fill colour"
 
 
 def test_the_quote_callout_carries_no_rule_and_no_fill(graphics, theme):
@@ -377,9 +431,11 @@ def test_the_quote_callout_carries_no_rule_and_no_fill(graphics, theme):
     assert _pbdr_sides(quote) == {}, "the whitespace is the emphasis"
     pr = quote._p.find(qn("w:pPr"))
     assert pr.find(qn("w:shd")) is None, "a quote takes no fill"
-    assert quote.runs[0].font.size == Pt(theme.doc["body"] + 2)
-    assert quote.paragraph_format.left_indent == \
-        quote.paragraph_format.right_indent, "indented equally so it mirrors"
+    assert quote.runs[0].font.size == Pt(round(theme.doc["body"] * 1.6)), \
+        "a display quote is a size jump, not a nudge"
+    assert quote.paragraph_format.right_indent is not None, \
+        "the short measure is what makes it read as a quote"
+    assert quote.paragraph_format.left_indent is None
 
 
 def test_the_lead_callout_is_a_bold_phrase_and_nothing_else(graphics, theme):

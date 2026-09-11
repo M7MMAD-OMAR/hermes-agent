@@ -742,7 +742,7 @@ def _hex(color: str) -> str:
 # Callouts, which are paragraphs and not boxes
 # ---------------------------------------------------------------------------
 
-CALLOUT_STYLES = ("rules", "quote", "lead", "block")
+CALLOUT_STYLES = ("rules", "quote", "lead", "block", "edge")
 
 
 def _pbdr(paragraph, side: str, eighths: int, color: str, space: int):
@@ -837,7 +837,8 @@ def add_callout(doc, spec: dict, theme=_AUTO):
     body_pt = spec.get("size_pt") or _doc_size(theme, "body", 11)
     face = theme.fonts["body"] if theme is not None else None
 
-    def new(text_value, size, *, bold=False, color=None, spacing=None):
+    def new_paragraph(text_value, size, *, bold=False, color=None,
+                      spacing=None):
         para = doc.add_paragraph()
         run = para.add_run(text_value)
         run.font.size = Pt(size)
@@ -851,38 +852,70 @@ def add_callout(doc, spec: dict, theme=_AUTO):
 
     made = []
     if style == "rules":
+        # With a label this is the hanging label on a hairline: one rule
+        # above and none below. A second rule under a labelled aside is
+        # the redundancy that reads as a template, which is why the
+        # published examples carry one or the other and never both.
         if label:
-            kicker, run = new(label if rtl else label.upper(),
-                              _doc_size(theme, "caption", 9) - 1,
-                              bold=True, color=accent_text)
+            kicker, run = new_paragraph(label if rtl else label.upper(),
+                                        _doc_size(theme, "caption", 9) - 1,
+                                        bold=True, color=accent_text)
             if not rtl:
-                _track(run, 30)          # small caps need air, Arabic does not
-            _pbdr(kicker, "top", 8, ink, 7)
+                _track(run, 12)
+            _pbdr(kicker, "top", 4, grid, 4)
             kicker.paragraph_format.space_before = Pt(16)
             kicker.paragraph_format.space_after = Pt(3)
+            kicker.paragraph_format.keep_with_next = True
             made.append(kicker)
-        body, _ = new(text, body_pt)
-        if not label:
-            _pbdr(body, "top", 8, ink, 7)
-            body.paragraph_format.space_before = Pt(16)
-        _pbdr(body, "bottom", 4, grid, 9)
-        body.paragraph_format.space_after = Pt(16)
+            body, _ = new_paragraph(text, body_pt)
+            body.paragraph_format.space_after = Pt(16)
+        else:
+            # No label: the extract band, a hairline above and below at
+            # half a point, the quietest rule that still reads.
+            body, _ = new_paragraph(text, body_pt)
+            _pbdr(body, "top", 4, muted, 10)
+            _pbdr(body, "bottom", 4, muted, 10)
+            body.paragraph_format.space_before = Pt(12)
+            body.paragraph_format.space_after = Pt(12)
+        body.paragraph_format.keep_together = True
+        made.append(body)
+    elif style == "edge":
+        # A rule on the leading edge, done the way a design system does
+        # it: no fill behind it, a deep ink rather than a pastel, a real
+        # gap, and the text genuinely indented. In Arabic the rule moves
+        # to the right, because w:pBdr has no logical start side and the
+        # left rule would land on the trailing edge of the line.
+        body, _ = new_paragraph(text, body_pt)
+        # The rule side is physical, because w:pBdr has no logical start
+        # child. The indent is logical: under w:bidi, w:ind w:left is the
+        # START side, so one line serves both directions.
+        _pbdr(body, "right" if rtl else "left", 14,
+              spec.get("rule") or ink, 14)
+        fmt = body.paragraph_format
+        fmt.left_indent = Cm(0.8)
+        fmt.space_before = Pt(12)
+        fmt.space_after = Pt(12)
+        fmt.keep_together = True
         made.append(body)
     elif style == "quote":
-        body, _ = new(text, body_pt + 2, spacing=1.35)
+        # A display quote changes the page's rhythm instead of adding an
+        # object to it: about 1.6 times the body, tight leading, a short
+        # measure, and no rule, fill, italic or quotation glyph.
+        body, _ = new_paragraph(text, round(body_pt * 1.6), spacing=1.15)
         fmt = body.paragraph_format
-        fmt.left_indent = Cm(1.1)
-        fmt.right_indent = Cm(1.1)
-        fmt.space_before = Pt(14)
-        fmt.space_after = Pt(14)
+        # The short measure is taken off the END of the line, so the
+        # quote keeps the margin the body sits on. w:ind w:right is that
+        # end under w:bidi as well, which is why this needs no branch.
+        fmt.right_indent = Cm(3.8)
+        fmt.space_before = Pt(24)
+        fmt.space_after = Pt(8) if label else Pt(24)
+        fmt.keep_together = True
+        made.append(body)
         if label:
-            source, _ = new(label, _doc_size(theme, "caption", 9),
-                            color=muted)
-            source.paragraph_format.left_indent = Cm(1.1)
-            source.paragraph_format.right_indent = Cm(1.1)
-            source.paragraph_format.space_after = Pt(14)
+            source, _ = new_paragraph(label, body_pt - 1, color=muted)
+            source.paragraph_format.right_indent = Cm(3.8)
+            source.paragraph_format.space_after = Pt(24)
             made.append(source)
-        made.insert(0, body)
     elif style == "lead":
         body = doc.add_paragraph()
         if label:
@@ -903,13 +936,20 @@ def add_callout(doc, spec: dict, theme=_AUTO):
         body.paragraph_format.space_after = Pt(10)
         made.append(body)
     else:                                   # block
-        body, _ = new(text, body_pt)
-        _pshade(body, spec.get("fill") or band)
+        body, _ = new_paragraph(text, body_pt)
+        fill = spec.get("fill") or band
+        _pshade(body, fill)
+        # Word paints a paragraph fill tight against the glyphs, with no
+        # padding on any side, and that is what makes a tinted block look
+        # generated. A border in the fill's own color is invisible and
+        # its w:space is the only padding a bordered paragraph gets.
+        for side, space in (("left", 14), ("right", 14),
+                            ("top", 10), ("bottom", 10)):
+            _pbdr(body, side, 2, fill, space)
         fmt = body.paragraph_format
-        fmt.left_indent = Cm(0.45)
-        fmt.right_indent = Cm(0.45)
         fmt.space_before = Pt(12)
         fmt.space_after = Pt(12)
+        fmt.keep_together = True
         made.append(body)
 
     for para in made:

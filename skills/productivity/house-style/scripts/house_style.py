@@ -52,6 +52,8 @@ from pathlib import Path
 
 __all__ = [
     "Theme", "load_theme", "THEMES", "LIMITS",
+    "text_width_pt", "wrap_lines", "estimate_lines", "text_height_in",
+    "fit_size", "fill_factor", "paginate_items", "fit_title",
     "theme_docx", "theme_pptx", "theme_xlsx", "pdf_styles",
     "resolve_font", "contrast_ratio", "derive_accent",
 ]
@@ -801,7 +803,8 @@ def _pptx_layout(slide, prs, theme: Theme):
     body_top = g["body_top"]
     if title_shape is not None and not cover:
         title_size, lines = fit_title(title_shape.text_frame.text, content_w,
-                                      theme.deck)
+                                      theme.deck,
+                                      family=theme.fonts["heading"])
         leading = 1.25 if is_arabic(title_shape.text_frame.text) else 1.12
         title_h = (title_size * leading * lines) / 72 + 0.12
         body_top = max(body_top, g["margin_top"] + title_h + 0.30)
@@ -925,25 +928,190 @@ def _pptx_shape(shape, slide, theme, level_sizes, counts):
 _COVER_LAYOUTS = ("title slide", "section header", "title only")
 
 
-def estimate_lines(text: str, width_in: float, size_pt: float) -> int:
+# ---------------------------------------------------------------------------
+# Measuring text, which is the difference between a fitted slide and a
+# clipped one.
+# ---------------------------------------------------------------------------
+
+_FONT_FILES: dict[str, str | None] = {}
+_FONT_OBJECTS: dict[tuple[str, int], object] = {}
+_MEASURE_PT = 100          # measure once at this size, scale the answer
+
+
+def font_file(family: str) -> str | None:
+    """The file fontconfig would hand a renderer for this family.
+
+    Measuring against the real file is the only way to know that a line
+    fits. A character count says an Arabic line and a Latin line of the
+    same length are the same width, and they are not.
+    """
+    if family in _FONT_FILES:
+        return _FONT_FILES[family]
+    path = None
+    exe = shutil.which("fc-match")
+    if exe:
+        try:
+            out = subprocess.run([exe, "-f", "%{file}", family],
+                                 capture_output=True, text=True, timeout=10)
+            candidate = out.stdout.strip()
+            # fc-match always answers, with a substitute when it must, so
+            # a reply naming a different family is a miss, not a match.
+            if candidate and Path(candidate).is_file():
+                name = subprocess.run([exe, "-f", "%{family}", family],
+                                      capture_output=True, text=True,
+                                      timeout=10).stdout.lower()
+                if family.lower().split()[0] in name:
+                    path = candidate
+        except (OSError, subprocess.SubprocessError):
+            path = None
+    _FONT_FILES[family] = path
+    return path
+
+
+def _measurer(family: str):
+    key = (family, _MEASURE_PT)
+    if key in _FONT_OBJECTS:
+        return _FONT_OBJECTS[key]
+    obj = None
+    path = font_file(family)
+    if path:
+        try:
+            from PIL import ImageFont  # noqa: PLC0415
+            obj = ImageFont.truetype(path, _MEASURE_PT)
+        except Exception:  # noqa: BLE001  a measurement is not worth a crash
+            obj = None
+    _FONT_OBJECTS[key] = obj
+    return obj
+
+
+def text_width_pt(text: str, size_pt: float, family: str | None = None) -> float:
+    """Width of a string set in that family at that size, in points.
+
+    Falls back to half the point size per character, the old heuristic,
+    when the face cannot be measured. Arabic is shaped when the imaging
+    library has raqm, so the answer is the shaped width and not the sum
+    of isolated letters.
+    """
+    if not text:
+        return 0.0
+    face = _measurer(family) if family else None
+    if face is None:
+        return 0.5 * size_pt * len(text)
+    try:
+        return face.getlength(text) * size_pt / _MEASURE_PT
+    except Exception:  # noqa: BLE001
+        return 0.5 * size_pt * len(text)
+
+
+def wrap_lines(text: str, width_in: float, size_pt: float,
+               family: str | None = None) -> list[str]:
+    """Break text the way a renderer would, measuring each candidate line."""
+    limit = max(1.0, width_in * 72)
+    lines: list[str] = []
+    for paragraph in (text or "").splitlines() or [""]:
+        current = ""
+        for word in paragraph.split():
+            candidate = f"{current} {word}".strip()
+            if current and text_width_pt(candidate, size_pt, family) > limit:
+                lines.append(current)
+                current = word
+            else:
+                current = candidate
+        lines.append(current)
+    return lines or [""]
+
+
+def estimate_lines(text: str, width_in: float, size_pt: float,
+                   family: str | None = None) -> int:
     """How many lines this text takes in a box of that width.
 
-    Average glyph advance sits near half the point size for a humanist
-    sans, in Arabic as in Latin, which is good to about five percent.
-    Good enough to decide whether a title needs one line or three, which
-    is the difference between a designed slide and a title sitting on top
-    of the first bullet.
+    Measured against the real face when one is installed, which is what
+    makes the answer trustworthy for Arabic as well as Latin. Without a
+    face it falls back to half the point size per character, which is
+    good to about five percent for a humanist sans and wrong for
+    anything else.
     """
     if not text:
         return 1
-    per_line = max(8, int((width_in * 72) / (0.5 * size_pt)))
-    lines = 0
-    for paragraph in text.splitlines() or [""]:
-        lines += max(1, -(-len(paragraph) // per_line))
-    return max(1, lines)
+    return len(wrap_lines(text, width_in, size_pt, family))
 
 
-def fit_title(text: str, width_in: float, scale: dict, *, max_lines: int = 2):
+def text_height_in(text: str, width_in: float, size_pt: float,
+                   leading: float = 1.25, family: str | None = None) -> float:
+    """Height the text needs in that column, in inches."""
+    lines = estimate_lines(text, width_in, size_pt, family)
+    return lines * size_pt * leading / 72
+
+
+def fit_size(text: str, width_in: float, height_in: float, size_pt: float,
+             *, leading: float = 1.25, family: str | None = None,
+             floor_factor: float = 0.7, step: float = 0.93) -> float:
+    """Shrink type until it fits the box, down to a floor.
+
+    Resolved here rather than left to PowerPoint's own shrink on
+    overflow, because that recomputes its own scale factor at open time
+    and the file then renders differently from the one that was checked.
+    """
+    size = float(size_pt)
+    floor = size_pt * floor_factor
+    while size > floor:
+        if text_height_in(text, width_in, size, leading, family) <= height_in:
+            return round(size, 1)
+        size *= step
+    return round(max(size, floor), 1)
+
+
+def fill_factor(text: str, width_in: float, height_in: float, size_pt: float,
+                *, leading: float = 1.25, family: str | None = None,
+                target: float = 0.92, ceiling: float = 1.35) -> float:
+    """How much to grow sparse content so a big frame is not mostly air.
+
+    Binary search on the scale factor, the same idea as shrinking, in
+    the other direction. Capped, because a two word bullet blown up to
+    fill a slide is its own kind of wrong.
+    """
+    if not text or height_in <= 0:
+        return 1.0
+    low, high = 1.0, ceiling
+    for _ in range(18):
+        mid = (low + high) / 2
+        used = text_height_in(text, width_in, size_pt * mid, leading, family)
+        if used <= height_in * target:
+            low = mid
+        else:
+            high = mid
+    return round(low, 3)
+
+
+def paginate_items(items: list, width_in: float, height_in: float,
+                   size_pt: float, *, leading: float = 1.35,
+                   family: str | None = None, gap_pt: float = 8,
+                   min_per_page: int = 2) -> list[list]:
+    """Split a list of paragraphs into pages that actually fit.
+
+    A builder that returns one slide per section is a builder that
+    clips. Returning pages lets the caller emit a continuation slide,
+    which is what a person would do with the same content.
+    """
+    pages: list[list] = []
+    current: list = []
+    used = 0.0
+    for item in items:
+        text = item if isinstance(item, str) else str(item.get("text", ""))
+        need = text_height_in(text, width_in, size_pt, leading, family) \
+            + gap_pt / 72
+        if current and used + need > height_in and len(current) >= min_per_page:
+            pages.append(current)
+            current, used = [], 0.0
+        current.append(item)
+        used += need
+    if current:
+        pages.append(current)
+    return pages or [[]]
+
+
+def fit_title(text: str, width_in: float, scale: dict, *,
+              max_lines: int = 2, family: str | None = None):
     """Step a title down the scale until it fits in max_lines.
 
     A 42 pt title is right for eight words and wrong for twenty. Rather
@@ -951,11 +1119,11 @@ def fit_title(text: str, width_in: float, scale: dict, *, max_lines: int = 2):
     still a title and still twice the body.
     """
     for size in (scale["title"], scale["section"], scale["lead"]):
-        lines = estimate_lines(text, width_in, size)
+        lines = estimate_lines(text, width_in, size, family)
         if lines <= max_lines:
             return size, lines
     size = scale["lead"]
-    return size, estimate_lines(text, width_in, size)
+    return size, estimate_lines(text, width_in, size, family)
 
 
 def _is_title(shape) -> bool:

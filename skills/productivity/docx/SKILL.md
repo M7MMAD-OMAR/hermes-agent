@@ -217,14 +217,28 @@ with the text around them:
 
 | `style` | What it is |
 | --- | --- |
-| `rules` (default) | a rule above, a small caps label, the text, a hairline under it |
-| `quote` | indented both sides and set larger, no rule and no fill: the whitespace carries it |
+| `rules` (default) | with a label, a hairline above it and none below; without one, an extract band between two half point rules |
+| `quote` | 1.6 times the body, tight leading, the measure taken off the end of the line, no rule and no fill |
+| `edge` | a rule on the leading edge with a real indent and no fill behind it |
 | `lead` | a bold lead in phrase and then the sentence, no decoration at all |
-| `block` | a flat tint, square corners, no outline, for a note that must sit apart |
+| `block` | a flat tint with real padding, square corners, no outline |
 
-All four mirror in Arabic, and the small caps treatment is dropped there,
-because Arabic has no upper case and tracking breaks the joins between
-its letters.
+The numbers come from reading how published reports actually do it: the
+IMF and Bank of England box is a pale tint with no outline at all, the
+GOV.UK inset is a leading edge rule with no fill, Tufte sets an aside at
+80 percent of body, and Butterick puts a hairline at half a point to one
+point. Word paints a paragraph fill tight against the glyphs with no
+padding anywhere, which is the mechanical reason a tinted block reads as
+generated, so the tint is padded by a border in its own colour: invisible,
+and its `w:space` is the only padding a paragraph can carry.
+
+All of them mirror in Arabic, and two details make that work. The small
+caps treatment is dropped, because Arabic has no upper case and tracking
+breaks the joins between its letters. And the rule side is chosen by the
+generator, because `w:pBdr` has no logical start child: a left rule sits
+on the trailing edge of an Arabic line, which looks like a mistake. The
+indents are logical and need no branch, since `w:ind w:left` is the start
+side under `w:bidi`.
 
 `{"type": "shape", ...}` still exists for the rare case that genuinely
 needs a floating box. Its default is now a flat tint with square corners

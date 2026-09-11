@@ -96,10 +96,16 @@ third.
 The numbers and their derivations are in `references/design-system.md`.
 The short version:
 
-- **Type.** Deck: base 18 pt at ratio 1.333, so 56 / 42 / 32 / 24 / 18 /
-  14 / 10. Document: base 11 pt at 1.25, so 22 / 17 / 14 / 11 / 9. A
-  slide title is at least twice its body size, and 18 pt is the body
-  floor for anything projected.
+- **Type.** IBM Plex Sans, with IBM Plex Sans Arabic beside it. Deck:
+  base 18 pt at ratio 1.333, so 56 / 42 / 32 / 24 / 18 / 14 / 10.
+  Document: base 11 pt at 1.25, so 22 / 17 / 14 / 11 / 9. A slide title
+  is at least twice its body size, and 18 pt is the body floor for
+  anything projected.
+- **A title that does not fit steps down the scale.** `fit_title` counts
+  the lines the title takes at the content width and takes the next size
+  down rather than overflowing, and the body column starts below whatever
+  the title actually needed. A title printed over the first bullet was
+  the first thing anyone noticed about the old decks.
 - **Measure.** 40 to 65 characters a line on a slide, 60 to 85 in a
   document. Full-width body text on a 16:9 slide runs to 96 characters,
   which is why the body column is capped at 7.5 in.
@@ -109,14 +115,23 @@ The short version:
   `python scripts/house_style.py --check-contrast`.
 - **Spacing.** 4 pt atom, 8 pt step. A 16:9 slide is 960 x 540 pt, and
   540 is not divisible by 8, which is why the atom is 4.
-- **Tables.** Three horizontal rules and no vertical ones. Word's "Table
-  Grid" boxes every cell and reads as a spreadsheet screenshot.
+- **Tables.** No vertical rules. A reader still has to tell one column
+  from the next, so the work is done by a tinted header band (a filled
+  accent band on a slide, a light accent tint in a document), a bold
+  first column, row banding once the table is long, and numbers right
+  aligned under a right aligned header. Word's "Table Grid", which boxes
+  every cell, reads as a spreadsheet screenshot.
 - **Charts.** One accent hue unless the data has a real categorical
   dimension, no gridlines, no legend for a single series, numbers on the
   bars instead of a value axis.
-- **Arabic.** Line height 1.7 for body, no italics, no tracking, no
-  justification, and the column hugs the right margin rather than being
-  right-aligned inside a left-hand box.
+- **Arabic.** IBM Plex Sans Arabic, which was drawn with a Latin
+  companion so a bilingual line keeps one color. Line height about 1.45
+  for body and 1.25 for a title: 1.7 is right for tashkeel-heavy text and
+  reads as a hole in business Arabic. No italics, no tracking, no
+  justification, and the column hugs the right margin rather than sitting
+  right-aligned inside a left-hand box. An Arabic table keeps its own
+  start edge instead of taking the Latin numeric alignment, which in RTL
+  would push the numbers away from their header.
 
 ## Checking a deliverable before it ships
 

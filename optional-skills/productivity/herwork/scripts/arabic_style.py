@@ -1,33 +1,69 @@
 """Arabic typography defaults for HerWork deliverables.
 
-Cairo is the house font for anything that contains Arabic — the office
+Cairo is the house font for anything that contains Arabic, the office
 suite default (Calibri) falls back to an ugly Arabic rendering. These
 helpers set Cairo on docx / pptx / pdf output, including the
 complex-script font slot that Arabic text is actually shaped from.
 
-For docx and pptx only the font NAME is embedded — the operating system
+For docx and pptx only the font NAME is embedded, the operating system
 resolves it, so those work anywhere Cairo (or a fallback) is installed.
 PDF generation via reportlab embeds the font file itself, so
 ``register_pdf_font`` locates the TTF across Linux/macOS/Windows font
 directories and tells you to install Cairo if it can't.
 
 Usage:
-    from arabic_style import style_docx, style_pptx, register_pdf_font, FONT
+    from arabic_style import style_docx, style_pptx, register_pdf_font
 
     style_docx(doc)                      # after building the Document
     style_pptx(prs)                      # after building the Presentation
-    register_pdf_font()                  # then canvas.setFont(FONT, size)
+    face = register_pdf_font()           # then canvas.setFont(face, size)
 """
 import os
 from pathlib import Path
 
-FONT = "Cairo"
+
+def _house_arabic_face():
+    """The Arabic face the house design system resolved, when reachable.
+
+    The desk should not carry two opinions about its own typeface. The
+    house system picks the first candidate actually installed, so this
+    follows it, and falls back to Cairo when the system is not installed
+    beside this skill.
+    """
+    import sys
+    here = Path(__file__).resolve()
+    candidates = [
+        # This skill lives at optional-skills/productivity/herwork/scripts,
+        # so the bundled tree is four levels up, not three.
+        here.parents[4] / "skills" / "productivity" / "house-style" / "scripts",
+        here.parents[2] / "house-style" / "scripts",
+        Path.home() / ".hermes" / "skills" / "productivity" / "house-style"
+        / "scripts",
+    ]
+    for scripts in candidates:
+        if (scripts / "house_style.py").is_file():
+            if str(scripts) not in sys.path:
+                sys.path.insert(0, str(scripts))
+            try:
+                from house_style import load_theme
+                return load_theme().fonts.get("arabic")
+            except Exception:  # noqa: BLE001  a face is not worth an exception
+                return None
+    return None
+
+
+FONT = _house_arabic_face() or "Cairo"
+
+# reportlab embeds the file, not the name, and the PDF shaping net below is
+# calibrated against a face whose TTF is findable. Cairo stays the PDF face
+# unless the house face is also on disk as a TTF.
+PDF_FONT = "Cairo"
 
 # Styles are enumerated from the document rather than listed here: a fixed
 # tuple silently missed whatever the template happened to use (Heading 4-6,
 # Caption, Quote, table styles), producing a report whose H4s render in the
 # fallback font while its body is Cairo. These substrings mark the styles to
-# LEAVE ALONE — monospace is load-bearing for code and Cairo would destroy
+# LEAVE ALONE, monospace is load-bearing for code and Cairo would destroy
 # the alignment that makes it readable.
 _DOCX_KEEP_MONOSPACE = ("code", "macro", "preformatted", "plain text")
 
@@ -92,7 +128,7 @@ def _docx_bodies(doc):
 
     Headers and footers live in separate parts, so a run in a running head
     is invisible to a walk of the document body alone. Only parts this
-    document actually defines are touched — reading ``header._element`` on
+    document actually defines are touched, reading ``header._element`` on
     an inherited header would CREATE an empty one, so linked-to-previous
     headers are skipped rather than materialized.
     """
@@ -119,7 +155,7 @@ def _docx_bodies(doc):
 def style_docx(doc) -> None:
     """Apply Cairo to every style AND every run in a python-docx Document.
 
-    Sets the Latin (ascii/hAnsi) AND complex-script (cs) slots — Arabic is
+    Sets the Latin (ascii/hAnsi) AND complex-script (cs) slots, Arabic is
     shaped from the cs slot, so setting only ``font.name`` leaves Arabic on
     the fallback font.
 
@@ -127,7 +163,7 @@ def style_docx(doc) -> None:
     (its own ``w:rFonts``, which is what most docx-generating code and
     Word-authored templates emit) overrides its style, so a style-only pass
     returns success while the deliverable comes out half-Cairo,
-    half-Calibri. Every run is therefore visited too — across the body,
+    half-Calibri. Every run is therefore visited too, across the body,
     tables at any nesting depth, text boxes, and headers/footers.
 
     Runs in monospace-ish styles (code, macros, preformatted) keep their
@@ -135,7 +171,7 @@ def style_docx(doc) -> None:
     """
     from docx.oxml.ns import qn
 
-    # 1. Styles — covers text that carries no direct formatting, plus any
+    # 1. Styles, covers text that carries no direct formatting, plus any
     #    style-driven text added to the document after this call.
     for style in doc.styles:
         name = getattr(style, "name", None)
@@ -144,13 +180,13 @@ def style_docx(doc) -> None:
         try:
             style.font.name = FONT
         except (AttributeError, NotImplementedError):
-            pass  # table/numbering styles expose no .font — the XML below still applies
+            pass  # table/numbering styles expose no .font, the XML below still applies
         try:
             _docx_set_rfonts(style.element, qn)
         except (AttributeError, TypeError):
             continue
 
-    # 2. Direct run formatting — the half that actually decides the render.
+    # 2. Direct run formatting, the half that actually decides the render.
     for body in _docx_bodies(doc):
         for paragraph in body.iter(qn("w:p")):
             pstyle = paragraph.find(qn("w:pPr") + "/" + qn("w:pStyle"))
@@ -207,8 +243,7 @@ def _pptx_frame_font(text_frame) -> None:
 def _pptx_walk_shapes(shapes) -> None:
     """Font every run under ``shapes``, descending into grouped shapes.
 
-    A group shape has no ``text_frame`` of its own, so text inside it —
-    common in real decks, and groups nest — is invisible to a flat pass
+    A group shape has no ``text_frame`` of its own, so text inside it, common in real decks, and groups nest, is invisible to a flat pass
     over ``slide.shapes``. Recursion is depth-unbounded for that reason.
     """
     from pptx.enum.shapes import MSO_SHAPE_TYPE
@@ -229,7 +264,7 @@ def style_pptx(prs) -> None:
     """Set Cairo on every text run in a python-pptx Presentation.
 
     Covers table cells, grouped shapes at any nesting depth, and speaker
-    notes — notes ship with the deliverable and render in the same fallback
+    notes, notes ship with the deliverable and render in the same fallback
     font as anything else when left alone.
     """
     for slide in prs.slides:
@@ -241,15 +276,21 @@ def style_pptx(prs) -> None:
 
 
 def register_pdf_font() -> str:
-    """Register Cairo with reportlab; returns the font name to setFont()."""
+    """Register the PDF Arabic face with reportlab.
+
+    Returns the name to pass to ``setFont``. This is Cairo even when the
+    document face is something else: reportlab embeds the file rather
+    than the name, and the coverage net in ``shape_arabic`` is calibrated
+    against a face whose TTF this module knows how to find.
+    """
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
-    pdfmetrics.registerFont(TTFont(FONT, find_font_ttf()))
-    return FONT
+    pdfmetrics.registerFont(TTFont(PDF_FONT, find_font_ttf(PDF_FONT)))
+    return PDF_FONT
 
 
-def shape_arabic(text: str, font: str = FONT) -> str:
+def shape_arabic(text: str, font: str = PDF_FONT) -> str:
     """Reshape + reorder Arabic for a PDF canvas, with a glyph-coverage net.
 
     reportlab has no text shaper: it draws codepoint by codepoint, so Arabic
@@ -258,7 +299,7 @@ def shape_arabic(text: str, font: str = FONT) -> str:
     the bidi algorithm do.
 
     The trap is that a font is NOT required to carry that block. Cairo's
-    variable build covers 89 of the 144 forms — everything a shaping engine
+    variable build covers 89 of the 144 forms, everything a shaping engine
     would ever ask it for through GSUB, but not the standalone codepoints.
     Isolated alef (U+FE8D) and isolated teh (U+FE95) are among the missing,
     which is why "المبيعات" came out of a plain reshape+bidi pipeline as
@@ -268,11 +309,11 @@ def shape_arabic(text: str, font: str = FONT) -> str:
     So every shaped character is checked against the registered font's own
     cmap and, when absent, folded back to its canonical letter (NFKC:
     U+FE8D -> U+0627). The base letters are all present, and for the forms
-    that go missing the two glyphs are visually identical anyway — an
+    that go missing the two glyphs are visually identical anyway, an
     isolated alef IS an alef.
 
     Call this instead of using ``arabic_reshaper``/``get_display`` directly,
-    and only AFTER ``register_pdf_font()`` — the coverage check reads the
+    and only AFTER ``register_pdf_font()``, the coverage check reads the
     registered face.
     """
     import unicodedata

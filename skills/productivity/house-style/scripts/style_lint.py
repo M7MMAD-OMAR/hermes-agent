@@ -35,7 +35,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from house_style import LIMITS, is_arabic  # noqa: E402
+from house_style import LIMITS, is_arabic, load_theme  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Prose rules
@@ -248,7 +248,11 @@ def read_docx(path: Path):
     if stock:
         findings.append(_f("warn", "stock_font", _where(path),
                            f"stock office face in use: {', '.join(sorted(stock))}"))
-    if len(sizes) > LIMITS["doc_font_sizes"]:
+    off_scale = _off_scale(sizes, "doc")
+    if off_scale:
+        findings.append(_f("warn", "off_scale_type", _where(path),
+                           f"sizes outside the house scale: {sorted(off_scale)}"))
+    elif len(sizes) > LIMITS["doc_font_sizes"] + 2:
         findings.append(_f("warn", "size_soup", _where(path),
                            f"{len(sizes)} distinct type sizes: "
                            f"{sorted(sizes)}"))
@@ -280,6 +284,12 @@ def read_pptx(path: Path):
         where = f"{_where(path)} slide {n}"
         words, bullets, visuals = 0, 0, 0
         items = []
+        # A composed layout (cards, a timeline, a comparison) is many
+        # positioned shapes, not a bullet list, and the shapes themselves
+        # are the visual. Counting their paragraphs as bullets reported a
+        # designed slide as a wall of text.
+        composed = sum(1 for sh in slide.shapes
+                       if not sh.is_placeholder and sh.has_text_frame) >= 3
         for shape in slide.shapes:
             if getattr(shape, "has_chart", False) or shape.shape_type == 13:
                 visuals += 1
@@ -294,7 +304,9 @@ def read_pptx(path: Path):
                 chunks.append(text)
                 items.append(text)
                 words += len(_words(text))
-                if shape is not slide.shapes.title:
+                if (shape.is_placeholder
+                        and shape.placeholder_format.idx != 0
+                        and not composed):
                     bullets += 1
                     if len(_words(text)) > LIMITS["bullet_words"]:
                         findings.append(_f("warn", "long_bullet", where,
@@ -323,6 +335,8 @@ def read_pptx(path: Path):
             findings.append(_f("warn", "bullet_pile", where,
                                f"{bullets} bullets; {LIMITS['slide_bullets']} "
                                "is the ceiling, and a grid usually reads better"))
+        if composed:
+            visuals += 1
         if visuals == 0 and words > 15:
             findings.append(_f("warn", "text_only_slide", where,
                                "no chart, table or image: text only slides are "
@@ -334,7 +348,13 @@ def read_pptx(path: Path):
         findings.append(_f("warn", "type_too_small", _where(path),
                            f"type at {sorted(small)} pt; 18 is the floor for a "
                            "projected slide, 14 for one read as a file"))
-    if len(sizes) > LIMITS["deck_font_sizes"]:
+    # A deck that uses eight roles of one scale is not size soup. A deck
+    # carrying 17, 19 and 23 pt is, whatever the count says.
+    off_scale = _off_scale(sizes, "deck")
+    if off_scale:
+        findings.append(_f("warn", "off_scale_type", _where(path),
+                           f"sizes outside the house scale: {sorted(off_scale)}"))
+    elif len(sizes) > LIMITS["deck_font_sizes"] + 2:
         findings.append(_f("warn", "size_soup", _where(path),
                            f"{len(sizes)} distinct type sizes: {sorted(sizes)}"))
     stock = fonts & STOCK_FONTS
@@ -408,6 +428,16 @@ READERS = {
     ".pdf": read_pdf, ".md": read_text_file, ".txt": read_text_file,
     ".markdown": read_text_file, ".json": read_text_file,
 }
+
+
+def _off_scale(sizes, medium: str) -> set:
+    """Sizes that belong to no role of the house scale for this medium."""
+    theme = load_theme()
+    scale = set(theme.deck.values() if medium == "deck" else theme.doc.values())
+    # A stat or a cover number is allowed to go above the top of the
+    # scale; it is the odd sizes in the middle that read as improvised.
+    ceiling = max(scale)
+    return {s for s in sizes if s not in scale and s < ceiling}
 
 
 def _where(path: Path) -> str:

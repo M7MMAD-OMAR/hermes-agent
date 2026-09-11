@@ -92,10 +92,10 @@ def test_arabic_detection_and_leading(hs):
     assert hs.is_arabic("نمت الإيرادات")
     assert not hs.is_arabic("revenue grew 34 percent")
     assert not hs.is_arabic("2026-09-11")
-    assert hs.line_spacing_for("نص عربي") == 1.7
+    assert hs.line_spacing_for("نص عربي") == 1.45
     assert hs.line_spacing_for("latin text", latin=1.25) == 1.25
     # A title wants the opposite of a paragraph.
-    assert hs.line_spacing_for("عنوان", arabic=1.3) == 1.3
+    assert hs.line_spacing_for("عنوان", arabic=1.25) == 1.25
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ def test_docx_pass_sets_arabic_leading_and_drops_italics(hs):
 
     hs.theme_docx(doc, hs.load_theme())
 
-    assert para.paragraph_format.line_spacing == 1.7
+    assert para.paragraph_format.line_spacing == 1.45
     assert run.font.italic is False, "Arabic carries emphasis in weight"
     assert run.font.bold is True
 
@@ -266,6 +266,24 @@ def test_xlsx_pass_respects_an_explicit_color_and_size(hs):
     assert ws["A1"].font.color.rgb == "FF00FF00", "a header color must survive"
     assert ws["A1"].font.size == 18
     assert ws["A2"].font.color.rgb == "FFFF0000"
+
+
+def test_xlsx_pass_keeps_a_border_the_spec_drew(hs):
+    pytest.importorskip("openpyxl")
+    from openpyxl import Workbook
+    from openpyxl.styles import Border, Side
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Region", "Revenue"])
+    ws.append(["North", 100])
+    ws["A1"].border = Border(left=Side(style="medium"),
+                             bottom=Side(style="medium"))
+
+    hs.theme_xlsx(wb, hs.load_theme())
+
+    assert ws["A1"].border.left.style == "medium", "a drawn border is a decision"
+    assert ws["A1"].border.bottom.style == "medium"
 
 
 def test_xlsx_pass_flips_an_arabic_sheet(hs):

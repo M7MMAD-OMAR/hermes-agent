@@ -224,7 +224,7 @@ DECK_GEOMETRY = {
 DOC_GEOMETRY = {
     "margin_top_cm": 2.5, "margin_bottom_cm": 2.5,
     "margin_left_cm": 3.2, "margin_right_cm": 3.2,
-    "line_spacing": 1.27, "line_spacing_arabic": 1.7,
+    "line_spacing": 1.27, "line_spacing_arabic": 1.45,
     "space_after_pt": 8, "space_before_heading_pt": 18,
 }
 
@@ -270,13 +270,13 @@ def is_arabic(text: str) -> bool:
 
 
 def line_spacing_for(text: str, *, latin: float = 1.20,
-                     arabic: float = 1.7) -> float:
-    """Arabic body sits on 1.7, Latin body on about 1.3.
+                     arabic: float = 1.45) -> float:
+    """Arabic body sits on about 1.45, Latin body on about 1.25.
 
-    Arabic ascenders, descenders and any tashkeel need the extra vertical
-    room; set Arabic body at the Latin leading and the lines collide.
-    Display sizes want the opposite, which is why the caller passes a
-    tighter pair for a title.
+    Arabic ascenders and descenders need more room than Latin, but the
+    1.7 that undotted, tashkeel-heavy text wants reads as a hole in
+    ordinary business Arabic. Display sizes want less again, which is why
+    the caller passes a tighter pair for a title.
     """
     return arabic if is_arabic(text) else latin
 
@@ -313,10 +313,13 @@ THEMES = {"editorial": _EDITORIAL, "slate": _SLATE, "mono": _MONO}
 # renderers, so a fit check against it is wrong in both directions.
 _LATIN_TEXT = ["Source Serif 4", "Charter", "Cambria", "Century Schoolbook",
                "Georgia", "Times New Roman"]
-_LATIN_SANS = ["Inter", "IBM Plex Sans", "Source Sans 3", "Calibri", "Arial"]
+_LATIN_SANS = ["IBM Plex Sans", "Inter", "Source Sans 3", "Calibri", "Arial"]
 _MONO_FACES = ["JetBrains Mono", "IBM Plex Mono", "DejaVu Sans Mono",
                "Consolas", "Courier New"]
-_ARABIC = ["Cairo", "IBM Plex Sans Arabic", "Tajawal", "Noto Sans Arabic"]
+# IBM Plex Sans Arabic first: it was drawn alongside a Latin companion, so a
+# bilingual paragraph keeps one color instead of two. Cairo stays next in
+# line for anything that wants a more geometric display face.
+_ARABIC = ["IBM Plex Sans Arabic", "Cairo", "Tajawal", "Noto Sans Arabic"]
 
 _font_cache: dict[str, bool] = {}
 
@@ -440,6 +443,22 @@ def theme_docx(doc, theme: Theme | None = None, *, set_page: bool = True) -> dic
     body_spacing = (theme.page["line_spacing_arabic"] if is_arabic(sample)
                     else theme.page["line_spacing"])
 
+    def clear_paragraph_border(style):
+        """Drop the rule the stock Title and Heading styles carry.
+
+        Word's own template underlines the title with a blue rule, which
+        is both the Office accent and the "accent line under a title"
+        anti-pattern. Whitespace separates a heading here.
+        """
+        from docx.oxml.ns import qn
+
+        pr = style.element.find(qn("w:pPr"))
+        if pr is None:
+            return
+        borders = pr.find(qn("w:pBdr"))
+        if borders is not None:
+            pr.remove(borders)
+
     def set_style(name, size, *, color=ink, bold=False, italic=False,
                   space_before=0, space_after=None, font=None,
                   keep_with_next=False, spacing=None):
@@ -458,6 +477,7 @@ def theme_docx(doc, theme: Theme | None = None, *, set_page: bool = True) -> dic
         fmt.line_spacing = spacing or body_spacing
         fmt.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
         fmt.keep_with_next = keep_with_next
+        clear_paragraph_border(style)
         touched["styles"] += 1
 
     head = theme.fonts["heading"]
@@ -532,13 +552,35 @@ def _docx_borders(element, edges: dict):
             node.set(qn(f"w:{key}"), str(value))
 
 
+_NUMERIC = re.compile(r"^[\s(]*[-+]?[\d,.\u0660-\u0669]+\s*[%x]?\s*\)?$")
+
+
+def _docx_shade(cell, hex_color: str):
+    """Cell shading. python-docx exposes no fill API, so write w:shd."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    pr = cell._tc.get_or_add_tcPr()
+    shd = pr.find(qn("w:shd"))
+    if shd is None:
+        shd = OxmlElement("w:shd")
+        pr.append(shd)
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), hex_color)
+
+
 def _docx_table(table, theme: Theme):
-    """A rule under the header and hairlines between rows, nothing else.
+    """Three rules, a tinted header, and banding once the table is long.
 
     Word's "Table Grid" boxes every cell, which reads as a spreadsheet
-    pasted into a report. Horizontal rules alone are what a typeset table
-    looks like in print.
+    pasted into a report. Horizontal rules carry a typeset table, but a
+    reader still needs to tell one column from the next: the header tint
+    and the first column's weight do that without a single vertical rule,
+    and numbers right aligned under a right aligned header make the
+    column edge visible by itself.
     """
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Pt, RGBColor
 
     p, t = theme.palette, theme.doc
@@ -553,23 +595,55 @@ def _docx_table(table, theme: Theme):
         "insideH": {"val": "none", "sz": 0, "color": "auto"},
         "insideV": {"val": "none", "sz": 0, "color": "auto"},
     })
-    for r, row in enumerate(table.rows):
+    rows = table.rows
+    banded = len(rows) > 5
+    # In an RTL table w:jc "right" means the logical end, so a right
+    # aligned number column lands on the left while its Arabic header
+    # stays on the right, and the column reads as two columns. Leave an
+    # Arabic table on its own start edge.
+    arabic_table = is_arabic(" ".join(c.text for r in rows for c in r.cells))
+    numeric_cols = set() if arabic_table else _docx_numeric_columns(table)
+    for r, row in enumerate(rows):
         header = r == 0
-        for cell in row.cells:
+        for c, cell in enumerate(row.cells):
             if header:
+                _docx_shade(cell, p.accent_soft)
                 _docx_borders(cell._tc.get_or_add_tcPr(), {
                     "bottom": {"val": "single", "sz": 8, "color": p.ink}})
+            elif banded and r % 2 == 0:
+                _docx_shade(cell, p.surface)
             for para in cell.paragraphs:
-                para.paragraph_format.space_before = Pt(3)
-                para.paragraph_format.space_after = Pt(3)
+                para.paragraph_format.space_before = Pt(4)
+                para.paragraph_format.space_after = Pt(4)
+                if c in numeric_cols and para.alignment is None:
+                    para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
                 for run in para.runs:
                     if run.font.size is None:
                         run.font.size = Pt(t["table_head"] if header
                                            else t["table"])
-                    if header and run.font.bold is None:
+                    if run.font.bold is None and (header or c == 0):
                         run.font.bold = True
                     if run.font.color.rgb is None:
-                        run.font.color.rgb = RGBColor.from_string(p.ink)
+                        run.font.color.rgb = RGBColor.from_string(
+                            p.accent_text if header else p.ink)
+
+
+def _docx_numeric_columns(table) -> set:
+    """Columns whose body cells are all numbers, percentages or money."""
+    if len(table.rows) < 2:
+        return set()
+    numeric = set()
+    for c in range(len(table.columns)):
+        values = []
+        for row in table.rows[1:]:
+            try:
+                values.append(row.cells[c].text.strip())
+            except IndexError:
+                continue
+        cells = [v for v in values if v]
+        if cells and all(_NUMERIC.match(v) for v in cells):
+            numeric.add(c)
+    return numeric
 
 
 # ---------------------------------------------------------------------------
@@ -651,7 +725,7 @@ def _pptx_layout(slide, prs, theme: Theme):
     here; a shape the spec positioned itself is never touched.
     """
     from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
-    from pptx.util import Emu, Inches
+    from pptx.util import Inches, Pt
 
     g = theme.geometry
     width_in = prs.slide_width / 914400
@@ -683,6 +757,20 @@ def _pptx_layout(slide, prs, theme: Theme):
         elif left_in > 3.0 and (obstacle is None or left_in < obstacle):
             obstacle = left_in
 
+    # The title decides where the body starts. Fixing the band at one line
+    # and hoping is how a two line title ends up printed over the first
+    # bullet.
+    title_shape = next((sh for sh in slide.shapes
+                        if _is_title(sh) and sh.has_text_frame), None)
+    title_size = theme.deck["cover_title" if cover else "title"]
+    body_top = g["body_top"]
+    if title_shape is not None and not cover:
+        title_size, lines = fit_title(title_shape.text_frame.text, content_w,
+                                      theme.deck)
+        leading = 1.25 if is_arabic(title_shape.text_frame.text) else 1.12
+        title_h = (title_size * leading * lines) / 72 + 0.12
+        body_top = max(body_top, g["margin_top"] + title_h + 0.30)
+
     for shape in slide.shapes:
         if not shape.is_placeholder or not shape.has_text_frame:
             continue
@@ -702,7 +790,7 @@ def _pptx_layout(slide, prs, theme: Theme):
                 shape.height = Inches(1.7)
             else:
                 shape.top = Inches(g["margin_top"])
-                shape.height = Inches(1.15)
+                shape.height = Inches(body_top - g["margin_top"] - 0.22)
             # Anchored to the top: a two line title grows down into the
             # gap under the title band, not up off the top of the slide.
             frame.vertical_anchor = MSO_ANCHOR.TOP
@@ -713,8 +801,8 @@ def _pptx_layout(slide, prs, theme: Theme):
                 shape.height = Inches(1.0)
                 shape.width = Inches(content_w)
             else:
-                shape.top = Inches(g["body_top"])
-                shape.height = Inches(height_in - g["body_top"]
+                shape.top = Inches(body_top)
+                shape.height = Inches(height_in - body_top
                                       - g["margin_bottom"])
                 # A 60 character measure at 18 pt is 7.5 in. Full width
                 # body text on a 16:9 slide runs to 96 characters.
@@ -731,6 +819,10 @@ def _pptx_layout(slide, prs, theme: Theme):
         for para in frame.paragraphs:
             if para.alignment is None and not is_arabic(para.text):
                 para.alignment = PP_ALIGN.LEFT
+            if is_title:
+                for run in para.runs:
+                    if run.font.size is None:
+                        run.font.size = Pt(title_size)
 
 
 def _pptx_shape(shape, slide, theme, level_sizes, counts):
@@ -790,12 +882,45 @@ def _pptx_shape(shape, slide, theme, level_sizes, counts):
             para.line_spacing = line_spacing_for(
                 para.text,
                 latin=1.10 if is_title else 1.25,
-                arabic=1.30 if is_title else 1.7)
+                arabic=1.25 if is_title else 1.45)
         if para.alignment is not None and str(para.alignment).startswith("JUSTIFY"):
             para.alignment = None
 
 
 _COVER_LAYOUTS = ("title slide", "section header", "title only")
+
+
+def estimate_lines(text: str, width_in: float, size_pt: float) -> int:
+    """How many lines this text takes in a box of that width.
+
+    Average glyph advance sits near half the point size for a humanist
+    sans, in Arabic as in Latin, which is good to about five percent.
+    Good enough to decide whether a title needs one line or three, which
+    is the difference between a designed slide and a title sitting on top
+    of the first bullet.
+    """
+    if not text:
+        return 1
+    per_line = max(8, int((width_in * 72) / (0.5 * size_pt)))
+    lines = 0
+    for paragraph in text.splitlines() or [""]:
+        lines += max(1, -(-len(paragraph) // per_line))
+    return max(1, lines)
+
+
+def fit_title(text: str, width_in: float, scale: dict, *, max_lines: int = 2):
+    """Step a title down the scale until it fits in max_lines.
+
+    A 42 pt title is right for eight words and wrong for twenty. Rather
+    than let it overflow into the body, take the next size down, which is
+    still a title and still twice the body.
+    """
+    for size in (scale["title"], scale["section"], scale["lead"]):
+        lines = estimate_lines(text, width_in, size)
+        if lines <= max_lines:
+            return size, lines
+    size = scale["lead"]
+    return size, estimate_lines(text, width_in, size)
 
 
 def _is_title(shape) -> bool:
@@ -829,20 +954,57 @@ def _pptx_cell_fill(cell, hex_color):
 
 
 def _pptx_table(table, theme: Theme):
-    """Header band, hairline rows, no vertical rules."""
+    """A header band in the accent, banded rows, no boxed grid.
+
+    On a slide a table is read from three metres, so the header has to
+    separate itself by weight and color rather than by a hairline. The
+    band carries paper-colored text; the rows alternate paper and surface
+    so the eye tracks across a row without a vertical rule to help it.
+    """
     from pptx.util import Pt
 
     p, t = theme.palette, theme.deck
+    head_text = readable_on(p.accent, p.paper, p.ink)
+    arabic_table = is_arabic(" ".join(c.text for r in table.rows
+                                      for c in r.cells))
+    numeric = set() if arabic_table else _pptx_numeric_columns(table)
     for r, row in enumerate(table.rows):
         header = r == 0
-        for cell in row.cells:
-            _pptx_cell_fill(cell, p.surface if header else p.paper)
-            cell.margin_left = cell.margin_right = Pt(8)
-            cell.margin_top = cell.margin_bottom = Pt(5)
+        for c, cell in enumerate(row.cells):
+            if header:
+                _pptx_cell_fill(cell, p.accent)
+            else:
+                _pptx_cell_fill(cell, p.paper if r % 2 else p.surface)
+            cell.margin_left = cell.margin_right = Pt(12)
+            cell.margin_top = cell.margin_bottom = Pt(7)
             for para, run in _pptx_runs(cell.text_frame):
-                _pptx_set(run, size=t["table_head"] if header else t["table"],
-                          bold=True if header else None,
-                          color=p.ink, font=theme.fonts["body"])
+                _pptx_set(run,
+                          size=t["table_head"] if header else t["table"],
+                          bold=True if header or c == 0 else None,
+                          color=head_text if header else p.ink,
+                          font=theme.fonts["body"])
+                if para.line_spacing is None:
+                    para.line_spacing = line_spacing_for(para.text, latin=1.15,
+                                                         arabic=1.35)
+                if c in numeric and para.alignment is None:
+                    from pptx.enum.text import PP_ALIGN
+                    para.alignment = PP_ALIGN.RIGHT
+
+
+def _pptx_numeric_columns(table) -> set:
+    """Columns whose body cells are all numbers. Same rule as the docx
+    pass: a right aligned number column shows its own edge, which is what
+    a vertical rule was being asked to do."""
+    rows = list(table.rows)
+    if len(rows) < 2:
+        return set()
+    numeric = set()
+    for c in range(len(rows[0].cells)):
+        values = [r.cells[c].text.strip() for r in rows[1:]]
+        cells = [v for v in values if v]
+        if cells and all(_NUMERIC.match(v) for v in cells):
+            numeric.add(c)
+    return numeric
 
 
 def _pptx_chart(chart, theme: Theme):
@@ -948,6 +1110,7 @@ def theme_xlsx(wb, theme: Theme | None = None, *, header_rows: int = 1,
     p, t = theme.palette, theme.sheet
     body_font = theme.fonts["body"]
     head_rule = Side(style="thin", color=f"FF{p.ink}")
+    head_fill = PatternFill("solid", fgColor=f"FF{p.accent_soft}")
     zebra = PatternFill("solid", fgColor=f"FF{p.surface}")
     counts = {"sheets": 0, "header_cells": 0, "cells": 0, "rtl_sheets": 0}
 
@@ -979,7 +1142,12 @@ def theme_xlsx(wb, theme: Theme | None = None, *, header_rows: int = 1,
                 )
                 if header:
                     counts["header_cells"] += 1
-                    cell.border = Border(bottom=head_rule)
+                    # A border the spec drew is a decision. Only an
+                    # untouched header row gets the house rule.
+                    if not _xlsx_has_border(cell):
+                        cell.border = Border(bottom=head_rule)
+                    if cell.fill.fgColor.rgb in (None, "00000000"):
+                        cell.fill = head_fill
                     cell.alignment = Alignment(
                         horizontal=cell.alignment.horizontal or "left",
                         vertical="center", wrap_text=True)
@@ -999,6 +1167,12 @@ def theme_xlsx(wb, theme: Theme | None = None, *, header_rows: int = 1,
 
 # openpyxl's own default point size. Anything else in a cell was chosen.
 _XLSX_DEFAULT_PT = 11.0
+
+def _xlsx_has_border(cell) -> bool:
+    border = cell.border
+    return any(getattr(getattr(border, side, None), "style", None)
+               for side in ("left", "right", "top", "bottom"))
+
 
 NUMBER_FORMATS = {
     # Negatives in parentheses, zeros as a dash, the unit named once in the

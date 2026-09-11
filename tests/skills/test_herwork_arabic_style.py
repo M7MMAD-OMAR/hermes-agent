@@ -3,7 +3,7 @@
 A style-only pass reports success while a deliverable comes out half-Cairo
 and half-Calibri: a run carrying DIRECT formatting (its own ``w:rFonts``,
 which is what most docx-generating code and Word templates emit) overrides
-its style. The pptx side had the mirror-image gap — grouped shapes have no
+its style. The pptx side had the mirror-image gap, grouped shapes have no
 ``text_frame``, so text inside them was skipped entirely.
 
 These tests assert the rendered-font contract on real Document/Presentation
@@ -76,7 +76,7 @@ def test_style_docx_reaches_direct_run_formatting(arabic_style):
     assert all(_docx_cs(r) == font for r in heading4.runs), "Heading 4 must be covered"
     assert all(_docx_cs(r) == font for r in caption.runs), "Caption must be covered"
     assert _docx_cs(cell_run) == font
-    assert _docx_cs(nested_run) == font, "tables nest — the walk must too"
+    assert _docx_cs(nested_run) == font, "tables nest, the walk must too"
     assert _docx_cs(header_run) == font, "headers are a separate part"
 
 
@@ -102,7 +102,7 @@ def test_style_docx_leaves_monospace_styles_and_inherited_parts_alone(arabic_sty
 
 
 def test_style_pptx_descends_into_groups_and_notes(arabic_style):
-    """Grouped shapes hold no text frame of their own — and groups nest."""
+    """Grouped shapes hold no text frame of their own, and groups nest."""
     pytest.importorskip("pptx")
     from pptx import Presentation
     from pptx.util import Inches
@@ -159,14 +159,14 @@ def test_shape_arabic_replaces_forms_the_font_has_no_glyph_for(arabic_style):
     from bidi.algorithm import get_display
 
     text = "تقرير المبيعات للربع الثالث"
-    supported = pdfmetrics.getFont(arabic_style.FONT).face.charToGlyph
+    supported = pdfmetrics.getFont(arabic_style.PDF_FONT).face.charToGlyph
     shaped = arabic_style.shape_arabic(text)
 
     uncovered = [character for character in shaped if ord(character) not in supported]
 
     assert not uncovered, f"would render as .notdef boxes: {uncovered}"
     # The fold is to the canonical letter, not a drop: nothing may vanish.
-    # Compare against the PRE-fold string — comparing shape_arabic to itself
+    # Compare against the PRE-fold string, comparing shape_arabic to itself
     # would be an assertion that cannot fail.
     assert len(shaped) == len(get_display(arabic_reshaper.reshape(text)))
     assert "ﺍ" not in shaped and "ﺕ" not in shaped

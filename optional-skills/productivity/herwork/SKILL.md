@@ -241,9 +241,13 @@ Arabic text quietly returns to a fallback face.
 
 ## Arabic typography
 
-Any deliverable that contains Arabic MUST use the **Cairo** font. The
-office-suite default (Calibri) renders Arabic badly. Use the helper at
-`scripts/arabic_style.py` in this skill's directory:
+Any deliverable that contains Arabic MUST carry a real Arabic face: the
+office-suite default (Calibri) renders Arabic badly. The face comes from
+the house design system, which resolves the first of IBM Plex Sans
+Arabic, Cairo, Tajawal or Noto Sans Arabic that is installed, and falls
+back to Cairo when the house system is not installed beside this skill.
+Apply it with the helper at `scripts/arabic_style.py` in this skill's
+directory:
 
 - docx: `style_docx(doc)` after building the Document, covers named styles
   AND every run (body, nested tables, text boxes, headers/footers), because

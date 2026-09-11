@@ -55,17 +55,17 @@ import { useSessionStateCache } from './use-session-state-cache'
 //
 //   primary / ambient source  = a remote gateway on `default`
 //   active registry source    = `homelab` (a remote registry source)
-//   user action               = selectProfile("omar") in the profile rail
+//   user action               = selectProfile("ops") in the profile rail
 //
-// selectProfile sets $newChatProfile = "omar" and deliberately CLEARS
+// selectProfile sets $newChatProfile = "ops" and deliberately CLEARS
 // $newChatRoute, so nothing explicit names the source. The draft's real owner
-// is the registry entry homelab::omar (scope `conn:homelab::omar`) — the
+// is the registry entry homelab::ops (scope `conn:homelab::ops`), the
 // socket whose WebSocket mints the runtime. Before the fix the create rode
 // that socket ambiently, but the durable owner degraded to the bare string
-// "omar": the optimistic row was stamped from the ambient profile with no
+// "ops": the optimistic row was stamped from the ambient profile with no
 // connection, no owner hint was recorded, and every follow-up RPC dialed
-// requestGatewayForProfile("omar") — a DIFFERENT v1 socket/backend that never
-// held the runtime — and 4001'd "session not found" while the orphaned omar
+// requestGatewayForProfile("ops"), a DIFFERENT v1 socket/backend that never
+// held the runtime, and 4001'd "session not found" while the orphaned ops
 // runtime was left to be ws-orphan-reaped.
 //
 // The explicit `local` source (This device) is different by design: a profile
@@ -80,11 +80,11 @@ import { useSessionStateCache } from './use-session-state-cache'
 // dispatcher. It never supplies an owner by hand.
 
 const SOURCE_ID = 'homelab'
-const OMAR_PORT = 7171
+const OPS_PORT = 7171
 const SOURCE_DEFAULT_PORT = 7070
 const V1_PORT = 5151
-const RUNTIME_ID = 'rt-omar-fresh-1'
-const STORED_ID = 'stored-omar-fresh-1'
+const RUNTIME_ID = 'rt-ops-fresh-1'
+const STORED_ID = 'stored-ops-fresh-1'
 
 type GatewayRequestMock = Mock<(method: string, params?: Record<string, unknown>) => Promise<unknown>>
 
@@ -104,7 +104,7 @@ const sockets: MockGateway[] = []
 let runtimeOwner: MockGateway | null = null
 let registryOnEvent!: Mock<(event: GatewayEvent) => void>
 /** The port of the ONE socket allowed to mint (and then own) the runtime. */
-let ownerPort = OMAR_PORT
+let ownerPort = OPS_PORT
 /** The ids the owner socket mints — per case, so one case's owner records
  *  (the hint map is module state) can never satisfy another's assertions. */
 let mintedRuntimeId = RUNTIME_ID
@@ -117,10 +117,10 @@ const sessionScoped = (params: unknown) =>
  * ownership: a replacement WebSocket connected to the same URL has never held
  * this in-memory runtime and must fail exactly like a different backend. */
 function answer(socket: MockGateway, method: string, params: Record<string, unknown>) {
-  const isOmar = socket.connectUrl?.includes(`:${ownerPort}`) ?? false
+  const isOps = socket.connectUrl?.includes(`:${ownerPort}`) ?? false
 
   if (method === 'session.create') {
-    if (!isOmar) {
+    if (!isOps) {
       throw new Error(`session.create landed on the wrong socket: ${socket.connectUrl}`)
     }
 
@@ -215,8 +215,8 @@ function installDesktop(): void {
     getConnectionFor: vi.fn(async ({ connectionId, profile }: { connectionId: string; profile: string }) => {
       const port =
         connectionId === SOURCE_ID || connectionId === 'local'
-          ? profile === 'omar'
-            ? OMAR_PORT
+          ? profile === 'ops'
+            ? OPS_PORT
             : SOURCE_DEFAULT_PORT
           : 9999
 
@@ -367,13 +367,13 @@ function Harness({
   return null
 }
 
-const omarScope = registryBackendScopeKey(SOURCE_ID, 'omar')
+const opsScope = registryBackendScopeKey(SOURCE_ID, 'ops')
 
-describe('profile rail: a fresh Omar chat keeps its exact registry owner across turns (#94071)', () => {
+describe('profile rail: a fresh Ops chat keeps its exact registry owner across turns (#94071)', () => {
   beforeEach(() => {
     sockets.length = 0
     runtimeOwner = null
-    ownerPort = OMAR_PORT
+    ownerPort = OPS_PORT
     mintedRuntimeId = RUNTIME_ID
     mintedStoredId = STORED_ID
     clearSingleFlightSessionResumeState()
@@ -415,9 +415,9 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
   })
 
   /** Boot the exact field state: remote primary on `default`, `homelab` as
-   *  the active registry source, then selectProfile("omar") in the rail; mount
+   *  the active registry source, then selectProfile("ops") in the rail; mount
    *  the window's real hook stack over the production dispatcher. */
-  async function bootProfileRailOmar(startDraft: 'newSessionInProfile' | 'selectProfile' = 'selectProfile') {
+  async function bootProfileRailOps(startDraft: 'newSessionInProfile' | 'selectProfile' = 'selectProfile') {
     // Primary / ambient source: a remote gateway on `default`.
     const primary = makePrimary()
     setPrimaryGateway(primary as never, 'default')
@@ -429,25 +429,25 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
 
     // Both profile-rail entry points must capture the same concrete source.
     if (startDraft === 'newSessionInProfile') {
-      newSessionInProfile('omar')
+      newSessionInProfile('ops')
     } else {
-      selectProfile('omar')
+      selectProfile('ops')
     }
 
-    expect($newChatProfile.get()).toBe('omar')
+    expect($newChatProfile.get()).toBe('ops')
     expect($newChatRoute.get()).toBeNull()
-    await waitFor(() => expect(activeGatewayProfileKey()).toBe('omar'))
+    await waitFor(() => expect(activeGatewayProfileKey()).toBe('ops'))
     expect(activeGatewayConnectionId()).toBe(SOURCE_ID)
 
-    // The socket the registry dialed for homelab::omar (mocked HermesGateway
+    // The socket the registry dialed for homelab::ops (mocked HermesGateway
     // instances register themselves on construction).
     expect(sockets.length).toBeGreaterThan(0)
-    const omarSocket = sockets.find(socket => socket.connectUrl?.includes(`:${OMAR_PORT}`))
+    const opsSocket = sockets.find(socket => socket.connectUrl?.includes(`:${OPS_PORT}`))
     expect(
-      omarSocket,
-      `no socket dialed port ${OMAR_PORT}; dialed: ${sockets.map(s => s.connectUrl).join(', ')}`
+      opsSocket,
+      `no socket dialed port ${OPS_PORT}; dialed: ${sockets.map(s => s.connectUrl).join(', ')}`
     ).toBeDefined()
-    expect(activeGateway()).toBe(omarSocket as never)
+    expect(activeGateway()).toBe(opsSocket as never)
 
     // Ambient dispatcher = whatever socket is active, as useGatewayRequest does.
     const ambientRequest = vi.fn(async (method: string, params?: Record<string, unknown>) => {
@@ -462,7 +462,7 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     render(<Harness ambientRequest={ambientRequest as never} onReady={h => (handle = h)} />)
     await waitFor(() => expect(handle).not.toBeNull())
 
-    return { ambientRequest, handle: handle!, omarSocket: omarSocket!, primary }
+    return { ambientRequest, handle: handle!, opsSocket: opsSocket!, primary }
   }
 
   /** What the gateway's stream end does: the turn settles. */
@@ -483,7 +483,7 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
 
   const calls = (socket: MockGateway) => socket.request.mock.calls.map(call => call[0] as string)
 
-  it('dials homelab::omar when boot published homelab on the active primary gateway', async () => {
+  it('dials homelab::ops when boot published homelab on the active primary gateway', async () => {
     const primary = makePrimary()
 
     setPrimaryGateway(primary as never, 'default')
@@ -496,14 +496,14 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     setConnection({ connectionId: SOURCE_ID, mode: 'remote', profile: 'default' } as never)
     expect(activeGatewayConnectionId()).toBe(SOURCE_ID)
 
-    selectProfile('omar')
+    selectProfile('ops')
 
     const desktop = window.hermesDesktop!
 
     await waitFor(() =>
-      expect(desktop.getConnectionFor).toHaveBeenCalledWith({ connectionId: SOURCE_ID, profile: 'omar' })
+      expect(desktop.getConnectionFor).toHaveBeenCalledWith({ connectionId: SOURCE_ID, profile: 'ops' })
     )
-    expect(desktop.getConnection).not.toHaveBeenCalledWith('omar')
+    expect(desktop.getConnection).not.toHaveBeenCalledWith('ops')
     expect($newChatConnectionId.get()).toBe(SOURCE_ID)
   })
 
@@ -511,32 +511,32 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     // The published identity survives the reload, but a pick on the explicit
     // local source is still a legacy profile pick (per-profile remote
     // overrides resolve through getConnection), so the draft's owner is the
-    // v1 profile socket, never the registry entry local::omar.
+    // v1 profile socket, never the registry entry local::ops.
     const primary = makePrimary()
 
     setPrimaryGateway(primary as never, 'default')
     setConnection({ connectionId: 'local', mode: 'local', profile: 'default' } as never)
     expect(activeGatewayConnectionId()).toBe('local')
 
-    selectProfile('omar')
+    selectProfile('ops')
 
     const desktop = window.hermesDesktop!
 
-    await waitFor(() => expect(desktop.getConnection).toHaveBeenCalledWith('omar'))
-    expect(desktop.getConnectionFor).not.toHaveBeenCalledWith({ connectionId: 'local', profile: 'omar' })
+    await waitFor(() => expect(desktop.getConnection).toHaveBeenCalledWith('ops'))
+    expect(desktop.getConnectionFor).not.toHaveBeenCalledWith({ connectionId: 'local', profile: 'ops' })
     expect($newChatConnectionId.get()).toBeNull()
   })
 
   function expectUninterruptedOwner({
     ambientRequest,
-    omarSocket,
+    opsSocket,
     primary
   }: {
     ambientRequest: GatewayRequestMock
-    omarSocket: MockGateway
+    opsSocket: MockGateway
     primary: MockGateway
   }) {
-    expect(runtimeOwner).toBe(omarSocket)
+    expect(runtimeOwner).toBe(opsSocket)
     expect(ambientRequest.mock.calls.filter(call => call[0] === 'session.create' || sessionScoped(call[1]))).toEqual([])
 
     for (const socket of [primary, ...sockets]) {
@@ -550,8 +550,8 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     expect(registryOnEvent.mock.calls.filter(([event]) => event.type === 'session.reclaimed')).toEqual([])
   }
 
-  it('session.create and both prompt.submit calls ride the SAME conn:homelab::omar socket', async () => {
-    const { ambientRequest, handle, omarSocket, primary } = await bootProfileRailOmar()
+  it('session.create and both prompt.submit calls ride the SAME conn:homelab::ops socket', async () => {
+    const { ambientRequest, handle, opsSocket, primary } = await bootProfileRailOps()
 
     // Turn one: no session yet → createBackendSessionForSend → prompt.submit.
     await expect(handle.submitText('first prompt')).resolves.toBe(true)
@@ -567,7 +567,7 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     // From the moment the create returned, the owner socket is foreground-
     // pinned (owner hold → selected-thread rung) so no prune / lease release
     // can close it before the first prompt.submit lands.
-    expect(foregroundSessionScopes()).toContain(omarScope)
+    expect(foregroundSessionScopes()).toContain(opsScope)
 
     // Answer one arrives: the turn settles.
     await settleTurn(handle)
@@ -577,28 +577,28 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     expect(handle.bindings()).toEqual({ runtimeForStored: RUNTIME_ID, storedForRuntime: STORED_ID })
 
     // Every session-scoped RPC (create + both submits) hit ONE socket: the
-    // registry entry conn:homelab::omar that minted the runtime.
-    const omarCalls = calls(omarSocket)
+    // registry entry conn:homelab::ops that minted the runtime.
+    const opsCalls = calls(opsSocket)
 
-    expect(omarCalls).toContain('session.create')
-    expect(omarCalls.filter(method => method === 'prompt.submit')).toHaveLength(2)
+    expect(opsCalls).toContain('session.create')
+    expect(opsCalls.filter(method => method === 'prompt.submit')).toHaveLength(2)
     expect(
-      omarSocket.request.mock.calls
+      opsSocket.request.mock.calls
         .filter(call => call[0] === 'prompt.submit')
         .map(call => [(call[1] as { session_id: string }).session_id, (call[1] as { text: string }).text])
     ).toEqual([
       [RUNTIME_ID, 'first prompt'],
       [RUNTIME_ID, 'second prompt']
     ])
-    expect(activeGateway()).toBe(omarSocket as never)
-    expect(registryBackendScopeKey(activeGatewayConnectionId(), activeGatewayProfileKey())).toBe(omarScope)
+    expect(activeGateway()).toBe(opsSocket as never)
+    expect(registryBackendScopeKey(activeGatewayConnectionId(), activeGatewayProfileKey())).toBe(opsScope)
 
     // Nothing session-scoped reached the remote primary, the source's default
-    // socket, or a v1 requestGatewayForProfile("omar") socket.
+    // socket, or a v1 requestGatewayForProfile("ops") socket.
     expect(calls(primary).filter(method => method === 'session.create' || method === 'prompt.submit')).toEqual([])
 
     for (const socket of sockets) {
-      if (socket !== omarSocket) {
+      if (socket !== opsSocket) {
         expect(
           socket.request.mock.calls.filter(call => sessionScoped(call[1]) || call[0] === 'session.create')
         ).toEqual([])
@@ -617,24 +617,24 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
       expect(calls(socket).filter(method => method === 'session.close')).toEqual([])
     }
 
-    expect(omarCalls.filter(method => method === 'session.create')).toHaveLength(1)
-    expectUninterruptedOwner({ ambientRequest: ambientRequest as GatewayRequestMock, omarSocket, primary })
-    expect(getSessionOwnerHint(STORED_ID)).toEqual({ connectionId: SOURCE_ID, profile: 'omar' })
+    expect(opsCalls.filter(method => method === 'session.create')).toHaveLength(1)
+    expectUninterruptedOwner({ ambientRequest: ambientRequest as GatewayRequestMock, opsSocket, primary })
+    expect(getSessionOwnerHint(STORED_ID)).toEqual({ connectionId: SOURCE_ID, profile: 'ops' })
     expect($sessions.get().find(session => sessionMatchesStoredId(session, STORED_ID))).toMatchObject({
       connection_id: SOURCE_ID,
-      profile: 'omar'
+      profile: 'ops'
     })
     expect($newChatConnectionId.get()).toBe(SOURCE_ID)
   })
 
-  it('turn two still rides conn:homelab::omar after the transient hint is evicted AND a refresh returned the row untagged', async () => {
-    const { ambientRequest, handle, omarSocket, primary } = await bootProfileRailOmar('newSessionInProfile')
+  it('turn two still rides conn:homelab::ops after the transient hint is evicted AND a refresh returned the row untagged', async () => {
+    const { ambientRequest, handle, opsSocket, primary } = await bootProfileRailOps('newSessionInProfile')
 
     await expect(handle.submitText('first prompt')).resolves.toBe(true)
     await waitFor(() => expect($activeSessionId.get()).toBe(RUNTIME_ID))
     await settleTurn(handle)
 
-    // The two things that used to leave only a bare "omar" behind:
+    // The two things that used to leave only a bare "ops" behind:
     //  1. the bounded owner-hint map evicts (or the app relaunched);
     //  2. the sidebar refresh comes back with the row untagged (the primary
     //     aggregate serves a source's rows as plain profile rows whenever the
@@ -644,7 +644,7 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
 
     const untagged: SessionInfo = {
       ...$sessions.get().find(session => sessionMatchesStoredId(session, STORED_ID))!,
-      profile: 'omar'
+      profile: 'ops'
     }
 
     delete untagged.connection_id
@@ -653,25 +653,25 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     // The row still names the exact owner: the refresh carried the tag.
     expect($sessions.get().find(session => sessionMatchesStoredId(session, STORED_ID))).toMatchObject({
       connection_id: SOURCE_ID,
-      profile: 'omar'
+      profile: 'ops'
     })
 
     await expect(handle.submitText('second prompt')).resolves.toBe(true)
     expect(handle.bindings()).toEqual({ runtimeForStored: RUNTIME_ID, storedForRuntime: STORED_ID })
 
     expect(
-      omarSocket.request.mock.calls
+      opsSocket.request.mock.calls
         .filter(call => call[0] === 'prompt.submit')
         .map(call => (call[1] as { session_id: string; text: string }).text)
     ).toEqual(['first prompt', 'second prompt'])
 
-    // Nothing session-scoped reached the primary, a v1 "omar" socket, or any
+    // Nothing session-scoped reached the primary, a v1 "ops" socket, or any
     // other socket; no REST probe, no session.close, no second create.
     expect(calls(primary).filter(method => method === 'session.create' || method === 'prompt.submit')).toEqual([])
     expect(sockets.some(socket => socket.connectUrl?.includes(`:${V1_PORT}`))).toBe(false)
 
     for (const socket of sockets) {
-      if (socket !== omarSocket) {
+      if (socket !== opsSocket) {
         expect(
           socket.request.mock.calls.filter(call => sessionScoped(call[1]) || call[0] === 'session.create')
         ).toEqual([])
@@ -684,11 +684,11 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
       expect(calls(socket).filter(method => method === 'session.close')).toEqual([])
     }
 
-    expect(calls(omarSocket).filter(method => method === 'session.create')).toHaveLength(1)
-    expectUninterruptedOwner({ ambientRequest: ambientRequest as GatewayRequestMock, omarSocket, primary })
+    expect(calls(opsSocket).filter(method => method === 'session.create')).toHaveLength(1)
+    expectUninterruptedOwner({ ambientRequest: ambientRequest as GatewayRequestMock, opsSocket, primary })
   })
 
-  it('a pick on the explicit `local` source is a legacy profile pick: create and both turns ride the ONE v1 omar socket', async () => {
+  it('a pick on the explicit `local` source is a legacy profile pick: create and both turns ride the ONE v1 ops socket', async () => {
     const primary = makePrimary()
     setPrimaryGateway(primary as never, 'default')
 
@@ -698,30 +698,30 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
 
     // A profile pick on the explicit local source takes the profile-only door
     // so a per-profile remote override resolves (the main process answers
-    // getConnection("omar")), never the registry entry local::omar. The draft's
-    // owner must be the socket that door opens: the v1 omar socket.
-    const LEGACY_RUNTIME_ID = 'rt-omar-legacy-1'
-    const LEGACY_STORED_ID = 'stored-omar-legacy-1'
+    // getConnection("ops")), never the registry entry local::ops. The draft's
+    // owner must be the socket that door opens: the v1 ops socket.
+    const LEGACY_RUNTIME_ID = 'rt-ops-legacy-1'
+    const LEGACY_STORED_ID = 'stored-ops-legacy-1'
 
     ownerPort = V1_PORT
     mintedRuntimeId = LEGACY_RUNTIME_ID
     mintedStoredId = LEGACY_STORED_ID
-    selectProfile('omar')
-    expect($newChatProfile.get()).toBe('omar')
+    selectProfile('ops')
+    expect($newChatProfile.get()).toBe('ops')
     expect($newChatRoute.get()).toBeNull()
     expect($newChatConnectionId.get()).toBeNull()
-    await waitFor(() => expect(activeGatewayProfileKey()).toBe('omar'))
+    await waitFor(() => expect(activeGatewayProfileKey()).toBe('ops'))
     expect(activeGatewayConnectionId()).toBeNull()
 
     const desktop = window.hermesDesktop!
 
-    expect(desktop.getConnection).toHaveBeenCalledWith('omar')
-    expect(desktop.getConnectionFor).not.toHaveBeenCalledWith({ connectionId: 'local', profile: 'omar' })
+    expect(desktop.getConnection).toHaveBeenCalledWith('ops')
+    expect(desktop.getConnectionFor).not.toHaveBeenCalledWith({ connectionId: 'local', profile: 'ops' })
 
     const v1Socket = sockets.find(socket => socket.connectUrl?.includes(`:${V1_PORT}`))
     expect(v1Socket, `no v1 socket dialed; dialed: ${sockets.map(s => s.connectUrl).join(', ')}`).toBeDefined()
     expect(activeGateway()).toBe(v1Socket as never)
-    expect(sockets.some(socket => socket.connectUrl?.includes(`:${OMAR_PORT}`))).toBe(false)
+    expect(sockets.some(socket => socket.connectUrl?.includes(`:${OPS_PORT}`))).toBe(false)
 
     // The legacy door's create legitimately rides the ambient dispatcher: the
     // active socket IS the owner (no route, no registry entry to name).
@@ -761,7 +761,7 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
       }
     }
 
-    expect(sockets.some(socket => socket.connectUrl?.includes(`:${OMAR_PORT}`))).toBe(false)
+    expect(sockets.some(socket => socket.connectUrl?.includes(`:${OPS_PORT}`))).toBe(false)
     expect(vi.mocked(getSession)).not.toHaveBeenCalled()
 
     for (const socket of [primary, ...sockets]) {
@@ -774,7 +774,7 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     expect(registryOnEvent.mock.calls.filter(([event]) => event.type === 'session.reclaimed')).toEqual([])
     expect(getSessionOwnerHint(LEGACY_STORED_ID)).toBeUndefined()
     expect($sessions.get().find(session => sessionMatchesStoredId(session, LEGACY_STORED_ID))).toMatchObject({
-      profile: 'omar'
+      profile: 'ops'
     })
   })
 })

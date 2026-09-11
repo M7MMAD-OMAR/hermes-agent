@@ -45,10 +45,13 @@ const mocks = vi.hoisted(() => {
   }
 
   const workspaceMode = makeStore<string>('sessions')
+  const cwd = makeStore<string>('')
   const panes = new Map<string, ReturnType<typeof makeStore<boolean>>>()
 
   return {
     activeConnectionId: vi.fn<() => null | string>(() => 'local-1'),
+    cwd,
+    notifyError: vi.fn(),
     panes,
     paneVisibility: vi.fn((id: string) => {
       if (!panes.has(id)) {
@@ -57,6 +60,9 @@ const mocks = vi.hoisted(() => {
 
       return panes.get(id)!
     }),
+    request: vi.fn(async (method: string, _params?: Record<string, unknown>): Promise<unknown> =>
+      method === 'profiles.list' ? { profiles: [{ name: 'default' }] } : { ok: true }
+    ),
     setWorkspaceOwnerLabel: vi.fn(),
     setWorkspaceScope: vi.fn((mode: string) => {
       workspaceMode.set(mode)
@@ -75,10 +81,12 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
     host: {
       ...original.host,
       activeConnectionId: mocks.activeConnectionId,
+      notifyError: mocks.notifyError,
       paneVisibility: mocks.paneVisibility,
+      request: mocks.request,
       setWorkspaceOwnerLabel: mocks.setWorkspaceOwnerLabel,
       setWorkspaceScope: mocks.setWorkspaceScope,
-      state: { ...original.host.state, workspaceMode: mocks.workspaceMode }
+      state: { ...original.host.state, cwd: mocks.cwd, workspaceMode: mocks.workspaceMode }
     }
   }
 })
@@ -86,8 +94,29 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
 vi.mock('./chat-empty', () => ({ HerworkChatEmpty: () => null }))
 vi.mock('./pane', () => ({ HerworkPane: () => null }))
 
-import { HERWORK_OWNER_KEY, herworkDeskCwd, herworkRoute, homeOf } from './desk'
+import {
+  deskHome,
+  ensureHerworkProfile,
+  HERWORK_OWNER_KEY,
+  herworkDeskCwd,
+  herworkRoute,
+  homeOf,
+  resetDeskHome,
+  resetHerworkProfileFlight
+} from './desk'
 import plugin, { enterHerwork, HERWORK_PANE_ID } from './plugin'
+
+/** Stand a shell in front of the plugin that reports `home` as the OS home,
+ *  the way Electron's default-project-dir setting does. */
+function withShellHome(home: null | string) {
+  const settings = home === null ? undefined : { getDefaultProjectDir: async () => ({ defaultLabel: home }) }
+
+  Object.defineProperty(window, 'hermesDesktop', {
+    configurable: true,
+    value: settings ? { settings } : undefined,
+    writable: true
+  })
+}
 
 function recordingContext(): { ctx: PluginContext; dispose: () => void } {
   const disposers: Array<() => void> = []
@@ -118,8 +147,17 @@ function recordingContext(): { ctx: PluginContext; dispose: () => void } {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.activeConnectionId.mockReturnValue('local-1')
+  mocks.cwd.set('')
   mocks.workspaceMode.set('sessions')
   mocks.panes.clear()
+  mocks.request.mockImplementation(async (method: string) =>
+    method === 'profiles.list' ? { profiles: [{ name: 'default' }] } : { ok: true }
+  )
+  // Module-level caches outlive a single test the way they outlive a single
+  // pane in the app; each case states the shell it wants.
+  resetDeskHome()
+  resetHerworkProfileFlight()
+  withShellHome(null)
 })
 
 afterEach(() => {
@@ -128,16 +166,16 @@ afterEach(() => {
 
 describe('desk', () => {
   it('routes a desk chat to the herwork profile at the desk with the mode bundle', () => {
-    expect(herworkRoute('local-1', '/home/sbarah')).toEqual({
+    expect(herworkRoute('local-1', '/home/ada')).toEqual({
       connectionId: 'local-1',
       mode: 'local',
       profile: 'herwork',
       targetProfile: 'herwork',
-      cwd: '/home/sbarah/herwork',
+      cwd: '/home/ada/herwork',
       // A file the desk browser downloads lands beside the job's drafts.
-      downloadDir: '/home/sbarah/herwork/work',
+      downloadDir: '/home/ada/herwork/work',
       // Dropped files land in the desk inbox, not wherever they were dragged from.
-      dropDir: '/home/sbarah/herwork/inbox',
+      dropDir: '/home/ada/herwork/inbox',
       bundle: 'herwork'
     })
     // Unknown home: no cwd on the route (never `/herwork`), no drop folder
@@ -173,6 +211,117 @@ describe('desk', () => {
     expect(herworkDeskCwd('C:\\Users\\ada')).toBe('C:\\Users\\ada\\herwork')
     expect(herworkRoute('local-1', 'C:\\Users\\ada')?.downloadDir).toBe('C:\\Users\\ada\\herwork\\work')
     expect(herworkRoute('local-1', '/home/ada')?.downloadDir).toBe('/home/ada/herwork/work')
+  })
+})
+
+describe('the desk profile, which nothing else creates', () => {
+  it('creates it once when the backend does not have it', async () => {
+    await ensureHerworkProfile()
+    await ensureHerworkProfile()
+
+    const created = mocks.request.mock.calls.filter(([method]) => method === 'profiles.create')
+
+    expect(created).toHaveLength(1)
+    expect(created[0]![1]).toMatchObject({ name: 'herwork' })
+  })
+
+  it('leaves an existing profile alone', async () => {
+    mocks.request.mockImplementation(async (method: string) =>
+      method === 'profiles.list' ? { profiles: [{ name: 'default' }, { name: 'HerWork' }] } : { ok: true }
+    )
+
+    await ensureHerworkProfile()
+
+    expect(mocks.request.mock.calls.some(([method]) => method === 'profiles.create')).toBe(false)
+  })
+
+  it('treats losing the create race as success, and a real failure as a failure', async () => {
+    mocks.request.mockImplementation(async (method: string) => {
+      if (method === 'profiles.list') {
+        return { profiles: [] }
+      }
+
+      throw new Error("profile 'herwork' already exists")
+    })
+
+    await expect(ensureHerworkProfile()).resolves.toBeUndefined()
+
+    resetHerworkProfileFlight()
+    mocks.request.mockImplementation(async (method: string) => {
+      if (method === 'profiles.list') {
+        return { profiles: [] }
+      }
+
+      throw new Error('disk is full')
+    })
+
+    await expect(ensureHerworkProfile()).rejects.toThrow('disk is full')
+    // A settled failure clears the slot, so the next click tries again rather
+    // than replaying the same rejection forever.
+    mocks.request.mockImplementation(async () => ({ profiles: [] }))
+    await expect(ensureHerworkProfile()).resolves.toBeUndefined()
+  })
+
+  it('creates the profile on the tab bar `+` route too, not only on the pane button', async () => {
+    enterHerwork()
+
+    await vi.waitFor(() => expect(mocks.request.mock.calls.some(([method]) => method === 'profiles.create')).toBe(true))
+  })
+
+  it('says so when the profile cannot be created, instead of a dead `+`', async () => {
+    mocks.request.mockRejectedValue(new Error('gateway unavailable'))
+
+    enterHerwork()
+
+    await vi.waitFor(() => expect(mocks.notifyError).toHaveBeenCalled())
+  })
+})
+
+describe('the desk home', () => {
+  it('comes from the shell, not from wherever the user keeps projects', async () => {
+    // The cwd pattern match has no answer for /opt, and used to drop the desk
+    // path from the route entirely.
+    mocks.cwd.set('/opt/acme/site')
+    withShellHome('/opt/people/ada')
+
+    expect(homeOf(mocks.cwd.get())).toBe('')
+
+    enterHerwork()
+
+    await vi.waitFor(() => expect(deskHome(mocks.cwd.get())).toBe('/opt/people/ada'))
+    // Republished once the shell answered, so the desk is not left at the
+    // ambient directory for the rest of the session.
+    expect(mocks.setWorkspaceScope).toHaveBeenLastCalledWith('herwork', HERWORK_OWNER_KEY, {
+      kind: 'route',
+      route: expect.objectContaining({ cwd: '/opt/people/ada/herwork' })
+    })
+  })
+
+  it('keeps guessing from the cwd where there is no shell to ask', async () => {
+    mocks.cwd.set('/home/ada/projects/x')
+    withShellHome(null)
+
+    enterHerwork()
+
+    await vi.waitFor(() => expect(deskHome(mocks.cwd.get())).toBe('/home/ada'))
+  })
+
+  it('builds a Windows desk out of a Windows home', async () => {
+    mocks.cwd.set('D:\\work\\site')
+    withShellHome('C:\\Users\\ada')
+
+    enterHerwork()
+
+    await vi.waitFor(() =>
+      expect(mocks.setWorkspaceScope).toHaveBeenLastCalledWith('herwork', HERWORK_OWNER_KEY, {
+        kind: 'route',
+        route: expect.objectContaining({
+          cwd: 'C:\\Users\\ada\\herwork',
+          downloadDir: 'C:\\Users\\ada\\herwork\\work',
+          dropDir: 'C:\\Users\\ada\\herwork\\inbox'
+        })
+      })
+    )
   })
 })
 

@@ -74,8 +74,8 @@ export type SessionRpcOwnerRoute = SessionOwnerRoute
  * The hint outranks the row because the row is presentation state that can
  * be stamped from the AMBIENT profile (an optimistic row minted while
  * All-profiles / Bot routing left `default` active), and because it carries
- * no connection: a fresh chat created on `local::omar` whose row read
- * `default` ran its first turn on omar and then 4001'd "session not found"
+ * no connection: a fresh chat created on `local::ops` whose row read
+ * `default` ran its first turn on ops and then 4001'd "session not found"
  * on the second, when the row's `default` owner won the route. The
  * connection-tagged row rung is what keeps two-turn continuity from resting
  * on the transient hint alone (bounded, evictable, gone after a relaunch).

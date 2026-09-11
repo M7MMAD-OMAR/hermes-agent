@@ -19,7 +19,7 @@ import type { ChatEmptyProps, HermesPlugin } from '@hermes/plugin-sdk'
 import { CHAT_EMPTY_AREA, host } from '@hermes/plugin-sdk'
 
 import { HerworkChatEmpty } from './chat-empty'
-import { HERWORK_ACCENT, HERWORK_OWNER_KEY, herworkRoute, homeOf } from './desk'
+import { deskHome, ensureHerworkProfile, HERWORK_ACCENT, HERWORK_OWNER_KEY, herworkRoute, primeDeskHome } from './desk'
 import { HERWORK_LOCALES, HERWORK_PLUGIN_ID } from './i18n'
 import { HerworkPane } from './pane'
 
@@ -29,9 +29,9 @@ export const HERWORK_PANE_ID = `${HERWORK_PLUGIN_ID}:pane`
  *  blocked target rather than a dead `+`: a blocked target never disables the
  *  `+`, it falls back to an ordinary session (workspace-scope.ts). */
 export function enterHerwork(): void {
-  // The desk lives under the same home the ambient cwd does; `$HOME` itself
-  // is not exposed to the renderer.
-  const route = herworkRoute(host.activeConnectionId(), homeOf(host.state.cwd.get()))
+  const cwd = host.state.cwd.get()
+  const home = deskHome(cwd)
+  const route = herworkRoute(host.activeConnectionId(), home)
 
   host.setWorkspaceScope(
     'herwork',
@@ -39,6 +39,24 @@ export function enterHerwork(): void {
     route ? { kind: 'route', route } : { kind: 'blocked', message: 'Connect a local gateway to start a desk chat.' }
   )
   host.setWorkspaceAccent?.(HERWORK_ACCENT)
+
+  // The shell answers the home question asynchronously while the route above
+  // has to be published now. Republish once the real answer lands, so the
+  // first desk of a session still opens at the desk instead of wherever the
+  // cwd guess put it. Terminates after one extra pass: the cache is warm by
+  // then, so the recomputed home matches.
+  void primeDeskHome().then(() => {
+    if (deskHome(cwd) !== home && host.state.workspaceMode.get() === 'herwork') {
+      enterHerwork()
+    }
+  })
+
+  // Both `+` doors consume this route, and the tab bar's is not ours to
+  // intercept, so the profile it names is established here rather than in the
+  // pane's button alone. Fire and forget: the button awaits the same flight.
+  if (route) {
+    void ensureHerworkProfile().catch(error => host.notifyError(error, 'Could not create the HerWork profile'))
+  }
 }
 
 const plugin: HermesPlugin = {

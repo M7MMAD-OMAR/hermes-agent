@@ -49,9 +49,15 @@ const mocks = vi.hoisted(() => {
     focusedTodos: makeStore<unknown[]>([]),
     listPersistedSessions: vi.fn(async (..._args: unknown[]) => ({ sessions: [] as unknown[] })),
     newChat: vi.fn(),
+    notify: vi.fn(),
+    notifyError: vi.fn(),
     openPreview: vi.fn((_path: string) => true),
     openSession: vi.fn(async () => undefined),
     readDir: vi.fn(async (_path: string): Promise<{ entries: unknown[]; error?: string }> => ({ entries: [] })),
+    request: vi.fn(async (method: string): Promise<unknown> =>
+      method === 'profiles.list' ? { profiles: [{ name: 'herwork' }] } : { ok: true }
+    ),
+    requestProfile: vi.fn(async (..._args: unknown[]): Promise<unknown> => ({ items: [{ text: '/herwork' }] })),
     revealPath: vi.fn(async () => undefined)
   }
 })
@@ -65,9 +71,13 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
       ...original.host,
       listPersistedSessions: mocks.listPersistedSessions,
       newChat: mocks.newChat,
+      notify: mocks.notify,
+      notifyError: mocks.notifyError,
       openPreview: mocks.openPreview,
       openSession: mocks.openSession,
       readDir: mocks.readDir,
+      request: mocks.request,
+      requestProfile: mocks.requestProfile,
       revealPath: mocks.revealPath,
       state: {
         ...original.host.state,
@@ -82,9 +92,27 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+import { resetDeskBundleCheck, resetDeskHome, resetHerworkProfileFlight } from './desk'
 import { HerworkPane } from './pane'
 
 const DESK = '/home/ada/herwork'
+
+/** The Electron doors the pane reaches for directly: the home the desk sits
+ *  under, and the folder-opening door that creates before it opens. */
+function withShell(shell: null | { home?: string; openDir?: ReturnType<typeof vi.fn> }) {
+  Object.defineProperty(window, 'hermesDesktop', {
+    configurable: true,
+    value: shell
+      ? {
+          ...(shell.openDir ? { openDir: shell.openDir } : {}),
+          ...(shell.home === undefined
+            ? {}
+            : { settings: { getDefaultProjectDir: async () => ({ defaultLabel: shell.home }) } })
+        }
+      : undefined,
+    writable: true
+  })
+}
 
 const job = (id: string, title: null | string, startedAt: number) => ({
   id,
@@ -111,6 +139,16 @@ beforeEach(() => {
   mocks.focusedTodos.set([])
   mocks.listPersistedSessions.mockResolvedValue({ sessions: [] })
   mocks.readDir.mockResolvedValue({ entries: [] })
+  mocks.request.mockImplementation(async (method: string) =>
+    method === 'profiles.list' ? { profiles: [{ name: 'herwork' }] } : { ok: true }
+  )
+  mocks.requestProfile.mockResolvedValue({ items: [{ text: '/herwork' }] })
+  // Module-level caches outlive a single pane in the app; each case says
+  // which shell it is running against.
+  resetDeskHome()
+  resetHerworkProfileFlight()
+  resetDeskBundleCheck()
+  withShell(null)
 })
 
 afterEach(() => {
@@ -124,7 +162,7 @@ describe('the desk panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /desk\.newChat/i }))
 
-    expect(mocks.newChat).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(mocks.newChat).toHaveBeenCalledTimes(1))
 
     const [route, options] = mocks.newChat.mock.calls[0]!
 
@@ -185,14 +223,28 @@ describe('the desk panel', () => {
         return {
           entries: [
             { isDirectory: true, name: 'q3-deck', path: `${output}/q3-deck` },
-            { isDirectory: false, mtimeMs: 1_000, name: 'old-brief.docx', path: `${output}/old-brief.docx`, size: 40_960 }
+            {
+              isDirectory: false,
+              mtimeMs: 1_000,
+              name: 'old-brief.docx',
+              path: `${output}/old-brief.docx`,
+              size: 40_960
+            }
           ]
         }
       }
 
       if (dir === `${output}/q3-deck`) {
         return {
-          entries: [{ isDirectory: false, mtimeMs: 9_000, name: 'deck.pdf', path: `${output}/q3-deck/deck.pdf`, size: 2_400_000 }]
+          entries: [
+            {
+              isDirectory: false,
+              mtimeMs: 9_000,
+              name: 'deck.pdf',
+              path: `${output}/q3-deck/deck.pdf`,
+              size: 2_400_000
+            }
+          ]
         }
       }
 
@@ -311,5 +363,136 @@ describe('the desk panel', () => {
     renderPane()
 
     await waitFor(() => expect(mocks.readDir).toHaveBeenCalledWith(`${DESK}/output`))
+  })
+
+  it('creates the desk profile before opening the first job on it', async () => {
+    mocks.request.mockImplementation(async (method: string) =>
+      method === 'profiles.list' ? { profiles: [{ name: 'default' }] } : { ok: true }
+    )
+
+    renderPane()
+    fireEvent.click(screen.getByRole('button', { name: /desk\.newChat/i }))
+
+    await waitFor(() => expect(mocks.newChat).toHaveBeenCalled())
+    // Order matters: a chat routed to a profile that is not there dies in the
+    // backend spawn with FileNotFoundError.
+    expect(mocks.request.mock.calls.map(([method]) => method)).toContain('profiles.create')
+  })
+
+  it('says so instead of opening a chat that cannot start', async () => {
+    mocks.request.mockRejectedValue(new Error('gateway unavailable'))
+
+    renderPane()
+    fireEvent.click(screen.getByRole('button', { name: /desk\.newChat/i }))
+
+    await waitFor(() => expect(mocks.notifyError).toHaveBeenCalled())
+    expect(mocks.newChat).not.toHaveBeenCalled()
+  })
+
+  it('warns once when the desk skill bundle is not installed', async () => {
+    // No completion for `/herwork`: the bundle the route names does not
+    // resolve, so every desk chat would run without the desk mandate.
+    mocks.requestProfile.mockResolvedValue({ items: [{ text: '/help' }] })
+
+    renderPane()
+    fireEvent.click(screen.getByRole('button', { name: /desk\.newChat/i }))
+
+    await waitFor(() => expect(mocks.notify).toHaveBeenCalledTimes(1))
+    expect(mocks.notify.mock.calls[0]![0]).toMatchObject({ kind: 'warning' })
+
+    fireEvent.click(screen.getByRole('button', { name: /desk\.newChat/i }))
+    await waitFor(() => expect(mocks.newChat).toHaveBeenCalledTimes(2))
+    expect(mocks.notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays quiet when the bundle is there', async () => {
+    renderPane()
+    fireEvent.click(screen.getByRole('button', { name: /desk\.newChat/i }))
+
+    await waitFor(() => expect(mocks.newChat).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.requestProfile).toHaveBeenCalled())
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('creates a desk folder that is not there yet rather than no-opping on it', async () => {
+    const openDir = vi.fn(async () => ({ ok: true }))
+    withShell({ openDir })
+
+    renderPane()
+    fireEvent.click(screen.getByRole('button', { name: 'work' }))
+
+    // revealPath maps to showItemInFolder, which silently does nothing for a
+    // path that does not exist, and on a fresh desk none of the three do.
+    await waitFor(() => expect(openDir).toHaveBeenCalledWith(`${DESK}/work`))
+    expect(mocks.revealPath).not.toHaveBeenCalled()
+  })
+
+  it('reports a folder that could not be opened', async () => {
+    withShell({ openDir: vi.fn(async () => ({ ok: false, error: 'EACCES' })) })
+
+    renderPane()
+    fireEvent.click(screen.getByRole('button', { name: 'inbox' }))
+
+    await waitFor(() => expect(mocks.notifyError).toHaveBeenCalledWith('EACCES', expect.any(String)))
+  })
+})
+
+describe('the desk on Windows', () => {
+  const WIN_DESK = 'C:\\Users\\ada\\herwork'
+  const WIN_OUTPUT = `${WIN_DESK}\\output`
+
+  beforeEach(() => {
+    // A cwd that is not under any home at all, so only the shell's answer can
+    // put the desk anywhere: the case a Linux author never sees.
+    mocks.cwd.set('D:\\work\\site')
+    withShell({ home: 'C:\\Users\\ada' })
+  })
+
+  it('reads deliverables from a backslash output folder', async () => {
+    mocks.readDir.mockImplementation(async (dir: string) =>
+      dir === WIN_OUTPUT
+        ? {
+            entries: [
+              {
+                isDirectory: false,
+                mtimeMs: 1,
+                name: 'deck.pdf',
+                path: `${WIN_OUTPUT}\\q3-deck\\deck.pdf`,
+                size: 10
+              }
+            ]
+          }
+        : { entries: [] }
+    )
+
+    renderPane()
+
+    await waitFor(() => expect(mocks.readDir).toHaveBeenCalledWith(WIN_OUTPUT))
+    // The job prefix is the folder name, not the whole unsplit path.
+    expect(await screen.findByText('q3-deck')).toBeTruthy()
+  })
+
+  it('opens the desk folders at their real Windows paths', async () => {
+    const openDir = vi.fn(async () => ({ ok: true }))
+    withShell({ home: 'C:\\Users\\ada', openDir })
+
+    renderPane()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'output' })).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'output' }))
+
+    await waitFor(() => expect(openDir).toHaveBeenCalledWith(`${WIN_DESK}\\output`))
+  })
+
+  it('routes a new job at the Windows desk', async () => {
+    renderPane()
+    await waitFor(() => expect(mocks.readDir).toHaveBeenCalledWith(WIN_OUTPUT))
+    fireEvent.click(screen.getByRole('button', { name: /desk\.newChat/i }))
+
+    await waitFor(() => expect(mocks.newChat).toHaveBeenCalled())
+    expect(mocks.newChat.mock.calls[0]![0]).toMatchObject({
+      cwd: WIN_DESK,
+      downloadDir: `${WIN_DESK}\\work`,
+      dropDir: `${WIN_DESK}\\inbox`
+    })
   })
 })

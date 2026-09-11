@@ -23,7 +23,17 @@ import type { HermesReadDirEntry, SessionInfo, TodoItem } from '@hermes/plugin-s
 import { Codicon, host, relativeTime, useQuery, useValue } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useState } from 'react'
 
-import { HERWORK_OWNER_KEY, HERWORK_PROFILE, herworkDeskCwd, herworkRoute, homeOf } from './desk'
+import {
+  deskPathJoin,
+  ensureHerworkProfile,
+  HERWORK_OWNER_KEY,
+  HERWORK_PROFILE,
+  herworkDeskCwd,
+  herworkRoute,
+  homeOf,
+  primeDeskHome,
+  warnOnMissingDeskBundle
+} from './desk'
 import { type HerworkMessages, useHerwork } from './i18n'
 
 /** Newest first. `started_at` is seconds on some rows and ms on others across
@@ -158,7 +168,7 @@ async function listDeliverables(outputDir: string): Promise<{ entries: HermesRea
 function Deliverables({ desk, m }: { desk: string; m: HerworkMessages }) {
   const [entries, setEntries] = useState<HermesReadDirEntry[] | null>(null)
   const [failed, setFailed] = useState(false)
-  const outputDir = desk ? `${desk}/output` : ''
+  const outputDir = desk ? deskPathJoin(desk, 'output') : ''
 
   const load = useCallback(async () => {
     if (!outputDir) {
@@ -205,7 +215,10 @@ function Deliverables({ desk, m }: { desk: string; m: HerworkMessages }) {
   return (
     <ul className="m-0 flex list-none flex-col gap-px p-0">
       {entries.map(entry => {
-        const job = entry.path.slice(outputDir.length + 1).split('/').slice(0, -1).join('/')
+        // Split on either separator: the desk path is written in the home's
+        // own separator, so on Windows a `/`-only split leaves the whole
+        // backslash path standing in for the job name.
+        const job = entry.path.slice(outputDir.length + 1).split(/[\\/]/).slice(0, -1).join('/')
         const previewable = PREVIEWABLE.test(entry.name)
 
         return (
@@ -243,7 +256,33 @@ function Deliverables({ desk, m }: { desk: string; m: HerworkMessages }) {
   )
 }
 
-/** The three desk folders, as doors: reveal each in the file manager. */
+/** Open one desk folder in the file manager, creating it if the desk has not
+ *  been used yet.
+ *
+ *  `revealPath` maps to `shell.showItemInFolder`, which selects an existing
+ *  item and silently does nothing for a path that is not there (fs-ipc.ts),
+ *  and on a fresh machine none of the three folders are. `openDir` mkdirs
+ *  first and returns a real error, which is the difference between a button
+ *  that works and a button that looks broken. It only ever runs against the
+ *  local shell's own filesystem, which is where the desk lives by
+ *  construction; a build without that door keeps the old reveal. */
+async function openDeskFolder(path: string): Promise<void> {
+  const openDir = window.hermesDesktop?.openDir
+
+  if (!openDir) {
+    await host.revealPath(path)
+
+    return
+  }
+
+  const result = await openDir(path)
+
+  if (result && !result.ok) {
+    host.notifyError(result.error ?? 'unknown error', 'Could not open the desk folder')
+  }
+}
+
+/** The three desk folders, as doors: open each in the file manager. */
 function Folders({ desk, m }: { desk: string; m: HerworkMessages }) {
   if (!desk) {
     return null
@@ -255,7 +294,7 @@ function Folders({ desk, m }: { desk: string; m: HerworkMessages }) {
         <button
           className="flex items-center gap-1 rounded border border-(--ui-border) px-1.5 py-0.5 font-mono text-[0.68rem] text-(--ui-text-secondary) transition-colors hover:bg-(--ui-bg-hover)"
           key={name}
-          onClick={() => void host.revealPath(`${desk}/${name}`)}
+          onClick={() => void openDeskFolder(deskPathJoin(desk, name))}
           title={m.desk.openFolder}
           type="button"
         >
@@ -307,12 +346,63 @@ function Steps({ m }: { m: HerworkMessages }) {
   )
 }
 
+/** The home the desk sits under: the one the shell reports, which is the only
+ *  authority on it, falling back to reading it out of the ambient cwd while
+ *  the answer is in flight or where there is no shell to ask. */
+function useDeskHome(): string {
+  const cwd = useValue(host.state.cwd)
+  const [reported, setReported] = useState('')
+
+  useEffect(() => {
+    let live = true
+
+    void primeDeskHome().then(home => {
+      if (live) {
+        setReported(home)
+      }
+    })
+
+    return () => {
+      live = false
+    }
+  }, [])
+
+  return reported || homeOf(cwd)
+}
+
 export function HerworkPane() {
   const m = useHerwork()
-  const cwd = useValue(host.state.cwd)
+  const home = useDeskHome()
   const connectionId = useValue(host.state.connectionId)
-  const desk = herworkDeskCwd(homeOf(cwd))
-  const route = herworkRoute(connectionId, homeOf(cwd))
+  const [starting, setStarting] = useState(false)
+  const desk = herworkDeskCwd(home)
+  const route = herworkRoute(connectionId, home)
+
+  // The desk profile may not exist yet, and a chat routed to a missing profile
+  // dies in the backend spawn. Establish it first, then open the chat; a
+  // failure says so rather than leaving a button that does nothing.
+  const startJob = useCallback(async () => {
+    if (!route) {
+      return
+    }
+
+    setStarting(true)
+
+    try {
+      await ensureHerworkProfile()
+      host.newChat(route, { workspaceMode: 'herwork', workspaceOwnerKey: HERWORK_OWNER_KEY })
+    } catch (error) {
+      host.notifyError(error, 'Could not start a desk job')
+
+      return
+    } finally {
+      setStarting(false)
+    }
+
+    // After the chat is open, never before it: the mandate check is a courtesy
+    // and must not stand between the user and the job.
+    void warnOnMissingDeskBundle(route)
+  }, [route])
 
   return (
     <div className="flex h-full min-w-0 flex-col gap-3 overflow-y-auto px-3 py-3 text-sm" data-slot="herwork_pane">
@@ -325,10 +415,8 @@ export function HerworkPane() {
           connection: a missing door is more confusing than a dimmed one. */}
       <button
         className="flex items-center justify-center gap-1.5 rounded border border-(--ui-border) px-2 py-1.5 text-xs font-medium text-(--ui-text-primary) transition-colors hover:bg-(--ui-bg-hover) disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={!route}
-        onClick={() =>
-          route && host.newChat(route, { workspaceMode: 'herwork', workspaceOwnerKey: HERWORK_OWNER_KEY })
-        }
+        disabled={!route || starting}
+        onClick={() => void startJob()}
         type="button"
       >
         <Codicon aria-hidden name="add" size="0.8rem" />

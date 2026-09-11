@@ -79,7 +79,7 @@ describe('resolveRoutingSessionId', () => {
 
 describe('resolveSessionRpcOwner', () => {
   const none = () => undefined
-  const omar = { connectionId: 'local', mode: 'local' as const, profile: 'omar' }
+  const ops = { connectionId: 'local', mode: 'local' as const, profile: 'ops' }
   const homelab = { connectionId: 'homelab', mode: 'remote' as const, profile: 'worker', targetProfile: 'w' }
 
   it('returns undefined for an RPC with no session (ambient chrome)', () => {
@@ -96,7 +96,7 @@ describe('resolveSessionRpcOwner', () => {
   it('prefers the persisted tile owner route over the hint and the row', () => {
     const owner = resolveSessionRpcOwner({
       routingSessionId: 'stored-bot',
-      sessionOwnerHint: () => omar,
+      sessionOwnerHint: () => ops,
       sessionRowOwner: () => 'default',
       tileOwnerRoute: () => homelab
     })
@@ -107,15 +107,15 @@ describe('resolveSessionRpcOwner', () => {
   it('prefers the exact unique owner hint over the session row profile', () => {
     // The row is presentation state: an optimistic row minted while the
     // ambient profile stayed `default` reads `default` even though the create
-    // ran on local::omar. The hint recorded at create time is exact.
+    // ran on local::ops. The hint recorded at create time is exact.
     const owner = resolveSessionRpcOwner({
-      routingSessionId: 'stored-omar',
-      sessionOwnerHint: id => (id === 'stored-omar' ? omar : undefined),
+      routingSessionId: 'stored-ops',
+      sessionOwnerHint: id => (id === 'stored-ops' ? ops : undefined),
       sessionRowOwner: () => 'default',
       tileOwnerRoute: none
     })
 
-    expect(owner).toEqual(omar)
+    expect(owner).toEqual(ops)
   })
 
   it('reconstructs the EXACT owner from a connection-tagged row when the hint is gone (evicted / relaunch)', () => {
@@ -125,22 +125,22 @@ describe('resolveSessionRpcOwner', () => {
     // entry, so the second turn still dials the socket that holds the runtime.
     expect(
       resolveSessionRpcOwner({
-        routingSessionId: 'stored-omar',
+        routingSessionId: 'stored-ops',
         sessionOwnerHint: none,
-        sessionRowOwner: () => ({ connectionId: 'local', profile: 'omar' }),
+        sessionRowOwner: () => ({ connectionId: 'local', profile: 'ops' }),
         tileOwnerRoute: none
       })
-    ).toEqual({ connectionId: 'local', profile: 'omar' })
+    ).toEqual({ connectionId: 'local', profile: 'ops' })
 
     // The hint still outranks the row when both exist.
     expect(
       resolveSessionRpcOwner({
-        routingSessionId: 'stored-omar',
-        sessionOwnerHint: () => omar,
-        sessionRowOwner: () => ({ connectionId: 'homelab', profile: 'omar' }),
+        routingSessionId: 'stored-ops',
+        sessionOwnerHint: () => ops,
+        sessionRowOwner: () => ({ connectionId: 'homelab', profile: 'ops' }),
         tileOwnerRoute: none
       })
-    ).toEqual(omar)
+    ).toEqual(ops)
   })
 
   it('falls back to the session row profile, then to undefined for the probe', () => {

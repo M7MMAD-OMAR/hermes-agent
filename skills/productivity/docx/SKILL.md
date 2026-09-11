@@ -237,6 +237,30 @@ Captions are their own block, `{"type": "caption", "text": "...",
 "kind": "figure"}`, numbered per kind through the document, and they use
 the Arabic words when the caption is Arabic.
 
+## Two scripts in one document
+
+A paragraph has one base direction, its runs do not, and conflating the
+two is what puts a full stop at the start of an Arabic line and reverses
+a Latin brand name inside an Arabic sentence.
+
+- An Arabic paragraph gets `w:bidi`, and each run is marked by its own
+  script: the Arabic runs `w:rtl`, a Latin name or a version number not.
+- An English paragraph that quotes Arabic keeps its left to right base
+  and only the Arabic run is marked.
+- A run of digits or punctuation has no script of its own, so it follows
+  the paragraph.
+
+`docx_create.py` does this as it builds. For a file somebody else wrote,
+repair it without restyling anything:
+
+```bash
+python scripts/docx_edit.py direction theirs.docx -o fixed.docx
+python scripts/docx_edit.py direction theirs.docx --mode on -o all-rtl.docx
+```
+
+The pass changes direction only: no text, no font, no spacing, and
+running it twice produces the same bytes as running it once.
+
 ## Comments, as a conversation
 
 `scripts/docx_comments.py` reads and writes the whole review thread, not

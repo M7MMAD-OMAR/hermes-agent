@@ -144,12 +144,48 @@ def set_paragraph_rtl(para, rtl: bool = True) -> None:
                                        "w:cnfStyle", "w:rPr", "w:sectPr", "w:pPrChange")
         except Exception:
             p_pr.append(bidi)
+    mark_runs_by_script(para, base_rtl=rtl)
+
+
+def mark_runs_by_script(para, base_rtl: bool | None = None) -> int:
+    """Give every run the direction its own script needs.
+
+    A paragraph has one base direction, its runs do not. Marking every
+    run of an Arabic paragraph w:rtl, which is what a blanket pass does,
+    tells the renderer that "IBM 2026" is right to left too, and a Latin
+    name or a version number inside an Arabic sentence comes out
+    reversed. The opposite case is just as common: an Arabic phrase
+    quoted inside an English sentence needs w:rtl on that run alone while
+    the paragraph stays left to right.
+
+    ``base_rtl`` is the paragraph's own direction when the caller already
+    knows it. Passing None reads it from the paragraph. Returns the
+    number of runs marked right to left.
+    """
+    from docx.oxml.ns import qn
+
+    if base_rtl is None:
+        p_pr = para._p.find(qn("w:pPr"))
+        base_rtl = (p_pr is not None
+                    and p_pr.find(qn("w:bidi")) is not None)
+    marked = 0
     for run in para.runs:
         r_pr = run._r.get_or_add_rPr()
         for old in r_pr.findall(qn("w:rtl")):
             r_pr.remove(old)
-        if rtl:
+        text = run.text or ""
+        # A run of digits, spaces or punctuation has no script of its
+        # own, so it follows the paragraph and gets no mark either way.
+        if has_rtl_text(text):
+            run_rtl = True
+        elif _has_latin_letters(text):
+            run_rtl = False
+        else:
+            run_rtl = bool(base_rtl)
+        if run_rtl:
             r_pr.append(r_pr.makeelement(qn("w:rtl"), {}))
+            marked += 1
+    return marked
 
 
 def set_table_rtl(table, rtl: bool = True) -> None:
@@ -175,10 +211,17 @@ def apply_rtl(doc, mode: str = "auto") -> dict:
     if mode == "off":
         return {"paragraphs_rtl": 0, "tables_rtl": 0}
     paragraphs = 0
+    mixed = 0
     for para in iter_all_paragraphs(doc):
-        if mode == "on" or has_rtl_text(para.text):
+        if mode == "on" or _mostly_rtl(para.text):
             set_paragraph_rtl(para, True)
             paragraphs += 1
+        elif has_rtl_text(para.text):
+            # Mostly Latin, but it quotes Arabic. The paragraph keeps its
+            # left to right base and only the Arabic runs are marked, so
+            # the quote reads correctly inside an English sentence.
+            mark_runs_by_script(para, base_rtl=False)
+            mixed += 1
     tables = 0
     for table in _iter_all_tables(doc):
         text = " ".join(cell.text for row in table.rows for cell in row.cells)
@@ -195,7 +238,8 @@ def apply_rtl(doc, mode: str = "auto") -> dict:
                         if not has_rtl_text(para.text):
                             set_paragraph_rtl(para, True)
                             paragraphs += 1
-    return {"paragraphs_rtl": paragraphs, "tables_rtl": tables}
+    return {"paragraphs_rtl": paragraphs, "tables_rtl": tables,
+            "mixed_paragraphs": mixed}
 
 
 def _iter_all_tables(doc):
@@ -210,6 +254,10 @@ def _iter_all_tables(doc):
         for part in (section.header, section.footer):
             if part is not None:
                 yield from walk(part.tables)
+
+
+def _has_latin_letters(text: str) -> bool:
+    return any("a" <= c.lower() <= "z" for c in text)
 
 
 def _mostly_rtl(text: str) -> bool:

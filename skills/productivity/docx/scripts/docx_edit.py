@@ -34,7 +34,8 @@ import sys
 
 from docx import Document
 
-from docx_common import iter_all_paragraphs, replace_in_paragraph
+from docx_common import (apply_rtl, iter_all_paragraphs,
+                         mark_runs_by_script, replace_in_paragraph)
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
@@ -162,6 +163,25 @@ def cmd_page_numbers(doc, args) -> dict:
     return {"footer_fields": ["PAGE", "NUMPAGES"]}
 
 
+def cmd_direction(doc, args) -> dict:
+    """Give every paragraph the direction its own script asks for.
+
+    This is repair, not restyling. A document written by somebody else
+    is usually left exactly as it is, but direction is correctness: an
+    Arabic paragraph with no w:bidi puts its full stop at the start of
+    the line and turns a bracketed Latin word inside out, and nobody
+    chose that. The pass changes no text, no font and no spacing.
+    """
+    counts = apply_rtl(doc, args.mode)
+    # Latin paragraphs that quote Arabic are handled inside apply_rtl for
+    # auto. For "on" every paragraph is RTL already, so the run pass here
+    # only has to catch paragraphs with no runs of their own script.
+    if args.mode == "on":
+        for para in iter_all_paragraphs(doc):
+            mark_runs_by_script(para, base_rtl=True)
+    return {"ok": True, "mode": args.mode, **counts}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Edit a .docx file.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -204,6 +224,14 @@ def main() -> int:
                        help="merge adjacent runs with identical formatting")
     common(p)
 
+    p = sub.add_parser("direction",
+                       help="repair paragraph and run direction in a mixed "
+                            "language document")
+    common(p)
+    p.add_argument("--mode", choices=("auto", "on", "off"), default="auto",
+                   help="auto reads each paragraph's own script; on forces "
+                        "the whole document right to left")
+
     p = sub.add_parser("toc", help="insert a TOC field (Word computes it)")
     common(p)
     p.add_argument("--index", type=int, default=0,
@@ -232,6 +260,8 @@ def main() -> int:
         result = cmd_delete(doc, args)
     elif args.cmd == "normalize":
         result = cmd_normalize(doc)
+    elif args.cmd == "direction":
+        result = cmd_direction(doc, args)
     elif args.cmd == "toc":
         result = cmd_toc(doc, args)
     elif args.cmd == "page-numbers":

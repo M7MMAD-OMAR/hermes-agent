@@ -200,6 +200,36 @@ An edit script can call `pptx_common.apply_rtl(prs, "auto")` before saving.
 Set an Arabic-capable font (Cairo, Noto Naskh Arabic, Amiri) on the runs, or
 the glyphs come out of a fallback face.
 
+## The deck is planned before it is built
+
+`pptx_create.py` no longer builds exactly one slide per entry in the
+spec. Each entry is planned first, and the plan does three things:
+
+**It can choose the layout.** `"layout": "auto"` reads the content: stats
+become a stat slide, steps a timeline, two columns a comparison, a short
+quote with an attribution a quote, a sentence a statement, and a few
+short parallel bullets a grid of cards rather than a list. A bullet list
+is the last resort, not the default, because a deck that is a title over
+a bullet list on every slide is the clearest tell there is.
+
+**It refuses to build a layout the content cannot fill.** A statement of
+twenty nine words is a paragraph, so it becomes a content slide. Three
+options are cards, not a comparison. A timeline of two steps is a pair of
+cards. The content is carried across when the layout changes, so a
+degraded slide never arrives empty.
+
+**It splits what does not fit.** Six cards become two slides of three, a
+long bullet list becomes as many slides as it needs, and a continuation
+slide repeats the title with `(continued)`, or `(تتمة)` in Arabic. A
+chart or a table stays on the first page rather than being repeated
+behind every continuation. Two budgets decide the split, not one: the
+measured height of the text in its box, and the house reading limits of
+five bullets and eighty five words a slide.
+
+Every choice, degradation and split is reported under `plan` in the
+output JSON. A deck that fits carries no `plan` key at all, because
+nothing was changed.
+
 ## Embedding the faces, so Arabic survives the trip
 
 A .pptx carries a font NAME and the reader's machine resolves it. For

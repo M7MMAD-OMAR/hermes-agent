@@ -708,6 +708,268 @@ COMPOSED_LAYOUTS = {
 }
 
 
+
+# ---------------------------------------------------------------------------
+# Planning: what layout the content wants, and how much of it fits
+# ---------------------------------------------------------------------------
+
+# What each composed layout can actually hold. A spec that names a layout
+# its content cannot fill is not built broken: it is either split across
+# slides or degraded to a layout that reads.
+ITEM_BOUNDS = {
+    "cards": (2, 4),
+    "comparison": (2, 2),
+    "timeline": (3, 6),
+    "stat": (1, 4),
+}
+
+# The key each layout reads its items from.
+ITEM_KEYS = {
+    "cards": "cards",
+    "comparison": "columns",
+    "timeline": "steps",
+    "stat": "stats",
+}
+
+# Words past which a one sentence layout stops being one sentence.
+STATEMENT_WORDS = 20
+QUOTE_WORDS = 40
+
+
+def _items_of(spec: dict, layout: str) -> list:
+    key = ITEM_KEYS.get(layout)
+    if key is None:
+        return []
+    items = spec.get(key)
+    if items is None and layout == "comparison":
+        items = [c for c in (spec.get("left"), spec.get("right")) if c]
+    return list(items or [])
+
+
+def _word_count(value) -> int:
+    return len(str(value or "").split())
+
+
+def choose_layout(spec: dict) -> str:
+    """Pick a layout from what the content actually is.
+
+    Only consulted for "auto". The order is deliberate: the most
+    specific shape wins, and a bullet list is the last resort rather
+    than the default, because a deck that is a title over a bullet list
+    on every slide is the clearest tell there is.
+    """
+    if spec.get("stats"):
+        return "stat"
+    if spec.get("steps"):
+        return "timeline"
+    if spec.get("columns") or (spec.get("left") and spec.get("right")):
+        return "comparison"
+    if spec.get("cards"):
+        return "cards"
+    if spec.get("quote") or (spec.get("attribution") and spec.get("text")):
+        return "quote"
+    if spec.get("charts") or spec.get("tables") or spec.get("images"):
+        return "title_content"
+    text = spec.get("text") or spec.get("statement")
+    if text and not spec.get("bullets"):
+        return "statement" if _word_count(text) <= STATEMENT_WORDS \
+            else "title_content"
+    bullets = spec.get("bullets") or []
+    # Short parallel items read better as cards than as a bullet list,
+    # and the deck gets a second shape on the page.
+    if 2 <= len(bullets) <= 4 and all(_word_count(b if isinstance(b, str)
+                                                  else b.get("text")) <= 12
+                                      for b in bullets):
+        return "cards"
+    return "title_content"
+
+
+def fit_kind(layout: str, spec: dict):
+    """Can this layout hold this content, and if not, what should.
+
+    Returns (layout, reason). The reason is carried into the output so a
+    degraded slide is visible in the report rather than a silent
+    surprise in the file.
+    """
+    if layout == "statement" and _word_count(
+            spec.get("text") or spec.get("statement")) > STATEMENT_WORDS:
+        return "title_content", (f"a statement is one sentence, this is "
+                                 f"{_word_count(spec.get('text'))} words")
+    if layout == "quote" and _word_count(spec.get("text")) > QUOTE_WORDS:
+        return "title_content", "a pull quote past forty words stops pulling"
+    low, high = ITEM_BOUNDS.get(layout, (0, 0))
+    if not low:
+        return layout, ""
+    count = len(_items_of(spec, layout))
+    if count == 0:
+        return "title_content", f"a {layout} slide with no items"
+    if count < low:
+        if layout == "comparison":
+            return "statement" if count == 1 else "title_content", \
+                "a comparison needs two columns"
+        if layout == "timeline":
+            return "cards", f"a timeline of {count} steps is a set of cards"
+    if layout == "comparison" and count > high:
+        # Splitting would put one option on a slide of its own, which
+        # reads as an afterthought rather than as a comparison. Three
+        # options side by side are a set of cards.
+        return "cards", f"{count} options are cards, not a comparison"
+    return layout, ""
+
+
+def _recast(spec: dict, old: str, new: str) -> dict:
+    """Carry the content across when a layout is degraded.
+
+    Each layout reads its items from its own key under its own field
+    names, so a degraded slide that does not translate them arrives
+    empty, which is worse than the layout it was rescued from.
+    """
+    if old == new:
+        return spec
+    out = dict(spec)
+    items = _items_of(spec, old)
+    if new == "cards" and items and not spec.get("cards"):
+        out["cards"] = [{"label": item.get("heading") or item.get("label", ""),
+                         "body": item.get("body") or item.get("text", "")}
+                        if isinstance(item, dict) else {"label": str(item)}
+                        for item in items]
+    if new == "title_content" and items and not spec.get("bullets"):
+        out["bullets"] = [
+            f"{item.get('heading') or item.get('label', '')}: "
+            f"{item.get('body') or item.get('text', '')}".strip(": ")
+            if isinstance(item, dict) else str(item) for item in items]
+    return out
+
+
+def _fits_per_page(layout: str, spec: dict, style) -> int:
+    """How many items of this layout go on one slide."""
+    _, high = ITEM_BOUNDS.get(layout, (0, 0))
+    return high or len(_items_of(spec, layout))
+
+
+def _chunk_balanced(items: list, per_page: int) -> list:
+    """Split so the last page is never left with a single lonely item."""
+    if per_page <= 0 or len(items) <= per_page:
+        return [items]
+    pages = -(-len(items) // per_page)
+    size = -(-len(items) // pages)
+    out = [items[i:i + size] for i in range(0, len(items), size)]
+    if len(out) > 1 and len(out[-1]) == 1 and len(out[-2]) > 2:
+        out[-1].insert(0, out[-2].pop())
+    return out
+
+
+def _continued(title, rtl: bool):
+    if not title:
+        return title
+    return f"{title} (تتمة)" if rtl else f"{title} (continued)"
+
+
+def _paginate_bullets(spec: dict, style, house) -> list:
+    """Split a bullet list over as many slides as it actually needs."""
+    bullets = spec.get("bullets") or []
+    if not bullets or house is None:
+        return [bullets]
+    band_top, band_h = _content_band(style, spec)
+    width = min(7.5, style.content_w)
+    texts = [b if isinstance(b, str) else str(b.get("text", ""))
+             for b in bullets]
+    pages = house.paginate_items(texts, width, band_h, style.type["body"],
+                                 leading=1.35,
+                                 family=style.fonts.get("body"))
+    # paginate_items works on the text, so map back to the original items.
+    out, index = [], 0
+    for page in pages:
+        out.append(bullets[index:index + len(page)])
+        index += len(page)
+    out = [p for p in out if p] or [bullets]
+    return [page for chunk in out for page in _budget_split(chunk, house)]
+
+
+def _budget_split(bullets: list, house) -> list:
+    """Fitting is geometry, reading is a budget, and both decide.
+
+    Seven long bullets can sit inside the body box and still be a wall
+    of text nobody reads from the back of the room, so the house limits
+    on bullets and words cut the page again after the measurement has.
+    """
+    limits = getattr(house, "LIMITS", None) or {}
+    max_items = limits.get("slide_bullets", 5)
+    max_words = limits.get("slide_words_max", 85)
+    pages, current, words = [], [], 0
+    for item in bullets:
+        text = item if isinstance(item, str) else str(item.get("text", ""))
+        count = len(text.split())
+        if current and (len(current) >= max_items
+                        or words + count > max_words):
+            pages.append(current)
+            current, words = [], 0
+        current.append(item)
+        words += count
+    if current:
+        pages.append(current)
+    return pages or [bullets]
+
+
+def plan_slides(spec: dict, style, house) -> tuple:
+    """Turn one section of a spec into the slides it really needs.
+
+    Three jobs, in order: pick a layout when the spec says "auto",
+    validate that the layout can hold the content and degrade it when it
+    cannot, and split what does not fit onto continuation slides. A
+    builder that returns exactly one slide per section is a builder that
+    clips.
+    """
+    layout = str(spec.get("layout", "title_content"))
+    notes = []
+    if layout == "auto":
+        layout = choose_layout(spec)
+        notes.append({"from": "auto", "to": layout,
+                      "why": "chosen from the content"})
+    resolved, reason = fit_kind(layout, spec)
+    if resolved != layout:
+        notes.append({"from": layout, "to": resolved, "why": reason})
+        spec = _recast(spec, layout, resolved)
+        layout = resolved
+
+    rtl = style.rtl(spec)
+    items = _items_of(spec, layout)
+    per_page = _fits_per_page(layout, spec, style)
+    pages = []
+    if items and per_page and len(items) > per_page:
+        key = ITEM_KEYS[layout]
+        for n, chunk in enumerate(_chunk_balanced(items, per_page)):
+            page = dict(spec)
+            page["layout"] = layout
+            page[key] = chunk
+            if n:
+                page["title"] = _continued(spec.get("title"), rtl)
+                page.pop("left", None)
+                page.pop("right", None)
+            pages.append(page)
+    elif layout == "title_content" and spec.get("bullets"):
+        for n, chunk in enumerate(_paginate_bullets(spec, style, house)):
+            page = dict(spec)
+            page["layout"] = layout
+            page["bullets"] = chunk
+            if n:
+                page["title"] = _continued(spec.get("title"), rtl)
+                # The chart or the table belongs with the first page, not
+                # repeated behind every continuation of the list.
+                for once in ("charts", "tables", "images", "shapes"):
+                    page.pop(once, None)
+            pages.append(page)
+    else:
+        page = dict(spec)
+        page["layout"] = layout
+        pages = [page]
+
+    if len(pages) > 1:
+        notes.append({"from": layout, "to": layout,
+                      "why": f"split across {len(pages)} slides"})
+    return pages, notes
+
+
 def style_run(run, spec):
     """Apply font styling from a bullet/text spec dict to a run."""
     font = run.font
@@ -876,8 +1138,13 @@ def main(argv=None):
     theme = house.theme_from_spec(spec) if house is not None else None
     style = DeckStyle(prs, theme, house)
 
-    for slide_spec in spec.get("slides", []):
-        build_slide(prs, slide_spec, style)
+    planned = []
+    for index, slide_spec in enumerate(spec.get("slides", [])):
+        pages, notes = plan_slides(slide_spec, style, house)
+        for note in notes:
+            planned.append({"section": index, **note})
+        for page in pages:
+            build_slide(prs, page, style)
 
     # Type, color and chart styling, applied to the finished deck. It
     # fills in only what the spec left unset, and it runs before the
@@ -889,10 +1156,15 @@ def main(argv=None):
     rtl_counts = apply_rtl(prs, args.rtl or spec.get("rtl", "auto"))
 
     prs.save(args.output)
-    print(json.dumps({"ok": True, "output": args.output,
-                      "slides": len(prs.slides._sldIdLst), "theme": themed,
-                      "rtl_paragraphs": rtl_counts["paragraphs"],
-                      "rtl_cells": rtl_counts["cells"]}))
+    report = {"ok": True, "output": args.output,
+              "slides": len(prs.slides._sldIdLst), "theme": themed,
+              "rtl_paragraphs": rtl_counts["paragraphs"],
+              "rtl_cells": rtl_counts["cells"]}
+    if planned:
+        # A layout that was chosen, degraded or split is reported. A
+        # silent change to somebody's deck is a surprise, not a service.
+        report["plan"] = planned
+    print(json.dumps(report, ensure_ascii=False))
     return 0
 
 

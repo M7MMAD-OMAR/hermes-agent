@@ -200,6 +200,31 @@ An edit script can call `pptx_common.apply_rtl(prs, "auto")` before saving.
 Set an Arabic-capable font (Cairo, Noto Naskh Arabic, Amiri) on the runs, or
 the glyphs come out of a fallback face.
 
+## Embedding the faces, so Arabic survives the trip
+
+A .pptx carries a font NAME and the reader's machine resolves it. For
+Arabic that is not polish: open the deck on a machine without the face
+and the text renders in whatever gets substituted, or as empty boxes.
+
+```bash
+python scripts/pptx_embed_fonts.py report deck.pptx     # what it uses, what it would embed
+python scripts/pptx_embed_fonts.py embed deck.pptx      # write the faces into the package
+python scripts/pptx_embed_fonts.py verify deck.pptx     # parts, overrides and rels agree
+```
+
+It walks the slides, layouts, masters and theme for the families actually
+used (resolving the theme tokens, so `+mn-lt` does not come back as a
+family name), finds each face on this machine, and writes the
+`ppt/fonts/fontN.fntdata` parts with their content types, relationships
+and `p:embeddedFontLst` entries. Embedding is idempotent to the byte.
+
+**There is a licence gate, and it is the point.** Embedding ships the
+font bytes inside every deliverable, so a face whose licence file cannot
+be found is refused, and `--allow-unlicensed` is the explicit override.
+The OFL permits this use in as many words, "bundled, redistributed and/or
+sold with any software", but a font binary cannot vouch for itself, so
+the gate wants the licence file beside the face.
+
 ## House style is on by default
 `pptx_create.py` lays the deck out on the house design system and reports
 which one under `"theme"` in its JSON output; the key is `null` when the

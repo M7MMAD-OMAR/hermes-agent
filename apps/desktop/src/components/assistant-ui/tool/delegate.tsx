@@ -92,7 +92,7 @@ function DelegateRowView({ row }: { row: DelegateRow }) {
         <button
           className={cn(
             SCAFFOLD_LABEL_CLASS,
-            'min-w-0 truncate text-left transition-colors',
+            'min-w-0 truncate text-start transition-colors',
             open ? 'hover:text-foreground focus-visible:text-foreground focus-visible:outline-none' : 'cursor-default'
           )}
           disabled={!open}
@@ -105,7 +105,7 @@ function DelegateRowView({ row }: { row: DelegateRow }) {
         {live && <ActivityTimerText className={cn(SCAFFOLD_META_CLASS, 'ml-auto')} seconds={elapsed} />}
       </div>
       {activity.length > 0 && (
-        <div className="min-w-0 max-w-full pl-5">
+        <div className="min-w-0 max-w-full ps-5">
           <ToolRunTicker>
             {activity.map((text, index) => (
               <FadeText

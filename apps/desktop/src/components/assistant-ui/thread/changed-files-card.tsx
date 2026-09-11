@@ -58,7 +58,7 @@ export const ChangedFilesCard: FC<{ parts: readonly unknown[] }> = ({ parts }) =
       <FadeScroll className="-mx-1.5 mt-1.5 flex flex-col px-1.5" maxHeight={MAX_ROWS_HEIGHT}>
         {files.map(file => (
           <button
-            className="row-hover flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 text-left"
+            className="row-hover flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 text-start"
             key={file.path}
             onClick={() => void openReviewForPath(file.path, scopeCwd, composerScope.target)}
             title={displayPath(file.path)}

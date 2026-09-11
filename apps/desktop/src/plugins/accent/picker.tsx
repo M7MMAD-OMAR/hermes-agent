@@ -275,7 +275,7 @@ function AccentPicker() {
           under the pointer. */}
       <div className="flex items-center justify-between font-mono text-[10px] tabular-nums text-(--ui-text-tertiary)">
         <span>
-          H<span className="inline-block w-[3ch] text-right">{Math.round(lch.h)}</span> L{lch.l.toFixed(2)} C
+          H<span className="inline-block w-[3ch] text-end">{Math.round(lch.h)}</span> L{lch.l.toFixed(2)} C
           {lch.c.toFixed(3)}
         </span>
         <span className={ratio >= 4.5 ? '' : 'text-(--dt-destructive)'}>

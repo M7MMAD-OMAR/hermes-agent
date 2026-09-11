@@ -120,7 +120,7 @@ export function NodeContextMenu({ onClose, onNodeRemoved, target }: NodeContextM
           >
             <div className="truncate px-2 py-1 text-[0.68rem] text-muted-foreground">{target.label}</div>
             <button
-              className="block w-full cursor-pointer rounded-md px-2 py-1 text-left text-xs hover:bg-(--ui-control-active-background) hover:text-foreground disabled:opacity-50"
+              className="block w-full cursor-pointer rounded-md px-2 py-1 text-start text-xs hover:bg-(--ui-control-active-background) hover:text-foreground disabled:opacity-50"
               disabled={loading}
               onClick={() => void openEdit()}
               type="button"
@@ -128,7 +128,7 @@ export function NodeContextMenu({ onClose, onNodeRemoved, target }: NodeContextM
               Edit {noun}…
             </button>
             <button
-              className="block w-full cursor-pointer rounded-md px-2 py-1 text-left text-xs text-destructive hover:bg-destructive/10"
+              className="block w-full cursor-pointer rounded-md px-2 py-1 text-start text-xs text-destructive hover:bg-destructive/10"
               onClick={() => {
                 setDeleting({ id: target.id, kind: target.kind, label: target.label })
                 onClose()

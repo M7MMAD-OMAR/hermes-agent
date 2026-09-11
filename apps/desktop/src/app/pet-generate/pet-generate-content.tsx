@@ -220,7 +220,7 @@ export function PetGenerateContent() {
             <div className="relative">
               <Input
                 autoFocus
-                className="pr-9"
+                className="pe-9"
                 onChange={event => $petGenInput.set(event.target.value)}
                 onKeyDown={event => {
                   if (event.key === 'Enter') {
@@ -232,7 +232,7 @@ export function PetGenerateContent() {
                 value={prompt}
               />
               <GenerateButton
-                className="absolute right-1 top-1/2 -translate-y-1/2"
+                className="absolute end-1 top-1/2 -translate-y-1/2"
                 disabled={!prompt.trim() && !refImage}
                 generating={generating}
                 generatingLabel={t.common.cancel}

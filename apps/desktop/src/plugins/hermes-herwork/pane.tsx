@@ -96,7 +96,7 @@ function Jobs({ m }: { m: HerworkMessages }) {
           <li key={session.id}>
             <button
               aria-current={active || undefined}
-              className={`flex w-full min-w-0 flex-col items-start gap-0.5 rounded px-2 py-1.5 text-left transition-colors hover:bg-(--ui-bg-hover) ${
+              className={`flex w-full min-w-0 flex-col items-start gap-0.5 rounded px-2 py-1.5 text-start transition-colors hover:bg-(--ui-bg-hover) ${
                 active ? 'bg-(--ui-bg-selected) text-(--ui-text-primary)' : 'text-(--ui-text-secondary)'
               }`}
               onClick={() => void host.openSession(session.id)}
@@ -224,7 +224,7 @@ function Deliverables({ desk, m }: { desk: string; m: HerworkMessages }) {
         return (
           <li key={entry.path}>
             <button
-              className="flex w-full min-w-0 flex-col items-start gap-0.5 rounded px-2 py-1 text-left transition-colors hover:bg-(--ui-bg-hover)"
+              className="flex w-full min-w-0 flex-col items-start gap-0.5 rounded px-2 py-1 text-start transition-colors hover:bg-(--ui-bg-hover)"
               data-deliverable={previewable ? 'preview' : 'reveal'}
               onClick={() => {
                 if (!previewable || !host.openPreview(entry.path)) {

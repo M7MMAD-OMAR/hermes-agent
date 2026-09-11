@@ -960,12 +960,12 @@ export function StarMap({
       </div>
 
       {/* Share / import (WoW-talent-style code) — bottom-right, mirroring the legend. */}
-      <div className="pointer-events-auto absolute bottom-2 right-2 z-20 [-webkit-app-region:no-drag]">
+      <div className="pointer-events-auto absolute bottom-2 end-2 z-20 [-webkit-app-region:no-drag]">
         <ShareControls imported={imported} onImport={importCode} onResetMap={onResetMap} shareCode={shareCode} />
       </div>
 
       {/* Legend — bottom-left, one entry per line like a conventional key. */}
-      <div className="pointer-events-none absolute bottom-2 left-2 flex flex-col gap-1 text-[0.62rem] text-muted-foreground">
+      <div className="pointer-events-none absolute bottom-2 start-2 flex flex-col gap-1 text-[0.62rem] text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <span className="inline-block size-2 rounded-full bg-[var(--theme-primary)]/80" /> skill
         </span>

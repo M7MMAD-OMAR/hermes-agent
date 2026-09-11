@@ -549,6 +549,7 @@ export const zh: Translations = {
     },
     sections: {
       model: '模型',
+      browser: '浏览器',
       chat: '对话',
       appearance: '外观',
       workspace: '工作区',

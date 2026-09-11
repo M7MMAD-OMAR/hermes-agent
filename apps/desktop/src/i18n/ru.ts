@@ -551,6 +551,7 @@ export const ru = defineLocale({
     },
     sections: {
       model: 'Модель',
+      browser: 'Браузер',
       chat: 'Чат',
       appearance: 'Внешний вид',
       workspace: 'Рабочее пространство',

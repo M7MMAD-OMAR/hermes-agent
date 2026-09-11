@@ -565,6 +565,7 @@ export const en: Translations = {
     },
     sections: {
       model: 'Model',
+      browser: 'Browser',
       chat: 'Chat',
       appearance: 'Appearance',
       workspace: 'Workspace',

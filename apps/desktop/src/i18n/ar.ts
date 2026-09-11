@@ -530,6 +530,7 @@ export const ar = defineLocale({
     },
     sections: {
       model: 'النموذج',
+      browser: 'المتصفح',
       chat: 'المحادثة',
       appearance: 'المظهر',
       workspace: 'مساحة العمل',

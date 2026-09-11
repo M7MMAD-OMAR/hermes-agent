@@ -389,6 +389,7 @@ export const ja = defineLocale({
     },
     sections: {
       model: 'モデル',
+      browser: 'ブラウザー',
       chat: 'チャット',
       appearance: '外観',
       workspace: 'ワークスペース',

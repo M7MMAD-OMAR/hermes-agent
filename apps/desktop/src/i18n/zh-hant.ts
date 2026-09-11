@@ -379,6 +379,7 @@ export const zhHant = defineLocale({
     },
     sections: {
       model: '模型',
+      browser: '瀏覽器',
       chat: '聊天',
       appearance: '外觀',
       workspace: '工作區',

@@ -21,6 +21,7 @@ vi.mock('@dnd-kit/utilities', () => ({ CSS: { Transform: { toString: vi.fn() } }
 vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: () => virtualizer }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       sidebar: {

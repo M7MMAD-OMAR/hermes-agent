@@ -50,6 +50,7 @@ vi.mock('./use-mic-recorder', () => ({
 }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       notifications: {

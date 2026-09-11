@@ -41,6 +41,7 @@ vi.mock('@/store/session-states', async importOriginal => {
 })
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       common: {

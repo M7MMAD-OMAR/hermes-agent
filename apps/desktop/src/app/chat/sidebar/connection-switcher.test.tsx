@@ -48,6 +48,7 @@ vi.mock('@/store/windows', () => ({
 }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       profiles: {

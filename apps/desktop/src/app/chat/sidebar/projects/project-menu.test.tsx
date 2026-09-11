@@ -22,6 +22,7 @@ beforeAll(() => {
 })
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       projectWorkflows: { title: 'Project workflows' },

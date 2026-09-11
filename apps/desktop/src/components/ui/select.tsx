@@ -4,10 +4,15 @@ import * as React from 'react'
 import { Codicon } from '@/components/ui/codicon'
 import { type ControlVariantProps, controlVariants } from '@/components/ui/control'
 import { usePopoverPortalContainer } from '@/components/ui/dialog-portal-context'
+import { useDirection } from '@/i18n/context'
 import { cn } from '@/lib/utils'
 
+// Radix reads its direction from a `DirectionProvider`, never from
+// `document.documentElement.dir`, and this app mounts no such provider.
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+  const direction = useDirection()
+
+  return <SelectPrimitive.Root data-slot="select" dir={direction} {...props} />
 }
 
 function SelectTrigger({
@@ -38,6 +43,9 @@ function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.V
   return <SelectPrimitive.Value data-slot="select-value" {...props} />
 }
 
+// `data-[side=...]` and the `slide-in-from-*` pairs below stay physical on
+// purpose: `data-side` is the placement Radix actually resolved, not a reading
+// direction, and slide utilities have no logical form.
 function SelectContent({
   className,
   children,
@@ -93,13 +101,13 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
   return (
     <SelectPrimitive.Item
       className={cn(
-        'relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-xs outline-none select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:cursor-default data-disabled:opacity-50',
+        'relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-xs outline-none select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:cursor-default data-disabled:opacity-50',
         className
       )}
       data-slot="select-item"
       {...props}
     >
-      <span className="absolute right-2 flex size-3.5 items-center justify-center">
+      <span className="absolute end-2 flex size-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
           <Codicon name="check" size="1rem" />
         </SelectPrimitive.ItemIndicator>

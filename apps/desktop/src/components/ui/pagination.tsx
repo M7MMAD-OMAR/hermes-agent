@@ -1,7 +1,7 @@
 import * as React from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
-import { useI18n } from '@/i18n'
+import { useDirection, useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 
 function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
@@ -50,7 +50,10 @@ function PaginationButton({ className, isActive, ...props }: PaginationButtonPro
   )
 }
 
+// Previous and next point along the reading order, so the glyph follows the
+// locale rather than the page's physical left and right.
 function PaginationPrevious({ className, ...props }: React.ComponentProps<'button'>) {
+  const direction = useDirection()
   const { t } = useI18n()
 
   return (
@@ -64,13 +67,14 @@ function PaginationPrevious({ className, ...props }: React.ComponentProps<'butto
       type="button"
       {...props}
     >
-      <Codicon name="chevron-left" size="0.75rem" />
+      <Codicon name={direction === 'rtl' ? 'chevron-right' : 'chevron-left'} size="0.75rem" />
       <span>{t.ui.pagination.previous}</span>
     </button>
   )
 }
 
 function PaginationNext({ className, ...props }: React.ComponentProps<'button'>) {
+  const direction = useDirection()
   const { t } = useI18n()
 
   return (
@@ -85,7 +89,7 @@ function PaginationNext({ className, ...props }: React.ComponentProps<'button'>)
       {...props}
     >
       <span>{t.ui.pagination.next}</span>
-      <Codicon name="chevron-right" size="0.75rem" />
+      <Codicon name={direction === 'rtl' ? 'chevron-left' : 'chevron-right'} size="0.75rem" />
     </button>
   )
 }

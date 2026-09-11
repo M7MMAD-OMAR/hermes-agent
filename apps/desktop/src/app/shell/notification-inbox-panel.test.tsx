@@ -19,6 +19,7 @@ vi.mock('react-router', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@/app/open-session', () => ({ openSession: mocks.openSession }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       titlebar: {

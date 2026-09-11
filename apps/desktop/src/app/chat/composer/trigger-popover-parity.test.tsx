@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ComposerTriggerPopover } from './trigger-popover'
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       composer: {

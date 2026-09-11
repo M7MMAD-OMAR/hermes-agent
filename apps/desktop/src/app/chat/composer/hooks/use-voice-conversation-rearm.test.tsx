@@ -111,6 +111,7 @@ vi.mock('@/store/notifications', () => ({
 }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       notifications: {

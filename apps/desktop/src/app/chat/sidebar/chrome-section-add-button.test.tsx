@@ -9,6 +9,7 @@ const startNewSessionDrag = vi.hoisted(() => vi.fn())
 vi.mock('@/app/chat/new-session-drag', () => ({ startNewProjectDrag, startNewSessionDrag }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({ t: { sidebar: { nav: { 'new-session': 'New session' } } } })
 }))
 

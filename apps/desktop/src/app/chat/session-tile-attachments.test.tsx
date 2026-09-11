@@ -18,6 +18,7 @@ import { deferred } from '../../test/deferred'
 const requestGateway = vi.fn()
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       desktop: {

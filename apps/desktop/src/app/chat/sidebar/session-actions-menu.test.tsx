@@ -22,6 +22,7 @@ vi.mock('@/hermes', () => ({
   setSessionUnreadRemote: vi.fn(() => Promise.resolve({ ok: true }))
 }))
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       common: {

@@ -3,6 +3,7 @@ import * as React from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
 import { usePopoverPortalContainer } from '@/components/ui/dialog-portal-context'
+import { useDirection } from '@/i18n/context'
 import { cn } from '@/lib/utils'
 
 // Shared class tokens for edge-to-edge menus (use with `p-0` content): rows go
@@ -16,8 +17,14 @@ export const dropdownMenuSectionLabel = 'px-2.5 pt-1 pb-0.5 text-[0.625rem] font
 // is a filter keystroke and is stopped so the menu's typeahead doesn't hijack it.
 const DROPDOWN_NAV_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'])
 
+// Radix reads its direction from a `DirectionProvider`, never from
+// `document.documentElement.dir`, and this app mounts no such provider. Feeding
+// the locale direction in here is what makes submenus open on the start side
+// and arrow keys mean what they look like. A caller may still override it.
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+  const direction = useDirection()
+
+  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" dir={direction} {...props} />
 }
 
 function DropdownMenuPortal({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
@@ -72,6 +79,9 @@ function DropdownMenuSearch({
   )
 }
 
+// `data-[side=...]` and the `slide-in-from-*` pairs below stay physical on
+// purpose: `data-side` is the placement Radix actually resolved, not a reading
+// direction, and slide utilities have no logical form.
 function DropdownMenuContent({
   className,
   collisionPadding = 8,
@@ -123,7 +133,7 @@ function DropdownMenuItem({
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
-        "relative flex items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-(--ui-control-active-background) focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-(--ui-text-tertiary) data-[variant=destructive]:*:[svg]:text-destructive!",
+        "relative flex items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-(--ui-control-active-background) focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:ps-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-(--ui-text-tertiary) data-[variant=destructive]:*:[svg]:text-destructive!",
         className
       )}
       data-inset={inset}
@@ -151,7 +161,7 @@ function DropdownMenuCheckboxItem({
       {...props}
     >
       {children}
-      <DropdownMenuPrimitive.ItemIndicator className="ml-auto flex items-center pl-2 text-foreground">
+      <DropdownMenuPrimitive.ItemIndicator className="ms-auto flex items-center ps-2 text-foreground">
         <Codicon name="check" size="0.75rem" />
       </DropdownMenuPrimitive.ItemIndicator>
     </DropdownMenuPrimitive.CheckboxItem>
@@ -177,7 +187,7 @@ function DropdownMenuRadioItem({
       {...props}
     >
       {children}
-      <DropdownMenuPrimitive.ItemIndicator className="ml-auto flex items-center pl-2 text-foreground">
+      <DropdownMenuPrimitive.ItemIndicator className="ms-auto flex items-center ps-2 text-foreground">
         <Codicon name="check" size="0.75rem" />
       </DropdownMenuPrimitive.ItemIndicator>
     </DropdownMenuPrimitive.RadioItem>
@@ -193,7 +203,7 @@ function DropdownMenuLabel({
 }) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn('px-2 py-1 text-xs font-medium text-(--ui-text-tertiary) data-[inset]:pl-7', className)}
+      className={cn('px-2 py-1 text-xs font-medium text-(--ui-text-tertiary) data-[inset]:ps-7', className)}
       data-inset={inset}
       data-slot="dropdown-menu-label"
       {...props}
@@ -214,7 +224,7 @@ function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typ
 function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'span'>) {
   return (
     <span
-      className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)}
+      className={cn('ms-auto text-xs tracking-widest text-muted-foreground', className)}
       data-slot="dropdown-menu-shortcut"
       {...props}
     />
@@ -233,13 +243,15 @@ function DropdownMenuSubTrigger({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
   inset?: boolean
-  /** Suppress the trailing caret — for triggers that own their right-side affordance. */
+  /** Suppress the trailing caret, for triggers that own their trailing affordance. */
   hideChevron?: boolean
 }) {
+  const direction = useDirection()
+
   return (
     <DropdownMenuPrimitive.SubTrigger
       className={cn(
-        "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-(--ui-control-active-background) focus:text-foreground data-[inset]:pl-7 data-[state=open]:bg-(--ui-control-active-background) data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-(--ui-text-tertiary)",
+        "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-(--ui-control-active-background) focus:text-foreground data-[inset]:ps-7 data-[state=open]:bg-(--ui-control-active-background) data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-(--ui-text-tertiary)",
         className
       )}
       data-inset={inset}
@@ -247,7 +259,13 @@ function DropdownMenuSubTrigger({
       {...props}
     >
       {children}
-      {!hideChevron && <Codicon className="ml-auto text-(--ui-text-tertiary)" name="chevron-right" size="1rem" />}
+      {!hideChevron && (
+        <Codicon
+          className="ms-auto text-(--ui-text-tertiary)"
+          name={direction === 'rtl' ? 'chevron-left' : 'chevron-right'}
+          size="1rem"
+        />
+      )}
     </DropdownMenuPrimitive.SubTrigger>
   )
 }

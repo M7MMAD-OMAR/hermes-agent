@@ -22,6 +22,7 @@ vi.mock('react-router', () => ({
 }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       common: { cancel: 'Cancel', delete: 'Delete' },

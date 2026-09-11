@@ -15,6 +15,7 @@ vi.mock('@/hermes', () => ({
 }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       commandCenter: { restartGateway: 'Restart gateway' },

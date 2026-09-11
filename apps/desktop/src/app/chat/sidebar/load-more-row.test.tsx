@@ -6,6 +6,7 @@ import { SidebarLoadMoreRow } from './load-more-row'
 afterEach(cleanup)
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       sidebar: {

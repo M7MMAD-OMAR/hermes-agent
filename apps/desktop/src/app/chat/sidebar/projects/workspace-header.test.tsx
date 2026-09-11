@@ -6,6 +6,7 @@ import { StartWorkButton, WorkspaceAddButton, WorkspaceMenu, WorkspaceShowMoreBu
 afterEach(cleanup)
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       sidebar: {

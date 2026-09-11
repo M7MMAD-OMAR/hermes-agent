@@ -7,6 +7,7 @@ import { ProjectDialog } from './project-dialog'
 afterEach(cleanup)
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       common: { cancel: 'Cancel', save: 'Save' },

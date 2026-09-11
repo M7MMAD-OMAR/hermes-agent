@@ -40,6 +40,7 @@ vi.mock('./session-row', () => ({
 }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       common: { cancel: 'Cancel' },

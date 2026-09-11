@@ -26,7 +26,7 @@ const TAB =
 
 // Full height: with the strip's rule removed there is no last-pixel row to
 // leave uncovered, so tabs fill the bar and no sliver of gutter shows through.
-const TAB_HORIZONTAL = 'h-full min-w-0 max-w-48 not-first:border-l not-first:border-l-(--ui-stroke-quaternary)'
+const TAB_HORIZONTAL = 'h-full min-w-0 max-w-48 not-first:border-s not-first:border-s-(--ui-stroke-quaternary)'
 
 // A closeable tab's floor: 8px label inset + the ~19px opaque ✕ chip, so the
 // shortest labels (FILES, REVIEW) clear the chip and pass under nothing but the
@@ -105,6 +105,8 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
 ) {
   // Vertical rails only. Horizontal tabs draw no bottom border — the strip owns
   // that rule, and a per-tab border stacked a second translucent line over it.
+  // Physical on purpose: `side` is the caller's own placement of the rail, so
+  // the border must hug the pane it sits against, not the reading direction.
   const edge = vertical ? (side === 'right' ? 'border-l' : 'border-r') : undefined
   const middle = middleClickHandlers(onClose)
 
@@ -170,7 +172,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
           aria-hidden
           className={cn(
             'pointer-events-none absolute grid size-4 place-items-center',
-            vertical ? 'bottom-1.5 left-1/2 -translate-x-1/2' : 'right-1.5 top-1/2 -translate-y-1/2'
+            vertical ? 'bottom-1.5 left-1/2 -translate-x-1/2' : 'end-1.5 top-1/2 -translate-y-1/2'
           )}
         >
           <span className="size-2 rounded-full bg-amber-500 shadow-[0_0_0_2px_var(--tab-bg),0_1px_2px_rgba(0,0,0,0.45)] dark:bg-amber-400" />
@@ -184,7 +186,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
         // Short labels are kept legible by TAB_CLOSEABLE, not by padding.
         // Rendered after the dirty dot: on hover the ✕ takes the dot's spot,
         // VS Code-style.
-        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-stretch opacity-0 transition-opacity group-hover/tab:pointer-events-auto group-hover/tab:opacity-100">
+        <span className="pointer-events-none absolute inset-y-0 end-0 flex items-stretch opacity-0 transition-opacity group-hover/tab:pointer-events-auto group-hover/tab:opacity-100">
           {/* Both pieces re-draw the active underline: they paint over the
               tab's own last-pixel row, so without it the ✕ would bite a
               notch out of the accent line on the active tab. */}
@@ -194,7 +196,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
           />
           <button
             aria-label={translateNow('common.close')}
-            className="grid cursor-pointer place-items-center bg-(--tab-face) pr-1.5 pl-0.5 text-(--ui-text-tertiary) outline-none hover:text-foreground group-data-[active=true]/tab:shadow-[inset_0_-2px_0_var(--pane-tab-active-accent,var(--theme-primary))]"
+            className="grid cursor-pointer place-items-center bg-(--tab-face) pe-1.5 ps-0.5 text-(--ui-text-tertiary) outline-none hover:text-foreground group-data-[active=true]/tab:shadow-[inset_0_-2px_0_var(--pane-tab-active-accent,var(--theme-primary))]"
             onClick={event => {
               event.preventDefault()
               event.stopPropagation()
@@ -237,7 +239,7 @@ export const PaneTabLabel = React.forwardRef<HTMLElement, PaneTabLabelProps>(fun
 
   return (
     <Comp
-      className="flex h-full min-w-0 max-w-full items-center overflow-hidden px-2 text-left outline-none group-data-[vertical]/tab:h-auto group-data-[vertical]/tab:w-full group-data-[vertical]/tab:justify-center group-data-[vertical]/tab:py-2"
+      className="flex h-full min-w-0 max-w-full items-center overflow-hidden px-2 text-start outline-none group-data-[vertical]/tab:h-auto group-data-[vertical]/tab:w-full group-data-[vertical]/tab:justify-center group-data-[vertical]/tab:py-2"
       ref={ref}
       {...props}
     >

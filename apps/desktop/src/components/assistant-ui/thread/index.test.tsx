@@ -32,6 +32,7 @@ vi.mock('@/components/assistant-ui/thread/status', () => ({
 }))
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       assistant: {

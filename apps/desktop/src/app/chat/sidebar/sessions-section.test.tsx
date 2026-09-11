@@ -10,6 +10,7 @@ import type { VirtualSessionListProps } from './virtual-session-list'
 afterEach(cleanup)
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       sidebar: {

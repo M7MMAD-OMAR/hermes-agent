@@ -34,6 +34,7 @@ const promptCopy = {
 }
 
 vi.mock('@/i18n', () => ({
+  useDirection: () => 'ltr',
   useI18n: () => ({
     t: {
       common: { close: 'Close' },

@@ -2,10 +2,16 @@ import { ContextMenu as ContextMenuPrimitive } from 'radix-ui'
 import * as React from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
+import { useDirection } from '@/i18n/context'
 import { cn } from '@/lib/utils'
 
+// Radix reads its direction from a `DirectionProvider`, never from
+// `document.documentElement.dir`, and this app mounts no such provider. Feeding
+// the locale direction in here is what makes submenus open on the start side.
 function ContextMenu({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
-  return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
+  const direction = useDirection()
+
+  return <ContextMenuPrimitive.Root data-slot="context-menu" dir={direction} {...props} />
 }
 
 function ContextMenuPortal({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
@@ -27,6 +33,9 @@ function ContextMenuGroup({ ...props }: React.ComponentProps<typeof ContextMenuP
   return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
 }
 
+// `data-[side=...]` and the `slide-in-from-*` pairs below stay physical on
+// purpose: `data-side` is the placement Radix actually resolved, not a reading
+// direction, and slide utilities have no logical form.
 function ContextMenuContent({ className, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
   return (
     <ContextMenuPrimitive.Portal>
@@ -54,7 +63,7 @@ function ContextMenuItem({
   return (
     <ContextMenuPrimitive.Item
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-(--ui-control-active-background) focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-(--ui-text-tertiary) data-[variant=destructive]:*:[svg]:text-destructive!",
+        "relative flex cursor-default items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-(--ui-control-active-background) focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:ps-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-(--ui-text-tertiary) data-[variant=destructive]:*:[svg]:text-destructive!",
         className
       )}
       data-inset={inset}
@@ -82,7 +91,7 @@ function ContextMenuCheckboxItem({
       {...props}
     >
       {children}
-      <ContextMenuPrimitive.ItemIndicator className="ml-auto flex items-center pl-2 text-foreground">
+      <ContextMenuPrimitive.ItemIndicator className="ms-auto flex items-center ps-2 text-foreground">
         <Codicon name="check" size="0.75rem" />
       </ContextMenuPrimitive.ItemIndicator>
     </ContextMenuPrimitive.CheckboxItem>
@@ -98,7 +107,7 @@ function ContextMenuLabel({
 }) {
   return (
     <ContextMenuPrimitive.Label
-      className={cn('px-2 py-1 text-xs font-medium text-(--ui-text-tertiary) data-[inset]:pl-7', className)}
+      className={cn('px-2 py-1 text-xs font-medium text-(--ui-text-tertiary) data-[inset]:ps-7', className)}
       data-inset={inset}
       data-slot="context-menu-label"
       {...props}
@@ -128,10 +137,12 @@ function ContextMenuSubTrigger({
 }: React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger> & {
   inset?: boolean
 }) {
+  const direction = useDirection()
+
   return (
     <ContextMenuPrimitive.SubTrigger
       className={cn(
-        "flex cursor-default items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-(--ui-control-active-background) focus:text-foreground data-[inset]:pl-7 data-[state=open]:bg-(--ui-control-active-background) data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-(--ui-text-tertiary)",
+        "flex cursor-default items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-(--ui-control-active-background) focus:text-foreground data-[inset]:ps-7 data-[state=open]:bg-(--ui-control-active-background) data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-(--ui-text-tertiary)",
         className
       )}
       data-inset={inset}
@@ -139,7 +150,11 @@ function ContextMenuSubTrigger({
       {...props}
     >
       {children}
-      <Codicon className="ml-auto text-(--ui-text-tertiary)" name="chevron-right" size="1rem" />
+      <Codicon
+        className="ms-auto text-(--ui-text-tertiary)"
+        name={direction === 'rtl' ? 'chevron-left' : 'chevron-right'}
+        size="1rem"
+      />
     </ContextMenuPrimitive.SubTrigger>
   )
 }

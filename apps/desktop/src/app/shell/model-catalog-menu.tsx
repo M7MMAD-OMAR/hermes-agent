@@ -571,7 +571,7 @@ export function ModelCatalogMenu({
                           ) : null}
                           {isCurrent ? (
                             <Codicon
-                              className={cn('text-foreground', loadProgress ? 'ml-1' : 'ml-auto')}
+                              className={cn('text-foreground', loadProgress ? 'ms-1' : 'ms-auto')}
                               name="check"
                               size="0.75rem"
                             />

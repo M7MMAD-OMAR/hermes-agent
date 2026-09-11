@@ -75,6 +75,10 @@ export function FindBar() {
   // would cover the files pane's header + first rows when it is open. Measure
   // the pane's live rect and park the bar just left of it instead.
   //
+  // That `right-4` stays PHYSICAL rather than `end-4`: the override below
+  // writes a physical `right` in pixels measured off a rect, so a logical
+  // class would fight it under RTL.
+  //
   // The pane can open, close, or be drag-resized *while the bar is open* (its
   // visibility lives in the contrib workspace registry, not a store we can
   // subscribe to from here), so a window `resize` listener alone is not
@@ -289,6 +293,8 @@ export function FindBar() {
         // floating-hud.ts / notifications.tsx) — a 0px fallback parks the bar
         // inside the titlebar strip, underneath the native min/max/close
         // window-controls overlay on Windows/Linux.
+        // `right-4` is physical on purpose, paired with the physical `right`
+        // in `barStyle` above. See the measuring effect for why.
         'pointer-events-auto fixed right-4 top-[calc(var(--titlebar-height,34px)+0.5rem)] z-50',
         'flex items-center gap-2 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-surface-background) px-2 py-1.5 shadow-md'
       )}

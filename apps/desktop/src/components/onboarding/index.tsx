@@ -337,7 +337,7 @@ export function DesktopOnboardingOverlay({
         {onboarding.manual ? (
           <Button
             aria-label={t.common.close}
-            className="absolute right-3 top-3 z-10 text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground"
+            className="absolute end-3 top-3 z-10 text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground"
             onClick={() => closeManualOnboarding()}
             size="icon-sm"
             variant="ghost"
@@ -537,7 +537,7 @@ export function Picker({ ctx }: { ctx: OnboardingContext }) {
             In manual mode the overlay already has a close affordance, so the
             "choose later" escape would be redundant — hide it. */}
         {manual ? <span /> : <ChooseLaterLink />}
-        <Button className="-mr-2 font-medium" onClick={() => openKeyForm()} size="xs" type="button" variant="text">
+        <Button className="-me-2 font-medium" onClick={() => openKeyForm()} size="xs" type="button" variant="text">
           {t.onboarding.haveApiKey}
         </Button>
       </div>
@@ -664,7 +664,7 @@ export function ApiKeyForm({
         {options.map(o => (
           <button
             className={cn(
-              'rounded-2xl border bg-background/60 p-3 text-left transition hover:bg-accent/50',
+              'rounded-2xl border bg-background/60 p-3 text-start transition hover:bg-accent/50',
               option.envKey === o.envKey ? 'border-primary ring-2 ring-primary/20' : 'border-transparent'
             )}
             key={o.envKey}

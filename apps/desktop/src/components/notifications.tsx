@@ -152,7 +152,7 @@ function BottomRightStack({
   return createPortal(
     <div
       aria-label={copy.region}
-      className={cn(REGION_BASE, 'right-4 bottom-4 w-[min(24rem,calc(100%-2rem))] flex-col-reverse')}
+      className={cn(REGION_BASE, 'end-4 bottom-4 w-[min(24rem,calc(100%-2rem))] flex-col-reverse')}
       role="region"
     >
       {notifications.map(n => (

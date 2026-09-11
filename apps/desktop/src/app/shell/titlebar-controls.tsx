@@ -95,7 +95,7 @@ function LayoutGlyph({ modHeld }: { modHeld: boolean }) {
       </span>
       <span className={cn('relative hidden', modHeld && 'group-hover/tool:inline-flex')}>
         <TitlebarIcon name="layout" />
-        <span className="absolute -bottom-1 -right-1.5 grid place-items-center rounded-full bg-(--ui-bg-chrome) p-px">
+        <span className="absolute -bottom-1 -end-1.5 grid place-items-center rounded-full bg-(--ui-bg-chrome) p-px">
           <TitlebarIcon className="-scale-x-100" name="refresh" size={titlebarIconSizeCss(TITLEBAR_ICON_BADGE_SCALE)} />
         </span>
       </span>
@@ -112,7 +112,7 @@ function withCountBadge(icon: ReactNode, count: number | undefined): ReactNode {
   return (
     <span className="relative inline-flex">
       {icon}
-      <span className="pointer-events-none absolute -top-2.5 -right-1.5 z-1">
+      <span className="pointer-events-none absolute -top-2.5 -end-1.5 z-1">
         <Badge aria-hidden size="overlay" variant="solid">
           {compactNumber(count)}
         </Badge>

@@ -92,7 +92,7 @@ export function NotificationInboxPanel({ onClose }: { onClose: () => void }) {
               <li key={entry.id}>
                 <button
                   className={cn(
-                    'flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-accent/60',
+                    'flex w-full items-start gap-2 px-3 py-1.5 text-start hover:bg-accent/60',
                     // An entry with no chat has nowhere to go; it still reads as
                     // a record, so it stays in the list rather than being hidden.
                     !entry.storedSessionId && 'cursor-default'

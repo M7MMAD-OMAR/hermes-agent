@@ -192,7 +192,7 @@ function ZoneMenu({
               {/* The hint's `ml-auto` makes the label the row's flexible part,
                   so without this it breaks mid-phrase before the menu widens. */}
               <span className="whitespace-nowrap">{stripVisible ? t.zones.hideTabStrip : t.zones.showTabStrip}</span>
-              {toggleHint && <span className="ml-auto pl-2 text-(--ui-text-quaternary)">{toggleHint}</span>}
+              {toggleHint && <span className="ms-auto ps-2 text-(--ui-text-quaternary)">{toggleHint}</span>}
             </>
           ),
           onSelect: () => setTreeGroupTabStrip(nodeId, stripVisible ? 'never' : 'always')
@@ -627,7 +627,7 @@ export function TreeGroup({
                   style={{ cursor: 'grab' }}
                 >
                   {chrome.tabLead ? (
-                    <span className="ml-2 -mr-1 flex shrink-0 items-center">{chrome.tabLead()}</span>
+                    <span className="ms-2 -me-1 flex shrink-0 items-center">{chrome.tabLead()}</span>
                   ) : null}
                   <PaneTabLabel>{tabLabel(paneId)}</PaneTabLabel>
                 </PaneTab>

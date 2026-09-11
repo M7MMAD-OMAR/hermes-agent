@@ -127,7 +127,9 @@ export function NarrowOverlays() {
 
   return (
     <>
-      {/* Hover-intent strips on each edge that has a collapsed pane. */}
+      {/* Hover-intent strips on each edge that has a collapsed pane. `side` is
+          the pane's physical edge in the tree, not a reading direction, so the
+          classes keyed off it stay physical in both directions. */}
       {sides.map(side => (
         <div
           className={cn('absolute inset-y-0 z-30 w-1.5', side === 'left' ? 'left-0' : 'right-0')}

@@ -494,16 +494,21 @@ function SidebarSessionRowImpl({
                   {handoffBadge}
                   <span className="min-w-0 flex-1 self-center">
                     <OverflowTip label={title}>
+                      {/* The title is model-written content, so it picks its own
+                          direction from its own first strong character, not from
+                          the app locale. It belongs on THIS element rather than on
+                          the inner span: this is the one that truncates, and an
+                          ellipsis lands at the end edge of whatever direction the
+                          truncating box is in. Left on the span alone, an English
+                          title inside the Arabic sidebar lost its first words
+                          instead of its last. */}
                       <SidebarRowLabel
                         className="hover-marquee block font-normal group-hover:text-foreground group-data-[working=true]:text-foreground/90"
+                        dir="auto"
                         onPointerEnter={armMarquee}
                         onPointerLeave={disarmMarquee}
                       >
-                        {/* The title is model-written content, so it picks its own direction
-                            from its own first strong character, not from the app locale. */}
-                        <span className="hover-marquee-inner" dir="auto">
-                          {title}
-                        </span>
+                        <span className="hover-marquee-inner">{title}</span>
                       </SidebarRowLabel>
                     </OverflowTip>
                     {/* Session-list density (#68119): comfortable adds one
@@ -563,12 +568,11 @@ function SidebarSessionRowImpl({
                         'hover-marquee text-[0.8125rem] font-medium text-(--ui-text-primary) group-data-[working=true]:text-foreground',
                         SIDEBAR_TRUNCATED_LEADING
                       )}
+                      dir="auto"
                       onPointerEnter={armMarquee}
                       onPointerLeave={disarmMarquee}
                     >
-                      <span className="hover-marquee-inner" dir="auto">
-                        {title}
-                      </span>
+                      <span className="hover-marquee-inner">{title}</span>
                     </SidebarRowLabel>
                   </OverflowTip>
                   {session.preview && rowMeta.includes('preview') ? (

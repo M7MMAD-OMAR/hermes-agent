@@ -964,13 +964,18 @@ def theme_xlsx(wb, theme: Theme | None = None, *, header_rows: int = 1,
                     arabic_hits += 1
                 header = bool(header_rows) and cell.row <= header_rows
                 current = cell.font
+                # openpyxl hands back a fully populated default Font, so
+                # "unset" here means "still the default", not None. A size
+                # or a color the spec chose is kept, header row included.
+                chosen_size = (current.size
+                               if current.size not in (None, _XLSX_DEFAULT_PT)
+                               else (t["head"] if header else t["body"]))
                 cell.font = Font(
                     name=body_font,
-                    size=current.size or (t["head"] if header else t["body"]),
+                    size=chosen_size,
                     bold=True if header else current.bold,
                     italic=False if is_arabic(str(cell.value)) else current.italic,
-                    color=current.color if (current.color and not header)
-                    else f"FF{p.ink}",
+                    color=current.color or f"FF{p.ink}",
                 )
                 if header:
                     counts["header_cells"] += 1
@@ -991,6 +996,9 @@ def theme_xlsx(wb, theme: Theme | None = None, *, header_rows: int = 1,
             counts["rtl_sheets"] += 1
     return counts
 
+
+# openpyxl's own default point size. Anything else in a cell was chosen.
+_XLSX_DEFAULT_PT = 11.0
 
 NUMBER_FORMATS = {
     # Negatives in parentheses, zeros as a dash, the unit named once in the

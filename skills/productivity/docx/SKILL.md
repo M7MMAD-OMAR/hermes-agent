@@ -19,7 +19,7 @@ python-docx via small CLIs. It handles text, styles, lists, tables,
 images, headers/footers, `{{token}}` templating, tracked changes
 (list/accept/reject), comments (list/add/delete), TOC and page-number
 fields, and package health checks. It does not render documents itself
-(PDF needs LibreOffice — see Converting to PDF) or edit legacy `.doc`.
+(PDF needs LibreOffice, see Converting to PDF) or edit legacy `.doc`.
 
 ## When to Use
 
@@ -39,7 +39,7 @@ fields, and package health checks. It does not render documents itself
 - Python 3.10+ with `python-docx` installed:
   `pip install python-docx` (import name is `docx`; lxml comes with it).
 - Comments `add` uses the native API on python-docx >= 1.2 and an XML
-  fallback on older versions — both are automatic.
+  fallback on older versions, both are automatic.
 - For image blocks: the image files must exist locally (PNG/JPEG).
 
 ## How to Run
@@ -71,6 +71,33 @@ over the spec. Edits to an existing file can call
 concern: set an Arabic-capable family (Cairo, Noto Naskh Arabic, Amiri) in
 `styles`, in the complex-script slot too, or the text shapes in a fallback.
 Always convert to PDF and look at the first page before delivering.
+
+## House style is on by default
+`docx_create.py` type-sets the document with the house design system (the
+sibling `house-style` skill) and reports which one under `"theme"` in its
+JSON output; the key is `null` when that skill is not installed beside
+this one. The pass fills in only what the spec left unset, so an explicit
+size, color or fill in the spec still wins.
+
+Change it or drop it with `"theme": "slate"`,
+`"theme": {"name": "editorial", "accent": "1F4E79"}`, or
+`"theme": false` in the spec, or `--no-theme` on the command line. The
+env vars `HERMES_HOUSE_THEME` and `HERMES_HOUSE_ACCENT` set it globally.
+
+What it changes in a `.docx`:
+
+- Named styles on the house type scale (22 / 17 / 14 / 11 pt for
+  `Heading 1` to `Heading 4` over an 11 pt body), so text added after the
+  pass still lands in the system.
+- Page margins, but only when the spec carries no `page` key.
+- Booktabs tables: three horizontal rules and no vertical ones, instead
+  of the boxed grid that reads as a spreadsheet screenshot.
+- Arabic paragraphs at 1.7 leading, with italics turned into weight.
+
+Order of passes is load-bearing: house style, then the RTL pass, then the
+Arabic font pass (`arabic_style.style_docx` from the herwork skill),
+which owns the complex-script slot and must run last. `docx_create.py`
+already runs the first two in that order.
 
 ## Quick Reference
 
@@ -105,7 +132,7 @@ Always convert to PDF and look at the first page before delivering.
    `scripts/docx_create.py`. The spec supports: `page` (size + margins in
    mm), `header`/`footer` strings, `footer_page_numbers` (adds a
    "Page X of Y" field footer), `styles` (custom paragraph styles with
-   font, size, bold/italic, hex `color`), and `blocks` — `heading`
+   font, size, bold/italic, hex `color`), and `blocks`, `heading`
    (level 1-9), `paragraph` (either `text` or a `runs` list where each run
    may set `bold`/`italic`/`underline`), `bullet_list`, `numbered_list`,
    `table` (`header` row rendered bold, `rows`, optional built-in table
@@ -123,7 +150,7 @@ Always convert to PDF and look at the first page before delivering.
    the original; omit it to edit in place. Paragraph indices for
    `insert`/`delete`/`style`/`toc` refer to `--structure`/`--text` body
    order. Run `normalize` first on documents that came out of heavy Word
-   editing — it merges adjacent runs with identical formatting so later
+   editing, it merges adjacent runs with identical formatting so later
    find-replace matches reliably.
 4. **Review revisions.** `docx_revisions.py list` reports every `w:ins`
    and `w:del` (id, author, date, affected text) anywhere in body,
@@ -154,7 +181,7 @@ soffice --headless --convert-to pdf --outdir outdir/ file.docx
 
 Check availability first (`command -v soffice || command -v
 libreoffice`). If neither exists, tell the user PDF conversion is
-unavailable in this environment rather than improvising — python-docx
+unavailable in this environment rather than improvising, python-docx
 cannot render PDFs, and layout fidelity requires a real renderer.
 
 ## Pitfalls
@@ -166,7 +193,7 @@ cannot render PDFs, and layout fidelity requires a real renderer.
 - **Revision coverage.** `docx_revisions.py` resolves run-level
   insertions and deletions (the overwhelming majority). Paragraph-mark
   and table-row revisions, format-change records, and moves are detected
-  by `--revisions` but not auto-resolved — see
+  by `--revisions` but not auto-resolved, see
   `references/revisions-and-comments.md` and hand those to Word.
 - **Comment threading.** Replies and "resolved" status live in
   `commentsExtended.xml`, which this skill ignores; comments it adds are
@@ -179,7 +206,7 @@ cannot render PDFs, and layout fidelity requires a real renderer.
 - **Validation is a health check, not schema validation.**
   `docx_validate.py` verifies the zip, required parts, relationship
   targets, image magic bytes, and referenced styles. It is NOT XSD
-  validation — a file can pass and still contain XML Word dislikes.
+  validation, a file can pass and still contain XML Word dislikes.
 - **Style names must exist.** Applying a style that isn't defined in the
   document raises `KeyError`. Built-ins like `Heading 1`, `List Bullet`,
   `List Number`, `Table Grid` exist in the default template; custom
@@ -198,6 +225,9 @@ cannot render PDFs, and layout fidelity requires a real renderer.
 
 ## Verification
 
+- Before delivering, lint the file:
+  `python scripts/../../house-style/scripts/style_lint.py out.docx`.
+  A long dash is an error, not a warning.
 - After create/edit/template, run `docx_read.py out.docx --text` and
   check the expected strings appear (and old strings are gone).
 - After accept/reject, `docx_revisions.py list` should return `[]` (or
@@ -205,7 +235,7 @@ cannot render PDFs, and layout fidelity requires a real renderer.
   `docx_comments.py list` should reflect the change and `--text` output
   must be unchanged.
 - `docx_validate.py out.docx` exits 0 with `"ok": true` on a healthy
-  package — run it after any revision/comment/field manipulation.
+  package, run it after any revision/comment/field manipulation.
 - For templates run with `--strict`, or check `unfilled_tokens == []`.
 - Structure checks: `--structure` should show the expected heading
   outline and table shapes; `--styles` confirms custom styles applied.

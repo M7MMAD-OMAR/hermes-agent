@@ -41,10 +41,12 @@ from house_style import LIMITS, is_arabic  # noqa: E402
 # Prose rules
 # ---------------------------------------------------------------------------
 
+# Written as escapes on purpose: this file is itself swept by the rule it
+# enforces, and a literal dash here would make the sweep unusable.
 LONG_DASHES = {
-    "—": "em dash", "–": "en dash", "‒": "figure dash",
-    "―": "horizontal bar", "⸺": "two-em dash",
-    "⸻": "three-em dash",
+    "\u2014": "em dash", "\u2013": "en dash", "\u2012": "figure dash",
+    "\u2015": "horizontal bar", "\u2e3a": "two-em dash",
+    "\u2e3b": "three-em dash",
 }
 
 PROSE_PATTERNS = [
@@ -215,7 +217,7 @@ def read_docx(path: Path):
         chunks.append(para.text)
         words = len(_words(para.text))
         if words > LIMITS["doc_paragraph_words"]:
-            findings.append(_f("warn", "long_paragraph", path.name,
+            findings.append(_f("warn", "long_paragraph", _where(path),
                                f"a paragraph of {words} words; split it"))
         for run in para.runs:
             if run.font.size:
@@ -233,7 +235,7 @@ def read_docx(path: Path):
             sizes.add(round(style.font.size.pt, 1))
     for table in doc.tables:
         if _docx_has_vertical_rules(table):
-            findings.append(_f("warn", "boxed_table", path.name,
+            findings.append(_f("warn", "boxed_table", _where(path),
                                "vertical rules between every column; a typeset "
                                "table has three horizontal rules and none "
                                "vertical"))
@@ -244,10 +246,10 @@ def read_docx(path: Path):
 
     stock = fonts & STOCK_FONTS
     if stock:
-        findings.append(_f("warn", "stock_font", path.name,
+        findings.append(_f("warn", "stock_font", _where(path),
                            f"stock office face in use: {', '.join(sorted(stock))}"))
     if len(sizes) > LIMITS["doc_font_sizes"]:
-        findings.append(_f("warn", "size_soup", path.name,
+        findings.append(_f("warn", "size_soup", _where(path),
                            f"{len(sizes)} distinct type sizes: "
                            f"{sorted(sizes)}"))
     # Measure: characters a line at the body size and the page width.
@@ -263,7 +265,7 @@ def read_docx(path: Path):
         chars = width_pt / (0.5 * body)
         low, high = LIMITS["doc_chars_per_line"]
         if not low <= chars <= high:
-            findings.append(_f("warn", "measure", path.name,
+            findings.append(_f("warn", "measure", _where(path),
                                f"about {chars:.0f} characters a line; a "
                                f"typeset page sits between {low} and {high}"))
     return "\n".join(chunks), findings
@@ -275,7 +277,7 @@ def read_pptx(path: Path):
     prs = Presentation(str(path))
     chunks, findings, sizes, fonts = [], [], set(), set()
     for n, slide in enumerate(prs.slides, 1):
-        where = f"{path.name} slide {n}"
+        where = f"{_where(path)} slide {n}"
         words, bullets, visuals = 0, 0, 0
         items = []
         for shape in slide.shapes:
@@ -329,18 +331,18 @@ def read_pptx(path: Path):
 
     small = [s for s in sizes if s < 14]
     if small:
-        findings.append(_f("warn", "type_too_small", path.name,
+        findings.append(_f("warn", "type_too_small", _where(path),
                            f"type at {sorted(small)} pt; 18 is the floor for a "
                            "projected slide, 14 for one read as a file"))
     if len(sizes) > LIMITS["deck_font_sizes"]:
-        findings.append(_f("warn", "size_soup", path.name,
+        findings.append(_f("warn", "size_soup", _where(path),
                            f"{len(sizes)} distinct type sizes: {sorted(sizes)}"))
     stock = fonts & STOCK_FONTS
     if stock:
-        findings.append(_f("warn", "stock_font", path.name,
+        findings.append(_f("warn", "stock_font", _where(path),
                            f"stock office face in use: {', '.join(sorted(stock))}"))
     if len(fonts) > LIMITS["font_families"] + 1:
-        findings.append(_f("warn", "font_zoo", path.name,
+        findings.append(_f("warn", "font_zoo", _where(path),
                            f"{len(fonts)} families: {sorted(fonts)}"))
     return "\n".join(chunks), findings
 
@@ -351,7 +353,7 @@ def read_xlsx(path: Path):
     wb = load_workbook(str(path), data_only=False)
     chunks, findings, fonts = [], [], set()
     for ws in wb.worksheets:
-        where = f"{path.name}[{ws.title}]"
+        where = f"{_where(path)}[{ws.title}]"
         if ws.sheet_view.showGridLines:
             findings.append(_f("warn", "gridlines_on", where,
                                "the grey grid is the loudest thing on the "
@@ -385,7 +387,7 @@ def read_xlsx(path: Path):
                                f"{plain_numbers} numbers still on General; give "
                                "each column a real number format"))
     if len(fonts) > 2:
-        findings.append(_f("warn", "font_zoo", path.name,
+        findings.append(_f("warn", "font_zoo", _where(path),
                            f"{len(fonts)} font families in one workbook"))
     return "\n".join(chunks), findings
 
@@ -395,7 +397,7 @@ def read_pdf(path: Path):
     import subprocess
     exe = shutil.which("pdftotext")
     if not exe:
-        return "", [_f("warn", "no_extractor", path.name,
+        return "", [_f("warn", "no_extractor", _where(path),
                        "pdftotext is not installed; prose was not read")]
     out = subprocess.run([exe, str(path), "-"], capture_output=True, text=True)
     return out.stdout, []
@@ -408,16 +410,25 @@ READERS = {
 }
 
 
+def _where(path: Path) -> str:
+    """A name the reader can act on. Two SKILL.md files are not the same
+    finding, and printing both as "SKILL.md" made that impossible to see."""
+    try:
+        return str(path.resolve().relative_to(Path.cwd()))
+    except ValueError:
+        return str(path)
+
+
 def lint(path: Path, only: str = "all") -> list[dict]:
     reader = READERS.get(path.suffix.lower())
     if reader is None:
-        return [_f("warn", "unsupported", path.name,
+        return [_f("warn", "unsupported", _where(path),
                    f"no reader for {path.suffix}")]
     text, findings = reader(path)
     if only == "prose":
         findings = []
     if only != "design":
-        findings += prose_findings(text, path.name)
+        findings += prose_findings(text, _where(path))
     return findings
 
 

@@ -122,7 +122,7 @@ Author the JSON spec with `write_file`, inspect script JSON output with
    when `soffice` is absent), then reload with `--data-only`.
 4. **Edit**: `xlsx_edit.py` applies renames/copies first, then
    structural row/column changes, then `--set`/`--append`. It edits in
-   place unless `--out` is given — copy the file first if you need the
+   place unless `--out` is given, copy the file first if you need the
    original.
 5. **Restructure**: for insert/delete on sheets that have formulas,
    merges, tables, or filters, use `xlsx_restructure.py` instead of
@@ -158,6 +158,37 @@ default): a sheet whose words are mostly RTL gets `rightToLeft` on its view,
 which puts column A on the right where its reader expects it. Force it with
 `"rtl": "on"`, disable with `"off"`, set it per sheet, or pass `--rtl`.
 
+## House style is on by default
+`xlsx_create.py` quiets the workbook down to the house design system and
+reports which one under `"theme"` in its JSON output; the key is `null`
+when the sibling `house-style` skill is not installed beside this one.
+The pass fills in only what the spec left unset, so an explicit size,
+color or fill on a cell still wins.
+
+Change it or drop it with `"theme": "slate"`,
+`"theme": {"name": "editorial", "accent": "1F4E79"}`, or
+`"theme": false` in the spec, or `--no-theme` on the command line. The
+env vars `HERMES_HOUSE_THEME` and `HERMES_HOUSE_ACCENT` set it globally.
+
+What it changes in a workbook:
+
+- Excel's grey gridlines off, so structure comes from the type and the
+  rules instead of a box around every empty cell.
+- One header treatment: a single rule under the header row and one face
+  across the sheet. Set `"header_rows"` when the header is deeper.
+- The header frozen, unless the spec already froze panes.
+- A sheet whose words are mostly Arabic flipped right to left.
+- Zebra banding only past 20 rows, where the eye needs help tracking.
+
+Number formats are not applied for you. Take them from the
+`NUMBER_FORMATS` dict in `house_style.py` (negatives in parentheses,
+zeros as a dash, the unit named once in the column header) and set them
+in the spec.
+
+The pass runs after the sheets are built and after the RTL flag, so it
+sees the finished content. Anything written into the workbook later keeps
+whatever formatting you gave it.
+
 ## Formulas need a recalculation flag
 openpyxl writes the formula and no cached result, so a reader that does not
 calculate shows an empty cell. `xlsx_create.py` therefore sets
@@ -171,7 +202,7 @@ values in.
   via `load_workbook(path, data_only=True)` and only when the file was
   previously saved by Excel/LibreOffice. Otherwise you get `None`.
 - **`xlsx_edit.py` insert/delete does not shift references** (raw
-  openpyxl behavior). Use `xlsx_restructure.py`, which does — but even
+  openpyxl behavior). Use `xlsx_restructure.py`, which does, but even
   it cannot move chart anchors, images, or conditional-format RULE
   formulas; read its JSON report's `not_shifted` list and
   `references/restructuring.md`.
@@ -188,7 +219,7 @@ values in.
   Re-add charts after editing, or avoid re-saving charted files.
 - **CSV locale traps**: always pass explicit encodings (the scripts
   already do) and remember European CSVs often use `;` delimiters and
-  decimal commas — use `--delimiter ';'` and expect strings like
+  decimal commas, use `--delimiter ';'` and expect strings like
   `"12,5"` to stay strings.
 - **Dates are datetimes**: Excel stores dates as serial numbers;
   openpyxl returns `datetime`/`date` objects. Dumps here emit ISO
@@ -197,6 +228,9 @@ values in.
 
 ## Verification
 
+- Before delivering, lint the file:
+  `python scripts/../../house-style/scripts/style_lint.py out.xlsx`.
+  A long dash is an error, not a warning.
 - After creating: `xlsx_read.py out.xlsx --sheets` and confirm sheet
   names, dimensions, merged ranges, and chart counts match intent.
 - Dump data with `--json` and compare against the source values.

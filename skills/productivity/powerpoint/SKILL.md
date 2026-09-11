@@ -15,9 +15,11 @@ metadata:
 # Powerpoint Skill
 
 Create, inspect, and edit PowerPoint (.pptx) presentations using the
-python-pptx library. Five helper scripts cover deck creation from a JSON
+python-pptx library. The helper scripts cover deck creation from a JSON
 spec, structured read-back, in-place edits, template-driven brand decks,
-and slide rendering — all offline, no PowerPoint installation required.
+and slide rendering, all offline, with no PowerPoint installation
+required. A second, optional deck path builds art-directed decks with
+PptxGenJS under Node.
 
 ## When to Use
 
@@ -28,7 +30,7 @@ and slide rendering — all offline, no PowerPoint installation required.
   chart data, swap a logo, duplicate/remove/reorder slides, set
   backgrounds, footers, hyperlinks, or speaker notes.
 - You must produce an on-brand deck from a company .pptx template.
-- Do NOT use this for .ppt (legacy binary) files — convert them first with
+- Do NOT use this for .ppt (legacy binary) files, convert them first with
   `soffice --convert-to pptx old.ppt` if LibreOffice is available.
 
 ## Prerequisites
@@ -39,7 +41,10 @@ and slide rendering — all offline, no PowerPoint installation required.
   `pdftocairo`) for rendering slides to PNGs and for PDF export.
   `pptx_render.py` detects both with `shutil.which` and degrades
   gracefully (reports `{"rendered": false, "missing": [...]}`, exit 0)
-  when absent — all create/read/edit operations work without them.
+  when absent, all create/read/edit operations work without them.
+- Optional, for the design path only: Node plus PptxGenJS, installed in
+  the task workspace with `npm install pptxgenjs`. It is not installed by
+  default, and the python path is the default one.
 - Check availability via `terminal`:
   `python -c "import pptx; print(pptx.__version__)"` and `which soffice pdftoppm`.
 
@@ -59,6 +64,7 @@ python scripts/pptx_edit.py deck.pptx --duplicate-slide 2
 python scripts/pptx_edit.py deck.pptx --remove-slide 3 --move-slide 2 0
 python scripts/pptx_from_template.py brand.pptx out.pptx --values vals.json
 python scripts/pptx_render.py deck.pptx --outdir ./render  # slide PNGs
+node scripts/pptx_design.js design.json out.pptx     # PptxGenJS design path
 ```
 
 Author JSON specs with `write_file`; inspect script output and generated
@@ -87,6 +93,7 @@ JSON with `read_file`.
 | Append notes | `pptx_edit.py deck.pptx --append-notes N TEXT` |
 | Fill template | `pptx_from_template.py tpl.pptx out.pptx --values v.json` |
 | Render slide PNGs | `pptx_render.py deck.pptx --outdir DIR` |
+| Art-directed deck (Node) | `node scripts/pptx_design.js design.json out.pptx` |
 
 ## Procedure
 
@@ -120,7 +127,7 @@ original. Text replacement scans slide shapes, table cells, and notes.
 Image swap retargets the picture's relationship id so position and size
 are preserved. Slide removal drops the relationship and the `<p:sldId>`
 entry; reorder moves the `<p:sldId>` element within `<p:sldIdLst>`
-(python-pptx has no public API for either — the script does the XML-level
+(python-pptx has no public API for either, the script does the XML-level
 work). `--duplicate-slide N` appends an independent deep copy of slide N:
 shape XML plus image/media/hyperlink relationships are cloned and rIds
 remapped, so editing the copy never touches the original. Chart slides
@@ -130,7 +137,7 @@ notes; `--set-background`, `--hyperlink`, `--enable-slide-number`, and
 
 Chart updates take a JSON spec via `--chart-data`. Full replace:
 `{"slide": 0, "chart": 0, "categories": [...], "series": {...}}`. For
-surgical edits, pass `"ops"` instead — a list of
+surgical edits, pass `"ops"` instead, a list of
 `{"op": "update_series", "name": ..., "values": [...]}`,
 `add_series`, `remove_series`, `rename_category` (`from`/`to` or
 `index`), and `set_title`. python-pptx can only swap a chart's entire
@@ -152,11 +159,22 @@ template with zero slides, delete existing ones afterward with
 
 `pptx_render.py deck.pptx --outdir ./render` converts the deck to PDF
 with `soffice --headless` and splits it into one PNG per slide with
-`pdftoppm` (or `pdftocairo`). Output JSON lists the PNG paths — review
+`pdftoppm` (or `pdftocairo`). Output JSON lists the PNG paths, review
 each with `vision_analyze`. When either tool is missing the script exits
 0 with `{"rendered": false, "missing": [...]}` and guidance; fall back to
 the JSON outline from `pptx_read.py`, which verifies content and
 structure, just not visuals.
+
+### 6. The design path (optional)
+
+`scripts/pptx_design.js` is an alternative deck builder on PptxGenJS. It
+has a small fixed slide grammar, `cover`, `cards`, `data` and `split`,
+which is the point: it produces one coherent visual system and refuses
+the text-dump pattern. It needs `npm install pptxgenjs` in the task
+workspace and exits 2 with an install hint when the module is absent.
+Reach for it when the deck is a designed artefact rather than a content
+document; `pptx_create.py` remains the default, and a supplied company
+template still goes through `pptx_from_template.py`.
 
 ## Converting to PDF
 
@@ -182,6 +200,37 @@ An edit script can call `pptx_common.apply_rtl(prs, "auto")` before saving.
 Set an Arabic-capable font (Cairo, Noto Naskh Arabic, Amiri) on the runs, or
 the glyphs come out of a fallback face.
 
+## House style is on by default
+`pptx_create.py` lays the deck out on the house design system and reports
+which one under `"theme"` in its JSON output; the key is `null` when the
+sibling `house-style` skill is not installed beside this one. The pass
+fills in only what the spec left unset, so an explicit size, color or
+fill in the spec still wins.
+
+Change it or drop it with `"theme": "slate"`,
+`"theme": {"name": "editorial", "accent": "1F4E79"}`, or
+`"theme": false` in the spec, or `--no-theme` on the command line. The
+env vars `HERMES_HOUSE_THEME` and `HERMES_HOUSE_ACCENT` set it globally.
+
+What it changes in a deck:
+
+- Placeholders re-laid-out on the house grid. The stock python-pptx
+  template is 4:3, so on a 16:9 canvas the title and the body otherwise
+  sit in a narrow centred column with air down both sides.
+- Type from the deck scale: 42 pt titles, 56 pt on a cover, an 18 pt body
+  floor for anything projected.
+- The body column capped at 7.5 in so the measure stays readable, and
+  stopped short of any shape the spec placed itself.
+- An Arabic body column flush with the right margin, rather than
+  right-aligned inside a left-hand box.
+- Tables styled to the house rules, and charts stripped of gridlines and
+  of the legend for a single series, with the numbers on the bars.
+
+Order of passes is load-bearing: house style, then the RTL pass, then the
+Arabic font pass (`arabic_style.style_pptx` from the herwork skill),
+which owns the complex-script slot and must run last. `pptx_create.py`
+already runs the first two in that order.
+
 **Never type a bullet character into bullet text.** The placeholder draws its
 own, so `"• Overview"` renders as `"• • Overview"`. `pptx_create.py` strips a
 leading bullet glyph as a safety net, but the spec should not carry one.
@@ -193,7 +242,7 @@ leading bullet glyph as a safety net, but the spec should not carry one.
   runs whose formatting is identical, so matches split across such runs
   are replaced with formatting fully preserved. Only when a match spans
   *genuinely differently-formatted* runs is the paragraph rewritten with
-  the first run's formatting — verify those slides after replacement.
+  the first run's formatting, verify those slides after replacement.
 - **Chart slides cannot be duplicated**: each chart relationship embeds a
   separate XLSX workbook part; cloning that graph reliably is not
   supported, so `--duplicate-slide` refuses chart slides cleanly instead
@@ -206,7 +255,7 @@ leading bullet glyph as a safety net, but the spec should not carry one.
 - **Reordering is XML-level**: python-pptx has no supported reorder API.
   `--move-slide` manipulates `<p:sldIdLst>` directly; safe for ordinary
   decks but re-read the deck afterward to confirm.
-- **Copying slides between decks is unsupported** — duplication works
+- **Copying slides between decks is unsupported**, duplication works
   only within one deck, where layouts and masters are shared.
 - Footer/slide-number enablement copies the placeholder from the slide's
   layout; on layouts without those placeholders, `--set-footer` fails
@@ -217,7 +266,7 @@ leading bullet glyph as a safety net, but the spec should not carry one.
   unless the spec says otherwise. Custom templates keep their own size.
 - Layout indexes vary by template. For brand templates, list layout names
   first: `pptx_read.py template.pptx --outline` (`layouts_available`).
-- `slide.shapes.title` is None on blank layouts — the create script
+- `slide.shapes.title` is None on blank layouts, the create script
   handles this, but remember it when writing ad-hoc python-pptx code.
 - Always pass `encoding="utf-8"` when writing spec files; tokens like
   `{{city}}` may be filled with non-ASCII values.
@@ -228,8 +277,11 @@ leading bullet glyph as a safety net, but the spec should not carry one.
    slide count, texts, tables, notes, and chart values match intent.
 2. `--images DIR` then file-size check confirms pictures embedded.
 3. Render every slide with `pptx_render.py deck.pptx --outdir ./render`
-   and review each PNG with `vision_analyze` — this catches overlapping
+   and review each PNG with `vision_analyze`, this catches overlapping
    shapes, truncated text, and color problems the outline cannot. If the
    render tools are missing, the script says so; rely on the outline.
-4. The bundled test suite is the full contract:
+4. Before delivering, lint the file:
+   `python scripts/../../house-style/scripts/style_lint.py out.pptx`.
+   A long dash is an error, not a warning.
+5. The bundled test suite is the full contract:
    `python -m pytest tests/ -q` (requires python-pptx + pytest).

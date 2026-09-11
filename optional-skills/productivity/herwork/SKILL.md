@@ -192,8 +192,8 @@ empty boxes.
 | Slide decks | `powerpoint` skill |
 | Spreadsheets, data tables, budgets | `xlsx` skill |
 | Reading or producing PDFs | `pdf` skill |
-| Scanned documents, images of text | `pdf` skill, `references/ocr-extraction.md` |
-| Any Arabic or RTL deliverable | `scripts/arabic_style.py` here, after the create script |
+| Scanned documents, images of text | `ocr-and-documents` skill when installed, else `pdf` skill, `references/ocr-extraction.md` |
+| Any Arabic or RTL deliverable | `scripts/arabic_style.py` here, after the create script, plus `arabic-rtl-documents` when installed |
 | Diagrams as a file (flow, sequence, architecture) | `diagrams` skill |
 | Hand-drawn-style diagrams and boards | `excalidraw` skill |
 | A diagram inside the chat, not a file | a ```mermaid fenced block |
@@ -201,6 +201,7 @@ empty boxes.
 | Anything asserting researched facts | `grounded-citations` skill |
 | Type, color and layout of any deliverable | `house-style` skill (applied by default) |
 | Prose that reads as machine-written | `house-style` lint, then the `humanizer` skill |
+| Stress-testing a document before it ships | `adversarial-doc-review` skill when installed |
 | Web research, reading pages, filling web forms | the desk browser: `desktop_preview` + `drive_preview` |
 | A second, headless browser for bulk fetching | native `browser_*` tools |
 | GUI apps with no API (desktop clicks) | `computer-use` skill |

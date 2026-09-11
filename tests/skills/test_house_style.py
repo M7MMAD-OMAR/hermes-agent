@@ -249,6 +249,25 @@ def test_xlsx_pass_quiets_the_sheet(hs):
     assert ws["A2"].border.bottom.style is None, "no rule between body rows"
 
 
+def test_xlsx_pass_respects_an_explicit_color_and_size(hs):
+    pytest.importorskip("openpyxl")
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Region", "Revenue"])
+    ws.append(["North", 100])
+    ws["A1"].font = Font(color="FF00FF00", size=18)
+    ws["A2"].font = Font(color="FFFF0000")
+
+    hs.theme_xlsx(wb, hs.load_theme())
+
+    assert ws["A1"].font.color.rgb == "FF00FF00", "a header color must survive"
+    assert ws["A1"].font.size == 18
+    assert ws["A2"].font.color.rgb == "FFFF0000"
+
+
 def test_xlsx_pass_flips_an_arabic_sheet(hs):
     pytest.importorskip("openpyxl")
     from openpyxl import Workbook
@@ -278,7 +297,7 @@ def test_pdf_styles_replace_the_reportlab_sample(hs):
 
 def test_lint_fails_on_a_long_dash(lint, tmp_path):
     draft = tmp_path / "draft.md"
-    draft.write_text("A sentence — with an em dash.\n", encoding="utf-8")
+    draft.write_text("A sentence \u2014 with an em dash.\n", encoding="utf-8")
     findings = lint.lint(draft)
     dash = [f for f in findings if f["rule"] == "long_dash"]
     assert dash and dash[0]["level"] == "error"

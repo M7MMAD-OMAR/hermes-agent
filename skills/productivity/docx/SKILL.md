@@ -275,6 +275,35 @@ python scripts/docx_edit.py direction theirs.docx --mode on -o all-rtl.docx
 The pass changes direction only: no text, no font, no spacing, and
 running it twice produces the same bytes as running it once.
 
+## Embedding the faces, so Arabic survives the trip
+
+A .docx names a font family and the reader's machine resolves it. An
+Arabic report opened where the face is not installed renders in a
+substitute, or as empty boxes.
+
+```bash
+python scripts/docx_embed_fonts.py report report.docx     # what it uses
+python scripts/docx_embed_fonts.py embed report.docx      # write the faces in
+python scripts/docx_embed_fonts.py verify report.docx     # the parts agree
+```
+
+Word stores an embedded face obfuscated, as `word/fonts/fontN.odttf`,
+keyed by the `w:fontKey` GUID in `word/fontTable.xml`: the sixteen bytes
+of the GUID are XORed over the first thirty two bytes of the font file.
+The script writes that, plus the relationship in
+`word/_rels/fontTable.xml.rels` (an `r:id` resolves against the part it
+appears in, not against the document), the content type and the
+`w:embedTrueTypeFonts` flag in settings. Embedding twice adds zero bytes
+and keeps the existing key, because a fresh GUID would leave the stored
+bytes obfuscated for the old one.
+
+Two things to know before using it. The licence gate is the same as the
+deck path: a face whose licence file cannot be found is refused, and
+`--allow-unlicensed` is the explicit override. And the size is real, an
+Arabic report went from 45 KB to about 1 MB with every family embedded,
+so `--family` is the lever when a file has to travel by mail rather than
+by link.
+
 ## Comments, as a conversation
 
 `scripts/docx_comments.py` reads and writes the whole review thread, not

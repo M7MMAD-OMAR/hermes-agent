@@ -186,9 +186,11 @@ empty boxes.
 
    It exits non-zero on a long dash or a slide past the word ceiling, and
    warns about stock Office faces, type-size soup, a spreadsheet still
-   wearing its grey grid, and prose that hedges instead of saying. Fix
-   what it finds in the source spec and rebuild; do not hand-edit the
-   output file.
+   wearing its grey grid, and prose that hedges instead of saying. It
+   also reads the geometry now: text that overflows its box, a shape off
+   the slide or inside the safe margin, boxes that overlap, and contrast
+   scored against whatever is actually behind the text. Fix what it finds
+   in the source spec and rebuild; do not hand-edit the output file.
 
    For a deck, also render it and look: `pptx_render.py deck.pptx
    --outdir render` writes one PNG per slide. Text that overflows its box
@@ -204,6 +206,17 @@ empty boxes.
    Superseded drafts go to `work/archive/`. Without the manifest, `output/`
    is a folder of indistinguishable files and nobody can tell a shipped
    client deliverable from a smoke test.
+
+   **Embed the faces when the file leaves this machine.** A .docx or
+   .pptx carries a font name, not a font, so an Arabic deliverable opened
+   where the face is missing renders in a substitute or as empty boxes:
+
+   ```bash
+   python <skills>/productivity/docx/scripts/docx_embed_fonts.py embed out.docx
+   python <skills>/productivity/powerpoint/scripts/pptx_embed_fonts.py embed out.pptx
+   ```
+
+   It costs size, so it is for the copy that travels, not for a draft.
 
    Write a **PDF sibling** next to every Office file
    (`soffice --headless --convert-to pdf <file>`). Not for viewing: the rail
@@ -232,6 +245,9 @@ empty boxes.
 | Type, color and layout of any deliverable | `house-style` skill (applied by default) |
 | Reading a file before you change it | `house-style`: `scripts/office_inspect.py <file>` |
 | A chart, a picture or a callout inside a Word file | `docx` skill: `scripts/docx_graphics.py` |
+| A deck whose layout should follow the content | `"layout": "auto"` in the `powerpoint` spec |
+| A file that has to open correctly on a machine that lacks the font | `docx_embed_fonts.py`, `pptx_embed_fonts.py` |
+| Direction in a mixed language file somebody else wrote | `docx_edit.py direction <file>` |
 | Comments: read them, answer them, resolve them | the format's own comments script (see below) |
 | Prose that reads as machine-written | `house-style` lint, then the `humanizer` skill |
 | Stress-testing a document before it ships | `adversarial-doc-review` skill when installed |

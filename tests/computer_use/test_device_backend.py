@@ -181,3 +181,66 @@ def test_the_android_backend_is_selectable(monkeypatch):
     from tools.computer_use import tool
     monkeypatch.setenv("HERMES_COMPUTER_USE_BACKEND", "android")
     assert isinstance(tool._new_backend("standard"), device_backend.AndroidDeviceBackend)
+
+
+# --- the tool surface --------------------------------------------------------------
+
+
+def test_the_surface_comes_from_config_not_the_process_env(monkeypatch):
+    """Client and backend can be different machines, so an env-keyed choice is invisible on
+    every topology but a locally spawned one."""
+    from tools.computer_use import tool
+    monkeypatch.delenv("HERMES_COMPUTER_USE_BACKEND", raising=False)
+    monkeypatch.setattr("hermes_cli.config.load_config",
+                        lambda *a, **kw: {"computer_use": {"surface": "android"}})
+    assert isinstance(tool._new_backend("standard"), device_backend.AndroidDeviceBackend)
+
+
+def test_the_env_override_still_wins_for_tests(monkeypatch):
+    from tools.computer_use import tool
+    monkeypatch.setenv("HERMES_COMPUTER_USE_BACKEND", "noop")
+    monkeypatch.setattr("hermes_cli.config.load_config",
+                        lambda *a, **kw: {"computer_use": {"surface": "android"}})
+    assert not isinstance(tool._new_backend("standard"), device_backend.AndroidDeviceBackend)
+
+
+def test_a_test_id_reaches_a_backend_that_understands_one():
+    from tools.computer_use import tool
+    backend = device_backend.AndroidDeviceBackend()
+    assert tool._target(backend, {"test_id": "home.counter.increment"}) == "home.counter.increment"
+
+
+def test_a_test_id_is_refused_rather_than_coerced_into_an_index():
+    """Coercing it would tap whatever sits at that index. A refusal is the honest answer."""
+    from tools.computer_use import tool
+    with pytest.raises(tool._TestIdsUnsupported):
+        tool._target(tool._NoopBackend(), {"test_id": "home.counter.increment"})
+
+
+def test_an_index_is_untouched_when_no_test_id_is_given():
+    from tools.computer_use import tool
+    assert tool._target(tool._NoopBackend(), {"element": 4}) == 4
+
+
+def test_the_capture_payload_carries_the_test_id(monkeypatch):
+    """Without this the model is told to prefer an address it can never see."""
+    from tools.computer_use import tool
+    element = UIElement(index=1, role="Button", label="Increment", bounds=(0, 0, 10, 10),
+                        attributes={"test_id": "home.counter.increment"})
+    assert tool._element_to_dict(element)["test_id"] == "home.counter.increment"
+    assert "test_id=home.counter.increment" in tool._format_elements([element])[0]
+
+
+def test_a_desktop_element_gains_no_test_id_key():
+    from tools.computer_use import tool
+    plain = UIElement(index=1, role="AXButton", label="Save", bounds=(0, 0, 10, 10))
+    assert "test_id" not in tool._element_to_dict(plain)
+
+
+def test_filtering_to_one_package_does_not_renumber_the_originals():
+    """The filtered list is renumbered 1..n for the model; the capture it came from is not."""
+    elements = [UIElement(index=1, role="Button", label="a", app="other", attributes={}),
+                UIElement(index=2, role="Button", label="b", app="mine", attributes={})]
+    filtered = device_backend._filter_to_package(elements, "mine")
+    assert [e.index for e in filtered] == [1]
+    assert [e.index for e in elements] == [1, 2]

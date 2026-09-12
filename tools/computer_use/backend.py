@@ -116,6 +116,11 @@ class ComputerUseBackend(ABC):
     are 1-based SOM indices from a prior capture. `direction` is up | down | left | right and
     `amount` is wheel ticks; `keys` is a combo such as 'cmd+s', 'ctrl+alt+t', 'return'."""
 
+    # Whether ``element`` also accepts the target's own string id (a mobile testID). False here so a
+    # backend that would silently coerce one into an index never receives it; the dispatch refuses
+    # instead, which is the difference between a clear error and a tap on the wrong widget.
+    accepts_test_ids: bool = False
+
     @abstractmethod
     def start(self) -> None: ...
 

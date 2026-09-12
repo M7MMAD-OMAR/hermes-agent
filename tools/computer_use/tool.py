@@ -118,9 +118,24 @@ def _cua_permission_mode(session_id: str) -> str:
             return "unrestricted"
     return configured
 
+def _configured_surface() -> str:
+    """Which surface `computer_use` drives: ``computer_use.surface`` in config, ``desktop`` by default.
+
+    Config rather than an env var, because the backend may be on a different machine than the
+    client and an env-keyed choice is invisible to every topology but a locally spawned one.
+    The env var stays as the override tests and one-off runs use.
+    """
+    with contextlib.suppress(Exception):
+        from hermes_cli.config import load_config
+        raw = ((load_config() or {}).get("computer_use") or {}).get("surface", "")
+        return str(raw or "").strip().lower()
+    return ""
+
+
 def _new_backend(permission_mode: str) -> ComputerUseBackend:
-    backend_name = os.environ.get("HERMES_COMPUTER_USE_BACKEND", "cua").lower()
-    if backend_name in {"cua", "cua-driver", ""}:
+    backend_name = (os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
+                    or _configured_surface() or "cua")
+    if backend_name in {"cua", "cua-driver", "desktop", ""}:
         from tools.computer_use.cua_backend import CuaDriverBackend
         return CuaDriverBackend(permission_mode=permission_mode)
     if backend_name in {"android", "device"}:
@@ -269,6 +284,9 @@ def handle_computer_use(args: Dict[str, Any], **kwargs) -> Any:
             call_lock = _backend_call_locks.setdefault(session_id, threading.RLock())
         with call_lock:
             return _dispatch(backend, action, args)
+    except _TestIdsUnsupported:
+        return json.dumps({"error": "this surface addresses elements by index, not by test_id",
+                           "hint": "Use `element` with the index from the last capture."})
     except Exception as e:
         logger.exception("computer_use %s failed", action)
         return json.dumps({"error": f"{action} failed: {e}"})
@@ -321,8 +339,25 @@ def _scroll_xy(args: Dict[str, Any]) -> Dict[str, Any]:
     return dict(x=coord[0] if coord and coord[0] is not None else None,
                 y=coord[1] if coord and coord[1] is not None else None)
 
+def _target(backend, args: Dict[str, Any], key: str = "element"):
+    """The element to act on: a testID when one was given and the backend understands them.
+
+    A backend that does not is handed nothing rather than a coerced index, so the caller reads
+    a refusal instead of watching the wrong widget get tapped."""
+    test_id = str(args.get("test_id") or "").strip()
+    if not test_id:
+        return args.get(key)
+    if not getattr(backend, "accepts_test_ids", False):
+        raise _TestIdsUnsupported()
+    return test_id
+
+
+class _TestIdsUnsupported(Exception):
+    """The active surface addresses elements by index only."""
+
+
 def _do_click(backend, action, args, button=None, count=1, **delivery):
-    return backend.click(element=args.get("element"), **_xy(args), button=button or args.get("button") or "left",
+    return backend.click(element=_target(backend, args), **_xy(args), button=button or args.get("button") or "left",
                          click_count=count, modifiers=args.get("modifiers"), **delivery)
 
 def _do_drag(backend, action, args, **delivery):
@@ -335,7 +370,7 @@ def _do_drag(backend, action, args, **delivery):
 
 def _do_scroll(backend, action, args, **delivery):
     return backend.scroll(direction=args.get("direction", "down"), amount=int(args.get("amount", 3)),
-                          element=args.get("element"), **_scroll_xy(args), modifiers=args.get("modifiers"), **delivery)
+                          element=_target(backend, args), **_scroll_xy(args), modifiers=args.get("modifiers"), **delivery)
 
 def _do_capture(backend, action, args, **_):
     if (mode := str(args.get("mode", "som"))) not in {"som", "vision", "ax"}:
@@ -348,7 +383,8 @@ def _do_listing(backend, action, args, key, **_):
     return json.dumps({key: (items := getattr(backend, action)()), "count": len(items)})
 
 def _summarize_click(action: str, args: Dict[str, Any], fg: str) -> str:
-    where = (f" element #{args['element']}" if args.get("element") is not None
+    where = (f" test_id {args['test_id']}" if args.get("test_id")
+             else f" element #{args['element']}" if args.get("element") is not None
              else f" at {tuple(args['coordinate'])}" if args.get("coordinate") else "")
     return f"{action}{where}{fg}"
 
@@ -373,7 +409,7 @@ _ACTIONS: Dict[str, _ActionSpec] = {
                   summarize=lambda a, args, fg: f"key {args.get('keys', '')!r}{fg}"),
     "set_value": _input(lambda backend, action, args, **_: (
         json.dumps({"error": "set_value requires `value`"}) if args.get("value") is None
-        else backend.set_value(value=str(args["value"]), element=args.get("element")))),
+        else backend.set_value(value=str(args["value"]), element=_target(backend, args)))),
     "focus_app": _ActionSpec(lambda backend, action, args, **_: (
         json.dumps({"error": "focus_app requires `app`"}) if not args.get("app")
         else backend.focus_app(args["app"], raise_window=bool(args.get("raise_window")))), destructive=True,
@@ -467,13 +503,18 @@ def _bounds_unknown(bounds) -> bool:
 
 def _element_to_dict(e: UIElement) -> Dict[str, Any]:
     # A zero rect is "geometry unknown", not a position — null it so no coordinate= is ever derived from it (the index still works).
+    # A device element carries the app's own id for itself. Surfacing it is what makes `test_id`
+    # usable at all: without it the model is told to prefer an address it can never see.
+    test_id = str((e.attributes or {}).get("test_id") or "")
     return {"index": e.index, "role": e.role, "label": e.label[:_MAX_ELEMENT_LABEL_CHARS],
             "bounds": None if _bounds_unknown(e.bounds) else list(e.bounds), "app": e.app,
+            **({"test_id": test_id} if test_id else {}),
             **({"label_truncated": True} if len(e.label) > _MAX_ELEMENT_LABEL_CHARS else {})}
 
 def _format_elements(elements: List[UIElement], max_lines: int = 40) -> List[str]:
     out = [f"  #{e.index} {e.role} {e.label.replace(chr(10), ' ')[:60]!r} "
            + ("@ bounds-unknown (click by element index)" if _bounds_unknown(e.bounds) else f"@ {e.bounds}")
+           + (f" test_id={(e.attributes or {}).get('test_id')}" if (e.attributes or {}).get("test_id") else "")
            + (f" [{e.app}]" if e.app else "") for e in elements[:max_lines]]
     return out + ([f"  ... +{len(elements) - max_lines} more (call capture with app= to narrow)"] if len(elements) > max_lines else [])
 

@@ -2236,6 +2236,11 @@ DEFAULT_CONFIG = {
     "paste_collapse_char_threshold": 2000,
 
     "computer_use": {
+        # Which surface `computer_use` drives: desktop (this machine, through cua-driver) or
+        # device (an attached Android phone or emulator). Config rather than an env var because
+        # the backend can run on a different machine than the client, where an env-keyed choice
+        # is invisible. Provision the device surface with `hermes device install`.
+        "surface": "desktop",
         # cua-driver's upstream PostHog telemetry defaults ON; Hermes sets
         # CUA_DRIVER_RS_TELEMETRY_ENABLED=0 in every child env unless this is true.
         "cua_telemetry": False,

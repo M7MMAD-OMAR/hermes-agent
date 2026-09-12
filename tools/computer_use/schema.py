@@ -80,6 +80,14 @@ _PROPERTIES: Dict[str, Any] = {
             "preferred over raw coordinates."
         ),
     },
+    "test_id": {
+        "type": "string",
+        "description": (
+            "Mobile device backends only. The app's own testID for the target, which survives a "
+            "re-layout where the SOM index does not (the soft keyboard opening is a re-layout). "
+            "Prefer it over `element` whenever a capture shows one."
+        ),
+    },
     "coordinate": {
         "type": "array",
         "items": {"type": "integer"},

@@ -46,6 +46,8 @@ _SCROLL_DIRECTIONS = {"down": (0, -1), "up": (0, 1), "right": (-1, 0), "left": (
 class AndroidDeviceBackend(ComputerUseBackend):
     """Drives one attached Android device or emulator."""
 
+    accepts_test_ids = True
+
     def __init__(self, *, permission_mode: str = "standard", serial: str = "") -> None:
         self.permission_mode = permission_mode
         self._serial = serial or os.environ.get(_SERIAL_ENV, "").strip()
@@ -296,8 +298,7 @@ def _sole_device_serial(devices: List[Dict[str, str]]) -> str:
 
 def _filter_to_package(elements: List[UIElement], package: str) -> List[UIElement]:
     """Keep one package's elements and renumber them, so indices stay 1..n for the model."""
+    from dataclasses import replace
     kept = [e for e in elements
             if e.app == package or e.attributes.get("resource_id", "").startswith(f"{package}:")]
-    for position, element in enumerate(kept, start=1):
-        element.index = position
-    return kept
+    return [replace(element, index=position) for position, element in enumerate(kept, start=1)]

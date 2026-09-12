@@ -14,6 +14,7 @@ the same commit that moves an item, or it becomes another stale plan.
 | testID addressing through the tool | `schema.py`'s `test_id`, `tool._target`, `_element_to_dict` | refused with a clear error on a surface that addresses by index |
 | The error-overlay guard | `device_backend_input.error_overlay`, applied in `_guarded` | a live render throw is caught, named, and the next action refuses |
 | User documentation | `website/docs/user-guide/features/computer-use.md` | the device section, the config key and the on-device disclosure |
+| `mobile_console` (Decision 3) | `tools/mobile_console.py` + `_cdp.py` + `_logcat.py`, toolset `device` | `tests/tools/test_mobile_console.py`, 33 tests; both channels verified live on a development build |
 | The device lease | `gateway/device_control_broker.py`, taken in `start()`, freed in `stop()` | `tests/gateway/test_device_control_broker.py`, 19 tests, including a subprocess contention test and a SIGKILL release |
 
 Verified end to end through `handle_computer_use` against the Expo demo app on a
@@ -29,16 +30,12 @@ Each of these is a Roadmap line that has no code yet.
    `localfilesystem:`, not `unix:`, and never call `adb kill-server`. The lease already
    prevents the collision this would otherwise cause, so this is isolation for its own
    sake rather than a correctness fix.
-2. **The `mobile_console` tool** (Decision 3) on `tools/browser_cdp_tool.py`'s path:
-   CDP through Metro's inspector proxy merged with logcat, because
-   `Runtime.consoleAPICalled` works in a development build and never fires in Expo
-   Go. `prototype/mobile_console.py` is the working reference.
-3. **Screen capture for a panel** (Decision 1): `adb exec-out screenrecord
+2. **Screen capture for a panel** (Decision 1): `adb exec-out screenrecord
    --time-limit 0 --output-format=h264 -` decoded by Electron's `VideoDecoder`.
    scrcpy is the later stage, not the first one.
-4. **`EmbeddedDevicePanel`** (Decision 5) beside the transcript, in the same family
+3. **`EmbeddedDevicePanel`** (Decision 5) beside the transcript, in the same family
    as `apps/desktop/src/app/chat/embedded-browser-panel.tsx`.
-5. **The crash and ANR pipeline** onto the existing `_run_streams` push channel. Note
+4. **The crash and ANR pipeline** onto the existing `_run_streams` push channel. Note
    the class count: ANR is unreachable from JS under Hermes, so the useful classes
    are JS and native.
 
@@ -57,6 +54,23 @@ half. What had to be added is the part the browser broker does not need at all:
 Hermes sessions are separate processes, so the authority is a kernel file lock and not
 a dictionary. An in-process registry would have passed every test except the one that
 matters, and reported success to every session.
+
+**Spike 5's network result did not reproduce, and the failure has the shape the design
+already warned about for the console.** `spikes.md` records `Network.*` as verified
+working on RN 0.86 with real request and response events captured. On this host, on a
+development build of the demo app on Expo SDK 57 and React Native 0.86, `Network.enable`
+returns ok and not one `Network.*` event ever arrives, while the app's own counter shows
+nine completed requests. A raw listener attached directly to the target saw only
+`Runtime.consoleAPICalled`, `Runtime.executionContextCreated` and `Log.entryAdded`. This
+is the same trap the design names for `Runtime.enable`: an enable answering ok means the
+inspector proxy accepted the command, not that the engine implements the domain. So the
+tool reports the network channel live only once a request event has actually arrived.
+
+**A React Native app reloads constantly, so a one-shot attach is not an attach.** Every
+reload and every Metro restart replaces the target. The first version attached once and
+fell back to logcat for the rest of the session after the first reload, which reads as
+"CDP does not work on this app" and is not that. The CDP channel re-attaches on a two
+second cycle, and that was verified by force-stopping the app mid-session.
 
 **A ticket with no second party is a credential handed from a function to itself.**
 Decision 4 asked for the lease to be "minted, consumed, and released" like the browser

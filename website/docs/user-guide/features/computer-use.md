@@ -474,6 +474,32 @@ device immediately. With two devices attached, a second session takes the free o
 without being told which; with two free devices it asks you to pick with
 `ANDROID_SERIAL`, because guessing wrong is silent.
 
+### What the app said: `mobile_console`
+
+Driving a device tells you what it looks like. `mobile_console` tells you what the app
+thought, which is usually the part that explains the screen:
+
+```
+mobile_console(action="read", level="error")
+```
+
+It returns what the app logged since your last read, so a read after a tap shows what
+that tap caused. `action="status"` reports which channel is live, `clear` resets both
+sides, `stop` detaches.
+
+**It runs two channels, because which one works is invisible until you look.** In a
+development build the Chrome DevTools Protocol delivers every console call with real
+arguments and real stack frames. In Expo Go it never fires once: the engine there does
+not support debugging over CDP at all, and `adb logcat` is the only console there is.
+The tool attaches to both, says which is live, and drops logcat's echo of lines CDP
+already carried better. Native tags are never dropped, because CDP does not carry them.
+
+A domain answering `enable` successfully is not evidence that it works. That is true of
+the console and it is true of the network: measured on React Native 0.86, an app that
+demonstrably completed nine requests produced no network event at all while
+`Network.enable` reported success. So `status` reports the network channel as live only
+once a request event has actually arrived, and says so plainly when it has not.
+
 **Reading a screen installs an app on the device.** The Android CLI's instrumentation
 server is what makes reads work without `adb root`, and it stays on the device
 afterwards. `hermes device instrumentation` reports it and `--remove` uninstalls it;

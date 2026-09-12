@@ -94,6 +94,14 @@ TOOLSETS = {
         "or keyboard focus. Works with any tool-capable model.",
         ["computer_use"],
     ),
+    "device": _ts(
+        "Mobile device development: what the app on an attached Android device or "
+        "emulator logged, the exceptions it threw, and the requests it made. Pairs with "
+        "`computer_use` on the device surface (``computer_use.surface: device``), which "
+        "is what taps and types on it. Gated by its tool's check_fn, so it appears only "
+        "where the Android SDK is provisioned.",
+        ["mobile_console"],
+    ),
     "terminal": _ts("Terminal/command execution and process management tools", ["terminal", "process_manage"]),
     "skills": _ts(
         "Access, create, edit, and manage skill documents with specialized "

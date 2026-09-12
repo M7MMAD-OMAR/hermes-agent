@@ -33,16 +33,24 @@ Done live against the demo app on a headless `Expo_API_36` emulator, in the orde
 session would use it:
 
 ```
-1 console   emulator-5554, the only device attached | cdp=True
-2 capture   1080x2400, 38 elements on com.anonymous.hermesmobiledemo
-3 act       confirmed: tap Button 'Increment'
-4 lease     emulator-5554, leased by this session
-5 console   1 error: [demo] error level message from the console screen
-6 watch     proc_98024576e058
-7 exits     5 recorded process exits
-8 record    75025 bytes in 4.5s
-9 release   lease returned, console detached
+ 1 console   emulator-5554, the only device attached | cdp=True
+ 2 capture   38 elements on com.anonymous.hermesmobiledemo
+ 3 act       confirmed: tap Button 'Increment' at (166, 571)
+ 4 lease     emulator-5554, leased by this session
+ 5 console   [demo] error level message from the console screen
+ 6 watch     proc_9ca47d5a015f
+ 7 exits     5 process exits
+ 8 record    75025 bytes
+ 9 panel     frame 420x933
+10 scaffold  13 ids
+11 flow      passed=True (reader released: True)
+12 reader    38 elements again
+13 release   lease returned, console detached
 ```
+
+Step 11 into step 12 is the one that matters most, because it is the pair that was
+silently broken: a flow runs after the screen reader held the device's single
+UiAutomation connection, and the reader has it back immediately afterwards.
 
 ## Roadmap state
 

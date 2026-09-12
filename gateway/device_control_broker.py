@@ -210,6 +210,18 @@ class DeviceControlBroker:
         finally:
             handle.close()
 
+    def serial_for_session(self, session_id: str) -> Optional[str]:
+        """The device this session has leased, or None.
+
+        Only this process's leases: another process's lease is that process's business,
+        and a session id is unique to the session that owns it either way.
+        """
+        if not session_id:
+            return None
+        with self._lock:
+            return next((serial for serial, lease in self._leases.items()
+                         if lease.scope.session_id == session_id), None)
+
     def held_by_other_session(self, serial: str, scope: DeviceControlScope) -> bool:
         """Whether ``serial`` is taken by somebody who is not ``scope``."""
         record = self.holder(serial)

@@ -366,10 +366,11 @@ def test_expo_go_runs_the_bundle_in_its_own_process():
     assert EXPO_GO_PACKAGE == "host.exp.exponent"
 
 
-def test_a_watch_without_a_device_says_so(monkeypatch):
+def test_a_watch_without_a_device_says_which_reason(monkeypatch):
+    """"nothing to watch" on its own sends someone to check a cable that is fine."""
     attachment = _attachment()
-    attachment.adb = []
-    assert "no device" in tool._start_crash_watch(attachment, "s")["error"]
+    attachment.adb, attachment.device_note = [], "several devices are attached (a, b)"
+    assert "several devices" in tool._start_crash_watch(attachment, "s")["error"]
 
 
 def test_exits_without_a_package_refuses_rather_than_reporting_none(monkeypatch):
@@ -378,3 +379,71 @@ def test_exits_without_a_package_refuses_rather_than_reporting_none(monkeypatch)
     monkeypatch.setattr(tool, "_attachment", lambda *a, **kw: attachment)
     monkeypatch.setattr(tool, "resolve_package", lambda adb, package="": None)
     assert "no package" in json.loads(tool.mobile_console("exits", session_id="s"))["error"]
+
+
+# --- which device --------------------------------------------------------------------
+
+
+def test_the_leased_device_wins_over_whatever_is_attached(monkeypatch):
+    """A session leased to phone-b was reading phone-a's logs."""
+    from tools.computer_use import device_adb
+    monkeypatch.setattr("hermes_cli.tools_config_android.adb_command", lambda: "adb")
+    monkeypatch.setattr("hermes_cli.tools_config_android.attached_devices",
+                        lambda: [{"serial": "phone-a", "state": "device"},
+                                 {"serial": "phone-b", "state": "device"}])
+    monkeypatch.setattr(device_adb, "_leased_serial", lambda session_id: "phone-b")
+    argv, note = device_adb.session_adb("planner")
+    assert argv == ["adb", "-s", "phone-b"]
+    assert "leased" in note
+
+
+def test_several_free_devices_refuse_rather_than_picking_one(monkeypatch):
+    """Reading a log needs no lease. Guessing which phone the reader meant is different."""
+    from tools.computer_use import device_adb
+    monkeypatch.setattr("hermes_cli.tools_config_android.adb_command", lambda: "adb")
+    monkeypatch.setattr("hermes_cli.tools_config_android.attached_devices",
+                        lambda: [{"serial": "phone-a", "state": "device"},
+                                 {"serial": "phone-b", "state": "device"}])
+    monkeypatch.setattr(device_adb, "_leased_serial", lambda session_id: None)
+    argv, note = device_adb.session_adb("reader")
+    assert argv == []
+    assert "phone-a" in note and "ANDROID_SERIAL" in note
+
+
+def test_one_attached_device_needs_no_lease_to_read(monkeypatch):
+    from tools.computer_use import device_adb
+    monkeypatch.setattr("hermes_cli.tools_config_android.adb_command", lambda: "adb")
+    monkeypatch.setattr("hermes_cli.tools_config_android.attached_devices",
+                        lambda: [{"serial": "phone-a", "state": "device"}])
+    monkeypatch.setattr(device_adb, "_leased_serial", lambda session_id: None)
+    assert device_adb.session_adb("reader")[0] == ["adb", "-s", "phone-a"]
+
+
+def test_an_env_pin_is_honoured_when_nothing_is_leased(monkeypatch):
+    from tools.computer_use import device_adb
+    monkeypatch.setattr("hermes_cli.tools_config_android.adb_command", lambda: "adb")
+    monkeypatch.setattr(device_adb, "_leased_serial", lambda session_id: None)
+    monkeypatch.setenv("ANDROID_SERIAL", "192.168.1.7:5555")
+    assert device_adb.session_adb("reader")[0] == ["adb", "-s", "192.168.1.7:5555"]
+
+
+def test_no_device_at_all_is_named(monkeypatch):
+    from tools.computer_use import device_adb
+    monkeypatch.setattr("hermes_cli.tools_config_android.adb_command", lambda: "adb")
+    monkeypatch.setattr("hermes_cli.tools_config_android.attached_devices", lambda: [])
+    monkeypatch.setattr(device_adb, "_leased_serial", lambda session_id: None)
+    monkeypatch.delenv("ANDROID_SERIAL", raising=False)
+    assert device_adb.session_adb("reader") == ([], "no device is attached")
+
+
+def test_the_broker_finds_a_serial_by_session(tmp_path, monkeypatch):
+    from gateway.device_control_broker import DeviceControlBroker, DeviceControlScope
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    broker = DeviceControlBroker()
+    try:
+        broker.acquire(DeviceControlScope(serial="phone-b", session_id="planner"))
+        assert broker.serial_for_session("planner") == "phone-b"
+        assert broker.serial_for_session("someone-else") is None
+        assert broker.serial_for_session("") is None
+    finally:
+        broker.reset()

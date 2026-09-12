@@ -15,6 +15,8 @@ the same commit that moves an item, or it becomes another stale plan.
 | The error-overlay guard | `device_backend_input.error_overlay`, applied in `_guarded` | a live render throw is caught, named, and the next action refuses |
 | User documentation | `website/docs/user-guide/features/computer-use.md` | the device section, the config key and the on-device disclosure |
 | `mobile_console` (Decision 3) | `tools/mobile_console.py` + `_cdp.py` + `_logcat.py`, toolset `device` | `tests/tools/test_mobile_console.py`, 33 tests; both channels verified live on a development build |
+| Screen recording (Decision 1, v1 stage) | `tools/mobile_record.py`, toolset `device` | `tests/tools/test_mobile_record.py`, 7 tests; a 6 second recording pulled and the device file removed |
+| Lease-aware adb routing | `tools/computer_use/device_adb.py`, used by every adb caller | 6 tests, plus a live check that a leaseholder and a reader resolve differently |
 | Crash and ANR notifications | `tools/mobile_console_crash.py`, `mobile_console` actions `watch` and `exits` | a real native crash delivered a `watch_match` notification end to end |
 | The device lease | `gateway/device_control_broker.py`, taken in `start()`, freed in `stop()` | `tests/gateway/test_device_control_broker.py`, 19 tests, including a subprocess contention test and a SIGKILL release |
 
@@ -26,16 +28,14 @@ type, read back, key, scroll, focus_app, and the overlay guard.
 
 Each of these is a Roadmap line that has no code yet.
 
-1. **The adb transport isolation** that the lease does not cover:
-   `ADB_SERVER_SOCKET=localfilesystem:<short path>` per session. Note the prefix is
-   `localfilesystem:`, not `unix:`, and never call `adb kill-server`. The lease already
-   prevents the collision this would otherwise cause, so this is isolation for its own
-   sake rather than a correctness fix.
-2. **Screen capture for a panel** (Decision 1): `adb exec-out screenrecord
-   --time-limit 0 --output-format=h264 -` decoded by Electron's `VideoDecoder`.
-   scrcpy is the later stage, not the first one.
-3. **`EmbeddedDevicePanel`** (Decision 5) beside the transcript, in the same family
-   as `apps/desktop/src/app/chat/embedded-browser-panel.tsx`.
+1. **`EmbeddedDevicePanel`** (Decision 5) beside the transcript, in the same family
+   as `apps/desktop/src/app/chat/embedded-browser-panel.tsx`, fed by
+   `mobile_record.stream_argv`, which already builds the unbounded H.264 command.
+
+   Not started deliberately rather than for lack of time. The packaged Electron app
+   cannot run inside an Orbit session under its 2 GiB and 512-task budget while another
+   agent has one open, so a panel built here could not be checked the way every other
+   piece in this table was. It needs a free Orbit budget or the person's own desktop.
 
 
 ## Two things the live runs taught that are not in the spikes
@@ -53,6 +53,19 @@ half. What had to be added is the part the browser broker does not need at all:
 Hermes sessions are separate processes, so the authority is a kernel file lock and not
 a dictionary. An in-process registry would have passed every test except the one that
 matters, and reported success to every session.
+
+**A per-session adb server is unverifiable for the case that matters, so the lease plus
+one routing helper stands in its place.** Decision 4 proposed isolating the transport
+with `ADB_SERVER_SOCKET=localfilesystem:<path>` per session alongside the lease. Two
+servers do coexist, and both see an emulator, which is a TCP connection to a console
+port. A USB device is not that: one adb server claims the interface exclusively, and a
+second server is the ordinary way to make a physical device go offline for both. That
+case cannot be tested on this host, and it is the one Tier 2 calls the true zero-install
+path. Shipping it would mean the physical-device path is the only one nobody checked. So
+what is isolated is routing: `tools/computer_use/device_adb.py` is the single place that
+decides which serial a command talks to, and it prefers the session's own lease. That
+also fixed a real bug: the console resolved "the device" independently, so a session
+leased to one phone could read another one's logs.
 
 **The push channel the design named is consumed by nobody.** Decision "crash and ANR
 notifications" routes events into `_run_streams`, correcting an earlier draft that named

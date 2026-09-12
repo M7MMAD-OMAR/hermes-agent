@@ -500,6 +500,19 @@ demonstrably completed nine requests produced no network event at all while
 `Network.enable` reported success. So `status` reports the network channel as live only
 once a request event has actually arrived, and says so plainly when it has not.
 
+### Showing rather than describing
+
+Some things only exist in motion: an animation that stutters, a screen that flashes
+before it settles, a gesture that lands somewhere unexpected.
+
+```
+mobile_record(seconds=10)
+```
+
+writes an `.mp4` and returns its path. The encode happens on the device's own hardware,
+so this needs no ffmpeg, no scrcpy and nothing vendored. There is no audio, a DRM surface
+may come out black, and the device refuses resolutions its encoder does not support.
+
 ### When the app dies
 
 A JavaScript exception reaches the console. A native crash and an ANR do not, and they

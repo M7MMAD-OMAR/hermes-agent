@@ -21,7 +21,7 @@ import os
 import threading
 import time
 from collections import deque
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from tools.mobile_console_cdp import (
     DEFAULT_METRO_PORT, LEVEL_NAMES, ConsoleRecord, MetroUnavailable, discover_target,
@@ -50,8 +50,10 @@ _DEFAULT_TAGS = (DEFAULT_TAG, "ReactNative", "AndroidRuntime")
 class _Attachment:
     """One session's live view of one app: both channels, one buffer."""
 
-    def __init__(self, *, host: str, port: int, adb: Sequence[str], tags: Sequence[str]) -> None:
+    def __init__(self, *, host: str, port: int, adb: Sequence[str], tags: Sequence[str],
+                 device_note: str = "") -> None:
         self.host, self.port, self.adb, self.tags = host, port, list(adb), list(tags)
+        self.device_note = device_note
         self.records: deque = deque(maxlen=_BUFFER_LIMIT)
         self.domains: Dict[str, bool] = {}
         self.target: Dict[str, Any] = {}
@@ -196,17 +198,13 @@ _attachments: Dict[str, _Attachment] = {}
 _attachments_lock = threading.Lock()
 
 
-def _device_adb() -> List[str]:
-    """The adb invocation for the device this host is driving, or [] when there is none."""
+def _device_adb(session_id: str) -> Tuple[List[str], str]:
+    """The adb invocation for this session's device, and why that one."""
     try:
-        from hermes_cli.tools_config_android import adb_command, attached_devices
+        from tools.computer_use.device_adb import session_adb
+        return session_adb(session_id)
     except ImportError:
-        return []
-    adb = adb_command()
-    if not adb:
-        return []
-    ready = [d["serial"] for d in attached_devices() if d["state"] == "device"]
-    return [adb, "-s", ready[0]] if len(ready) == 1 else ([adb] if ready else [])
+        return [], "device support is unavailable in this build"
 
 
 def _attachment(session_id: str, *, host: str, port: int, tags: Sequence[str]) -> _Attachment:
@@ -216,7 +214,8 @@ def _attachment(session_id: str, *, host: str, port: int, tags: Sequence[str]) -
             return existing
         if existing is not None:
             existing.stop()
-        attachment = _Attachment(host=host, port=port, adb=_device_adb(), tags=tags)
+        adb, device_note = _device_adb(session_id)
+        attachment = _Attachment(host=host, port=port, adb=adb, tags=tags, device_note=device_note)
         _attachments[session_id] = attachment
     attachment.start()
     return attachment
@@ -242,6 +241,9 @@ def _channel_note(attachment: _Attachment) -> str:
         return ("CDP console is live on this target, so arguments and stack frames are real. "
                 "logcat's echo of the same JS console lines is dropped; its native tags are not.")
     if attachment.cdp_error:
+        if not attachment.adb:
+            return (f"No CDP channel ({attachment.cdp_error}) and no logcat either: "
+                    f"{attachment.device_note}.")
         return (f"No CDP channel ({attachment.cdp_error}) Records are from logcat, which "
                 "carries every level as flattened text.")
     if attachment.target:
@@ -260,7 +262,7 @@ def _start_crash_watch(attachment: "_Attachment", session_id: str) -> Dict[str, 
     the "rare one-shot mid-process signal" those patterns are documented for.
     """
     if not attachment.adb:
-        return {"error": "no device attached, so there is nothing to watch"}
+        return {"error": f"nothing to watch: {attachment.device_note}"}
     from tools.terminal_tool_background import spawn_background_process
     from tools.environments.local import LocalEnvironment
     command = watch_command(attachment.adb)
@@ -306,6 +308,7 @@ def mobile_console(action: str = "read", *, session_id: str = "", host: str = "1
             "cdp_console_live": attachment.cdp_console_live,
             "network_domain": _network_note(attachment),
             "buffered": len(attachment.records),
+            "device": attachment.device_note,
             "note": _channel_note(attachment),
         }, indent=2)
 
@@ -318,7 +321,8 @@ def mobile_console(action: str = "read", *, session_id: str = "", host: str = "1
     if action == "exits":
         package = resolve_package(attachment.adb, str(args_package or ""))
         if not package:
-            return json.dumps({"error": "no package to query: pass one, or open the app first"})
+            return json.dumps({"error": f"no package to query ({attachment.device_note}): "
+                                        "pass one, or open the app first"})
         return json.dumps(exit_info(attachment.adb, package), indent=2)
 
     if action == "watch":

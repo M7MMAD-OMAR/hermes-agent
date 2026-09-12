@@ -1,4 +1,4 @@
-# v1 implementation: what has landed, and what is left
+# Implementation: what has landed, and what is left
 
 Tracks the Roadmap section of [`design.md`](design.md) against the code. Update it in
 the same commit that moves an item, or it becomes another stale plan.
@@ -44,18 +44,47 @@ session would use it:
 9 release   lease returned, console detached
 ```
 
-## Not started
+## Roadmap state
 
-Each of these is a Roadmap line that has no code yet.
+**v1 is complete.** Every line of it has code, tests, and a live run behind it.
 
-1. **`EmbeddedDevicePanel`** (Decision 5) beside the transcript, in the same family
-   as `apps/desktop/src/app/chat/embedded-browser-panel.tsx`, fed by
-   `mobile_record.stream_argv`, which already builds the unbounded H.264 command.
+**v2 is complete except for one item its own text makes conditional.** Network
+visibility landed in v1 rather than v2, and stricter than specified: the gate the
+roadmap describes is an RN version check, and what shipped reports the channel live only
+once a request event has actually arrived, because the version check turned out not to
+predict whether events come (see the spike-5 note below). Maestro authoring and wireless
+pairing both landed.
 
-   Not started deliberately rather than for lack of time. The packaged Electron app
-   cannot run inside an Orbit session under its 2 GiB and 512-task budget while another
-   agent has one open, so a panel built here could not be checked the way every other
-   piece in this table was. It needs a free Orbit budget or the person's own desktop.
+**v3 cannot be built here.** It is contingent on a macOS Hermes build existing at all;
+the iOS Simulator requires Xcode on macOS with no exception, and this is a Fedora
+workstation. Nothing about it is blocked by the work above: the backend seams it extends
+(`ComputerUseBackend`, the lease, the console's channel split) are all in place.
+
+## Not started, and why each one is not merely undone
+
+1. **The component tree, Redux and router bridge** (v2). The roadmap makes this
+   conditional in its own sentence: "if real agent usage shows it is needed badly enough
+   to justify a JS hook shipped into target apps". The condition has not occurred, and
+   the cost is specific rather than vague: it means shipping a runtime hook into the
+   user's own application source, which is the one thing every other piece here avoids.
+   The device platform reads what the app already exposes; this would require the app to
+   expose more. Build it when an agent's real usage names a case the accessibility tree
+   and the console cannot answer.
+
+2. **An iOS backend** (v3). Needs macOS. See above.
+
+## Verified, and to what standard
+
+Everything in the table above was driven against a real device except two things, and
+both are named rather than implied:
+
+- **The wireless pairing exchange.** There is no physical device on this host, so the
+  code path is tested and the adb handshake is not. An emulator cannot stand in: it is
+  reached over TCP already and never pairs.
+- **The rendered device panel.** Its RPC pair was driven live and it carries 11 vitest
+  tests, but the packaged Electron app cannot run inside an Orbit session under its
+  2 GiB and 512-task budget while another agent holds one, and the person's own screen
+  is not available to an agent. What has not been seen is the panel drawing itself.
 
 
 ## Two things the live runs taught that are not in the spikes

@@ -624,3 +624,64 @@ def test_edit_stays_quiet_on_a_workbook_that_loses_nothing(tmp_path):
 
     assert result["ok"] is True
     assert "lost_on_load" not in result
+
+
+@pytest.mark.parametrize(
+    "rng,axis,idx,count,delete,want",
+    [
+        # A whole column range is unbounded on rows, so a row shift cannot
+        # move it. Excel writes an autofilter over a whole column this way,
+        # which is why this is the case that mattered.
+        ("A:C", "rows", 2, 1, False, "A:C"),
+        ("A:C", "cols", 1, 1, False, "B:D"),
+        # And the mirror image: a whole row range is unbounded on columns.
+        ("2:5", "rows", 2, 1, False, "3:6"),
+        ("2:5", "cols", 1, 1, False, "2:5"),
+        # Ordinary bounded ranges keep working.
+        ("A1:B3", "rows", 2, 1, False, "A1:B4"),
+        ("A1:B3", "cols", 1, 1, False, "B1:C3"),
+        # Deleting every column a whole column range covers removes it.
+        ("A:B", "cols", 1, 2, True, None),
+    ],
+)
+def test_shift_range_handles_open_ended_refs(rng, axis, idx, count, delete, want):
+    """`range_boundaries` reports the open half as None, and it was used raw.
+
+    That gave a TypeError on the row axis and, worse, a silently malformed
+    ref like "ANone:DNone" on the column axis.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "xlsx_restructure_under_test", SCRIPTS / "xlsx_restructure.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.shift_range(rng, axis, idx, count, delete) == want
+
+
+def test_restructure_survives_a_whole_column_autofilter(tmp_path):
+    """The end to end shape of the same bug.
+
+    A whole column autofilter is what Excel writes for "filter this table",
+    and it made the script exit with an opaque
+    "'>=' not supported between instances of 'NoneType' and 'int'".
+    """
+    from openpyxl import Workbook, load_workbook
+
+    src = tmp_path / "filtered.xlsx"
+    book = Workbook()
+    sheet = book.active
+    for row_index, row in enumerate([["Region", "Sales"], ["North", 10]], start=1):
+        for col_index, value in enumerate(row, start=1):
+            sheet.cell(row=row_index, column=col_index, value=value)
+    sheet.auto_filter.ref = "A:B"
+    book.save(str(src))
+
+    out = tmp_path / "restructured.xlsx"
+    result = json.loads(run("xlsx_restructure.py", src, "--sheet", "Sheet",
+                            "--insert-rows", 2, "--out", out).stdout)
+
+    assert result["ok"] is True
+    # Unbounded on rows, so inserting a row leaves it exactly as it was.
+    assert load_workbook(str(out)).active.auto_filter.ref == "A:B"

@@ -95,18 +95,44 @@ def shift_span(a, b, idx, n, delete):
 
 
 def shift_range(rng, axis, idx, n, delete):
-    """Shift an A1 range string (no sheet prefix). None = fully deleted."""
+    """Shift an A1 range string (no sheet prefix). None = fully deleted.
+
+    Handles the open-ended forms Excel writes for a whole column ("A:C") and
+    a whole row ("2:5"). `range_boundaries` reports the missing half as None,
+    so the arithmetic below used to run on None: a TypeError on the row axis,
+    and on the column axis a silently malformed ref like "ANone:DNone". A
+    workbook with a whole column autofilter, which is the common case, could
+    not be restructured at all.
+
+    An open-ended range is unbounded on that axis by definition, so a shift
+    along it leaves the range alone: inserting rows does not change what
+    "A:C" means. The bounded axis still shifts, and the open form is written
+    back as it was found.
+    """
     min_col, min_row, max_col, max_row = range_boundaries(rng)
+    whole_column = min_row is None       # "A:C", rows unbounded
+    whole_row = min_col is None          # "2:5", columns unbounded
+
     if axis == "rows":
+        if whole_column:
+            return rng
         span = shift_span(min_row, max_row, idx, n, delete)
         if span is None:
             return None
         min_row, max_row = span
     else:
+        if whole_row:
+            return rng
         span = shift_span(min_col, max_col, idx, n, delete)
         if span is None:
             return None
         min_col, max_col = span
+
+    if whole_column:
+        return f"{get_column_letter(min_col)}:{get_column_letter(max_col)}"
+    if whole_row:
+        return f"{min_row}:{max_row}"
+
     start = f"{get_column_letter(min_col)}{min_row}"
     end = f"{get_column_letter(max_col)}{max_row}"
     return start if start == end and ":" not in rng else f"{start}:{end}"

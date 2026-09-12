@@ -17,10 +17,12 @@ there is no staleness heuristic to get wrong. The scope written into the lease f
 diagnostic, so a refusal can name who holds the device; it is never consulted to decide
 whether the device is free.
 
-The omission: the browser broker's `dispatch`, `complete`, `attach`/`detach` and
-cancel-frame ordering exist to talk to a controller on the far end of a wire. A device
-backend runs adb in this process, so there is no far end and that machinery would be
-code nobody calls.
+The omission: the browser broker's `dispatch`, `complete`, `attach`/`detach`,
+cancel-frame ordering and single-use tickets all exist to talk to a controller on the
+far end of a wire. A device backend runs adb in this process, so there is no far end,
+nobody to hand a credential to, and no caller for any of it. `design.md` asked for a
+ticket minted, consumed and released; that request assumed the remote-controller shape,
+and a ticket with no second party is a credential handed from a function to itself.
 """
 
 from __future__ import annotations
@@ -29,18 +31,16 @@ import json
 import logging
 import os
 import re
-import secrets
 import sys
 import tempfile
 import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger("gateway.device_control")
 
-DEFAULT_TICKET_TTL = 30.0
 #: Serials can be host:port for a wireless device, so they are not filenames as they stand.
 _UNSAFE_IN_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -50,10 +50,6 @@ _IDENTITY_FIELDS = ("principal_id", "session_id", "task_id", "transport_family",
 
 class DeviceControlError(Exception):
     """Base for every device-lease failure."""
-
-
-class DeviceTicketInvalid(DeviceControlError):
-    """The ticket is unknown, already consumed, or expired."""
 
 
 class DeviceBusy(DeviceControlError):
@@ -74,20 +70,6 @@ def _same_scope_identity(first: DeviceControlScope, second: DeviceControlScope) 
     return all(getattr(first, name) == getattr(second, name) for name in _IDENTITY_FIELDS)
 
 
-@dataclass(frozen=True)
-class Ticket:
-    """Opaque, single-use credential bound to one scope."""
-    value: str
-    expires_at: float
-
-
-@dataclass
-class _TicketRecord:
-    scope: DeviceControlScope
-    expires_at: float
-    consumed: bool = False
-
-
 @dataclass
 class _Lease:
     """One held device. `handle` is the open descriptor whose closure frees the lock."""
@@ -97,9 +79,19 @@ class _Lease:
 
 
 def lease_root() -> Path:
-    """Where lease files live: the runtime directory, which the OS clears on logout."""
+    """Where lease files live: the runtime directory, which the OS clears on logout.
+
+    The fallback is per user, because a shared temp directory would let one user's lease
+    refuse another's device. Windows already gives each user its own temp directory and
+    has no `os.getuid`, so the uid suffix is POSIX-only.
+    """
     runtime = os.environ.get("XDG_RUNTIME_DIR", "").strip()
-    base = Path(runtime) if runtime else Path(tempfile.gettempdir()) / f"hermes-{os.getuid()}"
+    if runtime:
+        base = Path(runtime)
+    elif hasattr(os, "getuid"):
+        base = Path(tempfile.gettempdir()) / f"hermes-{os.getuid()}"
+    else:
+        base = Path(tempfile.gettempdir()) / "hermes"
     return base / "hermes" / "device-leases"
 
 
@@ -142,47 +134,11 @@ def _read_record(handle) -> dict:
 
 
 class DeviceControlBroker:
-    """Thread-safe lease registry over the per-device file locks; ``clock`` is injectable."""
+    """Thread-safe registry of the leases this process holds over the per-device file locks."""
 
-    def __init__(self, *, ticket_ttl: float = DEFAULT_TICKET_TTL,
-                 clock: Optional[Callable[[], float]] = None) -> None:
-        self._ticket_ttl = ticket_ttl
-        self._clock = clock if clock is not None else time.monotonic
+    def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._tickets: Dict[str, _TicketRecord] = {}
         self._leases: Dict[str, _Lease] = {}  # serial -> lease held by THIS process
-
-    # --- tickets ---------------------------------------------------------------------
-
-    def mint_ticket(self, scope: DeviceControlScope) -> Ticket:
-        """Mint a short-lived, single-use ticket bound to ``scope``.
-
-        Expired records are dropped on every mint, so the table cannot grow without bound.
-        """
-        now = self._clock()
-        with self._lock:
-            self._tickets = {v: rec for v, rec in self._tickets.items() if rec.expires_at > now}
-            value = secrets.token_urlsafe(32)
-            self._tickets[value] = record = _TicketRecord(scope=scope, expires_at=now + self._ticket_ttl)
-        return Ticket(value=value, expires_at=record.expires_at)
-
-    def consume_ticket(self, value: str) -> DeviceControlScope:
-        """Exchange a ticket for its scope exactly once.
-
-        Unknown, consumed and expired each raise with their own message, because they mean
-        three different things to whoever has to work out why a session lost its device.
-        """
-        now = self._clock()
-        with self._lock:
-            record = self._tickets.get(value)
-            if record is None:
-                raise DeviceTicketInvalid("unknown ticket")
-            if record.consumed:
-                raise DeviceTicketInvalid("ticket already consumed")
-            if now > record.expires_at:
-                raise DeviceTicketInvalid("ticket expired")
-            record.consumed = True
-            return record.scope
 
     # --- leases ----------------------------------------------------------------------
 
@@ -262,15 +218,11 @@ class DeviceControlBroker:
         return not all(record.get(name) == getattr(scope, name) for name in _IDENTITY_FIELDS)
 
     def reset(self) -> None:
-        """Release every lease this process holds and forget every ticket."""
+        """Release every lease this process holds."""
         with self._lock:
-            leases, self._leases, self._tickets = list(self._leases.values()), {}, {}
+            leases, self._leases = list(self._leases.values()), {}
         for lease in leases:
             _close_lease(lease)
-
-    @property
-    def ticket_ttl_seconds(self) -> float:
-        return self._ticket_ttl
 
     @property
     def lease_count(self) -> int:

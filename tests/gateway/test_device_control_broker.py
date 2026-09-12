@@ -6,8 +6,9 @@ an in-process registry would report success to every session and protect nothing
 Every in-process assertion here would also pass against a plain dictionary; the
 subprocess test is the one that distinguishes a working lease from a decorative one.
 
-The rest pins the semantics copied from `BrowserControlBroker`: tickets are swept on
-mint, consumed exactly once, and refusals say which of the three things went wrong.
+The rest pins the bookkeeping: re-acquiring under one identity is a refresh rather
+than a self-collision, releasing someone else's lease does nothing, and a refusal names
+the session that holds the device.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ import pytest
 
 from gateway.device_control_broker import (
     DeviceBusy, DeviceControlBroker, DeviceControlError, DeviceControlScope,
-    DeviceTicketInvalid, get_device_control_broker)
+    get_device_control_broker)
 
 
 @pytest.fixture
@@ -161,45 +162,6 @@ def test_the_lease_file_records_who_holds_it(broker, tmp_path):
                         .read_text(encoding="utf-8"))
     assert record["session_id"] == "reporter"
     assert record["pid"] > 0
-
-
-# --- tickets -------------------------------------------------------------------------
-
-
-def test_a_ticket_is_good_exactly_once(broker):
-    ticket = broker.mint_ticket(_scope())
-    assert broker.consume_ticket(ticket.value).session_id == "a"
-    with pytest.raises(DeviceTicketInvalid, match="already consumed"):
-        broker.consume_ticket(ticket.value)
-
-
-def test_an_unknown_ticket_says_so(broker):
-    with pytest.raises(DeviceTicketInvalid, match="unknown"):
-        broker.consume_ticket("not-a-ticket")
-
-
-def test_an_expired_ticket_says_so(tmp_path, monkeypatch):
-    """Expired, consumed and unknown are three different problems for whoever has to work
-    out why a session lost its device."""
-    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
-    now = [1000.0]
-    instance = DeviceControlBroker(ticket_ttl=30.0, clock=lambda: now[0])
-    ticket = instance.mint_ticket(_scope())
-    now[0] += 31.0
-    with pytest.raises(DeviceTicketInvalid, match="expired"):
-        instance.consume_ticket(ticket.value)
-
-
-def test_expired_tickets_are_swept_on_mint(tmp_path, monkeypatch):
-    """Otherwise the table grows for the life of the process."""
-    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
-    now = [1000.0]
-    instance = DeviceControlBroker(ticket_ttl=30.0, clock=lambda: now[0])
-    stale = instance.mint_ticket(_scope())
-    now[0] += 31.0
-    instance.mint_ticket(_scope())
-    with pytest.raises(DeviceTicketInvalid, match="unknown"):
-        instance.consume_ticket(stale.value)
 
 
 def test_the_process_broker_is_a_singleton():

@@ -330,6 +330,10 @@ def _free_device_serial(devices: List[Dict[str, str]], broker, scope: DeviceCont
     Filtering before the ambiguity check is what makes two phones useful. Two attached and
     one leased resolves to the free one instead of refusing, and the refusal stays for the
     case that is genuinely ambiguous.
+
+    Reading the leases and taking one are two steps, so a racing session can take the
+    serial this one just saw free. That loses to a loud `DeviceBusy` naming the winner
+    rather than to two sessions on one phone, which is the outcome that matters.
     """
     free = [device for device in devices
             if not (device["state"] == "device"

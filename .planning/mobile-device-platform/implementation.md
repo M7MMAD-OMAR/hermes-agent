@@ -58,6 +58,14 @@ Hermes sessions are separate processes, so the authority is a kernel file lock a
 a dictionary. An in-process registry would have passed every test except the one that
 matters, and reported success to every session.
 
+**A ticket with no second party is a credential handed from a function to itself.**
+Decision 4 asked for the lease to be "minted, consumed, and released" like the browser
+broker's. That request assumed the remote-controller shape; with the backend calling
+`acquire` and `release` directly there is nobody to hand a ticket to, and four passing
+tests over an uncalled API read as validated rather than as unused. The ticket half was
+written, then deleted. If the device panel ever hands a renderer a credential for a
+device, that slice adds it back with a caller.
+
 **The Orbit private display cannot host the packaged Electron app.** Orbit caps all
 its jobs at 2 GiB and 512 tasks together, and with another agent's browser session
 running there is not enough left: Electron fails `pthread_create` and the private

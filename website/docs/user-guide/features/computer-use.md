@@ -479,8 +479,9 @@ server is what makes reads work without `adb root`, and it stays on the device
 afterwards. `hermes device instrumentation` reports it and `--remove` uninstalls it;
 the next screen read installs it again.
 
-Android on Linux, macOS and Windows today. iOS needs macOS with Xcode and is not
-supported yet.
+Android only today, and exercised against a real device on Linux. macOS and Windows run
+the same code with the same SDK requirements but have not been tested. iOS needs macOS
+with Xcode and is not supported at all yet.
 
 ## Configuration
 

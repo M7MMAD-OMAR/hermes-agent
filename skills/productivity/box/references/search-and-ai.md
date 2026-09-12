@@ -17,7 +17,7 @@ Search only returns content visible to the current actor. Resolve IDs and confir
 | Need | Command |
 | --- | --- |
 | Answer, summarize, or compare 1 file | `ai:ask` with `single_item_qa` |
-| Answer, summarize, or compare 2–25 selected files | `ai:ask` with `multiple_item_qa` |
+| Answer, summarize, or compare 2 to 25 selected files | `ai:ask` with `multiple_item_qa` |
 | Q&A over more than 25 files | [Box Hubs](hubs.md) |
 | Recurring Q&A over a curated knowledge base | [Box Hubs](hubs.md) |
 | Discover fields from an exploratory prompt | `ai:extract` |

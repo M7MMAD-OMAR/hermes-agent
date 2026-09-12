@@ -500,6 +500,31 @@ demonstrably completed nine requests produced no network event at all while
 `Network.enable` reported success. So `status` reports the network channel as live only
 once a request event has actually arrived, and says so plainly when it has not.
 
+### When the app dies
+
+A JavaScript exception reaches the console. A native crash and an ANR do not, and they
+are what "the app died" actually looks like from outside:
+
+```
+mobile_console(action="watch")
+```
+
+That tails the crash and events buffers and notifies you when the app dies natively or
+Android declares it not responding. The notice says a crash happened; the trace is in
+the next `read`, because logcat carries the whole native stack under its own tag.
+
+`mobile_console(action="exits")` reports Android's own record of why this app's
+processes ended, newest first: when, which pid, and the reason. It never says where.
+Every entry reports `trace=null` on current Android, so a stack has to come from logcat
+at the moment of the crash, or from `adb bugreport`, which is minutes and megabytes.
+
+**The ANR watcher will almost never fire for a React Native app, and that is not a bug
+in the watcher.** Under Hermes the JavaScript thread is not the Android UI thread, so a
+blocked JS thread leaves the app frozen for the user while Android considers it
+perfectly healthy: measured, a twelve second block produced no ANR at all and the
+accessibility layer kept answering throughout. The watcher stays because a genuinely
+blocked native UI thread does file one. It is not a "the app froze" detector.
+
 **Reading a screen installs an app on the device.** The Android CLI's instrumentation
 server is what makes reads work without `adb root`, and it stays on the device
 afterwards. `hermes device instrumentation` reports it and `--remove` uninstalls it;

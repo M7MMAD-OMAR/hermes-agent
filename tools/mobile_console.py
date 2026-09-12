@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 from collections import deque
@@ -25,6 +26,8 @@ from typing import Any, Dict, List, Optional, Sequence
 from tools.mobile_console_cdp import (
     DEFAULT_METRO_PORT, LEVEL_NAMES, ConsoleRecord, MetroUnavailable, discover_target,
     stream, supports_multiple_debuggers)
+from tools.mobile_console_crash import (
+    CRASH_PATTERNS, EXPO_GO_PACKAGE, exit_info, resolve_package, watch_command)
 from tools.mobile_console_logcat import DEFAULT_TAG, clear_buffer, poll_forever
 from tools.registry import registry
 
@@ -248,10 +251,40 @@ def _channel_note(attachment: _Attachment) -> str:
     return "Records are from logcat."
 
 
+def _start_crash_watch(attachment: "_Attachment", session_id: str) -> Dict[str, Any]:
+    """Tail the crash and events buffers as a watched background process.
+
+    Delivery rides the process registry's watch patterns rather than a channel of its
+    own: that path already rate limits a chatty match, caps it over the session's life,
+    and is what the CLI, the gateway and the TUI actually consume. A crash is exactly
+    the "rare one-shot mid-process signal" those patterns are documented for.
+    """
+    if not attachment.adb:
+        return {"error": "no device attached, so there is nothing to watch"}
+    from tools.terminal_tool_background import spawn_background_process
+    from tools.environments.local import LocalEnvironment
+    command = watch_command(attachment.adb)
+    raw = spawn_background_process(
+        command=command, env=LocalEnvironment(), env_type="local",
+        effective_task_id=session_id or "device-crash-watch", task_id=session_id or None,
+        session_key=session_id, workdir=None, cwd=os.getcwd(), effective_pty=False,
+        notify_on_complete=False, watch_patterns=list(CRASH_PATTERNS),
+        approval_note=None, pty_disabled_reason=None)
+    result = json.loads(raw) if isinstance(raw, str) and raw.startswith("{") else {"raw": raw}
+    result["watching"] = list(CRASH_PATTERNS)
+    result["note"] = (
+        "A native crash and an ANR now arrive as a notification. The ANR watcher will "
+        "almost never fire for a React Native app: under Hermes the JS thread is not the "
+        "Android UI thread, so the app can be frozen for the user while Android considers "
+        "it healthy. This does not detect that.")
+    return result
+
+
 def mobile_console(action: str = "read", *, session_id: str = "", host: str = "127.0.0.1",
                    port: int = DEFAULT_METRO_PORT, level: str = "log", kind: str = "",
                    limit: int = _DEFAULT_LIMIT, wait: float = _DEFAULT_WAIT,
-                   all_records: bool = False, tags: Optional[Sequence[str]] = None) -> str:
+                   all_records: bool = False, tags: Optional[Sequence[str]] = None,
+                   args_package: str = "") -> str:
     """Read, inspect or reset one session's view of the app's console."""
     tags = tuple(tags) if tags else _DEFAULT_TAGS
     if action == "stop":
@@ -282,8 +315,18 @@ def mobile_console(action: str = "read", *, session_id: str = "", host: str = "1
                            "device_buffer_cleared": clear_buffer(attachment.adb)
                            if attachment.adb else False})
 
+    if action == "exits":
+        package = resolve_package(attachment.adb, str(args_package or ""))
+        if not package:
+            return json.dumps({"error": "no package to query: pass one, or open the app first"})
+        return json.dumps(exit_info(attachment.adb, package), indent=2)
+
+    if action == "watch":
+        return json.dumps(_start_crash_watch(attachment, session_id), indent=2)
+
     if action != "read":
-        return json.dumps({"error": f"unknown action {action!r}; use read, status, clear or stop"})
+        return json.dumps({"error": f"unknown action {action!r}; use read, status, watch, "
+                                    "exits, clear or stop"})
 
     # A first read has nothing yet because the attachment was created by this very call.
     if wait > 0:
@@ -358,11 +401,14 @@ MOBILE_CONSOLE_SCHEMA: Dict[str, Any] = {
     "properties": {
         "action": {
             "type": "string",
-            "enum": ["read", "status", "clear", "stop"],
+            "enum": ["read", "status", "watch", "exits", "clear", "stop"],
             "description": (
                 "`read` (default) returns what the app logged since your last read. "
                 "`status` reports which channel is live and whether the Network domain "
-                "exists. `clear` drops the buffer on both sides. `stop` detaches."
+                "exists. `watch` starts notifying you when the app dies natively or is "
+                "declared not responding. `exits` reports Android's own record of why "
+                "this app's processes ended. `clear` drops the buffer on both sides. "
+                "`stop` detaches."
             ),
         },
         "level": {
@@ -390,6 +436,14 @@ MOBILE_CONSOLE_SCHEMA: Dict[str, Any] = {
             "description": "Return the whole buffer instead of only what is new since your last read.",
         },
         "port": {"type": "integer", "description": "Metro's port. Default 8081."},
+        "package": {
+            "type": "string",
+            "description": (
+                "For `exits`: the app's package. Defaults to whatever is in the "
+                f"foreground. In Expo Go the bundle runs inside {EXPO_GO_PACKAGE}, not a "
+                "package named after the app."
+            ),
+        },
     },
     "required": ["action"],
     "additionalProperties": False,
@@ -419,6 +473,7 @@ registry.register(
         limit=int(args.get("limit") if args.get("limit") is not None else _DEFAULT_LIMIT),
         wait=float(args.get("wait") if args.get("wait") is not None else _DEFAULT_WAIT),
         all_records=bool(args.get("all")),
+        args_package=str(args.get("package") or ""),
     ),
     check_fn=_mobile_console_check,
     emoji="📱",

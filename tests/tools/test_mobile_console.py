@@ -303,3 +303,78 @@ def test_a_stringified_error_loses_its_bundle_urls_too():
     assert "platform=android" not in record.message
     assert "expo-router/entry.bundle:157643:22" in record.message
     assert record.message.startswith("Error: boom")
+
+
+# --- native crashes and ANRs ---------------------------------------------------------
+
+
+def test_the_crash_watcher_reads_both_buffers_from_now():
+    """A crash from an hour ago is not a notification, so the tail starts at the present."""
+    from tools.mobile_console_crash import watch_command
+    command = watch_command(["adb", "-s", "emulator-5554"])
+    assert "-b crash" in command and "-b events" in command
+    assert "-T 1" in command
+
+
+def test_a_line_is_classified_so_the_notice_can_name_the_class():
+    from tools.mobile_console_crash import classify
+    assert classify("E AndroidRuntime: FATAL EXCEPTION: main") == "native crash"
+    assert classify("I am_anr: [0,1234,com.x,0,Input dispatching timed out]") == "ANR"
+    assert classify("E ActivityManager: ANR in com.x") == "ANR"
+
+
+def test_exit_info_is_parsed_field_by_field():
+    """`subreason` is absent on some exits, and an optional group in the middle of one
+    non-greedy pattern silently never matches."""
+    from tools.mobile_console_crash import parse_exit_info
+    raw = """
+        ApplicationExitInfo #0:
+          timestamp=2026-09-12 18:40:56.847 pid=5137 realUid=10219 user=0
+          process=com.x reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=100 pss=0.00 rss=0.00 description=stop com.x due to from pid 5418 state=empty trace=null
+        ApplicationExitInfo #1:
+          timestamp=2026-09-12 18:38:23.949 pid=4877 realUid=10219 user=0
+          process=com.x reason=6 (CRASH) status=0
+          importance=100 description=crash state=empty trace=null
+    """
+    entries = parse_exit_info(raw)
+    assert [e["pid"] for e in entries] == [5137, 4877]
+    assert entries[0]["subreason"] == "21 (FORCE STOP)"
+    assert "subreason" not in entries[1]
+    assert (entries[0]["crashed"], entries[1]["crashed"]) == (False, True)
+
+
+def test_every_exit_records_that_it_carries_no_trace():
+    """Measured on API 36: trace is null on every entry, including real crashes. Recording
+    it verbatim keeps the next reader from planning around a trace body that is not there."""
+    from tools.mobile_console_crash import parse_exit_info
+    raw = ("ApplicationExitInfo #0:\n timestamp=2026-09-12 18:40:56.847 pid=1 "
+           "reason=6 (CRASH) description=x state=empty trace=null\n")
+    assert parse_exit_info(raw)[0]["trace"] == "null"
+
+
+def test_an_anr_exit_reason_counts_as_a_crash():
+    from tools.mobile_console_crash import _is_crash
+    assert _is_crash("6 (ANR)") is True
+    assert _is_crash("10 (USER REQUESTED)") is False
+
+
+def test_expo_go_runs_the_bundle_in_its_own_process():
+    """Package-scoped filtering in Expo Go otherwise watches a process that does not exist
+    and reports zero errors for a real session."""
+    from tools.mobile_console_crash import EXPO_GO_PACKAGE
+    assert EXPO_GO_PACKAGE == "host.exp.exponent"
+
+
+def test_a_watch_without_a_device_says_so(monkeypatch):
+    attachment = _attachment()
+    attachment.adb = []
+    assert "no device" in tool._start_crash_watch(attachment, "s")["error"]
+
+
+def test_exits_without_a_package_refuses_rather_than_reporting_none(monkeypatch):
+    """An empty package name queries nothing and looks exactly like a healthy app."""
+    attachment = _attachment()
+    monkeypatch.setattr(tool, "_attachment", lambda *a, **kw: attachment)
+    monkeypatch.setattr(tool, "resolve_package", lambda adb, package="": None)
+    assert "no package" in json.loads(tool.mobile_console("exits", session_id="s"))["error"]

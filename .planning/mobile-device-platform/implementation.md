@@ -15,6 +15,7 @@ the same commit that moves an item, or it becomes another stale plan.
 | The error-overlay guard | `device_backend_input.error_overlay`, applied in `_guarded` | a live render throw is caught, named, and the next action refuses |
 | User documentation | `website/docs/user-guide/features/computer-use.md` | the device section, the config key and the on-device disclosure |
 | `mobile_console` (Decision 3) | `tools/mobile_console.py` + `_cdp.py` + `_logcat.py`, toolset `device` | `tests/tools/test_mobile_console.py`, 33 tests; both channels verified live on a development build |
+| Crash and ANR notifications | `tools/mobile_console_crash.py`, `mobile_console` actions `watch` and `exits` | a real native crash delivered a `watch_match` notification end to end |
 | The device lease | `gateway/device_control_broker.py`, taken in `start()`, freed in `stop()` | `tests/gateway/test_device_control_broker.py`, 19 tests, including a subprocess contention test and a SIGKILL release |
 
 Verified end to end through `handle_computer_use` against the Expo demo app on a
@@ -35,9 +36,7 @@ Each of these is a Roadmap line that has no code yet.
    scrcpy is the later stage, not the first one.
 3. **`EmbeddedDevicePanel`** (Decision 5) beside the transcript, in the same family
    as `apps/desktop/src/app/chat/embedded-browser-panel.tsx`.
-4. **The crash and ANR pipeline** onto the existing `_run_streams` push channel. Note
-   the class count: ANR is unreachable from JS under Hermes, so the useful classes
-   are JS and native.
+
 
 ## Two things the live runs taught that are not in the spikes
 
@@ -54,6 +53,25 @@ half. What had to be added is the part the browser broker does not need at all:
 Hermes sessions are separate processes, so the authority is a kernel file lock and not
 a dictionary. An in-process registry would have passed every test except the one that
 matters, and reported success to every session.
+
+**The push channel the design named is consumed by nobody.** Decision "crash and ANR
+notifications" routes events into `_run_streams`, correcting an earlier draft that named
+`_SessionEventQueue`. The desktop app contains no `EventSource` at all, so it does not
+consume that SSE channel either, and building on it would have produced the same
+outcome the correction was written to avoid. The channel that is actually consumed, by
+the CLI, the gateway and the TUI alike, is the process registry's `completion_queue`
+through watch patterns, which already rate limits a chatty match and caps it over a
+session's life. A crash is exactly the "rare one-shot mid-process signal" those patterns
+are documented for, so the watcher is a watched background process rather than new
+plumbing. Verified end to end: `adb shell am crash` on the demo app produced a
+`watch_match` notification naming the pattern and the line.
+
+**`dumpsys activity exit-info` is metadata, never a trace.** The design left this open
+and named it as needing a smoke test before the path was trusted. Measured on API 36:
+every `ApplicationExitInfo` entry reports `trace=null`, including force stops and
+crashes. So it answers "did it die, when, and why" and never "where". The stack for a
+native crash comes from logcat's crash buffer at the moment it happens, which the
+console already carries under the `AndroidRuntime` tag.
 
 **Spike 5's network result did not reproduce, and the failure has the shape the design
 already warned about for the console.** `spikes.md` records `Network.*` as verified

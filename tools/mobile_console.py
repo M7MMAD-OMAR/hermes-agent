@@ -208,13 +208,22 @@ def _device_adb(session_id: str) -> Tuple[List[str], str]:
 
 
 def _attachment(session_id: str, *, host: str, port: int, tags: Sequence[str]) -> _Attachment:
+    """This session's attachment, rebuilt when it is pointed at the wrong device.
+
+    A session commonly reads the console before it leases a device, and the lease can
+    land on a different phone than the one that was resolved first. With one device that
+    is harmless; with two it is a session reading one phone's logs while driving another.
+    """
+    adb, device_note = _device_adb(session_id)
     with _attachments_lock:
         existing = _attachments.get(session_id)
-        if existing is not None and existing.live:
+        if existing is not None and existing.live and existing.adb == adb:
+            # Same device, possibly for a new reason: a lease taken since the last call
+            # routes to the same serial but is a better answer to "which device is this".
+            existing.device_note = device_note
             return existing
         if existing is not None:
             existing.stop()
-        adb, device_note = _device_adb(session_id)
         attachment = _Attachment(host=host, port=port, adb=adb, tags=tags, device_note=device_note)
         _attachments[session_id] = attachment
     attachment.start()

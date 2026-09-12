@@ -24,6 +24,23 @@ Verified end to end through `handle_computer_use` against the Expo demo app on a
 headless `Expo_API_36` emulator: capture (`som`, `ax`, `vision`), click by testID,
 type, read back, key, scroll, focus_app, and the overlay guard.
 
+## One run over the whole surface
+
+Done live against the demo app on a headless `Expo_API_36` emulator, in the order a
+session would use it:
+
+```
+1 console   emulator-5554, the only device attached | cdp=True
+2 capture   1080x2400, 38 elements on com.anonymous.hermesmobiledemo
+3 act       confirmed: tap Button 'Increment'
+4 lease     emulator-5554, leased by this session
+5 console   1 error: [demo] error level message from the console screen
+6 watch     proc_98024576e058
+7 exits     5 recorded process exits
+8 record    75025 bytes in 4.5s
+9 release   lease returned, console detached
+```
+
 ## Not started
 
 Each of these is a Roadmap line that has no code yet.

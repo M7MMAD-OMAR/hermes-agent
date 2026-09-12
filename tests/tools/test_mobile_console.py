@@ -447,3 +447,19 @@ def test_the_broker_finds_a_serial_by_session(tmp_path, monkeypatch):
         assert broker.serial_for_session("") is None
     finally:
         broker.reset()
+
+
+def test_the_attachment_follows_a_lease_taken_after_it(monkeypatch):
+    """A session commonly reads the console before it leases a device, and the lease can
+    land on a different phone than the one resolved first."""
+    resolved = {"adb": ["adb", "-s", "phone-a"], "note": "phone-a, the only device attached"}
+    monkeypatch.setattr(tool, "_device_adb", lambda sid: (resolved["adb"], resolved["note"]))
+    monkeypatch.setattr(tool._Attachment, "start", lambda self: None)
+    monkeypatch.setattr(tool._Attachment, "live", property(lambda self: True))
+    first = tool._attachment("s", host="127.0.0.1", port=8081, tags=("ReactNativeJS",))
+    assert tool._attachment("s", host="127.0.0.1", port=8081, tags=("ReactNativeJS",)) is first
+    resolved.update(adb=["adb", "-s", "phone-b"], note="phone-b, leased by this session")
+    second = tool._attachment("s", host="127.0.0.1", port=8081, tags=("ReactNativeJS",))
+    assert second is not first
+    assert second.adb == ["adb", "-s", "phone-b"]
+    tool.release_mobile_console_session("s")

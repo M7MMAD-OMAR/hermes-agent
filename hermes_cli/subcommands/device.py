@@ -35,7 +35,11 @@ def _device_status(args) -> int:
     print(f"  AVDs: {', '.join(status['avds']) or 'none'}")
     for device in status["devices"]:
         label = " ".join(part for part in (device["model"], f"({device['state']})") if part)
-        print(f"  device: {device['serial']} {label}")
+        # A device can be attached and still unusable because another session holds it.
+        # Reporting only "attached" sends the reader to look for a hardware problem.
+        lease = device.get("leased_by")
+        print(f"  device: {device['serial']} {label}"
+              + (f" leased by {lease}" if lease else ""))
     if not status["devices"]:
         print("  device: none attached")
     if not status["ready"]:

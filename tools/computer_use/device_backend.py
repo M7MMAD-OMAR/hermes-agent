@@ -24,6 +24,10 @@ import subprocess
 from base64 import b64encode
 from typing import Any, Dict, List, Optional, Tuple
 
+from dataclasses import replace
+
+from gateway.device_control_broker import (
+    DeviceControlError, DeviceControlScope, get_device_control_broker)
 from tools.computer_use.backend import ActionResult, CaptureResult, ComputerUseBackend, UIElement
 from tools.computer_use.device_backend_input import (
     error_overlay, long_press, press_keys, run_input, swipe, tap, type_text)
@@ -48,28 +52,52 @@ class AndroidDeviceBackend(ComputerUseBackend):
 
     accepts_test_ids = True
 
-    def __init__(self, *, permission_mode: str = "standard", serial: str = "") -> None:
+    def __init__(self, *, permission_mode: str = "standard", serial: str = "",
+                 session_id: str = "") -> None:
         self.permission_mode = permission_mode
         self._serial = serial or os.environ.get(_SERIAL_ENV, "").strip()
+        self._session_id = session_id
         self._adb: List[str] = []
         self._cli = ""
         self._elements: List[UIElement] = []
+        self._scope: Optional[DeviceControlScope] = None
 
     # --- lifecycle -------------------------------------------------------------------
 
     def start(self) -> None:
+        """Resolve the tooling, pick a device, and lease it before touching it.
+
+        The lease is taken here rather than per action because a device is stateful: two
+        sessions interleaving taps on one phone produce a result that reads as the app
+        misbehaving, and no per-action check can undo a tap the other session already sent.
+        """
         from hermes_cli.tools_config_android import adb_command, android_cli_command, attached_devices
         adb, cli = adb_command(), android_cli_command()
         if not adb or not cli:
             raise RuntimeError("Android device support is not provisioned. "
                                "Run: hermes device install --accept-license")
         self._cli = cli
+        broker, scope = get_device_control_broker(), self._base_scope()
         if not self._serial:
-            self._serial = _sole_device_serial(attached_devices())
-        self._adb = [adb, "-s", self._serial] if self._serial else [adb]
+            self._serial = _free_device_serial(attached_devices(), broker, scope)
+        self._scope = replace(scope, serial=self._serial)
+        try:
+            broker.acquire(self._scope)
+        except DeviceControlError as e:
+            self._scope = None
+            raise RuntimeError(str(e)) from e
+        self._adb = [adb, "-s", self._serial]
 
     def stop(self) -> None:
-        """Nothing to tear down. The adb server outlives us and belongs to the whole host."""
+        """Give the device back. The adb server itself outlives us and belongs to the host,
+        so it is never torn down here; only our claim on one serial is."""
+        if self._scope is not None:
+            get_device_control_broker().release(self._scope)
+            self._scope = None
+
+    def _base_scope(self) -> DeviceControlScope:
+        """Who this backend is, for the lease. The serial is filled in once one is chosen."""
+        return DeviceControlScope(session_id=self._session_id or None, transport_family="adb")
 
     def is_available(self) -> bool:
         from hermes_cli.tools_config_android import android_tools_ready, attached_devices
@@ -294,6 +322,22 @@ def _sole_device_serial(devices: List[Dict[str, str]]) -> str:
                            + ", ".join(d["serial"] for d in ready)
                            + f"). Set {_SERIAL_ENV} to the one to drive.")
     return ready[0]["serial"]
+
+
+def _free_device_serial(devices: List[Dict[str, str]], broker, scope: DeviceControlScope) -> str:
+    """The serial to lease: the attached devices, minus the ones another session holds.
+
+    Filtering before the ambiguity check is what makes two phones useful. Two attached and
+    one leased resolves to the free one instead of refusing, and the refusal stays for the
+    case that is genuinely ambiguous.
+    """
+    free = [device for device in devices
+            if not (device["state"] == "device"
+                    and broker.held_by_other_session(device["serial"], scope))]
+    if not free and devices:
+        raise RuntimeError("Every attached device is already leased by another Hermes "
+                           "session. Attach another device, or wait for one to finish.")
+    return _sole_device_serial(free)
 
 
 def _filter_to_package(elements: List[UIElement], package: str) -> List[UIElement]:

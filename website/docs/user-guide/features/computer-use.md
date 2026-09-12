@@ -460,6 +460,20 @@ computer_use:
   surface: device                  # desktop (default) | device
 ```
 
+**One session drives a device at a time.** adb has no mutual exclusion of its own, so
+Hermes leases the device to the session that took it. A second session gets a refusal
+naming the holder rather than interleaving its taps with the first one's, and
+`hermes device status` shows which devices are held:
+
+```
+  device: emulator-5554 sdk_gphone64_x86_64 (device) leased by research-run
+```
+
+The lease is a kernel file lock, so a session that dies, however it dies, frees its
+device immediately. With two devices attached, a second session takes the free one
+without being told which; with two free devices it asks you to pick with
+`ANDROID_SERIAL`, because guessing wrong is silent.
+
 **Reading a screen installs an app on the device.** The Android CLI's instrumentation
 server is what makes reads work without `adb root`, and it stays on the device
 afterwards. `hermes device instrumentation` reports it and `--remove` uninstalls it;

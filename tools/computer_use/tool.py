@@ -136,14 +136,15 @@ def _unavailable_hint() -> str:
     """What to do when the backend would not start, for the surface that was being started."""
     if (os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
             or _configured_surface()) in {"android", "device"}:
-        return ("If no device is attached, start an emulator or connect one with USB debugging on. "
-                "If the Android SDK is missing, run `hermes device install --accept-license`, and "
-                "`hermes device status` reports what was found.")
+        return ("`hermes device status` reports what was found, including which devices "
+                "another session already holds. If none is attached, start an emulator or "
+                "connect one with USB debugging on; if the Android SDK is missing, run "
+                "`hermes device install --accept-license`.")
     return ("If the cua-driver binary is missing, run `hermes computer-use install`. "
             "If a Python dependency is missing, the error above shows the exact install command.")
 
 
-def _new_backend(permission_mode: str) -> ComputerUseBackend:
+def _new_backend(permission_mode: str, *, session_id: str = "") -> ComputerUseBackend:
     backend_name = (os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
                     or _configured_surface() or "cua")
     if backend_name in {"cua", "cua-driver", "desktop", ""}:
@@ -152,8 +153,9 @@ def _new_backend(permission_mode: str) -> ComputerUseBackend:
     if backend_name in {"android", "device"}:
         # A phone is another surface to see and act on, so it satisfies the same contract and
         # inherits this module's permission gate, call lock and vision routing unchanged.
+        # The session id travels with it because a device is leased to one session at a time.
         from tools.computer_use.device_backend import AndroidDeviceBackend
-        return AndroidDeviceBackend(permission_mode=permission_mode)
+        return AndroidDeviceBackend(permission_mode=permission_mode, session_id=session_id)
     if backend_name != "noop":
         raise RuntimeError(f"Unknown HERMES_COMPUTER_USE_BACKEND={backend_name!r}")
     return _NoopBackend()  # pragma: no cover
@@ -196,7 +198,7 @@ def _get_backend(session_id: str = "") -> ComputerUseBackend:
             if sid == "" and _backend is not None and sid not in _backends:
                 _install_backend(sid, _backend, permission_mode)  # fold the injection hook into the cache
             if (cached := _backends.get(sid)) is None:
-                backend = _new_backend(permission_mode)
+                backend = _new_backend(permission_mode, session_id=sid)
                 backend.start()  # under the cache lock: one backend per session; a concurrent toggle releases it
                 return _install_backend(sid, backend, permission_mode)
             if _backend_permission_modes.get(sid, "standard") == permission_mode:

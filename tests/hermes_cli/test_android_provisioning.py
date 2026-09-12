@@ -132,3 +132,28 @@ def test_devices_are_parsed_with_their_properties(monkeypatch):
     assert [d["serial"] for d in devices] == ["emulator-5554", "39121FDJH00ABC"]
     assert devices[0]["model"] == "sdk_gphone64_x86_64"
     assert devices[1]["state"] == "unauthorized"
+
+
+def test_status_names_the_session_holding_a_device(sdk_env, monkeypatch, tmp_path):
+    """A device can be attached and still unusable. Reporting only "attached" sends the
+    reader to look for a hardware problem that is not there."""
+    from gateway.device_control_broker import DeviceControlScope, get_device_control_broker
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "run"))
+    monkeypatch.setattr(android, "attached_devices",
+                        lambda: [{"serial": "emulator-5554", "state": "device", "model": "pixel"}])
+    broker = get_device_control_broker()
+    broker.reset()
+    broker.acquire(DeviceControlScope(serial="emulator-5554", session_id="planner"))
+    try:
+        assert android.android_tools_status()["devices"][0]["leased_by"] == "planner"
+    finally:
+        broker.reset()
+
+
+def test_a_free_device_carries_no_lease_annotation(sdk_env, monkeypatch, tmp_path):
+    from gateway.device_control_broker import get_device_control_broker
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "run"))
+    monkeypatch.setattr(android, "attached_devices",
+                        lambda: [{"serial": "emulator-5554", "state": "device", "model": "pixel"}])
+    get_device_control_broker().reset()
+    assert "leased_by" not in android.android_tools_status()["devices"][0]

@@ -259,3 +259,109 @@ def test_a_desktop_session_still_gets_the_driver_hint(monkeypatch):
     from tools.computer_use import tool
     monkeypatch.setenv("HERMES_COMPUTER_USE_BACKEND", "cua")
     assert "cua-driver" in tool._unavailable_hint()
+
+
+# --- the device lease ---------------------------------------------------------------
+
+
+@pytest.fixture
+def leases(tmp_path, monkeypatch):
+    """Lease files in a directory of this test's own, and a clean process broker."""
+    from gateway.device_control_broker import get_device_control_broker
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    broker = get_device_control_broker()
+    broker.reset()
+    yield broker
+    broker.reset()
+
+
+def _provisioned(monkeypatch, devices):
+    monkeypatch.setattr("hermes_cli.tools_config_android.adb_command", lambda: "adb")
+    monkeypatch.setattr("hermes_cli.tools_config_android.android_cli_command", lambda: "android")
+    monkeypatch.setattr("hermes_cli.tools_config_android.attached_devices", lambda: devices)
+
+
+def test_starting_leases_the_device_and_stopping_gives_it_back(leases, monkeypatch):
+    _provisioned(monkeypatch, [{"serial": "emulator-5554", "state": "device", "model": ""}])
+    backend = device_backend.AndroidDeviceBackend(session_id="planner")
+    backend.start()
+    assert leases.holder("emulator-5554")["session_id"] == "planner"
+    backend.stop()
+    assert leases.holder("emulator-5554") is None
+
+
+def test_stopping_twice_is_harmless(leases, monkeypatch):
+    """`stop` runs from session release and from the atexit sweep, and either may win."""
+    _provisioned(monkeypatch, [{"serial": "emulator-5554", "state": "device", "model": ""}])
+    backend = device_backend.AndroidDeviceBackend(session_id="planner")
+    backend.start()
+    backend.stop()
+    backend.stop()
+    assert leases.holder("emulator-5554") is None
+
+
+def test_a_second_session_cannot_start_on_a_leased_device(leases, monkeypatch):
+    _provisioned(monkeypatch, [{"serial": "emulator-5554", "state": "device", "model": ""}])
+    first = device_backend.AndroidDeviceBackend(session_id="planner")
+    first.start()
+    second = device_backend.AndroidDeviceBackend(session_id="builder")
+    with pytest.raises(RuntimeError, match="already leased|held by another"):
+        second.start()
+
+
+def test_a_leased_device_is_skipped_rather_than_making_the_choice_ambiguous(leases, monkeypatch):
+    """Two phones, one taken, is not ambiguity: it is one free device.
+
+    The first session pins its own with ANDROID_SERIAL, which is what the ambiguity
+    refusal tells a caller to do. The second then resolves without being told anything.
+    """
+    _provisioned(monkeypatch, [{"serial": "phone-a", "state": "device", "model": ""},
+                               {"serial": "phone-b", "state": "device", "model": ""}])
+    first = device_backend.AndroidDeviceBackend(session_id="planner", serial="phone-a")
+    first.start()
+    second = device_backend.AndroidDeviceBackend(session_id="builder")
+    second.start()
+    assert second._serial == "phone-b"
+
+
+def test_two_free_devices_still_refuse_to_be_guessed_between(leases, monkeypatch):
+    _provisioned(monkeypatch, [{"serial": "phone-a", "state": "device", "model": ""},
+                               {"serial": "phone-b", "state": "device", "model": ""}])
+    with pytest.raises(RuntimeError, match="ANDROID_SERIAL"):
+        device_backend.AndroidDeviceBackend(session_id="planner").start()
+
+
+def test_every_device_being_leased_says_that_rather_than_no_device(leases, monkeypatch):
+    """'No Android device is attached' would send the user to check a cable that is fine."""
+    _provisioned(monkeypatch, [{"serial": "phone-a", "state": "device", "model": ""}])
+    device_backend.AndroidDeviceBackend(session_id="planner").start()
+    with pytest.raises(RuntimeError, match="already leased by another"):
+        device_backend.AndroidDeviceBackend(session_id="builder").start()
+
+
+def test_a_failed_lease_leaves_no_scope_behind(leases, monkeypatch):
+    """Otherwise `stop` would release a lease this backend never held."""
+    _provisioned(monkeypatch, [{"serial": "emulator-5554", "state": "device", "model": ""}])
+    device_backend.AndroidDeviceBackend(session_id="planner").start()
+    second = device_backend.AndroidDeviceBackend(session_id="builder")
+    with pytest.raises(RuntimeError):
+        second.start()
+    assert second._scope is None
+    second.stop()
+    assert leases.holder("emulator-5554")["session_id"] == "planner"
+
+
+def test_releasing_a_session_reaches_the_backend_and_frees_the_device(leases, monkeypatch):
+    """The lease is only as good as the teardown path that releases it."""
+    from tools.computer_use import tool
+    _provisioned(monkeypatch, [{"serial": "emulator-5554", "state": "device", "model": ""}])
+    monkeypatch.setenv("HERMES_COMPUTER_USE_BACKEND", "android")
+    tool.reset_backend_for_tests()
+    try:
+        backend = tool._get_backend(session_id="held")
+        assert isinstance(backend, device_backend.AndroidDeviceBackend)
+        assert leases.holder("emulator-5554")["session_id"] == "held"
+        assert tool.release_computer_use_session("held") is True
+        assert leases.holder("emulator-5554") is None
+    finally:
+        tool.reset_backend_for_tests()

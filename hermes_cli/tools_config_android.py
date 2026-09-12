@@ -230,6 +230,26 @@ def available_avds() -> List[str]:
     return [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
 
 
+def _devices_with_leases() -> List[Dict[str, str]]:
+    """Attached devices, each annotated with the session holding it, when one does.
+
+    Best effort: a broker that cannot be imported must not break a status report whose
+    whole job is to work on a host where something is missing.
+    """
+    devices = attached_devices()
+    try:
+        from gateway.device_control_broker import get_device_control_broker
+        broker = get_device_control_broker()
+    except Exception:
+        return devices
+    for device in devices:
+        record = broker.holder(device["serial"]) or {}
+        holder = record.get("session_id") or record.get("principal_id") or record.get("pid")
+        if holder:
+            device["leased_by"] = str(holder)
+    return devices
+
+
 def android_tools_status() -> Dict[str, object]:
     """Tier 0: everything the doctor and the setup wizard need, without downloading a byte."""
     root = android_sdk_root()
@@ -244,7 +264,7 @@ def android_tools_status() -> Dict[str, object]:
         "license_accepted": license_accepted(),
         "kvm": kvm_status(),
         "avds": available_avds(),
-        "devices": attached_devices(),
+        "devices": _devices_with_leases(),
     }
     status["ready"] = bool(adb and cli and status["android_cli_downloaded"])
     return status

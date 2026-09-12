@@ -8,6 +8,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { pinCommentBlock } from '@/lib/preview-pins/pin-block'
 import type { PinEngineReport, PreviewPin } from '@/lib/preview-pins/types'
 import { $composerAttachments } from '@/store/composer'
 
@@ -86,7 +87,12 @@ function report(): PinEngineReport {
     bubbleOpen: page.bubbleOpen,
     hidden: page.hidden,
     pendingShots: [],
-    pins: page.pins[page.url] ?? [],
+    // A copy, not the live array. The real report crosses a process bridge and
+    // is therefore a snapshot: anything that mutates a pin in the page after
+    // the read leaves the caller holding stale data. Returning the live objects
+    // here made that whole class of bug unreproducible, which is how a send
+    // that photographs its pin twice got through this suite.
+    pins: structuredClone(page.pins[page.url] ?? []),
     url: page.url
   }
 }
@@ -625,5 +631,91 @@ describe('the camera never fires while the user is writing', () => {
     page.bubbleOpen = false
 
     await waitFor(() => expect(capturePinShot).toHaveBeenCalledWith('fresh'))
+  })
+
+  /**
+   * One comment, one picture.
+   *
+   * Pressing Send inside the bubble closes it and writes a deliver request, so
+   * both arrive on the SAME poll: the capture loop finally runs (the bubble is
+   * shut) and the delivery drain runs a few lines later. The report was read
+   * before the capture, so it still says the pin has no shots. The book merge
+   * writes that stale pin, and the drain sources its pin from the book, so the
+   * send photographed the pin a second time and attached both. The user sees
+   * two identical images and a block that says "[image 1] [image 2]".
+   *
+   * The mock has to attach a shot for this to mean anything: the default one
+   * declines, which is honest for jsdom but cannot reproduce a bug about the
+   * gap between taking a picture and the report that predates it.
+   */
+  it('photographs a pin once when the send rides the same poll as the capture', async () => {
+    const shoot = vi.mocked(capturePinShot)
+
+    shoot.mockImplementation(async (id: string) => {
+      const list = page.pins[page.url] ?? []
+      const target = list.find(entry => entry.id === id)
+
+      if (!target) {
+        return false
+      }
+
+      // What the real engine does: the shot lands on the pin in the page, and
+      // any report read before this call still shows it with none.
+      target.shots = [...(target.shots ?? []), { h: 10, id: `shot-${id}`, thumb: 'data:,', w: 10 }]
+
+      return true
+    })
+
+    // The panel has to be watching an empty page first. A pin already present
+    // at the first sync is adopted as "already seen" and the capture loop
+    // never looks at it, which is a different path from the one that breaks.
+    page.pins[HOME] = []
+    render(<PreviewPinPanel open url={HOME} />)
+    await waitFor(() => expect(readPinsMock).toHaveBeenCalled())
+
+    // The comment is written with the bubble open, so nothing is shot yet.
+    page.bubbleOpen = true
+    page.pins[HOME] = [pin(HOME, 'hero', 'hero')]
+    await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
+    expect(shoot).not.toHaveBeenCalled()
+
+    // Send from the bubble: it closes AND asks for delivery, on one report.
+    // That single poll is where the capture loop and the delivery drain meet.
+    page.bubbleOpen = false
+    readPinsMock.mockResolvedValueOnce({
+      ...report(),
+      bubbleOpen: false,
+      deliver: [{ id: 'hero', mode: 'now' }]
+    })
+
+    await waitFor(() => expect(shoot).toHaveBeenCalledWith('hero'))
+    await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+
+    // One capture, not two. Two is what produced "[image 1] [image 2]" and a
+    // pair of identical thumbnails on a single comment.
+    expect(shoot.mock.calls.filter(call => call[0] === 'hero')).toHaveLength(1)
+
+    // And the symptom itself, one inference further down: the pins attachment
+    // is what `pinCommentBlock` renders the "[image N]" marks from, so a pin
+    // carrying two shots is exactly what the user saw. Asserting the payload
+    // rather than only the call count is what makes this a test about the bug
+    // instead of a test about the mechanism behind it.
+    const options = submitted.mock.calls[0][1] as { attachments?: { detail: string; kind: string }[] }
+    const chip = options.attachments?.find(part => part.kind === 'pins')
+
+    expect(chip).toBeTruthy()
+
+    const carried = JSON.parse(chip!.detail) as PreviewPin[]
+
+    expect(carried).toHaveLength(1)
+    expect(carried[0].shots ?? []).toHaveLength(1)
+    expect(pinCommentBlock(chip!.detail)).not.toContain('[image 2]')
+
+    // And it stays one: the polls that follow the delivery must not go back
+    // for another picture of a pin that has left the page.
+    const before = readPinsMock.mock.calls.length
+
+    await waitFor(() => expect(readPinsMock.mock.calls.length).toBeGreaterThan(before + 1))
+    expect(shoot.mock.calls.filter(call => call[0] === 'hero')).toHaveLength(1)
   })
 })

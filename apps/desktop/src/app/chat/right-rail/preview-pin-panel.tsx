@@ -152,19 +152,30 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
       // image pasted and then left alone still has to get out of the page before
       // the next navigation takes the page with it.
       let shotsPending = false
+      /** Did this pass take a picture? If so `report` is stale, see below. */
+      let captured = false
 
-      for (const id of report.pendingShots ?? []) {
-        if (bytes.has(id)) {
-          continue
-        }
+      /** Pull every shot the page is still holding into our own byte store.
+       *  Runs twice per pass when this pass also took a picture: a shot taken
+       *  after the first drain would otherwise sit in the page with no bytes
+       *  on this side, and `buildParts` skips an image it has no bytes for,
+       *  so the comment would go out with its picture missing. */
+      const drain = async (ids: string[] | undefined) => {
+        for (const id of ids ?? []) {
+          if (bytes.has(id)) {
+            continue
+          }
 
-        shotsPending = true
-        const answer = await takeShot(id)
+          shotsPending = true
+          const answer = await takeShot(id)
 
-        if (answer?.shot) {
-          bytes.set(id, answer.shot)
+          if (answer?.shot) {
+            bytes.set(id, answer.shot)
+          }
         }
       }
+
+      await drain(report.pendingShots)
 
       setLive(true)
       setArmed(report.armed === true)
@@ -199,7 +210,31 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
 
           if (!(pin.shots ?? []).length && !pin.orphaned) {
             await capturePinShot(pin.id)
+            captured = true
           }
+        }
+      }
+
+      // A capture mutates the pins inside the guest; `report` was read before
+      // it and still says that pin has no shots. Everything below reads this
+      // report: the book merge writes it, and the delivery drain sources its
+      // pin FROM the book. So a send that rides the same poll as its own
+      // first capture used to photograph the pin a second time and attach
+      // both, which is the "two images for one comment" this guards.
+      //
+      // One extra read, only on the poll that actually took a picture. The
+      // deliver requests are still unacked at this point, so they survive it.
+      if (captured) {
+        const fresh = await readPins()
+
+        if (fresh) {
+          // Only the parts the capture actually moved. The deliver requests
+          // belong to the report that carried them and are acked below; taking
+          // the fresh report wholesale drops any that arrived on this poll,
+          // which silently loses the user's send.
+          report = { ...report, pendingShots: fresh.pendingShots, pins: fresh.pins, rev: fresh.rev }
+          // The picture this pass just took landed after the first drain.
+          await drain(report.pendingShots)
         }
       }
 
@@ -377,10 +412,11 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
   const withShots = async (sending: PreviewPin[]): Promise<PreviewPin[]> => {
     const missing = sending.filter(pin => !(pin.shots ?? []).length && !pin.orphaned)
 
-    if (!missing.length) {
-      return sending
-    }
-
+    // No early return when nothing is missing. A pin can carry a shot whose
+    // BYTES are still in the page: the poll that photographed it drains after
+    // the capture, but a send racing that poll arrives in between. buildParts
+    // skips an image it has no bytes for, so returning here sent the comment
+    // with its picture silently missing.
     for (const pin of missing) {
       await capturePinShot(pin.id)
     }

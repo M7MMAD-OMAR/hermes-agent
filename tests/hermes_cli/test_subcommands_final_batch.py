@@ -19,6 +19,7 @@ from hermes_cli.subcommands.bundles import build_bundles_parser
 from hermes_cli.subcommands.checkpoints import build_checkpoints_parser
 from hermes_cli.subcommands.completion import build_completion_parser
 from hermes_cli.subcommands.computer_use import build_computer_use_parser
+from hermes_cli.subcommands.device import build_device_parser
 from hermes_cli.subcommands.curator import build_curator_parser
 from hermes_cli.subcommands.egress import build_egress_parser
 from hermes_cli.subcommands.fallback import build_fallback_parser
@@ -51,6 +52,7 @@ SELF_CONTAINED = [
     ("pets", build_pets_parser, ["pets"]),
     ("journey", build_journey_parser, ["journey"]),
     ("computer-use", build_computer_use_parser, ["computer-use", "status"]),
+    ("device", build_device_parser, ["device", "status"]),
 ]
 
 

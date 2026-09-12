@@ -157,3 +157,37 @@ def test_a_free_device_carries_no_lease_annotation(sdk_env, monkeypatch, tmp_pat
                         lambda: [{"serial": "emulator-5554", "state": "device", "model": "pixel"}])
     get_device_control_broker().reset()
     assert "leased_by" not in android.android_tools_status()["devices"][0]
+
+
+def test_a_pairing_code_is_six_digits_or_it_is_not_a_code(sdk_env):
+    """adb reports a bad code as a timeout after 30 seconds, which reads as a network
+    problem. Checking the shape first turns that into an immediate, correct answer."""
+    for bad in ("abc", "12345", "1234567", ""):
+        assert android.pair_wireless("10.0.0.5:37000", bad)["ok"] is False
+        assert "six digits" in android.pair_wireless("10.0.0.5:37000", bad)["error"]
+
+
+def test_a_successful_pairing_points_at_the_other_port(sdk_env, monkeypatch):
+    """The pairing port and the debugging port are different, and using the first one to
+    connect is the mistake everyone makes once."""
+    class _Result:
+        returncode, stdout, stderr = 0, "Successfully paired to 10.0.0.5:37000", ""
+    monkeypatch.setattr(android, "_run_text", lambda argv, **kw: _Result())
+    result = android.pair_wireless("10.0.0.5:37000", "123456")
+    assert result["ok"] is True
+    assert "different port" in result["next"] or "hermes device connect" in result["next"]
+
+
+def test_a_refused_connection_is_a_failure_even_though_adb_exits_zero(sdk_env, monkeypatch):
+    """adb prints "cannot connect" on stdout and exits 0, so the text is the only verdict."""
+    class _Result:
+        returncode, stdout, stderr = 0, "failed to connect to 10.0.0.5:5555", ""
+    monkeypatch.setattr(android, "_run_text", lambda argv, **kw: _Result())
+    assert android.connect_wireless("10.0.0.5:5555")["ok"] is False
+
+
+def test_a_real_connection_is_reported_as_one(sdk_env, monkeypatch):
+    class _Result:
+        returncode, stdout, stderr = 0, "connected to 10.0.0.5:5555", ""
+    monkeypatch.setattr(android, "_run_text", lambda argv, **kw: _Result())
+    assert android.connect_wireless("10.0.0.5:5555")["ok"] is True

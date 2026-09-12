@@ -89,6 +89,40 @@ def _device_instrumentation(args) -> int:
     return 0
 
 
+def _device_pair(args) -> int:
+    from hermes_cli.tools_config_android import pair_wireless
+    result = pair_wireless(str(getattr(args, "address", "")), str(getattr(args, "code", "")))
+    print(result.get("output") or result.get("error", ""))
+    if result.get("ok"):
+        print(f"  {result['next']}")
+    return 0 if result.get("ok") else 1
+
+
+def _device_connect(args) -> int:
+    from hermes_cli.tools_config_android import connect_wireless
+    result = connect_wireless(str(getattr(args, "address", "")))
+    print(result.get("output") or result.get("error", ""))
+    return 0 if result.get("ok") else 1
+
+
+def _device_maestro(args) -> int:
+    from hermes_cli.tools_config_maestro import install_maestro, maestro_status, remove_maestro
+    action = getattr(args, "maestro_action", None)
+    if action == "install":
+        return 0 if install_maestro() else 1
+    if action == "remove":
+        print("Removed." if remove_maestro() else "Nothing of ours to remove.")
+        return 0
+    status = maestro_status()
+    print(f"Maestro: {status['maestro'] or 'not installed'}"
+          + (f" ({status['version']})" if status["version"] else ""))
+    print(f"  Java: {status['java'] or 'not found'}"
+          + ("" if status["java_ok"] else "  (needs 17 or newer)"))
+    if not status["ready"]:
+        print("  Run: hermes device maestro install   (about 315 MB)")
+    return 0 if status["ready"] else 1
+
+
 def build_device_parser(subparsers) -> None:
     """Attach the ``device`` subcommand to ``subparsers``."""
     device_parser = subparsers.add_parser(
@@ -122,8 +156,35 @@ def build_device_parser(subparsers) -> None:
     device_instr.add_argument("--remove", action="store_true",
                               help="Uninstall it. The next screen read reinstalls it.")
 
+    device_pair = device_sub.add_parser(
+        "pair", help="Pair with a device over the network (Android 11+)",
+        description="Wireless debugging pairs once with a six-digit code the DEVICE\n"
+            "generates and shows on its own screen, under Developer options,\n"
+            "Wireless debugging, Pair device with pairing code. Hermes cannot\n"
+            "read that code; you type it. The pairing port shown there is not\n"
+            "the same as the debugging port you connect to afterwards.")
+    device_pair.add_argument("address", help="The ip:port shown on the pairing dialog.")
+    device_pair.add_argument("--code", required=True, help="The six digits on the device.")
+
+    device_connect = device_sub.add_parser(
+        "connect", help="Attach to an already-paired device (once per session)")
+    device_connect.add_argument("address", help="The device's ip:port from Wireless debugging.")
+
+    device_maestro = device_sub.add_parser(
+        "maestro", help="Manage the optional Maestro UI-test runner",
+        description="Maestro turns a UI test into a YAML file that runs in CI with no\n"
+            "Hermes on the machine. It is a 315 MB JVM application and needs a\n"
+            "JDK 17 or newer, so it is opt-in rather than part of the ordinary\n"
+            "device install. An install you made yourself is used in preference\n"
+            "to ours and is never touched by `remove`.")
+    device_maestro_sub = device_maestro.add_subparsers(dest="maestro_action")
+    device_maestro_sub.add_parser("status", help="Report whether Maestro and a JDK are present")
+    device_maestro_sub.add_parser("install", help="Download and verify the pinned release")
+    device_maestro_sub.add_parser("remove", help="Delete Hermes's own copy")
+
     _actions = {"status": _device_status, "install": _device_install,
-                "list": _device_list, "instrumentation": _device_instrumentation}
+                "list": _device_list, "instrumentation": _device_instrumentation,
+                "pair": _device_pair, "connect": _device_connect, "maestro": _device_maestro}
 
     def cmd_device(args):
         handler = _actions.get(getattr(args, "device_action", None))

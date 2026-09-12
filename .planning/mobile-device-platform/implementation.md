@@ -15,6 +15,9 @@ the same commit that moves an item, or it becomes another stale plan.
 | The error-overlay guard | `device_backend_input.error_overlay`, applied in `_guarded` | a live render throw is caught, named, and the next action refuses |
 | User documentation | `website/docs/user-guide/features/computer-use.md` | the device section, the config key and the on-device disclosure |
 | `mobile_console` (Decision 3) | `tools/mobile_console.py` + `_cdp.py` + `_logcat.py`, toolset `device` | `tests/tools/test_mobile_console.py`, 33 tests; both channels verified live on a development build |
+| Maestro flow authoring and running (v2) | `hermes_cli/tools_config_maestro.py`, `tools/mobile_test.py` | 20 tests; a real flow passed and a deliberately wrong one failed, both live |
+| Wireless pairing (Tier 2) | `pair_wireless` / `connect_wireless`, `hermes device pair \| connect` | 4 tests; no physical device on this host, so the adb exchange itself is unverified |
+| The device panel (Decision 5) | `apps/desktop/src/app/chat/device-panel.tsx`, `tui_gateway/methods_device.py` | 11 vitest tests, the RPC pair driven live; the rendered panel is unverified |
 | Screen recording (Decision 1, v1 stage) | `tools/mobile_record.py`, toolset `device` | `tests/tools/test_mobile_record.py`, 7 tests; a 6 second recording pulled and the device file removed |
 | Lease-aware adb routing | `tools/computer_use/device_adb.py`, used by every adb caller | 6 tests, plus a live check that a leaseholder and a reader resolve differently |
 | Crash and ANR notifications | `tools/mobile_console_crash.py`, `mobile_console` actions `watch` and `exits` | a real native crash delivered a `watch_match` notification end to end |

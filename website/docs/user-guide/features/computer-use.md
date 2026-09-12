@@ -500,6 +500,52 @@ demonstrably completed nine requests produced no network event at all while
 `Network.enable` reported success. So `status` reports the network channel as live only
 once a request event has actually arrived, and says so plainly when it has not.
 
+### A test that outlives the conversation
+
+An agent driving the device proves a flow works once, here, now. A test is a different
+deliverable: a file that runs again next week, in CI, on a machine with no Hermes on it.
+
+```
+mobile_test(action="scaffold", path="flows/counter.yaml")
+mobile_test(action="run", flow="flows/counter.yaml")
+```
+
+`scaffold` reads the screen and writes a flow naming the ids that are really there,
+which is most of the value: a flow written from memory names ids the app does not have,
+and the failure arrives much later as "element not found". The flows are
+[Maestro](https://maestro.dev) YAML over the same `id` selectors the device surface
+taps, so a testID that works for a tap works in a flow, and `maestro test <file>` runs
+it with no Hermes involved at all.
+
+A failing run names the assertion that failed and the directory holding the screenshots
+and UI dump of that moment.
+
+This one is opt-in and says so: Maestro is a 315 MB JVM application needing JDK 17 or
+newer, which nobody should pay to tap a button.
+
+```bash
+hermes device maestro install
+```
+
+The download is a pinned release verified against its published checksum, installed
+under your Hermes home. A copy you installed yourself is used in preference to ours and
+is never touched by `hermes device maestro remove`.
+
+### A device that is not plugged in
+
+Wireless debugging (Android 11 and newer) pairs once with a six-digit code the device
+generates and shows on its own screen, under Developer options, Wireless debugging,
+Pair device with pairing code. Hermes cannot read that code; you type it.
+
+```bash
+hermes device pair 192.168.1.42:37113 --code 314159
+hermes device connect 192.168.1.42:5555
+```
+
+The pairing port and the debugging port are different numbers on the same screen, and
+using the first to connect is the mistake everyone makes once. Pairing is a one-time
+trust exchange; connecting is what has to happen again each session.
+
 ### Showing rather than describing
 
 Some things only exist in motion: an animation that stutters, a screen that flashes

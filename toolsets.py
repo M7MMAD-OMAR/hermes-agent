@@ -100,7 +100,7 @@ TOOLSETS = {
         "`computer_use` on the device surface (``computer_use.surface: device``), which "
         "is what taps and types on it. Gated by its tool's check_fn, so it appears only "
         "where the Android SDK is provisioned.",
-        ["mobile_console", "mobile_record"],
+        ["mobile_console", "mobile_record", "mobile_test"],
     ),
     "terminal": _ts("Terminal/command execution and process management tools", ["terminal", "process_manage"]),
     "skills": _ts(

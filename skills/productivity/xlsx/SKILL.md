@@ -211,7 +211,20 @@ python scripts/xlsx_comments.py add book.xlsx --sheet Data --cell B7 \
 python scripts/xlsx_comments.py reply book.xlsx --id "{GUID}" \
     --text "Refreshed today." --author Hermes
 python scripts/xlsx_comments.py resolve book.xlsx --id "{GUID}"
+python scripts/xlsx_comments.py add-note book.xlsx --sheet Data --cell B7 \
+    --text "Legacy note" --author Reviewer -o reviewed.xlsx
+python scripts/xlsx_comments.py delete-note book.xlsx --sheet Data --cell B7
+python scripts/xlsx_comments.py delete book.xlsx --id "{GUID}"
+python scripts/xlsx_comments.py reopen book.xlsx --id "{GUID}"
 ```
+
+**Every subcommand edits the workbook in place unless `-o out.xlsx` is
+given.** The examples above take the reviewer's own file as input, so
+without an output path the original is overwritten and there is no before
+and after to compare.
+
+`add-note` and `delete-note` are the legacy-note half this script promises
+above; the rest of the examples are the threaded half.
 
 The threaded parts are written into the package directly, because
 openpyxl drops the parts it does not model. Charts, pivots and images in

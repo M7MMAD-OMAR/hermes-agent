@@ -149,7 +149,12 @@ The short version:
 ```bash
 python scripts/style_lint.py report.docx deck.pptx book.xlsx
 python scripts/style_lint.py draft.md --only prose --json
+python scripts/style_lint.py report.docx --strict
 ```
+
+`--strict` fails the run on warnings too, not only errors. It changes the
+exit code, so it is the difference between a lint that gates a deliverable
+and one that just prints.
 
 Errors fail the run: a long dash anywhere, a slide past the hard word
 ceiling. Warnings are budgets worth a look: stock Office faces, six type
@@ -174,6 +179,11 @@ theme_pptx(prs, theme)     # after the deck is built
 styles, table_style = pdf_styles(theme)   # reportlab
 ```
 
+The same two knobs are flags on the command line, which is how to reach
+them without writing Python: `python scripts/house_style.py --theme slate
+--accent B4482E` prints that theme as JSON. The themes are `editorial`,
+`slate` and `mono`; the accent is the one brand value a client hands over.
+
 `python scripts/house_style.py --check-contrast` prints the whole system
 as JSON, which is the quickest way to hand the tokens to something that
 is not Python, such as an HTML deck or a diagram.
@@ -187,6 +197,7 @@ thing.
 ```bash
 python scripts/office_inspect.py report.docx
 python scripts/office_inspect.py deck.pptx --section targets
+python scripts/office_inspect.py book.xlsx --no-lint
 ```
 
 Six sections: `summary` (counts), `structure` (headings, slides, sheets,

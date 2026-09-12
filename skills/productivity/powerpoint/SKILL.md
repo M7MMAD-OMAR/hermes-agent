@@ -155,6 +155,20 @@ so they inherit the master's fonts and colors. Tip: to start from a
 template with zero slides, delete existing ones afterward with
 `pptx_edit.py --remove-slide`.
 
+The appending half is `--add-slides`, a second mode rather than a
+modifier, and it is the only way to add a slide to a brand deck without
+losing the master:
+
+```bash
+python scripts/pptx_from_template.py brand.pptx out.pptx \
+    --values vals.json --add-slides new.json
+```
+
+```json
+{"slides": [{"layout": "Title and Content", "title": "Q3",
+             "bullets": ["Revenue up", "Costs flat"], "notes": "say this"}]}
+```
+
 ### 5. Visual verification
 
 `pptx_render.py deck.pptx --outdir ./render` converts the deck to PDF

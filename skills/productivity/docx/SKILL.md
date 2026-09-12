@@ -316,12 +316,14 @@ python scripts/docx_comments.py add draft.docx --target "price move" \
 python scripts/docx_comments.py reply draft.docx --id 3 \
     --text "July" --author Hermes -o out.docx
 python scripts/docx_comments.py resolve draft.docx --id 3 -o out.docx
+python scripts/docx_comments.py reopen draft.docx --id 3 -o out.docx
 ```
 
 A reply carries the `w15:commentEx` parent that makes Word draw it inside
 the thread rather than as a second loose comment, and resolving a thread
-resolves its replies with it. `delete-thread` removes a whole thread and
-its anchors; `delete` takes one comment.
+resolves its replies with it. `reopen` clears that mark again, on the
+whole thread. `delete-thread` removes a whole thread and its anchors;
+`delete` takes one comment.
 
 ## Pitfalls
 

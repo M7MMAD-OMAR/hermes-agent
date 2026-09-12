@@ -123,6 +123,11 @@ def _new_backend(permission_mode: str) -> ComputerUseBackend:
     if backend_name in {"cua", "cua-driver", ""}:
         from tools.computer_use.cua_backend import CuaDriverBackend
         return CuaDriverBackend(permission_mode=permission_mode)
+    if backend_name in {"android", "device"}:
+        # A phone is another surface to see and act on, so it satisfies the same contract and
+        # inherits this module's permission gate, call lock and vision routing unchanged.
+        from tools.computer_use.device_backend import AndroidDeviceBackend
+        return AndroidDeviceBackend(permission_mode=permission_mode)
     if backend_name != "noop":
         raise RuntimeError(f"Unknown HERMES_COMPUTER_USE_BACKEND={backend_name!r}")
     return _NoopBackend()  # pragma: no cover

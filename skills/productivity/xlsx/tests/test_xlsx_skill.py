@@ -15,6 +15,11 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+
+# The helper scripts exit with a "Missing dependency" message when openpyxl
+# is absent, which makes every test here fail on the return code rather
+# than skip. Guard at import time, the way tests/skills/ does.
+pytest.importorskip("openpyxl")
 from openpyxl import load_workbook
 
 SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"

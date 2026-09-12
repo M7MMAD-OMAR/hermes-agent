@@ -9,6 +9,11 @@ from pathlib import Path
 
 import pytest
 
+# The helper scripts exit 2 with "Missing dependency" when pypdf is absent,
+# which is correct behaviour but makes every test here fail on rc rather than
+# skip. Guard at import time, the way tests/skills/test_docx_report.py does.
+pytest.importorskip("pypdf")
+
 SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 
 

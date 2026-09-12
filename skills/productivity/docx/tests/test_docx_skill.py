@@ -16,6 +16,11 @@ import zlib
 from pathlib import Path
 
 import pytest
+
+# The helper scripts exit with a "Missing dependency" message when python-docx
+# is absent, which makes every test here fail on the return code rather
+# than skip. Guard at import time, the way tests/skills/ does.
+pytest.importorskip("docx")
 from docx import Document
 
 SKILL = Path(__file__).resolve().parent.parent

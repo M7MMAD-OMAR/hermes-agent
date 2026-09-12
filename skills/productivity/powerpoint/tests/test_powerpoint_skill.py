@@ -10,6 +10,11 @@ import sys
 
 import pytest
 
+# The helper scripts exit with a "Missing dependency" message when python-pptx
+# is absent, which makes every test here fail on the return code rather
+# than skip. Guard at import time, the way tests/skills/ does.
+pytest.importorskip("pptx")
+
 SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(SKILL, "scripts")
 

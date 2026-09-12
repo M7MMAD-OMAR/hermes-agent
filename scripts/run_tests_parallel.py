@@ -57,7 +57,17 @@ from typing import Dict, List, Tuple
 
 
 # Default test discovery roots.
-_DEFAULT_ROOTS = ["tests"]
+#
+# ``skills`` is here because the office skills each ship their own e2e suite
+# inside the skill directory, which is what
+# ``tests/skills/test_office_document_skills.py::test_skill_has_tests``
+# requires of them. Those suites are the only coverage of seven shipped
+# modules (docx_read, docx_revisions, docx_template, pptx_edit, pptx_read,
+# pptx_render, pptx_from_template), and until this root was added they were
+# discovered by nothing and had never run in CI. They cannot simply move
+# under ``tests/``: the skill ships to users as a self-contained directory
+# and the invariant above asserts the suite travels with it.
+_DEFAULT_ROOTS = ["tests", "skills"]
 
 # Directories to skip during discovery — these suites require real
 # external services (a model gateway, a docker daemon with a prebuilt

@@ -1886,6 +1886,7 @@ export const ar = defineLocale({
     hermesActiveSessions: (version, count) => `Hermes ${version} لديه ${count} جلسة نشطة`,
     restartGateway: 'إعادة تشغيل البوابة',
     openBrowser: 'فتح المتصفح',
+    openDevice: 'فتح الجهاز',
     gatewayRestartFailed: 'فشل إعادة تشغيل البوابة.',
     updateHermes: 'تحديث Hermes',
     reloadWindow: 'إعادة تحميل النافذة',
@@ -3585,6 +3586,13 @@ export const ar = defineLocale({
     terminalCloseOthers: 'إغلاق الأخرى',
     terminalNew: 'طرفية جديدة',
     terminalsAria: 'الطرفيات'
+  },
+  device: {
+    live: 'الجهاز',
+    pause: 'إيقاف مؤقت',
+    resume: 'استئناف',
+    screen: 'شاشة الجهاز',
+    waiting: 'بانتظار الجهاز...'
   },
   preview: {
     tab: 'معاينة',

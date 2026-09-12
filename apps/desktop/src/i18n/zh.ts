@@ -1927,6 +1927,7 @@ export const zh: Translations = {
     hermesActiveSessions: (version, count) => `Hermes ${version} · 活跃会话 ${count}`,
     restartGateway: '重启网关',
     openBrowser: '打开浏览器',
+    openDevice: '打开设备',
     gatewayRestartFailed: '网关重启失败。',
     updateHermes: '更新 Hermes',
     reloadWindow: '重新载入窗口',
@@ -3638,6 +3639,13 @@ export const zh: Translations = {
     addToChat: '添加到对话'
   },
 
+  device: {
+    live: '设备',
+    pause: '暂停',
+    resume: '继续',
+    screen: '设备屏幕',
+    waiting: '正在等待设备...'
+  },
   preview: {
     tab: '预览',
     closePane: '关闭预览面板',

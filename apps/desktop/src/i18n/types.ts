@@ -1553,6 +1553,7 @@ export interface Translations {
     hermesActiveSessions: (version: string, count: number) => string
     restartGateway: string
     openBrowser: string
+    openDevice: string
     gatewayRestartFailed: string
     updateHermes: string
     reloadWindow: string
@@ -3012,6 +3013,13 @@ export interface Translations {
     addToChat: string
   }
 
+  device: {
+    live: string
+    pause: string
+    resume: string
+    screen: string
+    waiting: string
+  }
   preview: {
     tab: string
     closePane: string

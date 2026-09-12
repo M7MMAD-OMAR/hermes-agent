@@ -64,6 +64,7 @@ import { requestComposerInsert } from './composer/focus'
 import { droppedFileInlineRefs } from './composer/inline-refs'
 import { ComposerSurfaceProvider, useComposerScope, useComposerSurfaceId } from './composer/scope'
 import type { ChatBarState } from './composer/types'
+import { DevicePanel } from './device-panel'
 import { EmbeddedBrowserPanel } from './embedded-browser-panel'
 import { type DroppedFile, partitionDroppedFiles } from './hooks/use-composer-actions'
 import { type DragKind, useFileDropZone } from './hooks/use-file-drop-zone'
@@ -841,6 +842,11 @@ const ChatViewContent = memo(function ChatViewContent({
             in and `adoptBrowserSessionKey` swaps the real id underneath once
             the turn mints one — the panel never unmounts across that swap. */}
         <EmbeddedBrowserPanel sessionId={embeddedBrowserKey} surfaceId={composerSurfaceId ?? undefined} />
+
+        {/* The phone this conversation is driving, on the same side and for the same
+            reason. It renders nothing until `toggleDevicePanel` opens it, and it uses
+            the same key as the browser so an empty conversation can open one too. */}
+        <DevicePanel sessionId={embeddedBrowserKey} />
       </div>
     </div>
   )

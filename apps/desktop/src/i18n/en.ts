@@ -1759,6 +1759,7 @@ export const en: Translations = {
     hermesActiveSessions: (version, count) => `Hermes ${version} · Active sessions ${count}`,
     restartGateway: 'Restart gateway',
     openBrowser: 'Open browser',
+    openDevice: 'Open device',
     gatewayRestartFailed: 'Gateway restart failed.',
     updateHermes: 'Update Hermes',
     reloadWindow: 'Reload window',
@@ -3501,6 +3502,13 @@ export const en: Translations = {
     addToChat: 'Add to chat'
   },
 
+  device: {
+    live: 'Device',
+    pause: 'Pause',
+    resume: 'Resume',
+    screen: 'Device screen',
+    waiting: 'Waiting for the device...'
+  },
   preview: {
     tab: 'Preview',
     closePane: 'Close preview pane',

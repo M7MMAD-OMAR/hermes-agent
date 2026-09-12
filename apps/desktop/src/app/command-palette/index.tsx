@@ -69,6 +69,7 @@ import {
   closeCommandPalette,
   setCommandPaletteOpen
 } from '@/store/command-palette'
+import { toggleDevicePanelForActiveSession } from '@/store/device'
 import { $bindings, bindingsFor } from '@/store/keybinds'
 import { $dismissedAutoProjectIds, filterVisibleProjects } from '@/store/layout'
 import { openPetGenerate } from '@/store/pet-generate'
@@ -954,6 +955,14 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
             keywords: ['browser', 'web', 'url', 'address', 'open', 'navigate', 'internet', 'site'],
             label: cc.openBrowser,
             run: () => toggleEmbeddedBrowser()
+          },
+          {
+            action: 'view.showDevice',
+            icon: codiconIcon('device-mobile'),
+            id: 'cc-open-device',
+            keywords: ['device', 'phone', 'android', 'emulator', 'mobile', 'screen', 'app'],
+            label: cc.openDevice,
+            run: () => toggleDevicePanelForActiveSession()
           }
         ]
       },

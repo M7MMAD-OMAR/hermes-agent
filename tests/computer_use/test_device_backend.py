@@ -244,3 +244,18 @@ def test_filtering_to_one_package_does_not_renumber_the_originals():
     filtered = device_backend._filter_to_package(elements, "mine")
     assert [e.index for e in filtered] == [1]
     assert [e.index for e in elements] == [1, 2]
+
+
+def test_an_unreachable_device_is_not_blamed_on_cua_driver(monkeypatch):
+    """A device session with no phone attached was being told to install cua-driver."""
+    from tools.computer_use import tool
+    monkeypatch.setenv("HERMES_COMPUTER_USE_BACKEND", "android")
+    hint = tool._unavailable_hint()
+    assert "hermes device install" in hint
+    assert "cua-driver" not in hint
+
+
+def test_a_desktop_session_still_gets_the_driver_hint(monkeypatch):
+    from tools.computer_use import tool
+    monkeypatch.setenv("HERMES_COMPUTER_USE_BACKEND", "cua")
+    assert "cua-driver" in tool._unavailable_hint()

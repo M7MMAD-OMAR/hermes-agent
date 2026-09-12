@@ -13,6 +13,7 @@ the same commit that moves an item, or it becomes another stale plan.
 | Selection from the session's own source | `computer_use.surface` in config, read by `tool._new_backend` | env var kept as the test override |
 | testID addressing through the tool | `schema.py`'s `test_id`, `tool._target`, `_element_to_dict` | refused with a clear error on a surface that addresses by index |
 | The error-overlay guard | `device_backend_input.error_overlay`, applied in `_guarded` | a live render throw is caught, named, and the next action refuses |
+| User documentation | `website/docs/user-guide/features/computer-use.md` | the device section, the config key and the on-device disclosure |
 
 Verified end to end through `handle_computer_use` against the Expo demo app on a
 headless `Expo_API_36` emulator: capture (`som`, `ax`, `vision`), click by testID,

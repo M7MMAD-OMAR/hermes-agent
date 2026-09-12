@@ -132,6 +132,17 @@ def _configured_surface() -> str:
     return ""
 
 
+def _unavailable_hint() -> str:
+    """What to do when the backend would not start, for the surface that was being started."""
+    if (os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
+            or _configured_surface()) in {"android", "device"}:
+        return ("If no device is attached, start an emulator or connect one with USB debugging on. "
+                "If the Android SDK is missing, run `hermes device install --accept-license`, and "
+                "`hermes device status` reports what was found.")
+    return ("If the cua-driver binary is missing, run `hermes computer-use install`. "
+            "If a Python dependency is missing, the error above shows the exact install command.")
+
+
 def _new_backend(permission_mode: str) -> ComputerUseBackend:
     backend_name = (os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
                     or _configured_surface() or "cua")
@@ -276,9 +287,10 @@ def handle_computer_use(args: Dict[str, Any], **kwargs) -> Any:
     try:
         backend = _get_backend(session_id=session_id)
     except Exception as e:
+        # The hint names the surface that actually failed. A device session with no phone plugged
+        # in was being told to install cua-driver, which is not its problem and not its fix.
         return json.dumps({"error": f"computer_use backend unavailable: {e}",
-                           "hint": "If the cua-driver binary is missing, run `hermes computer-use install`. "
-                                   "If a Python dependency is missing, the error above shows the exact install command."})
+                           "hint": _unavailable_hint()})
     try:
         with _backend_lock:
             call_lock = _backend_call_locks.setdefault(session_id, threading.RLock())

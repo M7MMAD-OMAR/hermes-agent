@@ -419,6 +419,55 @@ For cross-platform GUI automation without the desktop overhead (and
 without TCC / Session 0 / X11 setup), the `browser` toolset uses a
 real headless Chromium and is the right answer for web-only tasks.
 
+## Driving a phone instead of the desktop
+
+The same `computer_use` toolset can drive an attached Android device or emulator.
+The actions are the ones you already know: `capture`, `click`, `type`, `key`,
+`scroll`, `focus_app`. Two things differ.
+
+**Elements carry the app's own id.** A capture returns `test_id` for every element
+whose app set a `testID`, and you can address one directly:
+
+```json
+{"action": "click", "test_id": "home.counter.increment"}
+```
+
+Prefer it over the numbered index. An index is invalidated by anything that reflows
+the screen, and the soft keyboard opening is a reflow. A surface that addresses only
+by index refuses a `test_id` rather than guessing which element it meant.
+
+**A successful tap is not a successful action.** React Native's error overlay sits on
+top of the app and swallows input while the tap itself still succeeds. Every action
+is followed by a check for that overlay, and an action that landed under one comes
+back with `effect: "suspected_noop"` and the error's class, file and line, rather
+than as a success you would only discover was false several steps later.
+
+Provision it once:
+
+```bash
+hermes device install --accept-license
+```
+
+Nothing downloads before you accept Google's
+[Android SDK Terms of Service](https://developer.android.com/studio/terms), which is
+what `--accept-license` records. `hermes device status` reports what was found (SDK,
+adb, emulator, hardware acceleration, AVDs, attached devices) and downloads nothing.
+
+Then point the toolset at the device:
+
+```yaml
+computer_use:
+  surface: device                  # desktop (default) | device
+```
+
+**Reading a screen installs an app on the device.** The Android CLI's instrumentation
+server is what makes reads work without `adb root`, and it stays on the device
+afterwards. `hermes device instrumentation` reports it and `--remove` uninstalls it;
+the next screen read installs it again.
+
+Android on Linux, macOS and Windows today. iOS needs macOS with Xcode and is not
+supported yet.
+
 ## Configuration
 
 Permission mode and manifest (see

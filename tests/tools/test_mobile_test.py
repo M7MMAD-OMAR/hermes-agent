@@ -247,3 +247,59 @@ def test_a_passing_run_carries_no_artifacts_field(monkeypatch, tmp_path):
 
     monkeypatch.setattr(tool.subprocess, "run", lambda argv, **kw: _Result())
     assert "artifacts" not in tool.run_flow(str(flow))
+
+
+def test_a_flow_takes_the_ui_automation_connection_before_it_runs(monkeypatch, tmp_path):
+    """Android permits exactly one UiAutomation connection, and the screen reader behind
+    `computer_use` holds it. Maestro's driver then dies and reports only that it "did not
+    start up in time", which points at nothing."""
+    flow = tmp_path / "flow.yaml"
+    flow.write_text("appId: com.x\n", encoding="utf-8")
+    calls = []
+    monkeypatch.setattr("hermes_cli.tools_config_maestro.maestro_command", lambda: "maestro")
+    monkeypatch.setattr("tools.computer_use.device_adb.session_adb",
+                        lambda session_id: (["adb", "-s", "p"], "p, leased"))
+
+    class _Result:
+        returncode, stdout, stderr = 0, "Flow passed", ""
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return _Result()
+
+    monkeypatch.setattr(tool.subprocess, "run", fake_run)
+    result = tool.run_flow(str(flow))
+    assert calls[0][1:] == ["-s", "p", "shell", "am", "force-stop",
+                            "com.android.cli.interact.instrumentation"]
+    assert calls[1][0] == "maestro"
+    assert result["released_reader"] is True
+
+
+def test_a_driver_timeout_names_the_connection_rather_than_the_symptom(monkeypatch, tmp_path):
+    flow = tmp_path / "flow.yaml"
+    flow.write_text("appId: com.x\n", encoding="utf-8")
+    monkeypatch.setattr("hermes_cli.tools_config_maestro.maestro_command", lambda: "maestro")
+    monkeypatch.setattr("tools.computer_use.device_adb.session_adb",
+                        lambda session_id: (["adb"], "a device"))
+
+    class _Result:
+        returncode = 1
+        stdout = "Maestro Android driver did not start up in time on emulator [ x ]"
+        stderr = ""
+
+    monkeypatch.setattr(tool.subprocess, "run", lambda argv, **kw: _Result())
+    assert "UiAutomation" in tool.run_flow(str(flow))["hint"]
+
+
+def test_a_healthy_run_carries_no_contention_hint(monkeypatch, tmp_path):
+    flow = tmp_path / "flow.yaml"
+    flow.write_text("appId: com.x\n", encoding="utf-8")
+    monkeypatch.setattr("hermes_cli.tools_config_maestro.maestro_command", lambda: "maestro")
+    monkeypatch.setattr("tools.computer_use.device_adb.session_adb",
+                        lambda session_id: (["adb"], "a device"))
+
+    class _Result:
+        returncode, stdout, stderr = 0, "Flow passed", ""
+
+    monkeypatch.setattr(tool.subprocess, "run", lambda argv, **kw: _Result())
+    assert "hint" not in tool.run_flow(str(flow))

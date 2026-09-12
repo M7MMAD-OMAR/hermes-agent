@@ -89,6 +89,18 @@ both are named rather than implied:
 
 ## Two things the live runs taught that are not in the spikes
 
+**A device has exactly one UiAutomation connection, and two of these pieces want it.**
+Nothing in the design mentions this, and it makes the two halves of the mobile platform
+mutually exclusive by default. The Android CLI's instrumentation server, which every
+`android layout` starts and which the device backend reads through, holds that
+connection. Maestro's driver then dies on the device with `UiAutomationService ...
+already registered!` while the CLI reports only that the driver "did not start up in
+time", which points at nothing and reads as a slow machine. Found by running a flow
+after a capture in the same session: the flow had passed minutes earlier and failed
+three times in a row afterwards. A flow now releases the reader before it runs, and the
+reader restarts itself on the next capture, which the backend already handles because a
+cold instrumentation server is its ordinary first call.
+
 **`emulator -accel-check` frames its verdict between bare marker tokens.** It prints
 `accel:`, a status number, the human sentence, then `accel` again. Taking the last
 non-empty line reports "accel" as the acceleration status.

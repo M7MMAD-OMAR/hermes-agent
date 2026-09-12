@@ -61,6 +61,7 @@ def run_flow(flow: str, *, session_id: str = "", timeout: int = DEFAULT_TIMEOUT,
         return {"error": f"nothing to test against: {note}"}
     serial = adb[adb.index("-s") + 1] if "-s" in adb else ""
 
+    released = _release_ui_automation(adb)
     argv = [binary]
     if serial:
         argv += ["--device", serial]
@@ -76,6 +77,7 @@ def run_flow(flow: str, *, session_id: str = "", timeout: int = DEFAULT_TIMEOUT,
         return {"error": f"maestro could not be started: {e}"}
     output = (result.stdout or "") + (result.stderr or "")
     artifacts = _artifacts_dir(output)
+    contended = _UI_AUTOMATION_TIMEOUT in output
     return {
         "flow": str(path),
         "device": note,
@@ -89,7 +91,38 @@ def run_flow(flow: str, *, session_id: str = "", timeout: int = DEFAULT_TIMEOUT,
         # rather than left inside the prose, because it is the next thing to look at and
         # nobody should have to parse a paragraph to find a path.
         **({"artifacts": artifacts} if artifacts else {}),
+        **({"released_reader": True} if released else {}),
+        **({"hint": _CONTENTION_HINT} if contended else {}),
     }
+
+
+#: Maestro's own words when its driver cannot start. They name a timeout, which is the
+#: symptom; the cause is almost always the connection below.
+_UI_AUTOMATION_TIMEOUT = "driver did not start up in time"
+_CONTENTION_HINT = (
+    "Maestro's driver could not start. Android allows exactly one UiAutomation "
+    "connection at a time, and the screen reader behind `computer_use` holds one. "
+    "This run tried to release it first; if something took it back in between, stop "
+    "reading the screen and run the flow again.")
+
+
+def _release_ui_automation(adb: List[str]) -> bool:
+    """Hand the device's single UiAutomation connection to Maestro.
+
+    Android permits exactly one at a time, and the Android CLI's instrumentation server,
+    which every screen read starts, holds it. Maestro's driver then dies with
+    `UiAutomationService ... already registered!` and reports, at the surface, only that
+    its driver "did not start up in time", which points at nothing. Releasing it here
+    costs nothing: the next screen read brings the server back by itself, which the
+    backend already expects because a cold server is its ordinary first call.
+    """
+    try:
+        from hermes_cli.tools_config_android import LAYOUT_INSTRUMENTATION_PACKAGE
+        return subprocess.run([*adb, "shell", "am", "force-stop", LAYOUT_INSTRUMENTATION_PACKAGE],
+                              capture_output=True, timeout=30).returncode == 0
+    except (OSError, subprocess.SubprocessError, ImportError) as e:
+        logger.debug("could not release the screen reader before the flow: %s", e)
+        return False
 
 
 def _artifacts_dir(output: str) -> str:

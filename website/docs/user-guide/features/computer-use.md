@@ -520,6 +520,14 @@ it with no Hermes involved at all.
 A failing run names the assertion that failed and the directory holding the screenshots
 and UI dump of that moment.
 
+**A flow and the device surface cannot read the screen at the same time.** Android
+permits exactly one UiAutomation connection, and the reader behind `computer_use` holds
+one. Running a flow hands it over first, and the reader takes it back by itself on the
+next capture, so this is invisible in ordinary use. It stops being invisible if
+something grabs it back mid-run: the flow then fails saying Maestro's driver "did not
+start up in time", which names the symptom and not the cause, so the tool adds the
+cause.
+
 This one is opt-in and says so: Maestro is a 315 MB JVM application needing JDK 17 or
 newer, which nobody should pay to tap a button.
 

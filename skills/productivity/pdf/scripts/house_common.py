@@ -12,8 +12,23 @@ exactly what they built before the design system existed.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+
+def hermes_home() -> Path:
+    """Hermes home, honouring ``HERMES_HOME``.
+
+    Mirrors ``hermes_constants.get_hermes_home()`` without importing it,
+    the same way ``google-workspace/scripts/_hermes_home.py`` does. A skill
+    is installed on its own, so it cannot import from the agent tree. It can
+    still read the variable the agent sets, and it must: hardcoding
+    ``~/.hermes`` means a Hermes installed anywhere else silently finds no
+    design system and quietly produces unthemed documents.
+    """
+    val = os.environ.get("HERMES_HOME", "").strip()
+    return Path(val) if val else Path.home() / ".hermes"
 
 
 def house_style_paths() -> list[Path]:
@@ -21,7 +36,7 @@ def house_style_paths() -> list[Path]:
     return [
         here,                                          # inside house-style
         here.parents[1] / "house-style" / "scripts",   # sibling skill
-        Path.home() / ".hermes" / "skills" / "productivity" / "house-style"
+        hermes_home() / "skills" / "productivity" / "house-style"
         / "scripts",                                   # installed bundle
     ]
 

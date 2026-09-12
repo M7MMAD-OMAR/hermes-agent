@@ -310,8 +310,8 @@ by link.
 just single comments:
 
 ```bash
-python scripts/docx_comments.py list draft.docx --json
-python scripts/docx_comments.py add draft.docx --anchor "price move" \
+python scripts/docx_comments.py list draft.docx --json threads
+python scripts/docx_comments.py add draft.docx --target "price move" \
     --text "Which month?" --author Reviewer -o out.docx
 python scripts/docx_comments.py reply draft.docx --id 3 \
     --text "July" --author Hermes -o out.docx

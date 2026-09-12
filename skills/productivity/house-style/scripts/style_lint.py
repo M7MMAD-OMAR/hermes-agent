@@ -439,7 +439,17 @@ def read_pdf(path: Path):
     if not exe:
         return "", [_f("warn", "no_extractor", _where(path),
                        "pdftotext is not installed; prose was not read")]
-    out = subprocess.run([exe, str(path), "-"], capture_output=True, text=True)
+    try:
+        out = subprocess.run([exe, str(path), "-"], capture_output=True,
+                             text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return "", [_f("warn", "no_extractor", _where(path),
+                       "pdftotext did not finish within 120s; prose was not read")]
+    if out.returncode != 0:
+        detail = (out.stderr or "").strip().splitlines()
+        reason = detail[-1] if detail else f"exit {out.returncode}"
+        return "", [_f("warn", "no_extractor", _where(path),
+                       f"pdftotext failed, prose was not read: {reason}")]
     return out.stdout, []
 
 

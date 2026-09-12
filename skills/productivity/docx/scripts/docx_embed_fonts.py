@@ -180,12 +180,23 @@ def qct(tag):
 # ------------------------------------------------------------- shared half
 
 
+def _hermes_home() -> Path:
+    """Hermes home, honouring ``HERMES_HOME``.
+
+    Same rule as ``house_common.hermes_home()``, repeated rather than
+    imported because this module is reached before the house-style bridge
+    and must not depend on it.
+    """
+    val = os.environ.get("HERMES_HOME", "").strip()
+    return Path(val) if val else Path.home() / ".hermes"
+
+
 def _pptx_module_paths():
     here = Path(__file__).resolve().parent
     return [
         here,                                          # co-installed
         here.parents[1] / "powerpoint" / "scripts",    # sibling skill
-        Path.home() / ".hermes" / "skills" / "productivity" / "powerpoint"
+        _hermes_home() / "skills" / "productivity" / "powerpoint"
         / "scripts",                                   # installed bundle
     ]
 

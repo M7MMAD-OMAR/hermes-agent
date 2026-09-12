@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import zipfile
@@ -45,11 +46,24 @@ from house_style import is_arabic  # noqa: E402
 KINDS = {".docx": "word", ".pptx": "deck", ".xlsx": "workbook",
          ".pdf": "pdf"}
 
+def _hermes_home() -> Path:
+    """Hermes home, honouring ``HERMES_HOME``.
+
+    Same rule as ``house_common.hermes_home()``. A Hermes installed
+    anywhere other than ``~/.hermes`` would otherwise find none of the
+    comment helpers, and the report would say every document has no
+    comments, which is the one answer this script exists to avoid giving
+    when it cannot look.
+    """
+    val = os.environ.get("HERMES_HOME", "").strip()
+    return Path(val) if val else Path.home() / ".hermes"
+
+
 # Where the per format helpers live, relative to this skill and to an
 # installed skills tree. Same probe the create scripts use.
 _SKILL_ROOTS = [
     Path(__file__).resolve().parents[2],
-    Path.home() / ".hermes" / "skills" / "productivity",
+    _hermes_home() / "skills" / "productivity",
 ]
 
 
@@ -238,7 +252,7 @@ def inspect_pptx(path: Path) -> dict:
         "inventory": {"charts": charts, "tables": tables,
                       "media": _media_from_zip(path, "ppt/media/")},
         "review": {"comments": _run_helper("powerpoint", "pptx_comments.py",
-                                           ["list", str(path), "--json"])},
+                                           ["list", str(path)])},
         "targets": targets,
     }
 
@@ -286,7 +300,7 @@ def inspect_xlsx(path: Path) -> dict:
         "structure": sheets,
         "inventory": {"media": _media_from_zip(path, "xl/media/")},
         "review": {"comments": _run_helper("xlsx", "xlsx_comments.py",
-                                           ["list", str(path), "--json"])},
+                                           ["list", str(path)])},
         "targets": targets,
     }
 
@@ -339,7 +353,7 @@ def inspect_pdf(path: Path) -> dict:
         "structure": pages,
         "inventory": {"form_fields": list(fields)},
         "review": {"comments": _run_helper("pdf", "pdf_annotate.py",
-                                           ["list", str(path), "--json"])},
+                                           ["list", str(path)])},
         "targets": targets,
     }
 

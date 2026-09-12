@@ -66,7 +66,14 @@ def _via_pdftoppm(pdf_path: str, page: int, dpi: int, password: str | None):
         if password:
             cmd += ["-upw", password]
         cmd += [pdf_path, prefix]
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+        # A timeout, because a malformed PDF can hang pdftoppm indefinitely and
+        # there is nothing above this call that would ever give up on it.
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True,
+                                  encoding="utf-8", timeout=300)
+        except subprocess.TimeoutExpired:
+            raise ValueError(
+                f"pdftoppm did not finish within 300s on page {page}") from None
         if proc.returncode != 0:
             raise ValueError(f"pdftoppm failed: {proc.stderr.strip()}")
         produced = sorted(Path(tmp).glob("page*.png"))

@@ -34,6 +34,7 @@ import argparse
 import json
 import re
 import sys
+import warnings
 
 from openpyxl import load_workbook
 from openpyxl.formatting.formatting import ConditionalFormattingList
@@ -51,6 +52,26 @@ REF_RE = re.compile(
     r"(?![\w(])")
 STRING_RE = re.compile(r'"(?:[^"]|"")*"')
 COORD_RE = re.compile(r"^(\$?)([A-Za-z]{1,3})(\$?)([0-9]+)$")
+
+
+def load_reporting_losses(path, **kwargs):
+    """Load a workbook, and keep whatever openpyxl silently threw away.
+
+    openpyxl cannot represent every rule Excel can write. The common one is a
+    whole column conditional format, which Excel stores as sqref="A:A":
+    openpyxl discards it on load with a UserWarning, and the save below then
+    writes the file back without it. Nothing in the return value said so, so
+    this script reported a clean restructure over a workbook that had quietly
+    lost the user's formatting, which is the worst shape a bug can take here.
+
+    A dropped rule is not a reason to refuse the edit. It is a reason to say
+    so, in the JSON the agent actually reads.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        book = load_workbook(path, **kwargs)
+
+    return book, [str(entry.message) for entry in caught]
 
 
 def shift_point(v, idx, n, delete):
@@ -217,7 +238,7 @@ def main(argv=None):
     else:
         idx = int(idx_s)
 
-    wb = load_workbook(args.file)
+    wb, lost = load_reporting_losses(args.file)
     ws = wb[args.sheet] if args.sheet else wb.active
     rewriter = RefRewriter(ws.title, axis, idx, n, delete)
     report = {"ok": True, "sheet": ws.title, "axis": axis,
@@ -325,6 +346,10 @@ def main(argv=None):
     out = args.out or args.file
     wb.save(out)
     report["output"] = out
+
+    if lost:
+        report["lost_on_load"] = lost
+
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 

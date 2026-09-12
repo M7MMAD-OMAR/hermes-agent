@@ -511,7 +511,7 @@ def test_sheet_protection(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Headless recalculation (xlsx_recalc.py) — branches on soffice presence
+# Headless recalculation (xlsx_recalc.py), branches on soffice presence
 # ---------------------------------------------------------------------------
 
 def test_recalc_reports_json_both_ways(tmp_path):
@@ -545,3 +545,82 @@ def test_recalc_reports_json_both_ways(tmp_path):
     formulas = json.loads(run("xlsx_read.py", out, "--formulas").stdout)
     entry = formulas["formulas"][0]
     assert entry["formula"] == "=SUM(A1:A2)" and entry["cached"] == 5
+
+
+# A whole column conditional format, exactly as Excel writes it. openpyxl
+# cannot build this through its own API (it refuses sqref="A:A"), so the only
+# way to have one is to write the XML the way Excel does.
+WHOLE_COLUMN_RULE = (
+    '<conditionalFormatting sqref="A:A">'
+    '<cfRule type="cellIs" dxfId="0" priority="1" operator="greaterThan">'
+    "<formula>0</formula></cfRule></conditionalFormatting>"
+)
+
+
+def _workbook_with_whole_column_rule(path: Path) -> Path:
+    """A real .xlsx carrying a rule openpyxl will discard on load."""
+    import zipfile
+
+    from openpyxl import Workbook
+
+    base = path.with_name("base.xlsx")
+    book = Workbook()
+    sheet = book.active
+    sheet["A1"] = 1
+    sheet["B1"] = "keep"
+    book.save(str(base))
+
+    source = zipfile.ZipFile(base)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as target:
+        for item in source.infolist():
+            data = source.read(item.filename)
+            if item.filename == "xl/worksheets/sheet1.xml":
+                data = data.decode().replace(
+                    "</worksheet>", WHOLE_COLUMN_RULE + "</worksheet>").encode()
+            target.writestr(item, data)
+    source.close()
+
+    return path
+
+
+def test_edit_says_so_when_openpyxl_drops_a_rule(tmp_path):
+    """A loss must reach the JSON, because the file is written without it.
+
+    openpyxl discards a rule it cannot represent, the script then saves, and
+    the rule is gone from the user's workbook. The edit itself is fine and
+    must still happen. What is not fine is reporting {"ok": true} with nothing
+    else, which is what this did: an agent reading that has no way to tell a
+    clean edit from one that silently threw away the user's formatting.
+    """
+    src = _workbook_with_whole_column_rule(tmp_path / "rules.xlsx")
+    out = tmp_path / "edited.xlsx"
+
+    result = json.loads(run("xlsx_edit.py", src, "--set", "B1=changed",
+                            "--out", out).stdout)
+
+    assert result["ok"] is True
+    assert result["changes"] == ["set B1"]
+    assert result.get("lost_on_load"), (
+        "the rule was dropped and the report did not say so")
+    assert any("conditional formatting" in note.lower()
+               for note in result["lost_on_load"]), result["lost_on_load"]
+
+
+def test_edit_stays_quiet_on_a_workbook_that_loses_nothing(tmp_path):
+    """The other half: no key at all when nothing was dropped.
+
+    Without this, a report field that is always present stops carrying any
+    information and an agent learns to ignore it.
+    """
+    from openpyxl import Workbook
+
+    src = tmp_path / "plain.xlsx"
+    book = Workbook()
+    book.active["B1"] = "keep"
+    book.save(str(src))
+
+    result = json.loads(run("xlsx_edit.py", src, "--set", "B1=changed",
+                            "--out", tmp_path / "plain-out.xlsx").stdout)
+
+    assert result["ok"] is True
+    assert "lost_on_load" not in result

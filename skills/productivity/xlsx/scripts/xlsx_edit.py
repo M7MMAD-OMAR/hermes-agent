@@ -30,7 +30,7 @@ Operations (repeatable where noted, applied in the order listed below):
 
 WARNING: openpyxl does NOT shift merged-cell ranges, chart anchors, or
 formula references when rows/columns are inserted or deleted. Verify any
-sheet containing merges or formulas after structural edits — or use
+sheet containing merges or formulas after structural edits, or use
 xlsx_restructure.py, which rewrites references for you.
 
 Usage:
@@ -44,6 +44,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import warnings
 from datetime import date, datetime
 
 from openpyxl import load_workbook
@@ -52,6 +53,26 @@ from openpyxl.styles import Protection
 from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.table import Table, TableStyleInfo
+
+
+def load_reporting_losses(path, **kwargs):
+    """Load a workbook, and keep whatever openpyxl silently threw away.
+
+    openpyxl cannot represent every rule Excel can write. The common one is a
+    whole column conditional format, which Excel stores as sqref="A:A":
+    openpyxl discards it on load with a UserWarning, and the save below then
+    writes the file back without it. Nothing in the return value said so, so
+    this script printed {"ok": true} over a workbook that had quietly lost the
+    user's formatting, which is the worst shape a bug can take here.
+
+    A dropped rule is not a reason to refuse the edit. It is a reason to say
+    so, in the JSON the agent actually reads.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        book = load_workbook(path, **kwargs)
+
+    return book, [str(entry.message) for entry in caught]
 
 
 def infer(text):
@@ -105,7 +126,7 @@ def table_append(ws, name, row_values):
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="Edit an existing .xlsx workbook.",
-        epilog="Plain insert/delete does not shift merges/formula refs — "
+        epilog="Plain insert/delete does not shift merges/formula refs, "
                "use xlsx_restructure.py for reference-aware moves.")
     ap.add_argument("file", help="path to .xlsx file")
     ap.add_argument("--sheet", help="target sheet (default: active)")
@@ -149,7 +170,7 @@ def main(argv=None):
                     help="force full recalculation when the file is opened")
     args = ap.parse_args(argv)
 
-    wb = load_workbook(args.file)
+    wb, lost = load_reporting_losses(args.file)
     changes = []
 
     for pair in args.rename_sheet:
@@ -250,8 +271,12 @@ def main(argv=None):
 
     out = args.out or args.file
     wb.save(out)
-    print(json.dumps({"ok": True, "output": out, "sheet": ws.title,
-                      "changes": changes}, ensure_ascii=False))
+    report = {"ok": True, "output": out, "sheet": ws.title, "changes": changes}
+
+    if lost:
+        report["lost_on_load"] = lost
+
+    print(json.dumps(report, ensure_ascii=False))
     return 0
 
 

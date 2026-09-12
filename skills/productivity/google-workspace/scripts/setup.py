@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Google Workspace OAuth2 setup for Hermes Agent.
 
-Fully non-interactive — designed to be driven by the agent via terminal commands.
+Fully non-interactive, designed to be driven by the agent via terminal commands.
 The agent mediates between this script and the user (works on CLI, Telegram, Discord, etc.)
 
 Commands:
@@ -13,7 +13,7 @@ Commands:
   setup.py --install-deps                   # Install Python dependencies only
 
 Agent workflow:
-  1. Run --check. If exit 0, auth is good — skip setup.
+  1. Run --check. If exit 0, auth is good, skip setup.
   2. Ask user for client_secret.json path. Run --client-secret PATH.
   3. Run --auth-url. Send the printed URL to the user.
   4. User opens URL, authorizes, gets redirected to a page with a code.
@@ -65,7 +65,7 @@ REQUIRED_PACKAGES = [
     "google-auth==2.55.1",
     "google-auth-oauthlib==1.3.1",
     "google-auth-httplib2==0.3.1",
-    # GHSA-j5g9-f88f-gfj3 — Decompression Bomb DoS via unbounded gzip/deflate
+    # GHSA-j5g9-f88f-gfj3, Decompression Bomb DoS via unbounded gzip/deflate
     "httplib2==0.32.0",
     "pyasn1==0.6.4",
 ]
@@ -111,7 +111,7 @@ def _missing_required_packages() -> list[str]:
     """Return exact requirements absent or stale in this interpreter.
 
     All REQUIRED_PACKAGES entries are exact ``name==version`` pins, so a
-    direct version comparison is sufficient — no ``packaging`` dependency
+    direct version comparison is sufficient, no ``packaging`` dependency
     needed in this standalone script.
     """
     missing = []
@@ -226,7 +226,7 @@ def check_auth(quiet: bool = False):
     from google.auth.transport.requests import Request
 
     try:
-        # Don't pass scopes — user may have authorized only a subset.
+        # Don't pass scopes, the user may have authorized only a subset.
         # Passing scopes forces google-auth to validate them on refresh,
         # which fails with invalid_scope if the token has fewer scopes
         # than requested.
@@ -269,10 +269,10 @@ def check_auth(quiet: bool = False):
                 print(f"OAUTH_CLIENT_DISABLED: {e}")
                 print("  The OAuth client or Google account has been disabled.")
                 print("  Steps to resolve:")
-                print("    1. Check your Google Cloud Console — verify the OAuth client is not disabled")
+                print("    1. Check your Google Cloud Console, verify the OAuth client is not disabled")
                 print("    2. Check if your Google account itself has been disabled at myaccount.google.com")
                 print("    3. If the account is disabled, you can appeal at accounts.google.com/signin/recovery")
-                print("    4. Do NOT retry API calls with a disabled account — this may worsen the situation")
+                print("    4. Do NOT retry API calls with a disabled account, this may worsen the situation")
                 print("    5. If the OAuth client is disabled, create a new one in Google Cloud Console")
             elif "token_revoked" in err_str or "invalid_grant" in err_str:
                 print(f"TOKEN_REVOKED: {e}")
@@ -417,7 +417,7 @@ def exchange_auth_code(code: str):
     )
 
     try:
-        # Accept partial scopes — user may deselect some permissions in the consent screen
+        # Accept partial scopes, the user may deselect some in the consent screen
         os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
         flow.fetch_token(code=code)
     except Exception as e:

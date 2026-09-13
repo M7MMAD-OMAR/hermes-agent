@@ -156,7 +156,8 @@ def test_a_scaffold_names_the_ids_that_are_really_on_screen(monkeypatch, tmp_pat
         def capture(self, **kwargs):
             return capture
 
-    monkeypatch.setattr("tools.computer_use.tool._get_backend", lambda session_id="": _Backend())
+    monkeypatch.setattr("tools.computer_use.tool._get_backend",
+                        lambda session_id="", surface="": _Backend())
     out = tool.scaffold(str(tmp_path / "flow.yaml"), session_id="s")
     text = (tmp_path / "flow.yaml").read_text(encoding="utf-8")
     assert out["appId"] == "com.demo"
@@ -172,7 +173,8 @@ def test_a_scaffold_with_no_app_in_front_refuses(monkeypatch, tmp_path):
         def capture(self, **kwargs):
             return CaptureResult(mode="ax", width=1, height=1, app="", elements=[])
 
-    monkeypatch.setattr("tools.computer_use.tool._get_backend", lambda session_id="": _Backend())
+    monkeypatch.setattr("tools.computer_use.tool._get_backend",
+                        lambda session_id="", surface="": _Backend())
     assert "no app" in tool.scaffold(str(tmp_path / "flow.yaml"))["error"]
 
 
@@ -303,3 +305,25 @@ def test_a_healthy_run_carries_no_contention_hint(monkeypatch, tmp_path):
 
     monkeypatch.setattr(tool.subprocess, "run", lambda argv, **kw: _Result())
     assert "hint" not in tool.run_flow(str(flow))
+
+
+def test_a_scaffold_reads_the_phone_and_never_this_machine(monkeypatch, tmp_path):
+    """A device tool that takes the install's default surface reads the desktop on a
+    desktop-default install, and writes the ids on this screen into a flow for a phone."""
+    from tools.computer_use.backend import CaptureResult, UIElement
+    asked = {}
+
+    class _Backend:
+        def capture(self, **kwargs):
+            return CaptureResult(mode="ax", width=1, height=1, app="com.demo/.Main",
+                                 elements=[UIElement(index=1, role="Button", label="Go",
+                                                     attributes={"test_id": "home.go"})])
+
+    def fake_get_backend(session_id="", surface=""):
+        asked["surface"] = surface
+
+        return _Backend()
+
+    monkeypatch.setattr("tools.computer_use.tool._get_backend", fake_get_backend)
+    tool.scaffold(str(tmp_path / "flow.yaml"), session_id="s")
+    assert asked["surface"] == "device"

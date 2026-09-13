@@ -142,7 +142,10 @@ def scaffold(path: str, *, session_id: str = "") -> Dict[str, Any]:
     """
     from tools.computer_use.tool import _get_backend
     try:
-        backend = _get_backend(session_id=session_id)
+        # Named explicitly. This is a device tool, and the surface a call gets otherwise
+        # is the install's default, which is the desktop: a scaffold would then list the
+        # ids on this machine's screen and write them into a flow meant for a phone.
+        backend = _get_backend(session_id=session_id, surface="device")
         capture = backend.capture(mode="ax")
     except Exception as e:
         return {"error": f"could not read the screen: {e}"}

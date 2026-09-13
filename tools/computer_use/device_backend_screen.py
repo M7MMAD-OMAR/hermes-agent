@@ -21,6 +21,8 @@ import logging
 import re
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -37,6 +39,27 @@ _NOISE_PACKAGES = ("com.android.cli.interact.instrumentation",)
 # A caller that does not retry sees an empty screen and concludes the app crashed.
 _EMPTY_DUMP_RETRIES = 3
 _LAYOUT_TIMEOUT = 90
+# What the CLI says when its server is alive but no longer able to answer, which happens
+# after something else has taken the device's single UiAutomation connection from it. The
+# message names nothing a caller can act on, and the fix is always the same: restart it.
+_WEDGED_SERVER = "Unrecognized response from instrumentation server"
+
+
+def _restart_instrumentation(adb: List[str]) -> bool:
+    """Force-stop the reader's server so the next call starts a fresh one.
+
+    The server survives losing its UiAutomation connection and then answers every request
+    with a refusal, so retrying the same call forever is the one thing that cannot work.
+    """
+    try:
+        from hermes_cli.tools_config_android import LAYOUT_INSTRUMENTATION_PACKAGE
+        subprocess.run([*adb, "shell", "am", "force-stop", LAYOUT_INSTRUMENTATION_PACKAGE],
+                       capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError, ImportError) as e:
+        logger.debug("could not restart the instrumentation server: %s", e)
+        return False
+    time.sleep(0.5)
+    return True
 
 
 class DeviceError(RuntimeError):
@@ -101,7 +124,8 @@ def layout_argv(cli: str, serial: str = "", *, full: bool = False) -> List[str]:
     return argv
 
 
-def read_elements(cli: str, serial: str = "", *, full: bool = False) -> List[UIElement]:
+def read_elements(cli: str, serial: str = "", *, full: bool = False,
+                  adb: Optional[List[str]] = None) -> List[UIElement]:
     """The current screen as 1-based SOM elements, interactive ones first in document order."""
     argv = layout_argv(cli, serial, full=full)
     raw = ""
@@ -109,12 +133,15 @@ def read_elements(cli: str, serial: str = "", *, full: bool = False) -> List[UIE
         raw = _run(argv)
         if raw.find("[") >= 0:
             break
+        if _WEDGED_SERVER in raw and adb and _restart_instrumentation(adb):
+            continue
         time.sleep(1.0 + attempt)
     start = raw.find("[")
     if start < 0:
         raise DeviceError(
-            f"`{' '.join(argv)}` returned no JSON after {_EMPTY_DUMP_RETRIES} attempts. "
-            "Check `adb shell pm list instrumentation`; the instrumentation server may be gone.")
+            f"`{' '.join(argv)}` returned no JSON after {_EMPTY_DUMP_RETRIES} attempts"
+            + (f" (last answer: {raw.strip()[:120]})" if raw.strip() else "")
+            + ". Check `adb shell pm list instrumentation`; the instrumentation server may be gone.")
     items = json.loads(raw[start:])
 
     seen: Dict[Tuple[Any, ...], int] = {}
@@ -181,6 +208,58 @@ def resolve(elements: List[UIElement], *, element: Optional[int] = None,
         raise DeviceError(f"element {element} is no longer the one that token addressed. "
                           "The screen changed; capture again.")
     return found
+
+
+@dataclass
+class ScreenPair:
+    """The hierarchy and the pixels of one moment, read together.
+
+    One object rather than two fields, because the only thing that makes a cached read
+    safe to reuse is that its elements and its image come from the same instant: a SOM
+    index that points at a widget the picture no longer shows is a wrong answer that
+    looks right. A caller takes the whole pair or takes a fresh one.
+    """
+
+    elements: List[UIElement]
+    png: bytes
+    serial: str
+    taken_at: float
+
+
+def read_screen_pair(cli: str, serial: str, adb: List[str]) -> ScreenPair:
+    """Read the hierarchy and grab the frame at once.
+
+    Concurrent because they are independent and the hierarchy read dominates: measured on
+    an emulator, sequential is 1186 ms and concurrent is 991 ms, so the screenshot is free.
+    """
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        elements_task = pool.submit(read_elements, cli, serial, adb=adb)
+        png_task = pool.submit(capture_png, adb)
+        return ScreenPair(elements=elements_task.result(), png=png_task.result(),
+                          serial=serial, taken_at=time.monotonic())
+
+
+_SCREEN_SIZES: Dict[str, Tuple[int, int]] = {}
+
+
+def screen_size_cached(adb: List[str], serial: str) -> Tuple[int, int]:
+    """The screen size, read once per device.
+
+    It changes only on a rotation or a resize, both of which change the frame's own
+    dimensions, so `forget_screen_size` is called from the capture path rather than this
+    one guessing. Sixteen milliseconds each, which is nothing alone and is paid on every
+    scroll.
+    """
+    cached = _SCREEN_SIZES.get(serial)
+    if cached is not None:
+        return cached
+    size = screen_size(adb)
+    _SCREEN_SIZES[serial] = size
+    return size
+
+
+def forget_screen_size(serial: str) -> None:
+    _SCREEN_SIZES.pop(serial, None)
 
 
 def screen_size(adb: List[str]) -> Tuple[int, int]:

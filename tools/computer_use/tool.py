@@ -118,6 +118,29 @@ def _cua_permission_mode(session_id: str) -> str:
             return "unrestricted"
     return configured
 
+#: Separates a session id from its surface in the backend cache keys. A control character
+#: so it can never collide with a real session id.
+_SURFACE_SEPARATOR = "\x00"
+_DESKTOP_SURFACES = {"", "cua", "cua-driver", "desktop"}
+
+
+def _cache_key(sid: str, surface: str) -> str:
+    """Where this session's backend for ``surface`` lives.
+
+    The desktop keeps the bare session id, so the empty-session injection hook and every
+    caller that predates surfaces behave exactly as they did. Only a second surface takes
+    a slot of its own, which is what lets one session drive a phone without giving up the
+    desktop it was already driving.
+    """
+    return sid if surface.lower() in _DESKTOP_SURFACES else f"{sid}{_SURFACE_SEPARATOR}{surface.lower()}"
+
+
+def _session_keys_locked(sid: str) -> List[str]:
+    """Every cache key belonging to ``sid``. Caller holds ``_backend_lock``."""
+    prefix = f"{sid}{_SURFACE_SEPARATOR}"
+    return [key for key in list(_backends) if key == sid or key.startswith(prefix)]
+
+
 def _configured_surface() -> str:
     """Which surface `computer_use` drives: ``computer_use.surface`` in config, ``desktop`` by default.
 
@@ -132,9 +155,10 @@ def _configured_surface() -> str:
     return ""
 
 
-def _unavailable_hint() -> str:
+def _unavailable_hint(surface: str = "") -> str:
     """What to do when the backend would not start, for the surface that was being started."""
-    if (os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
+    if (surface.strip().lower()
+            or os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
             or _configured_surface()) in {"android", "device"}:
         return ("`hermes device status` reports what was found, including which devices "
                 "another session already holds. If none is attached, start an emulator or "
@@ -144,8 +168,9 @@ def _unavailable_hint() -> str:
             "If a Python dependency is missing, the error above shows the exact install command.")
 
 
-def _new_backend(permission_mode: str, *, session_id: str = "") -> ComputerUseBackend:
-    backend_name = (os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
+def _new_backend(permission_mode: str, *, session_id: str = "", surface: str = "") -> ComputerUseBackend:
+    backend_name = (surface.strip().lower()
+                    or os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").strip().lower()
                     or _configured_surface() or "cua")
     if backend_name in {"cua", "cua-driver", "desktop", ""}:
         from tools.computer_use.cua_backend import CuaDriverBackend
@@ -189,8 +214,8 @@ def _stop_backend(backend: ComputerUseBackend, call_lock: Optional[threading.RLo
     except Exception as e:
         on_error(e)
 
-def _get_backend(session_id: str = "") -> ComputerUseBackend:
-    sid = str(session_id or "")
+def _get_backend(session_id: str = "", surface: str = "") -> ComputerUseBackend:
+    sid = _cache_key(str(session_id or ""), surface)
     while True:
         with _backend_lock:
             # Mode resolved under the cache lock; YOLO mutation never holds the approval lock while releasing it.
@@ -198,7 +223,9 @@ def _get_backend(session_id: str = "") -> ComputerUseBackend:
             if sid == "" and _backend is not None and sid not in _backends:
                 _install_backend(sid, _backend, permission_mode)  # fold the injection hook into the cache
             if (cached := _backends.get(sid)) is None:
-                backend = _new_backend(permission_mode, session_id=sid)
+                backend = _new_backend(permission_mode,
+                                       session_id=sid.split(_SURFACE_SEPARATOR)[0],
+                                       surface=surface)
                 backend.start()  # under the cache lock: one backend per session; a concurrent toggle releases it
                 return _install_backend(sid, backend, permission_mode)
             if _backend_permission_modes.get(sid, "standard") == permission_mode:
@@ -213,14 +240,19 @@ def release_computer_use_session(session_id: str) -> bool:
     state is cleared even without a backend."""
     sid = str(session_id or "")
     with _backend_lock:
-        backend, call_lock = _detach_locked(sid)
+        # Every surface, not only the one that happens to be keyed bare: a session that
+        # drove a phone as well as the desktop would otherwise leave its device leased.
+        detached = [_detach_locked(key) for key in _session_keys_locked(sid)] or [_detach_locked(sid)]
     with _approval_lock:
         _session_auto_approve.pop(sid, None), _always_allow.pop(sid, None)
-    if backend is None:
-        return False
-    _stop_backend(backend, call_lock,
-                  lambda e: logger.debug("computer_use backend release failed for session %s", sid, exc_info=True))
-    return True
+    released = False
+    for backend, call_lock in detached:
+        if backend is None:
+            continue
+        released = True
+        _stop_backend(backend, call_lock,
+                      lambda e: logger.debug("computer_use backend release failed for session %s", sid, exc_info=True))
+    return released
 
 @atexit.register
 def _shutdown_backend_atexit() -> None:
@@ -286,16 +318,20 @@ def handle_computer_use(args: Dict[str, Any], **kwargs) -> Any:
     for scope in scopes:
         if (err := _request_approval(scope, args, session_id)) is not None:
             return err
+    surface = str(args.get("surface") or "").strip().lower()
     try:
-        backend = _get_backend(session_id=session_id)
+        backend = _get_backend(session_id=session_id, surface=surface)
     except Exception as e:
         # The hint names the surface that actually failed. A device session with no phone plugged
         # in was being told to install cua-driver, which is not its problem and not its fix.
         return json.dumps({"error": f"computer_use backend unavailable: {e}",
-                           "hint": _unavailable_hint()})
+                           "hint": _unavailable_hint(surface)})
     try:
         with _backend_lock:
-            call_lock = _backend_call_locks.setdefault(session_id, threading.RLock())
+            # Per surface, so a device action and a desktop action in one session do not
+            # queue behind each other; the two backends are independent.
+            call_lock = _backend_call_locks.setdefault(_cache_key(session_id, surface),
+                                                       threading.RLock())
         with call_lock:
             return _dispatch(backend, action, args)
     except _TestIdsUnsupported:

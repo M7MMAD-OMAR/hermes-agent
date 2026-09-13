@@ -52,6 +52,34 @@ Step 11 into step 12 is the one that matters most, because it is the pair that w
 silently broken: a flow runs after the screen reader held the device's single
 UiAutomation connection, and the reader has it back immediately afterwards.
 
+## Performance, measured
+
+The loop an agent runs is act, capture, act, capture. Where the time went, on a headless
+`Expo_API_36` emulator:
+
+| | before | after |
+|---|---|---|
+| act + `capture(som)`, one step | 2804 ms | **1669 ms** |
+| `capture(som)` alone | 1172 ms | 1116 ms |
+| `android layout` (the floor) | 1004 ms | 1004 ms |
+
+The read is the whole cost and it cannot be made cheaper from outside: `android
+--version` alone takes 520 ms, so half of it is the CLI starting up, and the only way
+past that is the instrumentation server's own undocumented wire protocol. That is not a
+thing to depend on.
+
+What did change is paying for it once instead of twice. Every action already read the
+hierarchy for the overlay guard; that read now takes the frame alongside it, the two
+travel as one `ScreenPair`, and the capture that follows an action is served from it.
+The pair is served whole or not at all: a SOM index pointing at a widget the picture no
+longer shows is a wrong answer that looks right. It expires in 400 ms, which is enough
+for the immediate follow-up and nothing else, and any action clears it first so a
+failure cannot leave one behind.
+
+Two smaller ones: the frame and the hierarchy are now read concurrently (1186 ms to
+991 ms; the screenshot is free), and the screen size is read once per device instead of
+on every scroll.
+
 ## Roadmap state
 
 **v1 is complete.** Every line of it has code, tests, and a live run behind it.

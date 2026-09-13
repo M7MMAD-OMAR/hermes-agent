@@ -14,7 +14,10 @@ run on a host with no SDK and no device.
 
 from __future__ import annotations
 
+import base64
 import json
+import time
+from dataclasses import replace
 
 import pytest
 
@@ -90,6 +93,15 @@ def test_an_empty_dump_names_the_instrumentation_server(monkeypatch):
         screen.read_elements("android")
 
 
+def _pair_of(elements, png=b"png-bytes"):
+    """A stand-in for one read of the device: elements and pixels from one instant."""
+    from tools.computer_use.device_backend_screen import ScreenPair
+    import time as _time
+
+    return lambda cli, serial, adb: ScreenPair(elements=list(elements), png=png, serial=serial,
+                                               taken_at=_time.monotonic())
+
+
 def _overlay_elements():
     return [UIElement(index=1, role="Button", label="Dismiss",
                       attributes={"content_desc": "Dismiss", "text": ""}),
@@ -120,8 +132,7 @@ def test_a_swallowed_tap_is_not_reported_as_confirmed(monkeypatch):
     backend._elements = [UIElement(index=1, role="Button", label="Go",
                                    attributes={"center": [50, 25]})]
     monkeypatch.setattr(device_backend, "tap", lambda adb, x, y: None)
-    monkeypatch.setattr(device_backend, "read_elements",
-                        lambda cli, serial: _overlay_elements())
+    monkeypatch.setattr(device_backend, "read_screen_pair", _pair_of(_overlay_elements()))
     result = backend.click(element=1)
     assert result.ok is True
     assert result.effect == "suspected_noop"
@@ -135,7 +146,7 @@ def test_a_clean_tap_is_confirmed(monkeypatch):
     backend._elements = [UIElement(index=1, role="Button", label="Go",
                                    attributes={"center": [50, 25]})]
     monkeypatch.setattr(device_backend, "tap", lambda adb, x, y: None)
-    monkeypatch.setattr(device_backend, "read_elements", lambda cli, serial: [])
+    monkeypatch.setattr(device_backend, "read_screen_pair", _pair_of([]))
     result = backend.click(element=1)
     assert (result.ok, result.effect, result.verified) == (True, "confirmed", True)
 
@@ -365,3 +376,200 @@ def test_releasing_a_session_reaches_the_backend_and_frees_the_device(leases, mo
         assert leases.holder("emulator-5554") is None
     finally:
         tool.reset_backend_for_tests()
+
+
+# --- one read serving both the guard and the capture ----------------------------------
+
+
+def _counting_backend(monkeypatch, elements, png=b"png-bytes"):
+    """A backend whose device reads are counted, with everything else stubbed out."""
+    from tools.computer_use.device_backend_screen import ScreenPair
+    reads = []
+
+    def fake_pair(cli, serial, adb):
+        reads.append(serial)
+
+        return ScreenPair(elements=list(elements), png=png, serial=serial,
+                          taken_at=time.monotonic())
+
+    backend = device_backend.AndroidDeviceBackend()
+    backend._adb, backend._cli, backend._serial = ["adb"], "android", "s"
+    monkeypatch.setattr(device_backend, "read_screen_pair", fake_pair)
+    monkeypatch.setattr(device_backend, "screen_size_cached", lambda adb, serial: (100, 200))
+    monkeypatch.setattr(device_backend, "current_activity", lambda adb: "com.demo/.Main")
+    monkeypatch.setattr(device_backend, "tap", lambda adb, x, y: None)
+    monkeypatch.setattr(device_backend, "draw_som_overlay", lambda png, elements: png)
+
+    return backend, reads
+
+
+def _one_element():
+    return [UIElement(index=1, role="Button", label="Go",
+                      attributes={"center": [5, 5], "interactive": True, "content_desc": "",
+                                  "text": "", "test_id": ""})]
+
+
+def test_a_capture_right_after_an_action_reuses_that_action_s_read(monkeypatch):
+    """The loop an agent runs is act, capture, act, capture. Every action already reads
+    the hierarchy for the overlay guard, and that read is the expensive part."""
+    backend, reads = _counting_backend(monkeypatch, _one_element())
+    backend._elements = _one_element()
+    backend.click(element=1)
+    assert len(reads) == 1
+    backend.capture(mode="som")
+    assert len(reads) == 1
+
+
+def test_a_second_capture_reads_for_itself(monkeypatch):
+    """One capture per action. The screen could have moved on by the next one."""
+    backend, reads = _counting_backend(monkeypatch, _one_element())
+    backend._elements = _one_element()
+    backend.click(element=1)
+    backend.capture(mode="som")
+    backend.capture(mode="som")
+    assert len(reads) == 2
+
+
+def test_a_stale_pair_is_not_served(monkeypatch):
+    """A pair older than the window describes a screen that has had time to change."""
+    backend, reads = _counting_backend(monkeypatch, _one_element())
+    backend._elements = _one_element()
+    backend.click(element=1)
+    backend._pair = replace(backend._pair, taken_at=time.monotonic() - 60)
+    backend.capture(mode="som")
+    assert len(reads) == 2
+
+
+def test_an_action_that_failed_leaves_no_pair_behind(monkeypatch):
+    """The screen after a failed action is unknown, which is worse than having no cache."""
+    backend, reads = _counting_backend(monkeypatch, _one_element())
+    backend._elements = _one_element()
+    monkeypatch.setattr(device_backend, "tap", lambda adb, x, y: (_ for _ in ()).throw(
+        DeviceError("the device went away")))
+    result = backend.click(element=1)
+    assert result.ok is False
+    assert backend._pair is None
+
+
+def test_a_pair_from_another_device_is_never_served(monkeypatch):
+    backend, reads = _counting_backend(monkeypatch, _one_element())
+    backend._elements = _one_element()
+    backend.click(element=1)
+    backend._serial = "a-different-phone"
+    backend.capture(mode="ax")
+    assert len(reads) == 2
+
+
+def test_the_elements_and_the_image_come_from_one_moment(monkeypatch):
+    """A SOM index pointing at a widget the picture no longer shows is a wrong answer that
+    looks right, so a capture takes the whole pair or takes a fresh one."""
+    backend, reads = _counting_backend(monkeypatch, _one_element(), png=b"the-frame")
+    backend._elements = _one_element()
+    backend.click(element=1)
+    capture = backend.capture(mode="som")
+    assert base64.b64decode(capture.png_b64) == b"the-frame"
+    assert len(capture.elements) == 1
+
+
+def test_stopping_forgets_the_pair_and_the_screen_size(monkeypatch):
+    backend, _ = _counting_backend(monkeypatch, _one_element())
+    backend._elements = _one_element()
+    backend.click(element=1)
+    assert backend._pair is not None
+    backend.stop()
+    assert backend._pair is None
+
+
+# --- recovering a wedged reader -------------------------------------------------------
+
+
+def test_a_wedged_instrumentation_server_is_restarted_rather_than_reported(monkeypatch):
+    """It survives losing the device's single UiAutomation connection and then refuses
+    every request, so retrying the same call is the one thing that cannot work. The
+    message it gives names nothing a caller can act on."""
+    from tools.computer_use import device_backend_screen as screen_mod
+    answers = iter(["Unrecognized response from instrumentation server",
+                    json.dumps([_item(text="Back")])])
+    restarts = []
+    monkeypatch.setattr(screen_mod, "_run", lambda argv, **kw: next(answers))
+    monkeypatch.setattr(screen_mod, "_restart_instrumentation",
+                        lambda adb: restarts.append(adb) or True)
+    elements = screen_mod.read_elements("android", "s", adb=["adb"])
+    assert restarts == [["adb"]]
+    assert [e.label for e in elements] == ["Back"]
+
+
+def test_a_wedged_server_with_no_adb_still_reports_what_it_said(monkeypatch):
+    """Without an adb invocation there is nothing to restart, so the answer has to carry
+    the device's own words rather than only "no JSON"."""
+    from tools.computer_use import device_backend_screen as screen_mod
+    monkeypatch.setattr(screen_mod, "_run",
+                        lambda argv, **kw: "Unrecognized response from instrumentation server")
+    monkeypatch.setattr(screen_mod.time, "sleep", lambda seconds: None)
+    with pytest.raises(DeviceError, match="Unrecognized response"):
+        screen_mod.read_elements("android", "s")
+
+
+def test_the_screen_size_is_read_once_per_device(monkeypatch):
+    """Sixteen milliseconds each, which is nothing alone and is paid on every scroll."""
+    from tools.computer_use import device_backend_screen as screen_mod
+    calls = []
+    monkeypatch.setattr(screen_mod, "screen_size", lambda adb: calls.append(adb) or (100, 200))
+    screen_mod.forget_screen_size("s")
+    assert screen_mod.screen_size_cached(["adb"], "s") == (100, 200)
+    assert screen_mod.screen_size_cached(["adb"], "s") == (100, 200)
+    assert len(calls) == 1
+    screen_mod.forget_screen_size("s")
+    screen_mod.screen_size_cached(["adb"], "s")
+    assert len(calls) == 2
+
+
+# --- driving both surfaces from one session -------------------------------------------
+
+
+def test_a_call_can_name_its_surface_without_touching_config(monkeypatch):
+    """A global switch silently stops desktop automation working in every session. The
+    choice belongs to the call."""
+    from tools.computer_use import tool
+    monkeypatch.delenv("HERMES_COMPUTER_USE_BACKEND", raising=False)
+    monkeypatch.setattr("hermes_cli.config.load_config",
+                        lambda *a, **kw: {"computer_use": {"surface": "desktop"}})
+    assert isinstance(tool._new_backend("standard", surface="device"),
+                      device_backend.AndroidDeviceBackend)
+    assert not isinstance(tool._new_backend("standard"), device_backend.AndroidDeviceBackend)
+
+
+def test_the_two_surfaces_get_separate_slots(monkeypatch):
+    """One session driving a phone must not give up the desktop it was already driving."""
+    from tools.computer_use import tool
+    assert tool._cache_key("s", "device") != tool._cache_key("s", "desktop")
+    assert tool._cache_key("s", "desktop") == "s"
+    assert tool._cache_key("s", "") == "s"
+
+
+def test_releasing_a_session_releases_every_surface_it_holds(leases, monkeypatch):
+    """A session that drove a phone as well as the desktop would otherwise leave its
+    device leased after it ended."""
+    from tools.computer_use import tool
+    _provisioned(monkeypatch, [{"serial": "emulator-5554", "state": "device", "model": ""}])
+    tool.reset_backend_for_tests()
+    try:
+        monkeypatch.setenv("HERMES_COMPUTER_USE_BACKEND", "noop")
+        tool._get_backend(session_id="two")                      # the desktop slot
+        tool._get_backend(session_id="two", surface="device")    # and the device one
+        assert leases.holder("emulator-5554")["session_id"] == "two"
+        assert tool.release_computer_use_session("two") is True
+        assert leases.holder("emulator-5554") is None
+    finally:
+        tool.reset_backend_for_tests()
+
+
+def test_an_unreachable_device_names_the_device_even_on_a_desktop_default(monkeypatch):
+    """The call asked for a phone, so the advice has to be about phones whatever the
+    install's default happens to be."""
+    from tools.computer_use import tool
+    monkeypatch.delenv("HERMES_COMPUTER_USE_BACKEND", raising=False)
+    monkeypatch.setattr("hermes_cli.config.load_config",
+                        lambda *a, **kw: {"computer_use": {"surface": "desktop"}})
+    assert "hermes device" in tool._unavailable_hint("device")
+    assert "cua-driver" in tool._unavailable_hint("")

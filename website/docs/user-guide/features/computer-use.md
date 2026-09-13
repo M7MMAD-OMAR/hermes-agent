@@ -436,6 +436,13 @@ Prefer it over the numbered index. An index is invalidated by anything that refl
 the screen, and the soft keyboard opening is a reflow. A surface that addresses only
 by index refuses a `test_id` rather than guessing which element it meant.
 
+**An action and the capture after it cost one read, not two.** Reading a phone's
+hierarchy takes about a second, and every action already reads it to check for the error
+overlay. That read now carries the frame with it, so the capture that usually follows an
+action is served from it: measured on an emulator, a tap plus a capture went from 2.8
+seconds to 1.7. The pair is served whole or not at all, so a numbered element and the
+picture it points at always come from the same instant.
+
 **A successful tap is not a successful action.** React Native's error overlay sits on
 top of the app and swallows input while the tap itself still succeeds. Every action
 is followed by a check for that overlay, and an action that landed under one comes
@@ -453,11 +460,19 @@ Nothing downloads before you accept Google's
 what `--accept-license` records. `hermes device status` reports what was found (SDK,
 adb, emulator, hardware acceleration, AVDs, attached devices) and downloads nothing.
 
-Then point the toolset at the device:
+Then ask for it per call, which is how a session drives a phone without giving up the
+desktop it was already driving:
+
+```json
+{"action": "capture", "mode": "som", "surface": "device"}
+```
+
+`computer_use.surface` in config sets the default for calls that do not say, and it stays
+`desktop` unless you change it:
 
 ```yaml
 computer_use:
-  surface: device                  # desktop (default) | device
+  surface: desktop                 # desktop (default) | device
 ```
 
 **One session drives a device at a time.** adb has no mutual exclusion of its own, so

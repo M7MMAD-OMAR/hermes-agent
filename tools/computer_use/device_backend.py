@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import subprocess
 from base64 import b64encode
 from typing import Any, Dict, List, Optional, Tuple
@@ -32,8 +33,8 @@ from tools.computer_use.backend import ActionResult, CaptureResult, ComputerUseB
 from tools.computer_use.device_backend_input import (
     error_overlay, long_press, press_keys, run_input, swipe, tap, type_text)
 from tools.computer_use.device_backend_screen import (
-    DeviceError, capture_png, current_activity, draw_som_overlay, read_elements, resolve,
-    screen_size)
+    DeviceError, ScreenPair, current_activity, draw_som_overlay, forget_screen_size,
+    read_elements, read_screen_pair, resolve, screen_size_cached)
 
 logger = logging.getLogger("tools.computer_use.device")
 
@@ -42,6 +43,11 @@ _SERIAL_ENV = "ANDROID_SERIAL"
 # what a person's thumb does and keeps a three-tick default from skipping whole sections.
 _SCROLL_SPAN = 0.40
 _SCROLL_MS = 400
+# How long an action's own read stays good for the capture that usually follows it.
+# The read takes about a second on its own, so the pair is already that old when it
+# lands; a short window catches the immediate follow-up, which is the only call that
+# can use it, and expires before anything else could.
+_PAIR_TTL_SECONDS = 0.4
 # Unit vectors for the content's travel. Asking to scroll "down" means show me what is
 # below, so the finger drags the content up: the sign is inverted on purpose.
 _SCROLL_DIRECTIONS = {"down": (0, -1), "up": (0, 1), "right": (-1, 0), "left": (1, 0)}
@@ -61,6 +67,7 @@ class AndroidDeviceBackend(ComputerUseBackend):
         self._cli = ""
         self._elements: List[UIElement] = []
         self._scope: Optional[DeviceControlScope] = None
+        self._pair: Optional[ScreenPair] = None
 
     # --- lifecycle -------------------------------------------------------------------
 
@@ -91,6 +98,8 @@ class AndroidDeviceBackend(ComputerUseBackend):
     def stop(self) -> None:
         """Give the device back. The adb server itself outlives us and belongs to the host,
         so it is never torn down here; only our claim on one serial is."""
+        self._pair = None
+        forget_screen_size(self._serial)
         if self._scope is not None:
             get_device_control_broker().release(self._scope)
             self._scope = None
@@ -110,19 +119,16 @@ class AndroidDeviceBackend(ComputerUseBackend):
                 window_id: Optional[int] = None) -> CaptureResult:
         """`som` numbers the interactive elements on the frame; `ax` is the hierarchy with no
         image; `vision` is the frame alone. `app` filters the hierarchy to one package."""
-        width, height = screen_size(self._adb)
+        pair = self._take_pair()
         elements: List[UIElement] = []
         if mode != "vision":
-            elements = read_elements(self._cli, self._serial)
-            if app:
-                elements = _filter_to_package(elements, app)
-            self._elements = elements
+            elements = _filter_to_package(pair.elements, app) if app else pair.elements
+            self._elements = pair.elements
+        width, height = screen_size_cached(self._adb, self._serial)
         if mode == "ax":
             return CaptureResult(mode=mode, width=width, height=height, elements=elements,
                                  app=app or current_activity(self._adb))
-        png = capture_png(self._adb)
-        if mode == "som" and elements:
-            png = draw_som_overlay(png, elements)
+        png = draw_som_overlay(pair.png, elements) if (mode == "som" and elements) else pair.png
         note = ""
         if mode == "som" and not elements:
             note = ("No addressable elements were returned. The app may draw its own canvas; "
@@ -130,6 +136,22 @@ class AndroidDeviceBackend(ComputerUseBackend):
         return CaptureResult(mode=mode, width=width, height=height, png_b64=b64encode(png).decode(),
                              elements=elements, app=app or current_activity(self._adb),
                              png_bytes_len=len(png), image_mime_type="image/png", note=note)
+
+    def _take_pair(self) -> ScreenPair:
+        """This screen, from the action that just ran when that is still current.
+
+        The loop an agent actually runs is act, capture, act, capture. Every action
+        already reads the hierarchy to check for the error overlay, and that read costs
+        about a second, so a capture straight afterwards was paying for the same screen
+        twice. Taking the frame alongside that read makes the pair reusable at all: what
+        is served is one moment's elements with one moment's pixels, never a mix.
+        """
+        pair = self._pair
+        if (pair is not None and pair.serial == self._serial
+                and time.monotonic() - pair.taken_at <= _PAIR_TTL_SECONDS):
+            self._pair = None  # one capture per action; the next one reads for itself
+            return pair
+        return read_screen_pair(self._cli, self._serial, self._adb)
 
     # --- acting ----------------------------------------------------------------------
 
@@ -171,7 +193,7 @@ class AndroidDeviceBackend(ComputerUseBackend):
             return ActionResult(ok=False, action="scroll",
                                 message=f"direction must be one of {', '.join(_SCROLL_DIRECTIONS)}")
         def build():
-            width, height = screen_size(self._adb)
+            width, height = screen_size_cached(self._adb, self._serial)
             if element is not None or (x is not None and y is not None):
                 centre, _ = self._point(element, x, y)
             else:
@@ -282,6 +304,9 @@ class AndroidDeviceBackend(ComputerUseBackend):
         reporting a swallowed tap as a success, which is a failure mode that hides itself
         for several steps and then surfaces as an unrelated-looking error.
         """
+        # Whatever this action does, the screen it leaves is not the one the old pair
+        # describes. Cleared before acting so a failure cannot leave a pair behind either.
+        self._pair = None
         try:
             act, message = build()
             act()
@@ -289,9 +314,10 @@ class AndroidDeviceBackend(ComputerUseBackend):
             return ActionResult(ok=False, action=action, message=str(e), effect="unverifiable")
         summary = message() if callable(message) else message
         try:
-            self._elements = read_elements(self._cli, self._serial)
+            pair = read_screen_pair(self._cli, self._serial, self._adb)
         except (DeviceError, subprocess.SubprocessError, OSError):
             return ActionResult(ok=True, action=action, message=summary, effect="unverifiable")
+        self._elements, self._pair = pair.elements, pair
         overlay = error_overlay(self._elements)
         if overlay:
             return ActionResult(

@@ -80,6 +80,16 @@ _PROPERTIES: Dict[str, Any] = {
             "preferred over raw coordinates."
         ),
     },
+    "surface": {
+        "type": "string",
+        "enum": ["desktop", "device"],
+        "description": (
+            "Which machine to drive. Omitted uses this install's configured default, which "
+            "is the desktop. `device` drives an attached Android phone or emulator; the "
+            "same actions apply, and elements there carry the app's own `test_id`. Both "
+            "can be driven in one session: the choice is per call, not a mode."
+        ),
+    },
     "test_id": {
         "type": "string",
         "description": (

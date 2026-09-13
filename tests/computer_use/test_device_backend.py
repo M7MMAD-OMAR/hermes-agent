@@ -573,3 +573,51 @@ def test_an_unreachable_device_names_the_device_even_on_a_desktop_default(monkey
                         lambda *a, **kw: {"computer_use": {"surface": "desktop"}})
     assert "hermes device" in tool._unavailable_hint("device")
     assert "cua-driver" in tool._unavailable_hint("")
+
+
+# --- what a capture cannot see --------------------------------------------------------
+
+
+def _scrollable(test_id="media.scroll"):
+    return UIElement(index=1, role="ScrollView", label=test_id,
+                     attributes={"test_id": test_id, "interactions": ["scrollable", "focusable"],
+                                 "interactive": True, "content_desc": "", "text": ""})
+
+
+def _plain(test_id="a.button"):
+    return UIElement(index=2, role="Button", label="Go",
+                     attributes={"test_id": test_id, "interactions": ["click"],
+                                 "interactive": True, "content_desc": "", "text": ""})
+
+
+def test_a_scrolling_screen_says_it_holds_more_than_this(monkeypatch):
+    """Measured on the demo app: a first capture of the media screen returned 4 of its 14
+    addressable elements and nothing said the other 10 existed. An agent then concludes
+    the element it wants is absent."""
+    note = device_backend._capture_note("ax", [_scrollable(), _plain()])
+    assert "scrolls" in note
+    assert "media.scroll" in note
+
+
+def test_a_screen_that_does_not_scroll_says_nothing(monkeypatch):
+    """A note on every capture is a note nobody reads."""
+    assert device_backend._capture_note("ax", [_plain()]) == ""
+
+
+def test_the_note_never_guesses_how_much_is_off_screen():
+    """The device reports that a container scrolls and never how far. A number here would
+    be invented."""
+    note = device_backend._capture_note("som", [_scrollable(), _plain()])
+    assert not any(character.isdigit() for character in note)
+
+
+def test_an_empty_som_capture_still_explains_itself():
+    note = device_backend._capture_note("som", [])
+    assert "own canvas" in note
+
+
+def test_a_scroller_with_no_test_id_is_named_by_its_role():
+    scroller = UIElement(index=1, role="RecyclerView", label="",
+                         attributes={"test_id": "", "interactions": ["scrollable"],
+                                     "interactive": True, "content_desc": "", "text": ""})
+    assert "RecyclerView" in device_backend._capture_note("ax", [scroller])

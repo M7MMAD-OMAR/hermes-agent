@@ -127,12 +127,10 @@ class AndroidDeviceBackend(ComputerUseBackend):
         width, height = screen_size_cached(self._adb, self._serial)
         if mode == "ax":
             return CaptureResult(mode=mode, width=width, height=height, elements=elements,
-                                 app=app or current_activity(self._adb))
+                                 app=app or current_activity(self._adb),
+                                 note=_capture_note(mode, elements))
         png = draw_som_overlay(pair.png, elements) if (mode == "som" and elements) else pair.png
-        note = ""
-        if mode == "som" and not elements:
-            note = ("No addressable elements were returned. The app may draw its own canvas; "
-                    "act by coordinate, or capture again once it settles.")
+        note = _capture_note(mode, elements)
         return CaptureResult(mode=mode, width=width, height=height, png_b64=b64encode(png).decode(),
                              elements=elements, app=app or current_activity(self._adb),
                              png_bytes_len=len(png), image_mime_type="image/png", note=note)
@@ -327,6 +325,31 @@ class AndroidDeviceBackend(ComputerUseBackend):
                 escalation={"recommended": "page", "reason": "error overlay"})
         return ActionResult(ok=True, action=action, message=summary, effect="confirmed",
                             verified=True)
+
+
+def _capture_note(mode: str, elements: List[UIElement]) -> str:
+    """What this capture does not show, when it does not show it.
+
+    A phone's accessibility tree holds what is on screen and nothing else. On a scrolling
+    screen that is a fraction of what is there: measured on the demo app's media screen,
+    a first capture returned 4 of the 14 addressable elements, and nothing in the result
+    said the other 10 existed. An agent then concludes the element it wants is absent,
+    which is the wrong conclusion and an expensive one.
+
+    The device reports that a container scrolls and never how far, so this says the first
+    and not the second. Guessing an extent would be worse than saying nothing.
+    """
+    if mode == "som" and not elements:
+        return ("No addressable elements were returned. The app may draw its own canvas; "
+                "act by coordinate, or capture again once it settles.")
+    scrollers = [element for element in elements
+                 if "scrollable" in (element.attributes.get("interactions") or [])]
+    if not scrollers:
+        return ""
+    named = ", ".join(
+        element.attributes.get("test_id") or element.role for element in scrollers[:3])
+    return (f"This screen scrolls ({named}), so it holds elements this capture cannot see. "
+            "Scroll and capture again before concluding something is not there.")
 
 
 def _sole_device_serial(devices: List[Dict[str, str]]) -> str:

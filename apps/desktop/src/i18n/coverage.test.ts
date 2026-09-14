@@ -95,7 +95,13 @@ describe('locale coverage', () => {
     ['zh', zh],
     ['zh-hant', zhHant]
   ])('has not regressed in %s', (_name, locale) => {
-    expect(untranslated(locale).length).toBeLessThanOrEqual(600)
+    // Raised from 600 to 740 when this fork merged upstream's September 2026
+    // work: the vault, free tier, connectors and the rebuilt plugins surface
+    // arrived with English strings that upstream's own ja / zh-hant files do
+    // not translate either (measured on origin/main: ja 715, zh-hant 668).
+    // Arabic is the locale this fork actually ships to a reader, so it keeps
+    // its own tight ratchet above and was translated instead of relaxed.
+    expect(untranslated(locale).length).toBeLessThanOrEqual(740)
   })
 
   it('leaves no long dash in Arabic, which the house style forbids', () => {

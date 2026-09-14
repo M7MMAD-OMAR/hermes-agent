@@ -1,3 +1,4 @@
+import { reportFirstBuildToolComplete } from '@/components/onboarding-chat/first-build'
 import { invalidateSlashCompletions } from '@/lib/slash-completion-cache'
 import { refreshBackgroundProcesses } from '@/store/composer-status'
 import { recordGraftToolResult } from '@/store/graft-savings'
@@ -14,7 +15,7 @@ import { SUBAGENT_EVENT_TYPES, toTodoPayload } from '../utils'
 
 import type { GatewayEventContext } from './types'
 
-/** tool.generating / tool.start / tool.progress / tool.complete / subagent.*. */
+/** tool.generating / tool.start / tool.complete / subagent.*. */
 export function handleToolEvent(ctx: GatewayEventContext): boolean {
   const { deps, event, payload, sessionId, isActiveEvent, occurredAt } = ctx
   const { flushQueuedDeltas, nativeSubagentSessionsRef, sessionInterrupted, updateSessionState, upsertToolCall } = deps
@@ -50,7 +51,7 @@ export function handleToolEvent(ctx: GatewayEventContext): boolean {
     return true
   }
 
-  if (event.type === 'tool.start' || event.type === 'tool.progress') {
+  if (event.type === 'tool.start') {
     if (!sessionId) {
       return true
     }
@@ -69,6 +70,9 @@ export function handleToolEvent(ctx: GatewayEventContext): boolean {
     if (sessionId) {
       flushQueuedDeltas(sessionId)
       upsertToolCall(sessionId, toTodoPayload(payload) ?? payload, 'complete', event.type, occurredAt)
+      // Onboarding's first build paces its check-ins off real work done
+      // (no-op in every other session).
+      reportFirstBuildToolComplete(sessionId)
 
       if (isActiveEvent) {
         setPetActivity({ toolRunning: false })

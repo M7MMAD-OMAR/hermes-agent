@@ -73,6 +73,13 @@ export function useEnterAnimation(enabled: boolean, animationKey?: string): (el:
       return
     }
 
+    // Web Animations is absent in jsdom (and in any host that ships without
+    // it). The animation is decoration; the element is already in the DOM and
+    // correct without it, so skip rather than throw out of a layout effect.
+    if (typeof el.animate !== 'function') {
+      return
+    }
+
     const key = keyRef.current
 
     if (key && hasPlayedAnimation(key)) {

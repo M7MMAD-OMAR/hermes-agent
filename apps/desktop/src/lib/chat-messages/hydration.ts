@@ -154,6 +154,12 @@ function messageTurnOutcome(meta: DisplayMeta): TurnOutcome | undefined {
   return readTurnOutcome(meta?.turn_outcome) ?? undefined
 }
 
+function timelineDisplayText(meta: DisplayMeta): string | undefined {
+  const text = meta?.display_text
+
+  return typeof text === 'string' && text.trim() ? text : undefined
+}
+
 function messageReactions(meta: DisplayMeta): MessageReaction[] {
   const reactions = meta?.reactions
 
@@ -171,7 +177,13 @@ function messageReactions(meta: DisplayMeta): MessageReaction[] {
 function asyncResultBody(content: string): string | undefined {
   let bodies = [content]
 
-  if (content.startsWith('[ASYNC DELEGATION')) {
+  if (content.startsWith('[IMPORTANT: ')) {
+    // Background-process completion: one `[IMPORTANT: …]` block per process, a batch header first.
+    bodies = content
+      .split(/\n\n(?=\[IMPORTANT: )/)
+      .map(block => block.replace(/^\[IMPORTANT:\s*/, '').replace(/\]$/, ''))
+      .filter(block => !/^\d+ background processes completed\./.test(block))
+  } else if (content.startsWith('[ASYNC DELEGATION')) {
     if (content.startsWith('[ASYNC DELEGATION BATCH COMPLETE')) {
       // Task goals can span lines; stopping at a newline leaks the next goal and transcript footer.
       bodies = content.split(/^--- [✓✗⚠] TASK \d+\/\d+(?:: [\s\S]*?)? {2}\(status=[^\n]*\) ---\r?\n/gm).slice(1)
@@ -214,9 +226,16 @@ function timelineDisplayContent(
   if (message.display_kind === 'async_delegation_complete') {
     const count = timelineTaskCount(displayMeta)
 
-    return count === undefined
-      ? 'background agent work finished'
-      : `${count} background agent${count === 1 ? '' : 's'} finished`
+    return (
+      timelineDisplayText(displayMeta) ??
+      (count === undefined
+        ? 'background agent work finished'
+        : `${count} background agent${count === 1 ? '' : 's'} finished`)
+    )
+  }
+
+  if (message.display_kind === 'process_complete') {
+    return timelineDisplayText(displayMeta) ?? 'background process finished'
   }
 
   return content
@@ -314,6 +333,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     const displayRole =
       message.display_kind === 'model_switch' ||
       message.display_kind === 'async_delegation_complete' ||
+      message.display_kind === 'process_complete' ||
       message.display_kind === 'auto_continue' ||
       message.display_kind === 'personality_switch'
         ? 'system'
@@ -434,7 +454,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
       id: `${message.timestamp || Date.now()}-${index}-${displayRole}`,
       role: displayRole,
       parts,
-      ...(message.display_kind === 'async_delegation_complete'
+      ...(message.display_kind === 'async_delegation_complete' || message.display_kind === 'process_complete'
         ? { asyncResult: asyncResultBody(displayContentForMessage(message.role, message.content || content)) }
         : {}),
       timestamp: earliestTimestamp(message.timestamp, ...parts.map(part => part.timestamp)),

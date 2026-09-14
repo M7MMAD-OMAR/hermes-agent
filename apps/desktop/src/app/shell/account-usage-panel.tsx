@@ -1,3 +1,4 @@
+import { compactNumber } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { useEffect } from 'react'
 
@@ -5,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Progress } from '@/components/ui/progress'
 import { useI18n } from '@/i18n'
-import { compactNumber } from '@/lib/format'
 import { fmtDayTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { $providerUsage, refreshProviderUsage } from '@/store/provider-usage'

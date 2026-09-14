@@ -108,3 +108,17 @@ export function displayModelName(model: string): string {
   return modelDisplayParts(model).name
 }
 
+/** Composer model-pill label — model name plus Fast when it applies. The
+ *  reasoning level is NOT here: it has its own pill (`ReasoningPill`), so a
+ *  long model name can no longer push the effort out of the truncating span. */
+export function formatModelPillLabel(model: string, options?: { fastMode?: boolean }): string {
+  const name = displayModelName(model)
+
+  // Fast is shown when the speed=fast param is on (options.fastMode) OR the
+  // active model is a `…-fast` variant (fast via a separate model id).
+  if (model.trim() && (options?.fastMode || /-fast$/i.test(modelBaseId(model)))) {
+    return `${name} · Fast`
+  }
+
+  return name
+}

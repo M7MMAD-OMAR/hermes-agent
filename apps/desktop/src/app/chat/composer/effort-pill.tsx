@@ -1,3 +1,4 @@
+import { DEFAULT_REASONING_EFFORT, REASONING_EFFORTS } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { type CSSProperties, useState } from 'react'
 
@@ -12,13 +13,7 @@ import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Brain, iconSize } from '@/lib/icons'
 import type { CurrentModelCaps } from '@/lib/model-options'
-import {
-  DEFAULT_REASONING_EFFORT,
-  isThinkingEnabled,
-  REASONING_EFFORTS,
-  reasoningEffortLabel,
-  resolveReasoningEffort
-} from '@/lib/reasoning-effort'
+import { isThinkingEnabled, reasoningEffortLabel, resolveReasoningEffort } from '@/lib/reasoning-effort'
 import { writeSessionFast, writeSessionReasoning } from '@/lib/session-model-writes'
 import { cn } from '@/lib/utils'
 import { $defaultReasoningEffort } from '@/store/session'

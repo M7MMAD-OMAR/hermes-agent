@@ -1,9 +1,14 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { clearAllPrompts, setApprovalRequest } from '@/store/prompts'
+import { clearAllPrompts, clearApprovalRequest, setApprovalRequest } from '@/store/prompts'
 import { $activeSessionId } from '@/store/session'
-import { onScrollToBottomRequest, resetAllThreadScroll, setThreadAtBottom } from '@/store/thread-scroll'
+import {
+  onScrollToBottomRequest,
+  resetAllThreadScroll,
+  setThreadAtBottom,
+  setThreadMessagesBelow
+} from '@/store/thread-scroll'
 
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
 
@@ -27,11 +32,12 @@ describe('ScrollToBottomButton', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
-  it('is a plain jump-to-bottom control when scrolled up with no approval', () => {
+  it('shows the messages below the viewport when scrolled up with no approval', () => {
     setThreadAtBottom('sess-1', false)
+    setThreadMessagesBelow('sess-1', 12)
     render(<ScrollToBottomButton sessionId="sess-1" />)
 
-    expect(screen.getByRole('button', { name: 'Scroll to bottom' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Scroll to bottom · 12 messages' }).textContent).toBe('12 messages')
     expect(screen.queryByText('Approval needed')).toBeNull()
   })
 
@@ -50,6 +56,26 @@ describe('ScrollToBottomButton', () => {
 
     // Parked at bottom → control hidden, so it can't claim "approval needed".
     expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('labels uncounted content without zero and follows only its own approval', () => {
+    // Both chats are scrolled up; only sess-1 has an approval waiting. The
+    // pill must follow the session it is rendered for, not whichever one the
+    // user last touched.
+    approvalFor('sess-1')
+    setThreadAtBottom('sess-1', false)
+    setThreadAtBottom('tile-runtime', false)
+    const view = render(<ScrollToBottomButton sessionId="tile-runtime" />)
+    expect(screen.getByRole('button', { name: 'Scroll to bottom' }).textContent).toBe('Scroll to bottom')
+
+    act(() => setApprovalRequest({ command: 'x', description: 'd', sessionId: 'tile-runtime', requestId: 'r1' }))
+    expect(screen.getByRole('button', { name: 'Approval needed' })).toBeTruthy()
+    act(() => clearApprovalRequest('tile-runtime', 'r1'))
+    expect(screen.queryByText('Approval needed')).toBeNull()
+    expect(screen.getByRole('button').textContent).toBe('Scroll to bottom')
+
+    view.rerender(<ScrollToBottomButton sessionId="sess-1" />)
+    expect(screen.getByRole('button', { name: 'Approval needed' })).toBeTruthy()
   })
 
   it('re-arms sticky-bottom on click', () => {

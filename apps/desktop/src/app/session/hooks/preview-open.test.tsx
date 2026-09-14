@@ -1,3 +1,4 @@
+import type { GatewayEvent } from '@hermes/shared'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { assistantTextPart, type ChatMessage } from '@/lib/chat-messages'
 import { $previewTabs, $previewTarget, closeRightRail, type PreviewTarget } from '@/store/preview'
 import { $activeSessionId, $currentCwd, $messages, $selectedStoredSessionId } from '@/store/session'
-import type { RpcEvent } from '@/types/hermes'
 
 import { usePreviewRouting } from './use-preview-routing'
 
@@ -19,7 +19,7 @@ function fileTarget(path: string): PreviewTarget {
   return { kind: 'file', label: path, path, previewKind: 'html', source: path, url: `file://${path}` }
 }
 
-/** A real http(s) address normalizes to a URL target — and URL tabs opened by
+/** A real http(s) address normalizes to a URL target, and URL tabs opened by
  *  the tool are agent-owned, which is exactly what the bulk-close guard reads. */
 function urlTarget(url: string): PreviewTarget {
   return { kind: 'url', label: url, source: url, url }
@@ -29,7 +29,7 @@ function normalize(target: string): PreviewTarget {
   return /^https:\/\//.test(target) ? urlTarget(target) : fileTarget(target)
 }
 
-let handleEvent: (event: RpcEvent) => void = () => undefined
+let handleEvent: (event: GatewayEvent) => void = () => undefined
 
 function Harness() {
   const routing = usePreviewRouting({
@@ -51,7 +51,7 @@ async function emitPreviewOpen(url = '/tmp/artifact-test.html', sessionId = RUNT
       payload: { label: 'hi bestie', url, ...(newTab ? { new_tab: true } : {}) },
       session_id: sessionId,
       type: 'preview.open'
-    } as unknown as RpcEvent)
+    } as unknown as GatewayEvent)
   })
 }
 
@@ -61,7 +61,7 @@ async function emitPreviewClose(url?: string, sessionId = RUNTIME_SESSION_ID) {
       payload: url === undefined ? {} : { url },
       session_id: sessionId,
       type: 'preview.close'
-    } as unknown as RpcEvent)
+    } as unknown as GatewayEvent)
   })
 }
 
@@ -127,7 +127,7 @@ describe('preview routing', () => {
           payload: { url: '/tmp/other.html' },
           session_id: 'some-other-session',
           type: 'preview.open'
-        } as unknown as RpcEvent)
+        } as unknown as GatewayEvent)
       })
 
       expect($previewTabs.get()).toHaveLength(0)
@@ -204,12 +204,12 @@ describe('preview routing', () => {
           payload: { inline_diff: 'a/preview-demo.html -> b/preview-demo.html\n' },
           session_id: RUNTIME_SESSION_ID,
           type: 'tool.complete'
-        } as unknown as RpcEvent)
+        } as unknown as GatewayEvent)
         handleEvent({
           payload: { path: './dist/index.html' },
           session_id: RUNTIME_SESSION_ID,
           type: 'tool.complete'
-        } as unknown as RpcEvent)
+        } as unknown as GatewayEvent)
       })
 
       expect($previewTabs.get()).toHaveLength(0)

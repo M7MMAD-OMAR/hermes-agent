@@ -1,11 +1,14 @@
+import { useStore } from '@nanostores/react'
 import type * as React from 'react'
 import { useRef } from 'react'
 
 import { type NewSessionSplitHandler, startNewSessionDrag } from '@/app/chat/new-session-drag'
 import { Codicon } from '@/components/ui/codicon'
+import { Tip } from '@/components/ui/tooltip'
 import type { SessionInfo } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
+import { $sidebarShowAllSessions } from '@/store/layout'
 
 import {
   SIDEBAR_LEAD_ICON_SIZE,
@@ -30,7 +33,7 @@ import { WorkspaceAddButton } from './workspace-header'
  * Is this icon a codicon NAME, or something the icon font cannot draw?
  *
  * `icon` is a free text column, so anything that creates a project outside the
- * appearance picker — an agent, the API — routinely stores an emoji. Codicon
+ * appearance picker, an agent or the API, routinely stores an emoji. Codicon
  * names are lowercase ASCII words joined by dashes; anything else would render
  * as a font class that does not exist and draw nothing.
  */
@@ -42,18 +45,21 @@ export function isCodiconName(icon: string): boolean {
  * Every project row leads with a glyph, and a folder is the default.
  *
  * It used to be three different things: a codicon for a project whose icon the
- * picker had set, a bare 4px dot for one with a colour and no icon, and — for
- * the ten of thirteen rows carrying an emoji from an agent — literally
+ * picker had set, a bare 4px dot for one with a colour and no icon, and, for
+ * the ten of thirteen rows carrying an emoji from an agent, literally
  * nothing, because `codicon-📈` is not a class the font ships. One list, three
  * kinds of lead, and the blank ones read as broken.
  *
- * So: the picker's own choice is honoured, Home keeps its house, and
- * EVERYTHING else is a folder. Colour survives as the tint rather than as a
- * dot of its own, which is what made the projects distinguishable in the first
- * place without making them look like different kinds of thing.
+ * So: the picker's own choice is honoured, Home keeps its house, an
+ * auto-discovered repo (a git lane Desktop found by scanning disk rather than a
+ * row in projects.db) gets `repo` so a glance tells it from an explicit
+ * project, and EVERYTHING else is a folder. Colour survives as the tint rather
+ * than as a dot of its own, which is what made the projects distinguishable in
+ * the first place without making them look like different kinds of thing.
  */
-export function projectIcon({ color, icon, isNoProject }: SidebarProjectTree) {
-  const name = icon && isCodiconName(icon) ? icon : isNoProject ? 'home' : 'folder-library'
+export function projectIcon({ color, icon, isAuto, isNoProject }: SidebarProjectTree) {
+  const fallback = isNoProject ? 'home' : isAuto ? 'repo' : 'folder-library'
+  const name = icon && isCodiconName(icon) ? icon : fallback
 
   return (
     <SidebarRowLeadGlyph style={color ? { color } : undefined}>
@@ -118,8 +124,10 @@ export function ProjectOverviewRow({
   // The appearance popover anchors here (the full row) so it opens flush with
   // the sidebar's content edge regardless of which side the sidebar is on.
   const rowRef = useRef<HTMLDivElement>(null)
-  const fetched = (previewSessions ?? []).slice(0, PROJECT_PREVIEW_COUNT)
-  const preview = renderRows ? (fetched.length ? fetched : latestProjectSessions(project, PROJECT_PREVIEW_COUNT)) : []
+  const showAllSessions = useStore($sidebarShowAllSessions)
+  const limit = showAllSessions ? Infinity : PROJECT_PREVIEW_COUNT
+  const fetched = (previewSessions ?? []).slice(0, limit)
+  const preview = renderRows ? (fetched.length ? fetched : latestProjectSessions(project, limit)) : []
 
   const lead = reorderable ? (
     <SidebarRowGrab
@@ -132,6 +140,22 @@ export function ProjectOverviewRow({
     </SidebarRowGrab>
   ) : (
     <SidebarRowLead>{projectIcon(project)}</SidebarRowLead>
+  )
+
+  const labelLink = (
+    <SidebarRowLink
+      // The glyph is aria-hidden and the tooltip only speaks on hover, so the
+      // link's own name carries the auto cue — screen readers get it too.
+      aria-label={
+        project.isAuto
+          ? `${s.projects.enter(project.label)} (${s.projects.autoDiscovered})`
+          : s.projects.enter(project.label)
+      }
+      labelClassName={cn('hover:text-foreground hover:underline', isActive && 'text-foreground')}
+      onClick={() => onEnter?.(project.id)}
+    >
+      {project.label}
+    </SidebarRowLink>
   )
 
   const shell = (
@@ -175,15 +199,7 @@ export function ProjectOverviewRow({
       }
       className={cn(dragging && 'cursor-grabbing bg-(--ui-sidebar-surface-background)')}
       data-glass-opaque={dragging ? '' : undefined}
-      label={
-        <SidebarRowLink
-          aria-label={s.projects.enter(project.label)}
-          labelClassName={cn('hover:text-foreground hover:underline', isActive && 'text-foreground')}
-          onClick={() => onEnter?.(project.id)}
-        >
-          {project.label}
-        </SidebarRowLink>
-      }
+      label={project.isAuto ? <Tip label={s.projects.autoDiscovered}>{labelLink}</Tip> : labelLink}
       lead={lead}
       // The label is grab surface too, not just the lead's grabber — same
       // listeners, minus the controls that keep their own gestures. A project

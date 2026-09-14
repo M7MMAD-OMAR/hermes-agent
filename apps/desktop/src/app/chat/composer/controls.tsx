@@ -62,6 +62,7 @@ export function ComposerControls({
   disabled,
   foldVoice = false,
   hasComposerPayload,
+  hideModelPill = false,
   leading,
   minimal = false,
   requestGateway,
@@ -81,7 +82,10 @@ export function ComposerControls({
   disabled: boolean
   foldVoice?: boolean
   hasComposerPayload: boolean
-  /** The attach (`+`) menu and any contributed leading controls — rendered at
+  /** Guided onboarding drives the model itself; its composer hides the pill so
+   *  the chat cannot be switched out from under the script. */
+  hideModelPill?: boolean
+  /** The attach (`+`) menu and any contributed leading controls, rendered at
    *  the toolbar's left edge, where the old inline row had them. */
   leading?: React.ReactNode
   minimal?: boolean
@@ -154,8 +158,12 @@ export function ComposerControls({
           requestGateway={requestGateway}
           sessionId={sessionId ?? null}
         />
-        <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
-        <EffortPill caps={state.model.caps} disabled={disabled} requestGateway={requestGateway} />
+        {hideModelPill ? null : (
+          <>
+            <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
+            <EffortPill caps={state.model.caps} disabled={disabled} requestGateway={requestGateway} />
+          </>
+        )}
         {showQueueButton ? (
           <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />}>
             <Button

@@ -1,5 +1,6 @@
+import { compactNumber } from '@hermes/shared'
+
 import { translateNow } from '@/i18n'
-import { compactNumber } from '@/lib/format'
 import { firstStringField } from '@/lib/text'
 
 import { compactPreview, isRecord, numberValue, parseMaybeObject } from './fallback-model/format'

@@ -109,62 +109,61 @@ export function SubagentSection({ sessionId }: SubagentSectionProps) {
   return (
     <div className="composer-no-drag min-w-0" data-slot="composer-subagents">
       <StatusSection
+        collapsedIndicator={
+          <GlyphSpinner
+            ariaLabel={live.some(item => item.status === 'running') ? t.agents.running : t.agents.queued}
+            className="text-(--ui-purple)"
+            spinner="braille"
+          />
+        }
         icon={<Codicon className="text-(--ui-purple)" name="agent" size="0.8rem" />}
         label={t.statusStack.subagents(live.length)}
-        preview={
-          <>
-            {live.slice(0, 3).map(row)}
-            {live.length > 3 && (
-              <p className="px-2 text-[0.68rem] text-(--ui-text-tertiary)">{t.agents.moreAgents(live.length - 3)}</p>
-            )}
-          </>
-        }
       >
         <div className="max-h-[25vh] overflow-y-auto overscroll-contain">{live.map(row)}</div>
+        {detail && (
+          <div
+            className="max-h-[25vh] overflow-y-auto overscroll-contain px-3 py-2"
+            data-slot="composer-subagent-detail"
+            // Keyed per worker so switching selection is a remount, not a
+            // re-render of one reused node. Without it this scrolling panel
+            // carried the previous worker's scroll offset into the next one, and
+            // the enter animation below never replayed, because a callback ref
+            // only fires when the element actually mounts.
+            key={detail.id}
+            ref={detailEnterRef}
+          >
+            {childSession && (
+              <div className="flex justify-end">
+                {/* A spectator window (`watch: true`), not the generic
+                    `openSession` navigation. This roster only ever lists LIVE
+                    children, and `watch` is the app's one mode for observing a
+                    session someone else is driving: a live-mirror stream instead
+                    of adopting it as your own chat. Both other places that open a
+                    subagent child pass it, and nothing else in the app does. An
+                    in-app tab would be more fluent and would land you on top of a
+                    running worker. */}
+                <Button
+                  onClick={() => void openSessionInNewWindow(childSession, { watch: true })}
+                  size="xs"
+                  type="button"
+                  variant="text"
+                >
+                  {t.notifications.openChat}
+                </Button>
+              </div>
+            )}
+            <SubagentControls
+              key={`${sessionId}:${detail.id}`}
+              sessionId={sessionId}
+              setText={text => setDrafts(previous => ({ ...previous, [detail.id]: text }))}
+              subagentId={detail.id}
+              text={drafts[detail.id] ?? ''}
+            />
+            <SubagentRow node={{ ...detail, children: [] }} nowMs={nowMs} />
+            <SubagentTranscript key={`tail:${sessionId}:${detail.id}`} sessionId={sessionId} subagentId={detail.id} />
+          </div>
+        )}
       </StatusSection>
-      {detail && (
-        <div
-          className="max-h-[25vh] overflow-y-auto overscroll-contain px-3 py-2"
-          data-slot="composer-subagent-detail"
-          // Keyed per worker so switching selection is a remount, not a
-          // re-render of one reused node. Without it this scrolling panel
-          // carried the previous worker's scroll offset into the next one, and
-          // the enter animation below never replayed, because a callback ref
-          // only fires when the element actually mounts.
-          key={detail.id}
-          ref={detailEnterRef}
-        >
-          {childSession && (
-            <div className="flex justify-end">
-              {/* A spectator window (`watch: true`), not the generic
-                  `openSession` navigation. This roster only ever lists LIVE
-                  children, and `watch` is the app's one mode for observing a
-                  session someone else is driving: a live-mirror stream instead
-                  of adopting it as your own chat. Both other places that open a
-                  subagent child pass it, and nothing else in the app does. An
-                  in-app tab would be more fluent and would land you on top of a
-                  running worker. */}
-              <Button
-                onClick={() => void openSessionInNewWindow(childSession, { watch: true })}
-                size="xs"
-                type="button"
-                variant="text"
-              >
-                {t.notifications.openChat}
-              </Button>
-            </div>
-          )}
-          <SubagentControls
-            key={`${sessionId}:${detail.id}`}
-            sessionId={sessionId}
-            setText={text => setDrafts(previous => ({ ...previous, [detail.id]: text }))}
-            subagentId={detail.id}
-            text={drafts[detail.id] ?? ''}
-          />
-          <SubagentRow node={{ ...detail, children: [] }} nowMs={nowMs} />
-          <SubagentTranscript key={`tail:${sessionId}:${detail.id}`} sessionId={sessionId} subagentId={detail.id} />
-        </div>
-      )}
     </div>
   )
 }

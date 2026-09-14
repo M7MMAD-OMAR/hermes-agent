@@ -425,3 +425,19 @@ describe('recovering an undeliverable queue', () => {
     expect(recoverQueuedPrompts(null)).toBe(0)
   })
 })
+
+describe('hidden entries', () => {
+  beforeEach(() => {
+    clearQueuedPrompts('hidden-session')
+  })
+
+  it('keeps the hidden kind on a queued note and leaves visible entries without one', () => {
+    enqueueQueuedPrompt('hidden-session', { text: '[setup] links opened', attachments: [], displayKind: 'hidden' })
+    enqueueQueuedPrompt('hidden-session', { text: 'Start without connections.', attachments: [] })
+
+    expect(getQueuedPrompts('hidden-session').map(({ text, displayKind }) => ({ text, displayKind }))).toEqual([
+      { text: '[setup] links opened', displayKind: 'hidden' },
+      { text: 'Start without connections.', displayKind: undefined }
+    ])
+  })
+})

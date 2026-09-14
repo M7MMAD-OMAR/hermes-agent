@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { currentPickerSelection, displayModelName, modelDisplayParts } from './model-status-label'
+import { currentPickerSelection, displayModelName, formatModelPillLabel, modelDisplayParts } from './model-status-label'
 import { reasoningEffortLabel } from './reasoning-effort'
 
 describe('model-status-label', () => {
@@ -34,6 +34,13 @@ describe('model-status-label', () => {
     expect(reasoningEffortLabel('max')).toBe('Max')
     expect(reasoningEffortLabel('ultra')).toBe('Ultra')
     expect(reasoningEffortLabel('')).toBe('')
+  })
+
+  it('keeps the model pill to name + Fast; the effort lives on its own pill', () => {
+    expect(formatModelPillLabel('openai/gpt-5.5', { fastMode: true })).toBe('GPT-5.5 · Fast')
+    expect(formatModelPillLabel('anthropic/claude-opus-4.8-fast')).toBe('Opus 4.8 · Fast')
+    expect(formatModelPillLabel('openai/gpt-5.5')).toBe('GPT-5.5')
+    expect(formatModelPillLabel('')).toBe('No model')
   })
 
   describe('currentPickerSelection', () => {

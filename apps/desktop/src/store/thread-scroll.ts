@@ -16,10 +16,16 @@ import { $activeProfile, normalizeProfileKey } from '@/store/profile'
 // dimmed all their composers. Each transcript owns its own answer.
 //
 // `scrolledUp` dims the composer / status stack; `jumpVisible` shows the
-// floating jump control. Both track `!isAtBottom` today, but stay separate so
-// their thresholds can diverge again without touching consumers.
+// floating jump control; `messagesBelow` is the count that control badges with.
+// The first two track `!isAtBottom` today, but stay separate so their
+// thresholds can diverge again without touching consumers.
+//
+// The count is per session for the same reason the booleans are: upstream
+// published it into one global guarded by `paneVisible`, which a keep-alive
+// tab could still clobber. One entry per session needs no such guard.
 export interface ThreadScrollChromeState {
   jumpVisible: boolean
+  messagesBelow: number
   scrolledUp: boolean
 }
 
@@ -29,7 +35,7 @@ export interface ThreadScrollChromeState {
  *  other identity to key on until the first turn persists. */
 const keyFor = (sessionId: null | string | undefined): string => sessionId ?? ''
 
-const AT_BOTTOM: ThreadScrollChromeState = { jumpVisible: false, scrolledUp: false }
+const AT_BOTTOM: ThreadScrollChromeState = { jumpVisible: false, messagesBelow: 0, scrolledUp: false }
 
 export const $threadScrollBySession = atom<Record<string, ThreadScrollChromeState>>({})
 
@@ -50,7 +56,30 @@ export const setThreadAtBottom = (sessionId: null | string, isAtBottom: boolean)
     return
   }
 
-  $threadScrollBySession.set({ ...all, [key]: { jumpVisible: !isAtBottom, scrolledUp: !isAtBottom } })
+  $threadScrollBySession.set({
+    ...all,
+    [key]: { ...current, jumpVisible: !isAtBottom, scrolledUp: !isAtBottom }
+  })
+}
+
+/** How many messages sit below this transcript's viewport (the jump control's
+ *  badge). Same no-op guard: this is written on every scroll tick. */
+export const setThreadMessagesBelow = (sessionId: null | string, count: number): void => {
+  const key = keyFor(sessionId)
+  const all = $threadScrollBySession.get()
+  const current = all[key] ?? AT_BOTTOM
+
+  if (current.messagesBelow === count) {
+    return
+  }
+
+  $threadScrollBySession.set({ ...all, [key]: { ...current, messagesBelow: count } })
+}
+
+/** Park one transcript at the bottom and drop its pending count. */
+export const resetThreadScroll = (sessionId: null | string): void => {
+  setThreadAtBottom(sessionId, true)
+  setThreadMessagesBelow(sessionId, 0)
 }
 
 /** Drop one transcript's entry when its list unmounts.

@@ -11,7 +11,7 @@ import { withinNativeNotifyBaseline } from './notify-baseline'
 import { clearApprovalRequest } from './prompts'
 import { isSessionGone, isSessionGoneForBackgroundPolling, markSessionGone } from './runtime-gone'
 import { $activeSessionId } from './session'
-import { requestForOwnedSession, runtimeHasOpenSurface } from './session-states'
+import { requestForOwnedSession, runtimeHasOpenSurface, storedSessionIdForRuntimeId } from './session-states'
 
 export type { HermesOpenTarget }
 
@@ -244,6 +244,7 @@ export function dispatchNativeNotification(input: NativeNotificationInput): bool
     activate: input.activate,
     body: input.body,
     chatId: chatId ?? undefined,
+    focusSessionId: input.sessionId ? (storedSessionIdForRuntimeId(input.sessionId) ?? undefined) : undefined,
     icon: input.icon,
     kind: input.kind,
     linkLabel: translateNow('notifications.openChat'),

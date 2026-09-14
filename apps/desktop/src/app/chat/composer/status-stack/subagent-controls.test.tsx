@@ -29,6 +29,7 @@ it('sends steer and stop to the child parent owner, never the active gateway or 
   setSessionOwnerHint('parent', { connectionId: 'remote-owner', profile: 'research' })
   upsertSubagent('parent', { subagent_id: 'worker', child_session_id: 'child-transcript', goal: 'Owned work' })
   render(<SubagentSection sessionId="parent" />)
+  fireEvent.click(screen.getByRole('button', { name: /1 Subagent/ }))
   fireEvent.click(screen.getByRole('button', { name: /Owned work/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Check the negative control' } })
   fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
@@ -55,6 +56,8 @@ it('surfaces a delivered instruction in the worker roster instead of only a queu
   setSessionOwnerHint('parent', { connectionId: 'remote-owner', profile: 'research' })
   upsertSubagent('parent', { subagent_id: 'worker', goal: 'Owned work' })
   const view = render(<SubagentSection sessionId="parent" />)
+  // Status groups start collapsed; open the roster before picking a worker.
+  fireEvent.click(screen.getByRole('button', { name: /Subagent/ }))
   fireEvent.click(screen.getByRole('button', { name: /Owned work/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Skip the flaky fixture' } })
   fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
@@ -74,6 +77,8 @@ it('spectates the child conversation, and only when the worker reported its own 
   upsertSubagent('parent', { subagent_id: 'anonymous', goal: 'No transcript yet' })
   upsertSubagent('parent', { subagent_id: 'worker', child_session_id: 'child-1', goal: 'Has a transcript' })
   render(<SubagentSection sessionId="parent" />)
+  // Status groups start collapsed; open the roster before picking a worker.
+  fireEvent.click(screen.getByRole('button', { name: /Subagent/ }))
 
   // A worker that never reported a session has nowhere to go.
   fireEvent.click(screen.getByRole('button', { name: /No transcript yet/ }))
@@ -91,6 +96,8 @@ it('records nothing when the gateway refuses the steer', async () => {
   setSessionOwnerHint('parent', { connectionId: 'remote-owner', profile: 'research' })
   upsertSubagent('parent', { subagent_id: 'worker', goal: 'Owned work' })
   render(<SubagentSection sessionId="parent" />)
+  // Status groups start collapsed; open the roster before picking a worker.
+  fireEvent.click(screen.getByRole('button', { name: /Subagent/ }))
   fireEvent.click(screen.getByRole('button', { name: /Owned work/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Never delivered' } })
   fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
@@ -103,6 +110,7 @@ it('keeps rejected steer text and does not retarget when the owner is unknown', 
   const request = vi.spyOn(gateway, 'requestGatewayForAgent').mockResolvedValue({ status: 'rejected' })
   upsertSubagent('unknown', { subagent_id: 'worker', goal: 'Unbound work' })
   render(<SubagentSection sessionId="unknown" />)
+  fireEvent.click(screen.getByRole('button', { name: /1 Subagent/ }))
   fireEvent.click(screen.getByRole('button', { name: /Unbound work/ }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep this instruction' } })
   fireEvent.click(screen.getByRole('button', { name: 'Steer' }))

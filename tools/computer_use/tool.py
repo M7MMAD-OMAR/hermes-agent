@@ -254,8 +254,6 @@ def release_computer_use_session(session_id: str) -> bool:
         # Every surface, not only the one that happens to be keyed bare: a session that
         # drove a phone as well as the desktop would otherwise leave its device leased.
         detached = [_detach_locked(key) for key in _session_keys_locked(sid)] or [_detach_locked(sid)]
-    with _approval_lock:
-        _session_auto_approve.pop(sid, None), _always_allow.pop(sid, None)
     released = False
     for backend, call_lock in detached:
         if backend is None:

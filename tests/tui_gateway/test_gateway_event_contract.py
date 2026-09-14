@@ -37,6 +37,10 @@ _SUBAGENT_RELAY = re.compile(r"\"(subagent\.[a-z_]+)\"")
 _DESKTOP_UI_EMIT = re.compile(r"desktop_ui\.(?:emit|emit_or_error)\(\s*\"([a-z_][a-z0-9_.]*)\"")
 _BROKER_FRAME = re.compile(r"^FRAME_[A-Z_]+ = \"(browser\.controller\.[a-z_]+)\"", re.M)
 _SETUP_READY = re.compile(r"^SETUP_READY_EVENT = \"([a-z_.]+)\"", re.M)
+# Two post-turn events are produced in the AGENT and reach the wire through the
+# emit callable the desktop gateway installs (``agent/next_moves.py``,
+# ``agent/turn_outcome.py``), so the gateway sources never name them.
+_AGENT_EMIT = re.compile(r"\bemit\(\s*\n?\s*\"([a-z_][a-z0-9_.]*)\"")
 
 
 def _read(path: Path) -> str:
@@ -69,6 +73,8 @@ def emitted_event_names() -> set[str]:
         names.update(_DESKTOP_UI_EMIT.findall(_read(src)))
     names.update(_BROKER_FRAME.findall(_read(REPO / "gateway" / "browser_control_broker.py")))
     names.update(_SETUP_READY.findall(_read(REPO / "hermes_cli" / "free_tier_bootstrap.py")))
+    for src in (REPO / "agent").glob("*.py"):
+        names.update(_AGENT_EMIT.findall(_read(src)))
     # Dispatch-table keys that double as the emitted name (``_PROGRESS_HANDLERS`` re-emits
     # ``event_type``) are already literal ``_emit("...")`` calls inside their handlers.
     return names

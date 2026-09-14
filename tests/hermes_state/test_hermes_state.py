@@ -4676,16 +4676,24 @@ class TestApplyWalProbe:
         assert not errors, f"disk I/O errors from concurrent connects: {errors}"
 
         # Linux-only: no (deleted) WAL/SHM FDs should accumulate.
+        #
+        # Scoped to THIS test's tmp_path. The process is shared with the
+        # WAL-holder suites, which deliberately leave orphaned holders behind to
+        # assert on them, so a process-wide sweep here reports their fds and not
+        # this test's own.
         if sys.platform == "linux":
             import os
 
             fd_dir = f"/proc/{os.getpid()}/fd"
+            mine = str(tmp_path)
             deleted_fds = []
             for fd_name in os.listdir(fd_dir):
                 try:
                     target = os.readlink(os.path.join(fd_dir, fd_name))
-                    if "(deleted)" in target and (
-                        "wal" in target.lower() or "shm" in target.lower()
+                    if (
+                        "(deleted)" in target
+                        and target.startswith(mine)
+                        and ("wal" in target.lower() or "shm" in target.lower())
                     ):
                         deleted_fds.append(target)
                 except OSError:

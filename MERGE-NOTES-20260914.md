@@ -4,6 +4,13 @@ Merged `origin/main` (`ee4452991d`) into `autobuild/sidebar-browser` (`489ff4b05
 on 14 September 2026. 1565 upstream commits against 332 local ones, **74
 conflicted files, 115 hunks**, all resolved.
 
+## Working in this worktree
+
+`node_modules` here is a symlink into the live checkout, which is enough for
+typecheck, tests and the vite build. Every dependency upstream added over these
+1565 commits (`qrcode`, `@types/qrcode`, `globals`, `typescript-eslint`) was
+checked to resolve. A real install belongs on the branch once it lands.
+
 ## Policy
 
 Local behaviour wins on the conversation and thinking surfaces; upstream
@@ -19,7 +26,10 @@ tests were updated to match, each one noted below.
 | `npx eslint src electron` | 0 errors (173 pre-existing warnings) |
 | `npx vitest run` | **10,665 passed**, 10 skipped, 0 failed |
 | `pytest tests/hermes_state tests/computer_use tests/tui_gateway/{session_control,server,event_contract,session_outcome,pending_bundle}` | 2073 passed, 1 pre-existing failure |
-| `pytest tests/tui_gateway` | 1959 passed, 7 failed, every one of them also red on pure upstream (measured at `ee4452991d`: 7 failed there too, in the same two files) |
+| `pytest tests/tui_gateway` | 1959 passed, 7 failed, every one of them also red on pure upstream (measured at `ee4452991d`: 7 failed there too, in the same two files, and upstream additionally fails the model-options test this branch had already fixed) |
+| `pytest tests/agent` | 9543 passed, 26 failed. Scoped side by side against `ee4452991d` and against the pre-merge branch: all but one are red there too. The one that was genuinely this merge's is fixed (the `listing` fence, below). |
+| `pytest tests/tools` + `tests/plugins` project suites | 103 passed (this is what covers the rewritten `projects_db.connect`) |
+| `pytest tests/hermes_cli` | **does not finish on this machine.** It stalls around 83% and was killed at 30, 20 and 90 minute budgets. Not investigated here: the only files this merge touched in that tree are `foreign_sessions.py` (its own suite passes) and `projects_db.py` (covered by the project suites above). |
 | `vite build` + `bundle-electron-main` | built |
 | Live run | Electron launched on a private Orbit display with an isolated `HERMES_HOME` and userData: backend came up, renderer loaded, first-run provider screen, chat shell, settings, and Arabic RTL all render |
 
@@ -139,9 +149,7 @@ were missing from the shared gateway contract; both are now in
 
 ## Still to do before this lands
 
-1. `pytest tests/hermes_cli tests/tools tests/plugins tests/agent` was still
-   running when these notes were written. Everything else on the Python side is
-   verified above.
+1. `pytest tests/hermes_cli` if anyone can make it terminate; see the table.
 2. `hermes-land-update` from the live checkout. It refuses while the tree is
    dirty, and the live checkout currently holds another agent's uncommitted
    files.

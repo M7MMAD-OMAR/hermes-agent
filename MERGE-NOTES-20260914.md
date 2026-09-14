@@ -18,6 +18,8 @@ tests were updated to match, each one noted below.
 | `npx tsc -p .` / `-p tsconfig.electron.json` / `-p tsconfig.e2e.json` | clean |
 | `npx eslint src electron` | 0 errors (173 pre-existing warnings) |
 | `npx vitest run` | **10,665 passed**, 10 skipped, 0 failed |
+| `pytest tests/hermes_state tests/computer_use tests/tui_gateway/{session_control,server,event_contract,session_outcome,pending_bundle}` | 2073 passed, 1 pre-existing failure |
+| `pytest tests/tui_gateway` | 1959 passed, 7 failed, every one of them also red on pure upstream (measured at `ee4452991d`: 7 failed there too, in the same two files) |
 | `vite build` + `bundle-electron-main` | built |
 | Live run | Electron launched on a private Orbit display with an isolated `HERMES_HOME` and userData: backend came up, renderer loaded, first-run provider screen, chat shell, settings, and Arabic RTL all render |
 
@@ -110,16 +112,39 @@ were missing from the shared gateway contract; both are now in
   zh-hant 668), and this fork does not ship them to a reader. Arabic kept its
   tight ratchet and was translated instead.
 
-### Small fix taken along the way
+### Small fixes taken along the way
 
-`useEnterAnimation` now skips when `el.animate` is absent (jsdom, and any host
-without Web Animations) instead of throwing out of a layout effect.
+- `useEnterAnimation` now skips when `el.animate` is absent (jsdom, and any host
+  without Web Animations) instead of throwing out of a layout effect.
+- `computer_use`'s release no longer pops the per-session approval dicts.
+  Upstream moved those grants into the shared store (`tools.approval.clear_session`)
+  and deleted the dicts, so the merged line raised `NameError` on every release.
+- The gateway event contract test now also reads `agent/*.py`. This fork emits
+  `next_moves.offer` and `session.outcome` from the agent through the callable
+  the desktop gateway installs, so a `tui_gateway`-only scan called them orphans.
+- **An upstream test was modified** and will re-conflict on the next merge:
+  `test_apply_wal_concurrent_connects_no_eio` swept the whole process for
+  deleted WAL/SHM fds, and shares that process with this fork's WAL-holder
+  suites, which leave orphaned holders on purpose to assert on them. Its sweep
+  is now scoped to its own `tmp_path`.
+
+### Known failures that are NOT this merge
+
+- `tests/hermes_state` `TestFTS5Search::test_search_projection_skips_context_enrichment_queries`
+  fails on the pre-merge branch too.
+- The 7 `tests/tui_gateway` failures only appear in a whole-directory run (each
+  file is green alone) and reproduce on pure upstream, which additionally fails
+  `test_model_options_preserves_canonical_custom_row_after_agent_init` that this
+  branch had already fixed.
 
 ## Still to do before this lands
 
-1. `python -m pytest tests/tui_gateway tests/hermes_cli tests/agent tests/state`
-   on this branch (the desktop half is fully verified; the Python half was
-   still running when these notes were written).
+1. `pytest tests/hermes_cli tests/tools tests/plugins tests/agent` was still
+   running when these notes were written. Everything else on the Python side is
+   verified above.
 2. `hermes-land-update` from the live checkout. It refuses while the tree is
    dirty, and the live checkout currently holds another agent's uncommitted
    files.
+3. Nothing here is in the app the person is running: `release/linux-unpacked`
+   has not been regenerated, so neither the owner-resolution fix nor this merge
+   is live until that rebuild happens.

@@ -37,7 +37,7 @@ import { resolveSessionOwner } from '@/app/session/hooks/use-session-actions/uti
 import type { ClientSessionState } from '@/app/types'
 import { isSessionGoneForBackgroundPolling } from '@/store/runtime-gone'
 import { getSessionOwnerHint, knownSessionOwner, ownerLookupSessionRows, requestSessionResume } from '@/store/session'
-import { assertSessionOwnerResolved } from '@/store/session-owner-resolution'
+import { assertSessionOwnerResolved, setSessionOwnerProbe } from '@/store/session-owner-resolution'
 import { requestForSessionProfile, type SessionOwnerScope } from '@/store/session-request-router'
 import { $focusedStoredSessionId, sessionTileOwnerRoute, storedSessionIdForRuntimeId } from '@/store/session-states'
 
@@ -59,6 +59,14 @@ export interface SessionRpcDispatcherDeps {
 
 export function createSessionRpcDispatcher(deps: SessionRpcDispatcherDeps): AmbientGatewayRequest {
   const { ambientRequest, runtimeIdByStoredSessionIdRef, selectedStoredSessionIdRef, sessionStateByRuntimeIdRef } = deps
+
+  // Store-side callers (requestForOwnedSession: session controls, background
+  // processes, approval.respond) run the sync owner ladder only, and the store
+  // cannot import this app-layer resolver without a cycle. Hand it over here,
+  // so those callers get the same by-id cross-profile probe this dispatcher
+  // uses instead of failing closed on any session outside the sidebar's
+  // loaded page.
+  setSessionOwnerProbe(resolveSessionOwner)
 
   return async <T>(method: string, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal) => {
     const paramSessionId = typeof params?.session_id === 'string' && params.session_id ? params.session_id : undefined

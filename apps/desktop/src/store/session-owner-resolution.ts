@@ -80,3 +80,86 @@ export function assertSessionOwnerResolved(
 
   throw new SessionOwnerResolutionError(context.sessionId, context.method)
 }
+
+/**
+ * ASYNC last rung of the owner ladder, registered by the app layer.
+ *
+ * The sync ladder (tile route, hint, row, runtime ledger) only ever sees rows
+ * the sidebar already loaded, and that listing is a PAGE: recents are capped
+ * and scoped to one profile, so a conversation older than the window (or newer
+ * than the next list refresh) carries no row at all. The window's own
+ * dispatcher already covers that with a by-id REST probe across profiles
+ * (resolveSessionOwner), but every caller that goes through
+ * requestForOwnedSession skipped it and failed closed instead, which is how a
+ * plain conversation open raised "Session owner could not be resolved" for a
+ * background `session.control.read` on a multi-profile install.
+ *
+ * The store cannot import the app-layer resolver without a cycle, so the app
+ * registers it here. Registration is optional: with no probe the ladder keeps
+ * its previous fail-closed behavior.
+ */
+export type SessionOwnerProbe = (storedSessionId: string) => Promise<SessionOwnerScope>
+
+let sessionOwnerProbe: null | SessionOwnerProbe = null
+const probesInFlight = new Map<string, Promise<SessionOwnerScope>>()
+
+// A probe that named nobody is remembered briefly. Background pollers
+// (processes, controls) re-ask for the same session on a timer, and a session
+// no backend can claim would otherwise pay a cross-profile REST sweep on every
+// tick. Short enough that a genuinely late binding is picked up on the next
+// window; a session whose row or hint arrives meanwhile never reaches here,
+// because the sync ladder resolves it first.
+const PROBE_MISS_TTL_MS = 30_000
+const probeMisses = new Map<string, number>()
+
+export function setSessionOwnerProbe(probe: null | SessionOwnerProbe): void {
+  sessionOwnerProbe = probe
+  probesInFlight.clear()
+  probeMisses.clear()
+}
+
+/**
+ * Probe the owner of `storedSessionId`, one flight per id: a session opening
+ * fires several session-scoped RPCs at once (controls, background processes,
+ * goal), and each of them missing the sync ladder must not cost its own
+ * cross-profile REST sweep. Failures resolve to undefined so the caller's
+ * fail-closed assertion, not this rung, decides what the user sees.
+ */
+export async function probeSessionOwner(storedSessionId: null | string | undefined): Promise<SessionOwnerScope> {
+  const probe = sessionOwnerProbe
+
+  if (!probe || !storedSessionId) {
+    return undefined
+  }
+
+  const pending = probesInFlight.get(storedSessionId)
+
+  if (pending) {
+    return pending
+  }
+
+  const missedAt = probeMisses.get(storedSessionId)
+
+  if (missedAt !== undefined) {
+    if (Date.now() - missedAt < PROBE_MISS_TTL_MS) {
+      return undefined
+    }
+
+    probeMisses.delete(storedSessionId)
+  }
+
+  const flight = probe(storedSessionId)
+    .catch(() => undefined)
+    .then(owner => {
+      if (owner === undefined || owner === null) {
+        probeMisses.set(storedSessionId, Date.now())
+      }
+
+      return owner
+    })
+    .finally(() => probesInFlight.delete(storedSessionId))
+
+  probesInFlight.set(storedSessionId, flight)
+
+  return flight
+}

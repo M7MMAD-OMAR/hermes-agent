@@ -66,7 +66,11 @@ import {
   setSessions
 } from './session'
 import { secondaryProfileOwnerForEvent } from './session-event-provenance'
-import { assertSessionOwnerResolved } from './session-owner-resolution'
+import {
+  ambientGatewayOwnsEverySession,
+  assertSessionOwnerResolved,
+  probeSessionOwner
+} from './session-owner-resolution'
 import {
   requestForSessionProfile,
   type SessionOwnerRoute,
@@ -1136,13 +1140,29 @@ export function requestForOwnedSession<T>(
 ): Promise<T> {
   const owner = knownOwnerForSession(sessionId)
 
-  try {
-    assertSessionOwnerResolved(owner, { method, sessionId })
-  } catch (error) {
-    return Promise.reject(error)
+  if (owner || !sessionId || ambientGatewayOwnsEverySession()) {
+    try {
+      assertSessionOwnerResolved(owner, { method, sessionId })
+    } catch (error) {
+      return Promise.reject(error)
+    }
+
+    return requestForSessionProfile<T>(owner, ambientRequest, method, params, timeoutMs, signal)
   }
 
-  return requestForSessionProfile<T>(owner, ambientRequest, method, params, timeoutMs, signal)
+  // Sync ladder missed. Before failing closed, take the SAME async rung the
+  // window's dispatcher takes: a by-id REST probe across profiles. The sync
+  // rungs read the sidebar's loaded page, so a session outside that window has
+  // no row to name its owner even though the backend can name it in one
+  // lookup. Without this, opening any such conversation surfaced an owner
+  // resolution error for background reads (session.control.read) on every
+  // multi-profile install. A probe that still names nobody falls through to
+  // the same fail-closed assertion as before.
+  return probeSessionOwner(storedSessionIdForRuntimeId(sessionId) ?? sessionId).then(probed => {
+    assertSessionOwnerResolved(probed, { method, sessionId })
+
+    return requestForSessionProfile<T>(probed, ambientRequest, method, params, timeoutMs, signal)
+  })
 }
 
 /** Resolve a session id THAT MAY BE A RUNTIME ID to the stored id its tile
@@ -1741,9 +1761,7 @@ export function focusWorkspaceOwnerSessionTile(
   const paneId = resolveRememberedActivePane(workspaceScopeKey(workspaceMode, workspaceOwnerKey), paneIds) ?? paneIds[0]
   const storedSessionId = paneId.slice(TILE_PANE_PREFIX.length)
 
-  return focusOpenSession(storedSessionId, { workspaceMode, workspaceOwnerKey }) === 'tile'
-    ? storedSessionId
-    : null
+  return focusOpenSession(storedSessionId, { workspaceMode, workspaceOwnerKey }) === 'tile' ? storedSessionId : null
 }
 
 /** Does a sidebar click still need to navigate after `focusOpenSession`? A miss

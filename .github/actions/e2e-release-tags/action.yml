@@ -1,0 +1,43 @@
+name: Fetch release tags
+description: >-
+  Make sure the checkout carries the vYYYY.M.D[.N] release tags the install/update
+  E2E samples its starting versions from. A fork (or a mirror pushed without
+  tags) has none of them, and every E2E job then dies before a single leg runs:
+  pick-release-tags.sh exits on an empty tag list, and the legs cannot park
+  serve.git at an OLD version that is not in the checkout. When the checkout has
+  no release tags, fetch them from the upstream repository they are cut on.
+
+inputs:
+  upstream:
+    description: The repository release tags are cut on.
+    required: false
+    default: https://github.com/NousResearch/hermes-agent.git
+  filter:
+    description: >-
+      Optional partial-clone filter for the tag fetch (e.g. blob:none). Leave
+      empty for a job that bare-clones the checkout: the legs must be able to
+      serve the whole OLD tree, so that fetch needs every object.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        UPSTREAM: ${{ inputs.upstream }}
+        FILTER: ${{ inputs.filter }}
+      run: |
+        set -euo pipefail
+        have="$(git tag --list 'v[0-9]*' | grep -cE '^v[0-9]{4}\.[0-9]+\.[0-9]+(\.[0-9]+)?$' || true)"
+        if [ "$have" -gt 0 ]; then
+          echo "checkout already carries $have release tag(s); nothing to fetch"
+          exit 0
+        fi
+        echo "no release tags in this checkout; fetching them from $UPSTREAM"
+        args=(--no-tags)
+        [ -z "$FILTER" ] || args+=("--filter=$FILTER")
+        git fetch "${args[@]}" "$UPSTREAM" '+refs/tags/v*:refs/tags/v*'
+        have="$(git tag --list 'v[0-9]*' | grep -cE '^v[0-9]{4}\.[0-9]+\.[0-9]+(\.[0-9]+)?$' || true)"
+        [ "$have" -gt 0 ] || { echo "error: $UPSTREAM has no release tags either" >&2; exit 1; }
+        echo "fetched $have release tag(s)"

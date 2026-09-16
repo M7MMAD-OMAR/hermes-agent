@@ -97,8 +97,16 @@ jobs:
         with:
           filter: blob:none
           fetch-tags: true
-          sparse-checkout: scripts/sandbox/pick-release-tags.sh
+          sparse-checkout: |
+            scripts/sandbox/pick-release-tags.sh
+            .github/actions/e2e-release-tags/action.yml
           sparse-checkout-cone-mode: false
+      # A fork carries none of upstream's release tags, so fetch-tags alone
+      # leaves the picker with an empty list. Trees only (blob:none): this
+      # job reads tag names and `ls-tree`, never file contents.
+      - uses: ./.github/actions/e2e-release-tags
+        with:
+          filter: blob:none
       - id: pick
         env:
           # Dispatch inputs never touch shell syntax directly: TAG_COUNT
@@ -272,7 +280,9 @@ jobs:
               --paginate --jq '.artifacts[] | {name, id}' > /tmp/e2e-artifacts.ndjson
             echo 'Legend: ✅ upgrade passed · known [n] = exact historical failure, see footnote · ❌ unexpected failure · pre-desktop / TODO = why a leg skipped · 📼 opens the leg player (recording + synced logs)'
             echo
+            # pick-releases failing leaves its output empty; render the
+            # chart (with the OS results above) instead of a second crash.
             node scripts/sandbox/generate-e2e-matrix.mjs --format results \
-              --tags '${{ needs.pick-releases.outputs.tags }}' \
+              --tags '${{ needs.pick-releases.outputs.tags || '[]' }}' \
               --artifacts /tmp/e2e-artifacts.ndjson < /tmp/e2e-jobs.ndjson
           } >> "$GITHUB_STEP_SUMMARY"

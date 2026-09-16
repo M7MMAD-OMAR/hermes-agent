@@ -7,6 +7,7 @@ import { $layoutTree } from '@/components/pane-shell/tree/store'
 import { markRightPanePerf } from '@/debug/right-pane-events'
 import { createRendererLoopPauseController } from '@/lib/renderer-loop-pause'
 import { $paneStates } from '@/store/panes'
+import { $ownedWorkspaceCwd } from '@/store/session'
 
 import { $terminalTakeover } from '../store'
 
@@ -64,6 +65,7 @@ const sameRect = (a: Rect | null, b: Rect) =>
 export function PersistentTerminal({ onAddSelectionToChat }: PersistentTerminalProps) {
   const slot = useStore($slot)
   const terminalTakeover = useStore($terminalTakeover)
+  const workspaceCwd = useStore($ownedWorkspaceCwd)
   const [rect, setRect] = useState<Rect | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -261,6 +263,25 @@ export function PersistentTerminal({ onAddSelectionToChat }: PersistentTerminalP
   }, [slot])
 
   const visible = Boolean(rect && !rect.hidden && rect.width > 0 && rect.height > 0)
+
+  // While the pane is ON SCREEN, follow the conversation: switching to another
+  // project re-selects that project's shell, or opens one when it has none. The
+  // gate is real visibility, not the takeover flag, so a pane stacked behind a
+  // sibling tab stays passive; a background switch must not spawn a PTY nobody
+  // asked to see. `ensureTerminal` dedupes by workspace, so a project that
+  // already has a shell is never given a second one, and no other project's
+  // shell is touched.
+  //
+  // Deliberate: this re-homes you even if you had manually parked on another
+  // project's tab before collapsing the pane. Re-opening the pane is treated as
+  // asking for the conversation you are in, not for the tab you left behind.
+  useEffect(() => {
+    if (!mounted || !visible || !workspaceCwd) {
+      return
+    }
+
+    ensureTerminal()
+  }, [mounted, visible, workspaceCwd])
 
   const style: CSSProperties = {
     position: 'fixed',

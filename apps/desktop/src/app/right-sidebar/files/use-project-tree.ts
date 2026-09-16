@@ -137,6 +137,80 @@ const initialState: ProjectTreeState = {
 
 const inflight = new Set<string>()
 const $projectTree = atom<ProjectTreeState>(initialState)
+
+/** What is worth keeping about a root we have navigated away from: the loaded
+ *  nodes, which folders were expanded, and the directory the entries were
+ *  actually read from. Enough to repaint the exact tree the user left behind. */
+interface CachedTree {
+  collapseNonce: number
+  data: TreeNode[]
+  openState: Record<string, boolean>
+  resolvedCwd: string
+}
+
+// Switching conversation used to be a cold read: the root changed, `keepVisible`
+// went false, and data plus expansion state were thrown away, so every switch
+// cost a blank frame and a full re-read, and switching back paid it again. These
+// hold the last few roots so a return paints synchronously and reconciles in the
+// background instead.
+//
+// Keyed by connection AND path, never by path alone: the same path on a
+// different backend is a different machine's filesystem, and painting the local
+// tree for a remote root is the bug the connection-change reset exists to
+// prevent. Insertion order is the LRU order, so the oldest entry is the first
+// key.
+const MAX_CACHED_ROOTS = 8
+const treeCache = new Map<string, CachedTree>()
+
+const treeCacheKey = (connectionKey: string, cwd: string) => `${connectionKey}::${cwd}`
+
+// Un-resolve any folder whose children are still the synthetic "Loading…" row.
+// Leaving the current cwd calls `inflight.clear()`, which abandons an in-flight
+// `loadChildren` without ever replacing its placeholder. Banking that node as-is
+// would repaint a spinner that nothing is coming back to clear; dropping the
+// children marks it unloaded again, so the next expand re-reads it.
+function settleForCache(nodes: TreeNode[]): TreeNode[] {
+  return nodes.map(node => {
+    if (node.children?.some(child => child.placeholder === 'loading')) {
+      return { ...node, children: undefined, loading: false }
+    }
+
+    if (node.children?.length) {
+      return { ...node, children: settleForCache(node.children), loading: false }
+    }
+
+    return node.loading ? { ...node, loading: false } : node
+  })
+}
+
+function rememberTree(connectionKey: string, state: ProjectTreeState) {
+  // Only a settled, successful tree is worth restoring. A half-loaded or errored
+  // one would repaint as authoritative and hide the retry.
+  if (!state.cwd || !state.loaded || state.rootError) {
+    return
+  }
+
+  const key = treeCacheKey(connectionKey, state.cwd)
+  // Delete first so a re-remembered root moves to the end of the LRU order.
+  treeCache.delete(key)
+  treeCache.set(key, {
+    collapseNonce: state.collapseNonce,
+    data: settleForCache(state.data),
+    openState: state.openState,
+    resolvedCwd: state.resolvedCwd
+  })
+
+  while (treeCache.size > MAX_CACHED_ROOTS) {
+    const oldest = treeCache.keys().next().value
+
+    if (oldest === undefined) {
+      break
+    }
+
+    treeCache.delete(oldest)
+  }
+}
+
 let nextRootRequestId = 0
 let lastConnectionKey = ''
 
@@ -189,6 +263,9 @@ async function loadRoot(
   }: { connectionKey?: string; force?: boolean; reset?: boolean } = {}
 ) {
   if (!cwd) {
+    // The un-re-homed window of a conversation switch lands here. Bank the tree
+    // on the way out so coming back is instant.
+    rememberTree(connectionKey, $projectTree.get())
     clearProjectTree()
 
     return
@@ -200,11 +277,49 @@ async function loadRoot(
     return
   }
 
+  const rootChanged = current.cwd !== cwd
+
+  if (rootChanged) {
+    rememberTree(connectionKey, current)
+  }
+
   const requestId = nextRootRequestId + 1
   nextRootRequestId = requestId
   inflight.clear()
 
-  if (force || current.cwd !== cwd) {
+  if (reset) {
+    // A different backend invalidates every banked tree, not just this root.
+    treeCache.clear()
+  }
+
+  const cached = force || reset || !rootChanged ? undefined : treeCache.get(treeCacheKey(connectionKey, cwd))
+
+  if (cached) {
+    // Stale-while-revalidate: paint the banked tree on this tick, then re-read
+    // the ROOT only, through the existing targeted merge that keeps surviving
+    // nodes and their loaded subtrees. Deliberately not the `full` reconcile:
+    // that recurses over every loaded directory, so returning to a repo with
+    // forty folders expanded would cost forty reads where the cold path it
+    // replaces cost one. Deeper staleness is what `$workspaceChangeTick`
+    // already fixes, and an untouched subtree is almost always still correct.
+    $projectTree.set({
+      collapseNonce: cached.collapseNonce,
+      cwd,
+      data: cached.data,
+      loaded: true,
+      openState: cached.openState,
+      requestId,
+      resolvedCwd: cached.resolvedCwd,
+      rootError: null,
+      rootLoading: false
+    })
+
+    void revalidateTree(cwd, { dirs: [cached.resolvedCwd || cwd], full: false }, connectionKey)
+
+    return
+  }
+
+  if (force || rootChanged) {
     clearProjectDirCache(cwd)
   }
 
@@ -273,6 +388,7 @@ async function loadRoot(
 
 export function resetProjectTreeState() {
   lastConnectionKey = ''
+  treeCache.clear()
   clearProjectTree()
   clearProjectDirCache()
 }

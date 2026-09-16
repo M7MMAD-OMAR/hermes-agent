@@ -5,12 +5,17 @@ const STORAGE_KEY = 'hermes.desktop.terminals.v1'
 
 async function loadTerminalStore() {
   const $currentCwd = atom('/workspace')
+  // The real store derives this from the cwd plus its ownership marker; the
+  // store under test only ever reads the derived value, so the fake is a plain
+  // atom the tests move on their own.
+  const $ownedWorkspaceCwd = atom('/workspace')
 
   vi.doMock('@/store/session', () => ({
-    $currentCwd
+    $currentCwd,
+    $ownedWorkspaceCwd
   }))
 
-  return { ...(await import('./terminals')), $currentCwd }
+  return { ...(await import('./terminals')), $currentCwd, $ownedWorkspaceCwd }
 }
 
 describe('terminal store persistence', () => {
@@ -186,5 +191,85 @@ describe('session cwd → terminal tab linking', () => {
     selectTerminal(first)
     $currentCwd.set('/repo')
     expect($activeTerminalId.get()).toBe(first)
+  })
+})
+
+describe('ensureTerminal follows the conversation workspace', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.resetModules()
+  })
+
+  it('opens one shell for the workspace when none points at it', async () => {
+    const { $activeTerminalId, $terminals, ensureTerminal, $ownedWorkspaceCwd } = await loadTerminalStore()
+
+    $ownedWorkspaceCwd.set('/repo/one')
+    ensureTerminal()
+
+    expect($terminals.get()).toHaveLength(1)
+    expect($terminals.get()[0].cwd).toBe('/repo/one')
+    expect($activeTerminalId.get()).toBe($terminals.get()[0].id)
+  })
+
+  it('reuses the workspace tab instead of opening a second one, leaving other projects running', async () => {
+    const { $activeTerminalId, $terminals, createTerminal, ensureTerminal, $ownedWorkspaceCwd } =
+      await loadTerminalStore()
+
+    const one = createTerminal('/repo/one')
+    const two = createTerminal('/repo/two')
+
+    $ownedWorkspaceCwd.set('/repo/one')
+    ensureTerminal()
+
+    expect($activeTerminalId.get()).toBe(one)
+    expect($terminals.get().map(term => term.id)).toEqual([one, two])
+
+    // Idempotent: the workspace tab is already active, so nothing changes.
+    ensureTerminal()
+
+    expect($terminals.get()).toHaveLength(2)
+  })
+
+  it('matches on a trailing separator and on the shell cwd after a cd', async () => {
+    const { $activeTerminalId, $terminals, createTerminal, ensureTerminal, updateTerminalRestoreCwd, $ownedWorkspaceCwd } =
+      await loadTerminalStore()
+
+    const one = createTerminal('/repo/one')
+    createTerminal('/repo/two')
+    updateTerminalRestoreCwd(one, '/repo/moved')
+
+    $ownedWorkspaceCwd.set('/repo/moved/')
+    ensureTerminal()
+
+    expect($activeTerminalId.get()).toBe(one)
+    expect($terminals.get()).toHaveLength(2)
+  })
+
+  it('never mints a shell for a detached conversation beyond the first tab', async () => {
+    const { $terminals, createTerminal, ensureTerminal, $ownedWorkspaceCwd } = await loadTerminalStore()
+
+    $ownedWorkspaceCwd.set('')
+    ensureTerminal()
+
+    expect($terminals.get()).toHaveLength(1)
+
+    createTerminal('/repo/two')
+    ensureTerminal()
+
+    expect($terminals.get()).toHaveLength(2)
+  })
+
+  it('leaves a read-only agent mirror alone and opens the workspace shell beside it', async () => {
+    const { $activeTerminalId, $terminals, ensureAgentTerminal, ensureTerminal, $ownedWorkspaceCwd } =
+      await loadTerminalStore()
+
+    const agentId = ensureAgentTerminal('proc-1', 'background task')
+
+    $ownedWorkspaceCwd.set('/repo/one')
+    ensureTerminal()
+
+    expect($terminals.get()).toHaveLength(2)
+    expect($activeTerminalId.get()).not.toBe(agentId)
+    expect($terminals.get().find(term => term.id === $activeTerminalId.get())?.cwd).toBe('/repo/one')
   })
 })

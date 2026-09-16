@@ -3,12 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { hiddenPaneProps, PANE_HIDDEN_ATTR } from '@/components/pane-shell/pane-visibility'
 import { $paneStates } from '@/store/panes'
+import { $ownedWorkspaceCwd } from '@/store/session'
 import { reactRoot } from '@/test/react-root'
 
 import { installWindowStateBridge, setDocumentHidden, type WindowStateBridge } from '../../../test/window-state'
 import { $terminalTakeover } from '../store'
 
 import { PersistentTerminal, TerminalSlot } from './persistent'
+import { ensureTerminal } from './terminals'
+
+// The module mock above swaps the real computed for a plain atom so the tests
+// can drive the workspace directly; the exported type is still read-only.
+const workspace = $ownedWorkspaceCwd as unknown as { set: (value: string) => void }
 
 vi.mock('../store', async () => ({
   $terminalTakeover: (await import('nanostores')).atom(false)
@@ -16,6 +22,10 @@ vi.mock('../store', async () => ({
 
 vi.mock('./terminals', () => ({
   ensureTerminal: vi.fn()
+}))
+
+vi.mock('@/store/session', async () => ({
+  $ownedWorkspaceCwd: (await import('nanostores')).atom('')
 }))
 
 vi.mock('./workspace', () => ({
@@ -401,5 +411,111 @@ describe('PersistentTerminal rect tracking', () => {
     expect(overlay.style.pointerEvents).toBe('none')
     // The PTY survives — only the overlay stands down.
     expect(mount.container!.querySelector('[data-testid="terminal-workspace"]')).not.toBeNull()
+  })
+})
+
+describe('PersistentTerminal follows the conversation workspace', () => {
+  beforeEach(() => {
+    ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    setDocumentHidden(false)
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    windowState = installWindowStateBridge()
+    workspace.set('')
+    vi.mocked(ensureTerminal).mockClear()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resizeObserverCallback = callback
+        }
+
+        disconnect = vi.fn()
+        observe = vi.fn()
+        unobserve = vi.fn()
+      } as unknown as typeof ResizeObserver
+    )
+  })
+
+  afterEach(() => {
+    mount.unmount()
+    $terminalTakeover.set(false)
+    workspace.set('')
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    setDocumentHidden(false)
+  })
+
+  function drainFrames(raf: ReturnType<typeof installRaf>) {
+    while (raf.pending() > 0) {
+      act(() => {
+        raf.runNext()
+      })
+    }
+  }
+
+  function openVisiblePane(raf: ReturnType<typeof installRaf>) {
+    act(() => {
+      $terminalTakeover.set(true)
+    })
+    drainFrames(raf)
+  }
+
+  it('re-homes the pane when the conversation moves to another project', () => {
+    const raf = installRaf()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect(0, 0, 400, 300))
+
+    workspace.set('/repo/one')
+    mount.render(<Harness />)
+    openVisiblePane(raf)
+
+    const afterOpen = vi.mocked(ensureTerminal).mock.calls.length
+    expect(afterOpen).toBeGreaterThan(0)
+
+    // Switching conversation to another project re-runs the ensure, which is
+    // what selects that project's existing shell or opens its first one.
+    act(() => {
+      workspace.set('/repo/two')
+    })
+
+    expect(vi.mocked(ensureTerminal).mock.calls.length).toBeGreaterThan(afterOpen)
+  })
+
+  it('stays passive while the pane is off screen', () => {
+    const raf = installRaf()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect(0, 0, 400, 300))
+
+    workspace.set('/repo/one')
+    mount.render(<HiddenPaneHarness hidden />)
+
+    act(() => {
+      $terminalTakeover.set(true)
+    })
+    drainFrames(raf)
+
+    const before = vi.mocked(ensureTerminal).mock.calls.length
+
+    // A background switch must never mint a PTY nobody asked to see.
+    act(() => {
+      workspace.set('/repo/two')
+    })
+
+    expect(vi.mocked(ensureTerminal).mock.calls.length).toBe(before)
+  })
+
+  it('does not re-home a detached conversation', () => {
+    const raf = installRaf()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect(0, 0, 400, 300))
+
+    workspace.set('/repo/one')
+    mount.render(<Harness />)
+    openVisiblePane(raf)
+
+    const before = vi.mocked(ensureTerminal).mock.calls.length
+
+    act(() => {
+      workspace.set('')
+    })
+
+    expect(vi.mocked(ensureTerminal).mock.calls.length).toBe(before)
   })
 })

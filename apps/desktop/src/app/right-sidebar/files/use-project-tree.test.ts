@@ -556,3 +556,129 @@ describe('useProjectTree', () => {
     await waitFor(() => expect(result.current.data.map(node => node.name)).toEqual(['from-b']))
   })
 })
+
+describe('useProjectTree root cache', () => {
+  it('repaints a revisited root synchronously and reconciles it in the background', async () => {
+    readDir.mockImplementation(async (path: string) => {
+      if (path === '/a') {
+        return ok([{ name: 'src', path: '/a/src', isDirectory: true }])
+      }
+
+      return ok([{ name: 'other', path: '/b/other', isDirectory: false }])
+    })
+
+    const first = renderHook(({ cwd }) => useProjectTree(cwd), { initialProps: { cwd: '/a' } })
+
+    await waitFor(() => expect(first.result.current.data.map(n => n.name)).toEqual(['src']))
+
+    // Expansion state is part of what a switch used to destroy.
+    act(() => first.result.current.setNodeOpen('/a/src', true))
+    await waitFor(() => expect(first.result.current.openState['/a/src']).toBe(true))
+
+    first.rerender({ cwd: '/b' })
+    await waitFor(() => expect(first.result.current.data.map(n => n.name)).toEqual(['other']))
+
+    const readsBeforeReturn = readDir.mock.calls.length
+
+    first.rerender({ cwd: '/a' })
+
+    // No await: the banked tree is on screen on the very tick the root changes,
+    // with its expansion intact, and no blank/loading frame in between. A cold
+    // root would read `[]` with `rootLoading` true right here.
+    expect(first.result.current.data.map(n => n.name)).toEqual(['src'])
+    expect(first.result.current.openState['/a/src']).toBe(true)
+    expect(first.result.current.rootLoading).toBe(false)
+
+    // The reconcile still runs, it just no longer gates the paint.
+    await waitFor(() => expect(readDir.mock.calls.length).toBeGreaterThan(readsBeforeReturn))
+    expect(first.result.current.data.map(n => n.name)).toEqual(['src'])
+    expect(first.result.current.openState['/a/src']).toBe(true)
+  })
+
+  it('costs one root read on return, not one per expanded folder', async () => {
+    const dirs = Array.from({ length: 10 }, (_, i) => `d${i}`)
+    readDir.mockImplementation(async (path: string) => {
+      if (path === '/a') {
+        return ok(dirs.map(name => ({ name, path: `/a/${name}`, isDirectory: true })))
+      }
+
+      if (path.startsWith('/a/')) {
+        return ok([{ name: 'leaf.txt', path: `${path}/leaf.txt`, isDirectory: false }])
+      }
+
+      return ok([{ name: 'other', path: '/b/other', isDirectory: false }])
+    })
+
+    const view = renderHook(({ cwd }) => useProjectTree(cwd), { initialProps: { cwd: '/a' } })
+
+    await waitFor(() => expect(view.result.current.data.length).toBe(10))
+
+    for (const name of dirs) {
+      await act(async () => {
+        await view.result.current.loadChildren(`/a/${name}`)
+      })
+    }
+
+    await waitFor(() =>
+      expect(view.result.current.data.every(node => node.children?.[0]?.name === 'leaf.txt')).toBe(true)
+    )
+
+    view.rerender({ cwd: '/b' })
+    await waitFor(() => expect(view.result.current.data.map(n => n.name)).toEqual(['other']))
+
+    const before = readDir.mock.calls.length
+
+    view.rerender({ cwd: '/a' })
+    await waitFor(() => expect(readDir.mock.calls.length).toBeGreaterThan(before))
+    // Settle any further reads the reconcile might queue.
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // The reconcile re-reads the ROOT only. Fanning out over every expanded
+    // folder would make returning to a well-explored project more expensive
+    // than the cold read it replaced, which is the opposite of the point.
+    expect(readDir.mock.calls.length - before).toBe(1)
+    expect(readDir.mock.calls[before][0]).toBe('/a')
+    // Loaded subtrees survive the targeted merge, so nothing has to re-expand.
+    expect(view.result.current.data.every(node => node.children?.[0]?.name === 'leaf.txt')).toBe(true)
+  })
+
+  it('drops a failed root rather than banking it', async () => {
+    readDir.mockImplementation(async (path: string) =>
+      path === '/broken' ? { entries: [], error: 'EACCES' } : ok([{ name: 'x', path: '/ok/x', isDirectory: false }])
+    )
+
+    const view = renderHook(({ cwd }) => useProjectTree(cwd), { initialProps: { cwd: '/broken' } })
+
+    await waitFor(() => expect(view.result.current.rootError).toBe('EACCES'))
+
+    view.rerender({ cwd: '/ok' })
+    await waitFor(() => expect(view.result.current.data.map(n => n.name)).toEqual(['x']))
+
+    view.rerender({ cwd: '/broken' })
+
+    // Nothing banked, so it re-probes instead of repainting a stale failure as
+    // an authoritative empty tree.
+    expect(view.result.current.rootLoading).toBe(true)
+    await waitFor(() => expect(view.result.current.rootError).toBe('EACCES'))
+  })
+
+  it('never paints a banked tree for the same path on another backend', async () => {
+    readDir.mockImplementation(async () => ok([{ name: 'box-a-only', path: '/shared/box-a-only', isDirectory: false }]))
+
+    const view = renderHook(() => useProjectTree('/shared'))
+
+    await waitFor(() => expect(view.result.current.data.map(n => n.name)).toEqual(['box-a-only']))
+
+    readDir.mockImplementation(async () => ok([{ name: 'box-b-only', path: '/shared/box-b-only', isDirectory: false }]))
+
+    // Same path string, different machine. The banked tree must not survive it.
+    act(() => {
+      $connection.set({ connectionId: 'box-b', mode: 'local' } as never)
+    })
+
+    await waitFor(() => expect(view.result.current.data.map(n => n.name)).toEqual(['box-b-only']))
+  })
+})

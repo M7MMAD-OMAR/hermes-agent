@@ -1,7 +1,7 @@
 import { atom, computed } from 'nanostores'
 
 import { readKey, writeKey } from '@/lib/storage'
-import { $currentCwd } from '@/store/session'
+import { $currentCwd, $ownedWorkspaceCwd } from '@/store/session'
 
 import { setTerminalTakeover } from '../store'
 
@@ -158,8 +158,15 @@ const newId = () =>
   globalThis.crypto?.randomUUID?.() ?? `term-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 
 /** Append a fresh terminal and focus it. Captures the current cwd once (its only
- *  tie to session/project state); pass an explicit cwd to override. Returns the id. */
-export function createTerminal(cwd: string = $currentCwd.get()): string {
+ *  tie to session/project state); pass an explicit cwd to override. Returns the id.
+ *
+ *  The default prefers the OWNED workspace, the same gate `ensureTerminal` uses.
+ *  A bare `$currentCwd` would open the shell in the PREVIOUS conversation's
+ *  folder during the un-re-homed window of a switch, and this is the door
+ *  `view.newTerminal` (the explicit "give me another shell" keybind) comes
+ *  through. It falls back to `$currentCwd` so a detached conversation still
+ *  lands somewhere sensible rather than in the backend default. */
+export function createTerminal(cwd: string = $ownedWorkspaceCwd.get() || $currentCwd.get()): string {
   const id = newId()
   $terminals.set([...$terminals.get(), { id, title: 'Terminal', auto: true, cwd, kind: 'user' }])
   $activeTerminalId.set(id)
@@ -209,13 +216,51 @@ export function openAgentTerminal(procId: string, title: string): void {
   setTerminalTakeover(true)
 }
 
-/** Guarantee at least one tab exists when the pane opens.
- *  If a status-stack click already opened an agent tab, don't create a
- *  second, unrelated user shell just because the pane became visible. */
+/** Put the pane on a shell for the conversation's workspace, opening one only
+ *  if that workspace has none yet.
+ *
+ *  Runs on the explicit doors only: the pane becoming visible (Ctrl+`, the rail,
+ *  the status-stack). Passive conversation browsing must never mint a PTY, which
+ *  is why the `$currentCwd` listener below stays selection-only; clicking through
+ *  ten chats would otherwise leave ten shells running.
+ *
+ *  The dedupe key is the NORMALIZED cwd, not the conversation id: two
+ *  conversations rooted in the same folder share one terminal, and a project that
+ *  already has a shell is re-selected rather than duplicated. Nothing is ever
+ *  closed, so the other projects' terminals keep running untouched.
+ *
+ *  A detached conversation (no owned workspace) falls back to the original rule,
+ *  guarantee one tab exists, rather than opening a shell in whatever directory
+ *  the process happens to sit in. If a status-stack click already opened an agent
+ *  tab, don't create a second, unrelated user shell just because the pane became
+ *  visible. */
 export function ensureTerminal(): void {
-  if ($terminals.get().length === 0) {
-    createTerminal()
+  const list = $terminals.get()
+  const target = normalizePath($ownedWorkspaceCwd.get())
+
+  if (!target) {
+    if (list.length === 0) {
+      createTerminal()
+    }
+
+    return
   }
+
+  const active = list.find(term => term.id === $activeTerminalId.get())
+
+  if (active?.kind === 'user' && terminalCwd(active) === target) {
+    return
+  }
+
+  const match = list.find(term => term.kind === 'user' && terminalCwd(term) === target)
+
+  if (match) {
+    $activeTerminalId.set(match.id)
+
+    return
+  }
+
+  createTerminal(target)
 }
 
 export function selectTerminal(id: string): void {

@@ -1168,6 +1168,20 @@ export const $currentCwd = atom(getRememberedWorkspaceCwd())
 // so the path stays put and is simply marked as not-yet-owned.
 export const $workspaceCwdOwner = atom<null | string>(null)
 
+// The live workspace path, but only while the SELECTED conversation is known to
+// own it (the ownership rule above). Empty string means "no workspace to act on
+// right now": either a detached conversation or the un-re-homed window of a
+// switch, where `$currentCwd` still holds the previous conversation's folder.
+//
+// Every surface that acts on the workspace reads this rather than re-deriving
+// the comparison: the files pane paints from it, and the terminal pane's
+// ensure-a-shell path creates from it. A bare `$currentCwd` read there would
+// open a shell in the PREVIOUS project during that window.
+export const $ownedWorkspaceCwd = computed(
+  [$currentCwd, $workspaceCwdOwner, $selectedStoredSessionId],
+  (cwd, owner, selected) => ((owner ?? null) === (selected ?? null) ? cwd.trim() : '')
+)
+
 // Terminal execution backend (local | docker | ssh | ...) mirrored from the
 // gateway (session.info). Drives attachment upload decisions: container
 // backends have their own filesystem, so a dropped host path must be uploaded

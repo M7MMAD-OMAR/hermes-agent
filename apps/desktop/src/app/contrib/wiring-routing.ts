@@ -124,5 +124,27 @@ export function resolveSessionRpcOwner(args: {
     return durable
   }
 
-  return eventOwner?.(routingSessionId) ?? durable
+  const fromEvent = eventOwner?.(routingSessionId)
+
+  // Rung 4 exists to give a bare profile name the CONNECTION it lacks — two
+  // connections both exposing `default`, where the profile door would otherwise
+  // answer from the primary socket. It must not overrule the profile itself.
+  //
+  // An event owner naming a DIFFERENT profile than the row does is describing
+  // another conversation: runtime ids are minted per backend, so the same id can
+  // exist on two of them. Letting it win sent a conversation created in one
+  // profile to another profile's backend, which answers "session not found" —
+  // and because the caller then persists that answer as this session's owner
+  // hint, the misroute outlived the RPC that caused it and the conversation
+  // could never be resumed again.
+  if (isRouteOwner(fromEvent) && typeof durable === 'string' && !sameProfile(fromEvent.profile, durable)) {
+    return durable
+  }
+
+  return fromEvent ?? durable
+}
+
+/** Profile names as the routers compare them: trimmed, case-insensitive. */
+function sameProfile(a: null | string | undefined, b: null | string | undefined): boolean {
+  return (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase()
 }

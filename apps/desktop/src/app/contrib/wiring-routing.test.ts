@@ -172,3 +172,75 @@ describe('resolveSessionRpcOwner', () => {
     ).toBeUndefined()
   })
 })
+
+describe('resolveSessionRpcOwner and a contradicting event owner', () => {
+  const none = () => undefined
+  // Two connections, each exposing a profile of its own.
+  const onB = { connectionId: 'local', mode: 'local' as const, profile: 'b' }
+  const onDefault = { connectionId: 'local', mode: 'local' as const, profile: 'default' }
+
+  it('keeps the row profile when an event owner names a different one', () => {
+    // Runtime ids are minted per backend, so the same id can exist on two of
+    // them. Letting the event owner win sent a conversation created in `b` to
+    // the default backend, which answers "session not found" — and the caller
+    // persists that as the session's owner hint, so it never resumes again.
+    const owner = resolveSessionRpcOwner({
+      eventOwner: () => onDefault,
+      routingSessionId: 'stored-in-b',
+      sessionOwnerHint: none,
+      sessionRowOwner: () => 'b',
+      tileOwnerRoute: none
+    })
+
+    expect(owner).toBe('b')
+  })
+
+  it('still lets an event owner supply the connection a bare profile lacks', () => {
+    // The rung's real purpose: same profile name, exact connection.
+    const owner = resolveSessionRpcOwner({
+      eventOwner: () => onB,
+      routingSessionId: 'stored-in-b',
+      sessionOwnerHint: none,
+      sessionRowOwner: () => 'b',
+      tileOwnerRoute: none
+    })
+
+    expect(owner).toEqual(onB)
+  })
+
+  it('compares profile names the way the routers do', () => {
+    const owner = resolveSessionRpcOwner({
+      eventOwner: () => ({ connectionId: 'homelab', mode: 'remote' as const, profile: ' B ' }),
+      routingSessionId: 'stored-in-b',
+      sessionOwnerHint: none,
+      sessionRowOwner: () => 'b',
+      tileOwnerRoute: none
+    })
+
+    expect(owner).toEqual({ connectionId: 'homelab', mode: 'remote', profile: ' B ' })
+  })
+
+  it('uses the event owner when the row names no profile at all', () => {
+    const owner = resolveSessionRpcOwner({
+      eventOwner: () => onDefault,
+      routingSessionId: 'stored-unknown',
+      sessionOwnerHint: none,
+      sessionRowOwner: none,
+      tileOwnerRoute: none
+    })
+
+    expect(owner).toEqual(onDefault)
+  })
+
+  it('never lets an event owner override an exact durable route', () => {
+    const owner = resolveSessionRpcOwner({
+      eventOwner: () => onDefault,
+      routingSessionId: 'stored-bot',
+      sessionOwnerHint: () => onB,
+      sessionRowOwner: none,
+      tileOwnerRoute: none
+    })
+
+    expect(owner).toEqual(onB)
+  })
+})

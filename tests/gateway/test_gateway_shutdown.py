@@ -11,6 +11,7 @@ from gateway.restart import DEFAULT_GATEWAY_POST_INTERRUPT_GRACE_TIMEOUT, GATEWA
 from gateway.session import build_session_key
 from tests.gateway.restart_test_helpers import make_restart_runner, make_restart_source
 from tools import browser_tool_lifecycle as bt_lifecycle
+from agent import interrupt_origin as _io
 
 
 @pytest.mark.asyncio
@@ -96,7 +97,7 @@ async def test_gateway_stop_interrupts_running_agents_and_cancels_adapter_tasks(
     ):
         await runner.stop()
 
-    running_agent.interrupt.assert_called_once_with("Gateway shutting down")
+    running_agent.interrupt.assert_called_once_with("Gateway shutting down", origin=_io.SESSION_CLOSED)
     disconnect_mock.assert_awaited_once()
     shutdown_cached_clients.assert_called_once()
     assert runner.adapters == {}

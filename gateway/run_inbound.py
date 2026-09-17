@@ -26,6 +26,8 @@ from gateway.session import (
 )
 from gateway.turn_lease import TurnLeaseTimeoutError
 from typing import Any, Dict, List, Optional, Tuple
+from agent import interrupt_origin as _io
+from agent.interrupt_compat import request_interrupt as _request_interrupt
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
     from gateway.run import GatewayRunner  # noqa: F401
@@ -606,7 +608,7 @@ class GatewayInboundMixin:
             _interrupt_text = _build_media_placeholder(event)
         # Delivered via adapter._pending_messages (read by _run_agent); never also buffered on self
         # — that copy was never consumed and grew unbounded.
-        running_agent.interrupt(_interrupt_text)
+        _request_interrupt(running_agent, _interrupt_text, origin=_io.USER_MESSAGE)
 
     async def _hm_handle_running_session_message(
         self, event: "MessageEvent", source: SessionSource, _quick_key: str

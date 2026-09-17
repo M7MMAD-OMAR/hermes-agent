@@ -9,6 +9,7 @@ import pytest
 
 from gateway.run import run_codex_hygiene_compaction
 from tests.gateway.restart_test_helpers import make_restart_runner
+from agent import interrupt_origin as _io
 
 
 @pytest.mark.asyncio
@@ -71,7 +72,7 @@ async def test_timed_out_codex_hygiene_worker_remains_visible_to_shutdown():
     assert runner._active_deferred_agent_worker_count() == 1
     with patch("gateway.run.request_hard_interrupt") as interrupt:
         runner._interrupt_running_agents("gateway shutdown")
-    interrupt.assert_called_once_with(agent, "gateway shutdown")
+    interrupt.assert_called_once_with(agent, "gateway shutdown", origin=_io.SESSION_CLOSED)
 
     release.set()
     for _ in range(100):
@@ -112,7 +113,7 @@ async def test_deferred_hygiene_worker_times_out_and_receives_interrupt():
     assert _snapshot == {}
     with patch("gateway.run.request_hard_interrupt") as interrupt:
         runner._interrupt_running_agents("gateway shutdown")
-    interrupt.assert_called_once_with(agent, "gateway shutdown")
+    interrupt.assert_called_once_with(agent, "gateway shutdown", origin=_io.SESSION_CLOSED)
 
     worker.cancel()
 

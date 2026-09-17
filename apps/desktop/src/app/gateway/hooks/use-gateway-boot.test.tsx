@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DesktopConnectionsRegistry } from '@/global'
 import { createClientSessionState } from '@/lib/chat-runtime'
+import { LIVENESS_MAX_DEFERRAL_MS } from '@/lib/gateway-liveness-policy'
 import { $desktopBoot } from '@/store/boot'
 import {
   $connectionsRegistry,
@@ -2129,9 +2130,13 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
       })
     })
 
-    // Genuinely dead under the working flag: EVERY probe keeps timing out.
+    // Genuinely dead under the working flag: EVERY probe keeps timing out, and no frame ever
+    // arrives to prove otherwise.
     FakeWebSocket.pingMode = 'silent'
 
+    // Inside the deferral budget the socket is KEPT. This is the #95327 fix: the old 2-probe
+    // streak gave a busy backend about 3 seconds before tearing its socket down mid-turn,
+    // which fed the gateway's orphan reap and killed the turn.
     for (let nudge = 0; nudge < 3; nudge += 1) {
       act(() => window.dispatchEvent(new Event('online')))
       await act(async () => {
@@ -2139,10 +2144,19 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
       })
     }
 
+    expect(FakeWebSocket.instances.length).toBe(socketCountBefore)
+
+    // Past the budget it is rebuilt anyway: the policy only DELAYS the teardown, it never
+    // trusts an unresponsive socket forever.
+    for (let nudge = 0; nudge < 4; nudge += 1) {
+      act(() => window.dispatchEvent(new Event('online')))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LIVENESS_MAX_DEFERRAL_MS / 2)
+      })
+    }
+
     clearAllSessionStates()
 
-    // The streak guard only DELAYS the teardown; a persistently unresponsive
-    // socket is still rebuilt rather than trusted forever.
     expect(FakeWebSocket.instances.length).toBeGreaterThan(socketCountBefore)
 
     FakeWebSocket.pingMode = 'pong'

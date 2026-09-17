@@ -13,7 +13,7 @@ import type { DesktopBootProgress, HermesConnection } from '@/global'
 import { HermesGateway } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { desktopDefaultCwd } from '@/lib/desktop-fs'
-import { decideLivenessForceClose, LIVENESS_REPROBE_DELAY_MS } from '@/lib/gateway-liveness-policy'
+import { decideLivenessForceClose, livenessReprobeDelayMs } from '@/lib/gateway-liveness-policy'
 import { BACKEND_BOOT_WAIT_TIMEOUT_MS, RECONNECT_ATTEMPT_TIMEOUT_MS, withTimeout } from '@/lib/with-timeout'
 import {
   $desktopBoot,
@@ -233,6 +233,9 @@ export function useGatewayBoot({
     // socket while turns are in flight. Reset on any successful probe or a
     // clean socket open.
     let livenessProbeFailures = 0
+    // When the current failure streak began, so the deferral BUDGET is measured in wall-clock
+    // time rather than in probe count — the two diverge once the re-probe delay backs off.
+    let livenessFirstFailureAt: number | null = null
     // Bounded re-probe scheduled instead of an immediate teardown when a
     // probe times out mid-turn (see gateway-liveness-policy.ts).
     let livenessReprobeTimer: ReturnType<typeof setTimeout> | null = null
@@ -311,15 +314,24 @@ export function useGatewayBoot({
     // while work is in flight is inconclusive (a busy backend starves the
     // loop without being dead), so re-probe once after a short delay instead
     // of force-closing a socket a running turn still rides on (#95327).
-    const scheduleLivenessReprobe = () => {
+    const scheduleLivenessReprobe = (consecutiveFailures: number) => {
       if (cancelled || livenessReprobeTimer !== null || $gatewaySwitching.get()) {
         return
       }
 
+      // Backed off, not fixed: a 200-second tool call would otherwise be pinged every 3s by
+      // the very renderer complaining the backend has no loop time to answer.
+      //
+      // And it re-probes rather than re-running reconnectNow(): that routine first calls
+      // reconnectSecondaryGateways(), which redials every closed secondary AND resets its
+      // backoff to attempt 0. Under the old 2-failure streak that happened once per episode;
+      // under the deferral budget it would happen on every deferred probe, so no secondary's
+      // backoff could ever advance while the primary was waiting. Secondary recovery stays on
+      // the genuine signals (online / focus / wake), where resetting backoff is the intent.
       livenessReprobeTimer = setTimeout(() => {
         livenessReprobeTimer = null
-        void reconnectNow()
-      }, LIVENESS_REPROBE_DELAY_MS)
+        void probeLiveness()
+      }, livenessReprobeDelayMs(consecutiveFailures))
     }
 
     const attemptReconnect = async (manual?: { profile: string; activationEpoch: number }) => {
@@ -496,6 +508,17 @@ export function useGatewayBoot({
         return
       }
 
+      await probeLiveness()
+    }
+
+    // The liveness probe on its own, without the reconnect/secondary-redial work that
+    // precedes it in reconnectNow(). The deferred re-probe wants exactly this much: it is
+    // re-asking one question, not re-running recovery.
+    const probeLiveness = async () => {
+      if (cancelled || !gatewayOpen() || $gatewaySwitching.get()) {
+        return
+      }
+
       // The socket reports open, but sleep/wake (or a silent network drop)
       // can leave a half-open TCP connection: no close event fires, so
       // connectionState stays 'open' while every RPC hangs until its per-call
@@ -510,11 +533,14 @@ export function useGatewayBoot({
       // alive, and tearing the socket down then feeds the gateway's
       // ws_orphan_reap interrupt — the turn dies as a bare "Operation
       // interrupted." placeholder. While any session still reports working,
-      // one inconclusive probe DEFERS the teardown behind a bounded re-probe;
-      // only an exhausted streak (or no in-flight work) closes.
+      // an inconclusive probe DEFERS the teardown behind a backed-off re-probe,
+      // and a frame that arrived recently defers it outright (bytes moved, so the
+      // transport is alive). Only a spent deferral budget — or no in-flight work
+      // at all — closes.
       try {
         await gateway.request('ping', {}, GATEWAY_LIVENESS_PROBE_TIMEOUT_MS)
         livenessProbeFailures = 0
+        livenessFirstFailureAt = null
       } catch (probeErr) {
         // A version-skewed backend that predates the ping method answers
         // -32601 (method not found) — a HEALTHY response, not a dead socket.
@@ -523,24 +549,30 @@ export function useGatewayBoot({
         // the socket is not PROVABLY alive and must eventually be rebuilt.
         if (probeErr instanceof JsonRpcGatewayError && probeErr.code === -32601) {
           livenessProbeFailures = 0
+          livenessFirstFailureAt = null
 
           return
         }
 
         livenessProbeFailures += 1
+        livenessFirstFailureAt ??= Date.now()
 
         const decision = decideLivenessForceClose({
           workingSessionCount: $workingSessionIds.get().length,
-          consecutiveFailures: livenessProbeFailures
+          // Any frame delivered recently is positive proof the transport is alive, which a
+          // ping timeout alone can never establish on a backend short of loop time.
+          msSinceLastFrame: gateway.msSinceLastFrame,
+          deferredForMs: Date.now() - livenessFirstFailureAt
         })
 
         if (!decision.close) {
-          scheduleLivenessReprobe()
+          scheduleLivenessReprobe(livenessProbeFailures)
 
           return
         }
 
         livenessProbeFailures = 0
+        livenessFirstFailureAt = null
         gateway.close()
       }
     }
@@ -618,6 +650,7 @@ export function useGatewayBoot({
         clearBootRetryTimer()
         clearLivenessReprobeTimer()
         livenessProbeFailures = 0
+        livenessFirstFailureAt = null
         bootRetryAttempt = 0
         reconnectAttempt = 0
         reconnectFailingSince = null
@@ -877,6 +910,7 @@ export function useGatewayBoot({
         primaryReauthError = null
         escalated = false
         livenessProbeFailures = 0
+        livenessFirstFailureAt = null
         clearReconnectTimer()
         clearLivenessReprobeTimer()
 

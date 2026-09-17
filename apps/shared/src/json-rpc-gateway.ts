@@ -101,6 +101,15 @@ const socketTransport = (socket: WebSocketLike): JsonRpcTransport => ({ send: te
 
 export class JsonRpcGatewayClient {
   private socket: WebSocketLike | null = null
+  /**
+   * When the last inbound frame arrived (`Date.now()`), 0 before any.
+   *
+   * ANY frame — an event, a response, anything — proves the transport carried bytes, which is
+   * exactly what a ping timeout fails to establish: a backend starved mid-tool-call answers no
+   * ping while its socket is perfectly alive. The liveness policy uses this to tell "dead
+   * transport" from "busy backend" instead of guessing from a failure count (#95327).
+   */
+  private lastFrameAtMs = 0
   private state: ConnectionState = 'idle'
   private readonly channel: JsonRpcRequestChannel
   private readonly events = new GatewayEventHub()
@@ -160,6 +169,11 @@ export class JsonRpcGatewayClient {
     return this.state
   }
 
+  /** Milliseconds since the last inbound frame, or `null` if none has arrived on this socket. */
+  get msSinceLastFrame(): number | null {
+    return this.lastFrameAtMs === 0 ? null : Math.max(0, Date.now() - this.lastFrameAtMs)
+  }
+
   async connect(wsUrl: string): Promise<void> {
     // Refuse garbage; WebSocket coerces non-strings into
     // `ws://<origin>/[object%20Object]` (#68250 stale-emit boot loop).
@@ -182,6 +196,7 @@ export class JsonRpcGatewayClient {
     const socket = this.options.socketFactory?.(wsUrl) ?? new WebSocket(wsUrl)
     const transport = socketTransport(socket)
     this.socket = socket
+    this.lastFrameAtMs = 0
     this.channel.stopHeartbeat()
 
     socket.addEventListener('message', message => {
@@ -192,6 +207,9 @@ export class JsonRpcGatewayClient {
       const text = wireFrameText(message.data)
 
       if (text !== null) {
+        // Stamped before dispatch: a handler that throws must not cost us the proof that
+        // the transport delivered something.
+        this.lastFrameAtMs = Date.now()
         this.channel.handleFrame(text)
       }
     })

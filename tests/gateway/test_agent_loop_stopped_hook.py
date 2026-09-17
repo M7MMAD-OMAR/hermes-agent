@@ -14,6 +14,7 @@ import pytest
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.session import SessionSource, build_session_key
 from hermes_cli.plugins import VALID_HOOKS
+from agent import interrupt_origin as _io
 
 
 def _make_source() -> SessionSource:
@@ -75,7 +76,9 @@ async def test_interrupt_fires_agent_loop_stopped_hook(mock_invoke_hook):
         invalidation_reason="stop_command",
     )
 
-    running_agent.interrupt.assert_called_once_with("user_stop")
+    # The origin is derived from ``invalidation_reason``: a /stop settles the turn as the
+    # person's own stop, never as an anonymous teardown (agent.interrupt_origin).
+    running_agent.interrupt.assert_called_once_with("user_stop", origin=_io.USER_STOP)
     mock_invoke_hook.assert_any_call(
         "agent_loop_stopped",
         session_key=session_key,
@@ -162,4 +165,6 @@ async def test_hook_dispatch_failure_does_not_break_interrupt(mock_invoke_hook):
     )
 
     # The interrupt itself still happened despite the hook blowing up.
-    running_agent.interrupt.assert_called_once_with("user_stop")
+    # The origin is derived from ``invalidation_reason``: a /stop settles the turn as the
+    # person's own stop, never as an anonymous teardown (agent.interrupt_origin).
+    running_agent.interrupt.assert_called_once_with("user_stop", origin=_io.USER_STOP)

@@ -21,6 +21,9 @@ from gateway.platforms.base import EphemeralReply
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.session import SessionSource, _session_key_namespace
 from typing import Any, Dict, Optional, Union
+from agent import interrupt_control as _ic
+from agent import interrupt_origin as _io
+from agent.interrupt_compat import request_interrupt as _request_interrupt
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
     from gateway.run import GatewayRunner  # noqa: F401
@@ -525,6 +528,21 @@ class GatewayBusySessionMixin:
         )
 
     @staticmethod
+    def _correction_delivery(running_agent: Any) -> Optional[str]:
+        """How ``running_agent``'s last accepted correction reaches the model, or None.
+
+        None for agents that predate delivery reporting, which then get the historical wording.
+        """
+        reader = getattr(running_agent, "last_correction_delivery", None)
+        if not callable(reader):
+            return None
+        try:
+            return reader()
+        except Exception:
+            logger.debug("Could not read correction delivery mode", exc_info=True)
+            return None
+
+    @staticmethod
     def _demote_interrupt(session_key: str, why: str) -> str:
         logger.info("Demoting busy_input_mode 'interrupt' to 'queue' for session %s because %s", session_key, why)
         return "queue"
@@ -552,7 +570,7 @@ class GatewayBusySessionMixin:
                 )
             elif not _interrupt_text and _media_urls:
                 _interrupt_text = _build_media_placeholder(event)
-            running_agent.interrupt(_interrupt_text)
+            _request_interrupt(running_agent, _interrupt_text, origin=_io.USER_MESSAGE)
         except Exception:
             pass  # don't let interrupt failure block the ack
 
@@ -618,7 +636,15 @@ class GatewayBusySessionMixin:
         if is_steer_mode:
             head, tail = "⏩ Steered into current run", ". Your message arrives after the next tool call."
         elif is_redirect_mode:
-            head, tail = "↪ Redirected current run", ". I'll adjust using your correction."
+            # ``redirect()`` degrades to a steer when there is no live model request to cancel
+            # (tools running, or the loop between phases). The text is in the run either way, so
+            # nothing is queued — but promising "I'll adjust" while it actually waits for a tool
+            # boundary is the kind of small lie that makes the next wait feel like a hang.
+            head, tail = (
+                ("↪ Redirected current run", ". I'll adjust using your correction.")
+                if _ic.DELIVERY_MODEL_CANCELLED == self._correction_delivery(running_agent)
+                else ("⏩ Steered into current run", ". Your message arrives after the next tool call.")
+            )
         elif is_queue_mode and demoted_for_subagents:
             # Explain the demotion: the follow-up didn't kill the subagent; /stop is the escape hatch.
             head, tail = "⏳ Subagent working", self._BUSY_DEMOTED_TAIL

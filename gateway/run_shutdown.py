@@ -248,6 +248,7 @@ class GatewayShutdownMixin:
 
     def _interrupt_deferred_agent_workers(self, reason: str) -> int:
         """Request cancellation of detached executor-backed agent work."""
+        from agent.interrupt_origin import SESSION_CLOSED
         from gateway.run import request_hard_interrupt
         workers = getattr(self, "_deferred_agent_workers", None)
         if not isinstance(workers, dict):
@@ -259,7 +260,7 @@ class GatewayShutdownMixin:
                 continue
             seen.add(id(agent))
             try:
-                request_hard_interrupt(agent, reason)
+                request_hard_interrupt(agent, reason, origin=SESSION_CLOSED)
                 interrupted += 1
             except Exception as exc:
                 logger.debug("Failed interrupting deferred agent worker during shutdown: %s", exc)
@@ -760,12 +761,13 @@ class GatewayShutdownMixin:
         return snapshot, timed_out
 
     def _interrupt_running_agents(self, reason: str) -> None:
+        from agent.interrupt_origin import SESSION_CLOSED
         from gateway.run import _AGENT_PENDING_SENTINEL, request_hard_interrupt
         for session_key, agent in list(self._running_agents.items()):
             if agent is _AGENT_PENDING_SENTINEL:
                 continue
             with _log_suppressed(logging.DEBUG, "Failed interrupting agent during shutdown: %s"):
-                request_hard_interrupt(agent, reason)
+                request_hard_interrupt(agent, reason, origin=SESSION_CLOSED)
                 logger.debug("Interrupted running agent for session %s during shutdown", session_key)
         # API-server / desk turns are adapter-owned and never enter _running_agents, so the loop above
         # cannot see them even though _drain_active_agents() waited for them.

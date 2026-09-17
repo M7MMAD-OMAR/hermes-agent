@@ -16,6 +16,7 @@ from gateway.config import Platform
 from gateway.session import SessionSource, build_session_context_prompt
 from gateway.run_shutdown import _log_suppressed
 from hermes_cli.config import cfg_get
+from agent import interrupt_origin as _io
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
     from gateway.run import GatewayRunner  # noqa: F401
@@ -423,6 +424,19 @@ class GatewayAgentCacheMixin:
             if interrupt_event is not None:
                 interrupt_event._hermes_run_generation = int(generation)
 
+    #: Attribution for each invalidation reason (agent.interrupt_origin). Derived here rather
+    #: than at each call site: a caller that forgets gets the right answer, and a new reason is
+    #: one entry rather than a hunt through the gateway for who passes what.
+    _INVALIDATION_ORIGINS = {
+        "stop_command": _io.USER_STOP,
+        "stop_command_pending": _io.USER_STOP,
+    }
+
+    @classmethod
+    def _origin_for_invalidation(cls, invalidation_reason: str) -> str:
+        """Which stop path an invalidation represents; session teardown unless mapped otherwise."""
+        return cls._INVALIDATION_ORIGINS.get(invalidation_reason or "", _io.SESSION_CLOSED)
+
     def _interrupt_running_turn(self, session_key: str, *, interrupt_reason: str, invalidation_reason: str) -> int:
         """Sync core shared by /stop, /new and eviction: request a hard interrupt on the in-flight
         agent, invalidate its run generation, and reap the tool processes that turn spawned.
@@ -436,7 +450,9 @@ class GatewayAgentCacheMixin:
             # bump and release below are the cleanup that matters.
             with _log_suppressed(logging.WARNING, "Failed to interrupt running agent for %s; continuing",
                                  session_key, exc_info=True):
-                request_hard_interrupt(running_agent, interrupt_reason)
+                request_hard_interrupt(
+                    running_agent, interrupt_reason, origin=self._origin_for_invalidation(invalidation_reason),
+                )
             _process_task_id = getattr(running_agent, "_gateway_turn_process_task_id", "")
             _process_baseline = getattr(running_agent, "_gateway_turn_process_baseline", None)
         # Bump the generation BEFORE scheduling the reap thread and capture the post-bump value:
@@ -461,7 +477,14 @@ class GatewayAgentCacheMixin:
         self, session_key: str, source: SessionSource, *, interrupt_reason: str,
         invalidation_reason: str, release_running_state: bool = True,
     ) -> None:
-        """Interrupt the current run and clear queued session state consistently."""
+        """Interrupt the current run and clear queued session state consistently.
+
+        The settled turn's attribution (see ``agent.interrupt_origin``) is derived from
+        ``invalidation_reason`` via ``_INVALIDATION_ORIGINS`` — one source, so a caller cannot
+        map a reason correctly and then override it wrongly. The distinction matters to whoever
+        reads the transcript afterwards: a ``/stop`` they pressed and a session torn down
+        underneath them are not the same event, and before attribution both settled as the same
+        silent "Operation interrupted."."""
         if not session_key:
             return
         state = self._peek_session_state(session_key)

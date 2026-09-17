@@ -16,6 +16,7 @@ from gateway.platforms.base import (
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.profile_routing import ProfileRoute
 from gateway.run import GatewayRunner
+from agent import interrupt_origin as _io
 
 
 class _ProfileAdapter(BasePlatformAdapter):
@@ -144,7 +145,10 @@ async def test_secondary_profile_busy_mode_controls_live_busy_behavior(
         agent.interrupt.assert_not_called()
     else:
         agent.steer.assert_not_called()
-        agent.interrupt.assert_called_once_with("follow up")
+        # The origin makes the settled turn say the user's own message replaced it, rather
+        # than leaving a bare "Operation interrupted." indistinguishable from a reaped
+        # connection or a mis-hit Stop (agent.interrupt_origin).
+        agent.interrupt.assert_called_once_with("follow up", origin=_io.USER_MESSAGE)
 
 
 @pytest.mark.asyncio
@@ -366,7 +370,7 @@ async def test_default_busy_mode_is_unchanged_by_secondary_profile(tmp_path, mon
     runner._running_agents[session_key] = agent
 
     assert await runner._handle_active_session_busy_message(event, session_key) is True
-    agent.interrupt.assert_called_once_with("follow up")
+    agent.interrupt.assert_called_once_with("follow up", origin=_io.USER_MESSAGE)
     agent.steer.assert_not_called()
     assert runner._busy_input_mode == "interrupt"
 

@@ -30,6 +30,7 @@ from gateway.platforms.base import (
     build_session_key,
 )
 from gateway.platforms.event import MessageEvent, MessageType
+from agent import interrupt_origin as _io
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +186,7 @@ class TestBusySessionAck:
         assert "/stop" not in content  # no need — we ARE interrupting
 
         # Verify agent interrupt was called
-        agent.interrupt.assert_called_once_with("Are you working?")
+        agent.interrupt.assert_called_once_with("Are you working?", origin=_io.USER_MESSAGE)
 
 
     @pytest.mark.asyncio

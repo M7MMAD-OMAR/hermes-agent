@@ -33,6 +33,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from agent import interrupt_origin as _io
 
 # ──────────────────────────────────────────────────────────────────────
 # Minimal stubs so gateway imports cleanly (mirrors test_busy_session_ack)
@@ -189,7 +190,7 @@ class TestBusyHandlerDemotesInterruptForSubagents:
         with patch("gateway.platforms.base.merge_pending_message_event"):
             await runner._handle_active_session_busy_message(event, sk)
 
-        parent.interrupt.assert_called_once_with("please stop")
+        parent.interrupt.assert_called_once_with("please stop", origin=_io.USER_MESSAGE)
         content = adapter._send_with_retry.call_args.kwargs.get("content", "")
         assert "Interrupting" in content
         assert "Subagent" not in content

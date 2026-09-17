@@ -27,12 +27,14 @@ import {
   pickProjectFolder,
   projectIdForCwd,
   projectNameForCwd,
+  readProjectTransferPlan,
   refreshProjects,
   refreshProjectTree,
   refreshWorktrees,
   resolveNewSessionCwd,
   scanAndRecordRepos,
   startWorkInRepo,
+  transferProject,
   updateProject
 } from './projects'
 import {
@@ -1283,5 +1285,91 @@ describe('moving a session to another folder', () => {
     openGateway({})
 
     await expect(moveSessionToProject('sess-1', 'p_gone')).rejects.toThrow('sidebar.projects.moveNoFolder')
+  })
+})
+
+
+describe('transferring a project to another profile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    $activeGatewayProfile.set('default')
+    $projects.set([])
+    $projectTree.set([])
+    setShowAllProfiles(false)
+  })
+
+  it('asks the gateway what a transfer would carry without sending one', async () => {
+    const plan = {
+      blockers: [],
+      folders: ['/repos/sdeira'],
+      message_count: 26618,
+      name: 'Sdeira',
+      notes: [],
+      ok: true,
+      session_count: 143,
+      target_profile: 'dn',
+      target_project_name: ''
+    }
+
+    const request = vi.fn(async () => plan)
+    const gateway = { connectionState: 'open', request }
+
+    activeGateway.mockReturnValue(gateway as never)
+    gatewayAtom.set(gateway as never)
+
+    await expect(readProjectTransferPlan('p_123', 'dn')).resolves.toEqual(plan)
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith('projects.transfer_plan', {
+      id: 'p_123',
+      profile: 'default',
+      target_profile: 'dn'
+    })
+  })
+
+  it('copies by default and leaves this sidebar alone', async () => {
+    const report = {
+      moved_sessions: 2,
+      ok: true,
+      skipped_sessions: 0,
+      source_archived: false,
+      target_profile: 'dn'
+    }
+
+    const request = vi.fn(async () => report)
+    const gateway = { connectionState: 'open', request }
+
+    activeGateway.mockReturnValue(gateway as never)
+    gatewayAtom.set(gateway as never)
+
+    await expect(transferProject('p_123', 'dn', false)).resolves.toEqual(report)
+    // A copy changes nothing here, so no refetch: exactly one call, the transfer.
+    expect(request.mock.calls.map(call => call[0])).toEqual(['projects.transfer'])
+    expect(request).toHaveBeenCalledWith('projects.transfer', {
+      id: 'p_123',
+      move: false,
+      profile: 'default',
+      target_profile: 'dn'
+    })
+  })
+
+  it('refetches after a move, because this profile no longer owns the project', async () => {
+    const request = vi.fn(async (method: string) =>
+      method === 'projects.transfer'
+        ? { moved_sessions: 2, ok: true, skipped_sessions: 0, source_archived: true, target_profile: 'dn' }
+        : { active_id: null, projects: [], scoped_session_ids: [] }
+    )
+
+    const gateway = { connectionState: 'open', request }
+
+    activeGateway.mockReturnValue(gateway as never)
+    gatewayAtom.set(gateway as never)
+
+    await transferProject('p_123', 'dn', true)
+
+    expect(request.mock.calls[0]).toEqual([
+      'projects.transfer',
+      { id: 'p_123', move: true, profile: 'default', target_profile: 'dn' }
+    ])
+    expect(request.mock.calls.map(call => call[0])).toContain('projects.list')
   })
 })

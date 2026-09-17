@@ -63,16 +63,31 @@ describe('turn digest', () => {
 
   afterEach(cleanup)
 
-  it('folds the settled working under one header and keeps the reply in view', async () => {
+  it('folds the settled working one step per header and keeps the reply in view', async () => {
     const { container } = render(<Harness messages={[userMessage(), interimOne(), interimTwo(), reply()]} />)
 
     await waitFor(() => expect(container.querySelector('[data-turn-digest]')).not.toBeNull())
 
-    const header = container.querySelector('[data-turn-digest]')!
-    expect(header.textContent).toContain('Explored nav.tsx, ran 1 command')
+    // One header per step, each saying what the model said that step was for.
+    // A single header over the whole turn could only say how much ran, which
+    // is why a long turn read as nothing having happened.
+    const steps = [...container.querySelectorAll('[data-turn-digest-step]')]
+    expect(steps.map(step => step.querySelector('button')?.textContent)).toEqual([
+      'Now the navigation block.',
+      'Now the assistant dock CSS.'
+    ])
     expect(container.textContent).toContain('All done, both files updated.')
-    expect(container.textContent).not.toContain('Now the navigation block.')
-    expect(container.textContent).not.toContain('Now the assistant dock CSS.')
+    // The working itself is still behind the headers, not in the transcript.
+    expect(container.querySelector('[data-turn-digest-body]')).toBeNull()
+  })
+
+  it('falls back to the tally for a step that ran tools without saying anything', async () => {
+    const silent = assistant('silent-1', [tool('read-9', 'read_file', { path: '/repo/nav.tsx' })])
+
+    const { container } = render(<Harness messages={[userMessage(), silent, reply()]} />)
+
+    await waitFor(() => expect(container.querySelector('[data-turn-digest-step]')).not.toBeNull())
+    expect(container.querySelector('[data-turn-digest-step] button')?.textContent).toContain('nav.tsx')
   })
 
   it('opens the working on request and remembers it for the turn', async () => {
@@ -80,11 +95,14 @@ describe('turn digest', () => {
 
     await waitFor(() => expect(container.querySelector('[data-turn-digest] button')).not.toBeNull())
 
-    fireEvent.click(container.querySelector('[data-turn-digest] button')!)
+    fireEvent.click(container.querySelector('[data-turn-digest-step] button')!)
 
-    await waitFor(() => expect(container.textContent).toContain('Now the navigation block.'))
-    expect(container.textContent).toContain('Now the assistant dock CSS.')
-    expect($toolDisclosureStates.get()['turn-digest:user-1']).toBe(true)
+    // Each step remembers its own state: opening the one that matters must not
+    // unfold the whole turn.
+    await waitFor(() => expect(container.querySelector('[data-turn-digest-body]')).not.toBeNull())
+    expect(container.querySelectorAll('[data-turn-digest-body]')).toHaveLength(1)
+    expect($toolDisclosureStates.get()['turn-digest:user-1:1']).toBe(true)
+    expect($toolDisclosureStates.get()['turn-digest:user-1:2']).toBeUndefined()
   })
 
   it('keeps live history expandable through new activity and completion', async () => {
@@ -99,13 +117,19 @@ describe('turn digest', () => {
     await waitFor(() => expect(container.querySelector('[data-turn-digest-live]')).not.toBeNull())
 
     const header = container.querySelector('[data-turn-digest]')!
-    expect(header.textContent).toContain('Explored nav.tsx, ran 1 command')
-    expect(header.querySelector('.shimmer')).not.toBeNull()
+    const steps = [...header.querySelectorAll('[data-turn-digest-step]')]
+    expect(steps.map(step => step.querySelector('button')?.textContent)).toEqual([
+      'Now the navigation block.',
+      'Now the assistant dock CSS.'
+    ])
+    // The shimmer sits on the newest sealed step; the tail narrates what follows.
+    expect(steps[0]?.querySelector('.shimmer')).toBeNull()
+    expect(steps[1]?.querySelector('.shimmer')).not.toBeNull()
     expect(header.querySelector('button')?.hasAttribute('disabled')).toBe(false)
     expect(container.textContent).toContain('Typecheck next.')
-    expect(container.textContent).not.toContain('Now the navigation block.')
-    fireEvent.click(header.querySelector('button')!)
-    await waitFor(() => expect(container.textContent).toContain('Now the navigation block.'))
+    expect(container.querySelector('[data-turn-digest-body]')).toBeNull()
+    fireEvent.click(steps[0]!.querySelector('button')!)
+    await waitFor(() => expect(container.querySelector('[data-turn-digest-body]')).not.toBeNull())
 
     const next = assistant('next-live', [tool('read-2', 'read_file', { path: '/repo/result.ts' }, false)], {
       type: 'running'
@@ -113,15 +137,19 @@ describe('turn digest', () => {
 
     const sealed = { ...running, status: { type: 'complete', reason: 'stop' } } as ThreadMessage
     rerender(<Harness messages={[userMessage(), interimOne(), interimTwo(), sealed, next]} />)
+    // The step that just sealed joins as its own collapsed header. It does not
+    // fall into the body the user opened: one step opened is not the turn opened.
     await waitFor(() =>
-      expect(container.querySelector('[data-turn-digest-body]')?.textContent).toContain('Typecheck next.')
+      expect([...container.querySelectorAll('[data-turn-digest-step] button')].map(b => b.textContent)).toContain(
+        'Typecheck next.'
+      )
     )
-    expect(container.textContent).toContain('Now the navigation block.')
+    expect(container.querySelector('[data-turn-digest-body]')?.textContent).toContain('Now the navigation block.')
 
     rerender(<Harness messages={[userMessage(), interimOne(), interimTwo(), sealed, reply()]} />)
     await waitFor(() => expect(container.textContent).toContain('All done, both files updated.'))
     expect(container.querySelector('[data-turn-digest-body]')?.textContent).toContain('Now the navigation block.')
-    fireEvent.click(container.querySelector('[data-turn-digest] button')!)
+    fireEvent.click(container.querySelector('[data-turn-digest-step] button')!)
     await waitFor(() => expect(container.querySelector('[data-turn-digest-body]')).toBeNull())
   })
 
@@ -189,6 +217,48 @@ describe('turn digest', () => {
     expect(digest.visible).toEqual([2, 3, 4])
   })
 
+  it('merges the oldest steps once a turn runs past the header cap', () => {
+    // A hundred one-line headers is the wall of text the fold exists to
+    // prevent, so past the cap the leading steps become one tally row again.
+    const messages = [
+      userMessage(),
+      ...Array.from({ length: 14 }, (_, n) =>
+        assistant(`step-${n}`, [
+          { type: 'text', text: `Step ${n}.` },
+          tool(`t-${n}`, 'read_file', { path: `/repo/f${n}.ts` })
+        ])
+      ),
+      reply()
+    ]
+
+    const indices = messages.map((_, index) => index).slice(1)
+
+    const digest = computeTurnDigest({ thread: { isRunning: false, messages } }, indices, count => `${count}`)
+
+    expect(digest.folded).toHaveLength(14)
+    expect(digest.groups).toHaveLength(8)
+    // The merged head carries every step it swallowed, so nothing is unreachable.
+    expect(digest.groups[0]!.indices).toEqual([1, 2, 3, 4, 5, 6, 7])
+    expect(digest.groups[0]!.summary).not.toBe('Step 0.')
+    expect(digest.groups.at(-1)!.summary).toBe('Step 13.')
+  })
+
+  it('reads a step by what the model said, not by what it ran', () => {
+    const messages = [
+      userMessage(),
+      assistant('wordy', [
+        { type: 'text', text: '## Now the **navigation** block\n\nwith a second line' },
+        tool('r', 'read_file', { path: '/repo/nav.tsx' })
+      ]),
+      reply()
+    ]
+
+    const digest = computeTurnDigest({ thread: { isRunning: false, messages } }, [1, 2], count => `${count}`)
+
+    // One line, markdown marks dropped: a header is not a place for headings.
+    expect(digest.groups[0]!.summary).toBe('Now the navigation block with a second line')
+  })
+
   it('counts sealed notes when the working used no tools', () => {
     const notes = [
       userMessage(),
@@ -253,8 +323,8 @@ describe('turn outcome row', () => {
     // Outside the body: the fold is collapsed and the row is still there.
     expect(container.querySelector('[data-turn-digest-body]')).toBeNull()
     expect(row.closest('[data-turn-digest]')).toBeNull()
-    // The header still says the tally, so the two are not confused.
-    expect(container.querySelector('[data-turn-digest]')!.textContent).toContain('Explored nav.tsx, ran 1 command')
+    // The headers still say what each step was, so the two are not confused.
+    expect(container.querySelector('[data-turn-digest]')!.textContent).toContain('Now the navigation block.')
 
     fireEvent.click(container.querySelector('[data-turn-digest] button')!)
     await waitFor(() => expect(container.querySelector('[data-turn-digest-body]')).not.toBeNull())

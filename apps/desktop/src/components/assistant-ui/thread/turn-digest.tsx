@@ -42,10 +42,24 @@ type ThreadMessageComponents = ComponentProps<typeof ThreadPrimitive.MessageByIn
  * its own per-key store, never from the digest, so a text delta on the tail
  * cannot re-render it and an outcome landing cannot re-render the turn.
  */
+/** One step of the working: what the model said it was doing, and the tools it ran saying it. */
+interface DigestGroup {
+  completedAt?: number
+  /** Thread indices folded under this header, in order. */
+  indices: readonly number[]
+  key: string
+  startedAt?: number
+  /** The model's own line for this step, or the tally of its tools when it said nothing. */
+  summary: string
+  toolCount: number
+}
+
 interface TurnDigestState {
   completedAt?: number
-  /** Thread indices folded under the header, in order. Empty means no digest. */
+  /** Thread indices folded under the headers, in order. Empty means no digest. */
   folded: readonly number[]
+  /** The fold, cut into steps. One header each. */
+  groups: readonly DigestGroup[]
   key: string
   live: boolean
   noteCount: number
@@ -57,7 +71,7 @@ interface TurnDigestState {
 }
 
 interface DigestMessage {
-  content: readonly { completedAt?: number; result?: unknown; timestamp?: number; type: string }[]
+  content: readonly { completedAt?: number; result?: unknown; text?: string; timestamp?: number; type: string }[]
   metadata?: { custom?: Record<string, unknown> }
   role: string
   status?: { type: string }
@@ -69,12 +83,31 @@ interface DigestThreadSlice {
 
 const NO_DIGEST: TurnDigestState = {
   folded: [],
+  groups: [],
   key: '',
   live: false,
   noteCount: 0,
   summary: '',
   toolCount: 0,
   visible: []
+}
+
+/** Headers a single turn may show before the oldest steps collapse into one.
+ *  A turn can run a hundred messages; a hundred one-line headers is the wall of
+ *  text the fold exists to prevent. Past this the leading steps merge back into
+ *  one tally row, which is the whole fold's old behaviour. */
+const MAX_GROUPS = 8
+
+/** One line, whatever the model wrote: newlines flattened, markdown emphasis and
+ *  heading marks dropped, clipped. Two lines is the most a header may cost. */
+export function stepSummary(text: string): string {
+  const flat = text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[*_`#>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return flat.length > 120 ? `${flat.slice(0, 119).trimEnd()}…` : flat
 }
 
 function customNumber(message: DigestMessage, key: string): number | undefined {
@@ -153,6 +186,7 @@ export function computeTurnDigest(
   return {
     completedAt,
     folded,
+    groups: buildGroups(messages, folded, notesLabel),
     key: `${folded[0]}:${folded.length}`,
     live,
     noteCount,
@@ -161,6 +195,92 @@ export function computeTurnDigest(
     toolCount: tools.length,
     visible: indices.slice(folded.length)
   }
+}
+
+/** What one folded message amounts to: the line it wrote, else the tools it ran. */
+function describeStep(
+  message: DigestMessage | undefined,
+  notesLabel: (count: number) => string
+): { completedAt?: number; startedAt?: number; summary: string; toolCount: number } {
+  const tools: ToolCallLike[] = []
+  let said = ''
+  let startedAt = customNumber(message as DigestMessage, 'timelineTimestamp')
+  let completedAt = customNumber(message as DigestMessage, 'timelineCompletedAt')
+
+  for (const part of message?.content ?? []) {
+    if (part.type === 'tool-call') {
+      tools.push(part as unknown as ToolCallLike)
+      startedAt = startedAt === undefined ? part.timestamp : Math.min(startedAt, part.timestamp ?? startedAt)
+      completedAt = completedAt === undefined ? part.completedAt : Math.max(completedAt, part.completedAt ?? completedAt)
+    } else if (part.type === 'text' && !said) {
+      said = stepSummary(part.text ?? '')
+    }
+  }
+
+  // The model's own sentence beats any tally: it says what this step was FOR,
+  // where "Ran 3 commands" only says how much of it there was.
+  const summary = said || (tools.length > 0 ? summarizeToolRun(tools, false) : notesLabel(1))
+
+  return { completedAt, startedAt, summary, toolCount: tools.length }
+}
+
+/** The fold cut into steps: one header per folded message, oldest merged past the cap.
+ *
+ *  A long turn is a sequence of steps the model narrated as it went ("Now the navigation
+ *  block", then three edits). One header for the whole turn hides every one of those
+ *  behind a tally, which reads as nothing happening; one header per step is the record
+ *  the user follows, at one line each. */
+function buildGroups(
+  messages: readonly DigestMessage[],
+  folded: readonly number[],
+  notesLabel: (count: number) => string
+): DigestGroup[] {
+  const steps = folded.map(index => ({ index, ...describeStep(messages[index], notesLabel) }))
+
+  if (steps.length <= MAX_GROUPS) {
+    return steps.map(step => ({
+      completedAt: step.completedAt,
+      indices: [step.index],
+      key: String(step.index),
+      startedAt: step.startedAt,
+      summary: step.summary,
+      toolCount: step.toolCount
+    }))
+  }
+
+  // Past the cap the leading steps become one row again, carrying their tools' tally.
+  const mergeCount = steps.length - MAX_GROUPS + 1
+  const merged = steps.slice(0, mergeCount)
+  const mergedTools: ToolCallLike[] = []
+
+  for (const step of merged) {
+    for (const part of messages[step.index]?.content ?? []) {
+      if (part.type === 'tool-call') {
+        mergedTools.push(part as unknown as ToolCallLike)
+      }
+    }
+  }
+
+  const head: DigestGroup = {
+    completedAt: merged[merged.length - 1]?.completedAt,
+    indices: merged.map(step => step.index),
+    key: `${merged[0]?.index}:${mergeCount}`,
+    startedAt: merged[0]?.startedAt,
+    summary: mergedTools.length > 0 ? summarizeToolRun(mergedTools, false) : notesLabel(mergeCount),
+    toolCount: mergedTools.length
+  }
+
+  return [
+    head,
+    ...steps.slice(mergeCount).map(step => ({
+      completedAt: step.completedAt,
+      indices: [step.index],
+      key: String(step.index),
+      startedAt: step.startedAt,
+      summary: step.summary,
+      toolCount: step.toolCount
+    }))
+  ]
 }
 
 // assistant-ui compares selector results with Object.is and re-runs them on
@@ -273,6 +393,44 @@ export const TurnOutcomeRow: FC<{ indices: readonly number[] }> = ({ indices }) 
   )
 }
 
+/** One step's header and, when opened, the messages behind it. Each step remembers
+ *  its own open/closed state: opening the step that failed must not unfold the turn. */
+const DigestStep: FC<{
+  components: ThreadMessageComponents
+  group: DigestGroup
+  live: boolean
+  turnId: string
+}> = ({ components, group, live, turnId }) => {
+  const disclosureId = `turn-digest:${turnId}:${group.key}`
+  const persistedOpen = useStore(useMemo(() => $toolDisclosureOpen(disclosureId), [disclosureId]))
+  // Folding is a presentation preference, never a lock on live history.
+  // Preserve the user's choice as new messages arrive and the turn settles.
+  const expanded = persistedOpen ?? false
+
+  return (
+    <div className="grid min-w-0 max-w-full gap-(--tool-row-gap)" data-turn-digest-step="">
+      <ScaffoldRow
+        onToggle={() => setToolDisclosureOpen(disclosureId, !expanded)}
+        open={expanded}
+        trailing={<TimelineTimestamp completedAt={group.completedAt} timestamp={group.startedAt} />}
+      >
+        <FadeText className={cn(SCAFFOLD_LABEL_CLASS, 'truncate')}>
+          {/* The step summary is the model's own line, in the conversation's
+              language, which need not be the app's direction. */}
+          {live ? <span className="shimmer"><bdi>{group.summary}</bdi></span> : <bdi>{group.summary}</bdi>}
+        </FadeText>
+      </ScaffoldRow>
+      {expanded && (
+        <div className="flex min-w-0 flex-col gap-(--conversation-turn-gap)" data-turn-digest-body="">
+          {group.indices.map(index => (
+            <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export const TurnDigest: FC<{
   components: ThreadMessageComponents
   indices: readonly number[]
@@ -281,8 +439,6 @@ export const TurnDigest: FC<{
 }> = ({ components, indices, turnId }) => {
   const { t } = useI18n()
   const digest = useTurnDigest(indices, t.assistant.thread.turnDigestNotes)
-  const disclosureId = `turn-digest:${turnId}`
-  const persistedOpen = useStore(useMemo(() => $toolDisclosureOpen(disclosureId), [disclosureId]))
   const outcome = <TurnOutcomeRow indices={indices} />
 
   if (digest.folded.length === 0) {
@@ -295,10 +451,6 @@ export const TurnDigest: FC<{
     )
   }
 
-  // Folding is a presentation preference, never a lock on live history.
-  // Preserve the user's choice as new messages arrive and the turn settles.
-  const expanded = persistedOpen ?? false
-
   return (
     <>
       <TurnProgress indices={indices} />
@@ -308,22 +460,17 @@ export const TurnDigest: FC<{
         data-turn-digest=""
         data-turn-digest-live={digest.live ? 'true' : undefined}
       >
-        <ScaffoldRow
-          onToggle={() => setToolDisclosureOpen(disclosureId, !expanded)}
-          open={expanded}
-          trailing={<TimelineTimestamp completedAt={digest.completedAt} timestamp={digest.startedAt} />}
-        >
-          <FadeText className={cn(SCAFFOLD_LABEL_CLASS, 'truncate')}>
-            {digest.live ? <span className="shimmer">{digest.summary}</span> : digest.summary}
-          </FadeText>
-        </ScaffoldRow>
-        {expanded && (
-          <div className="flex min-w-0 flex-col gap-(--conversation-turn-gap)" data-turn-digest-body="">
-            {digest.folded.map(index => (
-              <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
-            ))}
-          </div>
-        )}
+        {digest.groups.map((group, position) => (
+          <DigestStep
+            components={components}
+            group={group}
+            key={group.key}
+            /* The shimmer belongs to the newest sealed step: it is the one the
+               turn just came out of, and the tail below narrates what follows. */
+            live={digest.live && position === digest.groups.length - 1}
+            turnId={turnId}
+          />
+        ))}
       </div>
       {outcome}
       <ResponseMessages components={components} indices={digest.visible} />

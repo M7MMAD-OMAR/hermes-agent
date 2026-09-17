@@ -948,3 +948,79 @@ def test_edit_project_refuses_running_relocation_without_changing_project(monkey
         assert _call("projects.get", {"id": project["id"]})["project"] == project
     finally:
         reset_hermes_home_override(token)
+
+
+def _mark_profile(home: Path) -> Path:
+    """Give a throwaway home the identity marker ``profile_exists`` looks for, so the
+    transfer RPCs see a real profile rather than a stray directory."""
+    (home / "profile.yaml").write_text("name: test\n", encoding="utf-8")
+    return home
+
+
+def _messages(home: Path, session_id: str) -> list:
+    from hermes_state import SessionDB
+
+    db = SessionDB(db_path=home / "state.db")
+    try:
+        return db.get_messages(session_id)
+    finally:
+        db.close()
+
+
+def test_transfer_plan_previews_without_writing_anything(monkeypatch, tmp_path):
+    """``projects.transfer_plan`` reports what would travel and leaves both stores alone."""
+    launch_home = _profile_dir(tmp_path, "launch")
+    coder_home = _profile_dir(tmp_path, "coder")
+    repo = tmp_path / "repos" / "shared-repo"
+    repo.mkdir(parents=True)
+    _bind_profiles(monkeypatch, tmp_path, {"default": launch_home, "coder": _mark_profile(coder_home)})
+    project = _create_project(launch_home, "Launch", repo, use=True)
+    _create_session(launch_home, "launch-session", repo)
+
+    with _serving_launch_profile(launch_home):
+        plan = _call("projects.transfer_plan", {"id": project["id"], "target_profile": "coder"})
+
+    assert plan["ok"] is True
+    assert plan["session_count"] == 1
+    assert plan["message_count"] == 1
+    assert plan["target_project_id"] is None
+    assert not (coder_home / "projects.db").exists() or _cached_repo_labels(coder_home) == []
+    assert _messages(launch_home, "launch-session")
+
+
+def test_transfer_copies_the_project_and_its_conversations_into_the_other_profile(monkeypatch, tmp_path):
+    """The default (no ``move``) carries a copy and leaves the source conversation in place."""
+    launch_home = _profile_dir(tmp_path, "launch")
+    coder_home = _profile_dir(tmp_path, "coder")
+    repo = tmp_path / "repos" / "shared-repo"
+    repo.mkdir(parents=True)
+    _bind_profiles(monkeypatch, tmp_path, {"default": launch_home, "coder": _mark_profile(coder_home)})
+    project = _create_project(launch_home, "Launch", repo, use=True)
+    _create_session(launch_home, "launch-session", repo)
+
+    with _serving_launch_profile(launch_home):
+        report = _call("projects.transfer", {"id": project["id"], "target_profile": "coder"})
+        # The source keeps its own record: a copy is not a handover.
+        still_here = _call("projects.list")
+
+    assert report["ok"] is True
+    assert report["moved_sessions"] == 1
+    assert report["source_archived"] is False
+    assert [p["name"] for p in still_here["projects"]] == ["Launch"]
+    assert len(_messages(coder_home, "launch-session")) == 1
+    assert len(_messages(launch_home, "launch-session")) == 1
+    assert repo.is_dir()  # the folder itself never moves
+
+
+def test_transfer_refuses_an_unknown_target_profile(monkeypatch, tmp_path):
+    launch_home = _profile_dir(tmp_path, "launch")
+    repo = tmp_path / "repos" / "shared-repo"
+    repo.mkdir(parents=True)
+    _bind_profiles(monkeypatch, tmp_path, {"default": launch_home})
+    project = _create_project(launch_home, "Launch", repo, use=True)
+
+    with _serving_launch_profile(launch_home):
+        resp = server._methods["projects.transfer"](1, {"id": project["id"], "target_profile": "ghost"})
+
+    assert "error" in resp
+    assert "ghost" in resp["error"]["message"]

@@ -303,6 +303,58 @@ method("projects.project_sessions", params=ProjectsProjectSessionsParams, result
        doc="Fully hydrated lanes for one project, from the same grouping as projects.tree.")
 
 
+class ProjectsTransferParams(ProfileParams):
+    """``id`` is the project in the CURRENT profile; ``target_profile`` the one it lands in."""
+
+    id: str
+    target_profile: str
+    # Retire the source instead of copying: the source conversations are archived with
+    # ``end_reason='adopted_by_profile'``, which the app cannot undo.
+    move: bool | None = None
+
+
+class ProjectsTransferPlanResult(Result):
+    """What a transfer would carry. ``blockers`` non-empty means the run would refuse."""
+
+    ok: bool
+    project_id: str
+    name: str = ""
+    slug: str = ""
+    target_profile: str = ""
+    folders: list[str] = Field(default_factory=list)
+    session_count: int = 0
+    message_count: int = 0
+    # The project already in the target that owns this folder: the transfer merges into it.
+    target_project_id: str | None = None
+    target_project_name: str = ""
+    reference_file_count: int = 0
+    result_count: int = 0
+    blockers: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ProjectsTransferResult(Result):
+    ok: bool
+    error: str = ""
+    project_id: str
+    target_project_id: str = ""
+    target_profile: str = ""
+    moved_sessions: int = 0
+    skipped_sessions: int = 0
+    failed_sessions: int = 0
+    copied_results: int = 0
+    copied_reference_files: int = 0
+    source_archived: bool = False
+    retired_source_sessions: bool = False
+
+
+method("projects.transfer_plan", params=ProjectsTransferParams, result=ProjectsTransferPlanResult,
+       doc="What copying this project into another profile would carry. Writes nothing.")
+
+method("projects.transfer", params=ProjectsTransferParams, result=ProjectsTransferResult,
+       doc="Copy (or with move, relocate) a project, its data and its conversations into another profile.")
+
+
 # ── pet: active mascot ────────────────────────────────────────────────────────────────────────
 
 

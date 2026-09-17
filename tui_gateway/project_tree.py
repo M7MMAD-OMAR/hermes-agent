@@ -364,6 +364,26 @@ def _project_for_session(
     return max((index.match(t) for t in candidates), key=lambda hit: hit[1])[0]
 
 
+def owned_session_ids(
+        project_id: str, projects: list[dict], sessions: list[dict],
+        resolve: Optional[Resolve] = None) -> list[str]:
+    """Ids of the sessions one project owns, by the SAME rule the sidebar tree groups by.
+
+    The index is built over EVERY project, not just the named one: a sibling project whose
+    folder sits deeper inside this one's tree wins those sessions in the sidebar, and a
+    caller that moves conversations must move exactly the rows the user saw listed. Pass
+    session rows shaped like ``build_tree`` takes them (``id``, ``cwd``, ``git_repo_root``).
+    """
+    index = _FolderIndex(projects)
+    ids: list[str] = []
+    for session in sessions:
+        sid = str(session.get("id") or "")
+        owner = _project_for_session(session, index, resolve) if sid else None
+        if owner is not None and str(owner.get("id") or "") == project_id:
+            ids.append(sid)
+    return ids
+
+
 def _project_node(
     pid: str, label: str, path: Optional[str], repos: list[dict], session_count: int,
     last_active: float, preview_sessions: list[dict], sessions: Optional[list[dict]] = None,

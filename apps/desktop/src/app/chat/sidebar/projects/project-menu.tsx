@@ -39,6 +39,10 @@ const ProjectWorkflowDialog = lazy(() =>
   import('./project-workflow-dialog').then(module => ({ default: module.ProjectWorkflowDialog }))
 )
 
+const ProjectTransferDialog = lazy(() =>
+  import('./project-transfer-dialog').then(module => ({ default: module.ProjectTransferDialog }))
+)
+
 // Shared per-project state + handlers, so the kebab dropdown and the row's
 // right-click menu drive the exact same actions. Modeled on git GUIs (GitHub
 // Desktop / GitKraken): reveal in the file manager, copy path, and "Remove from
@@ -61,6 +65,7 @@ function useProjectActions({
   const target = { id: project.id, name: project.label }
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [workflowOpen, setWorkflowOpen] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
 
   const removeAuto = () => {
     dismissAutoProject(project.id)
@@ -127,6 +132,15 @@ function useProjectActions({
     }
   ]
 
+  if (!project.isAuto) {
+    pathItems.push({
+      icon: 'arrow-right',
+      key: 'transfer',
+      label: p.menuTransfer,
+      onSelect: () => setTransferOpen(true)
+    })
+  }
+
   const dangerItem: ActionItemSpec = project.isAuto
     ? { icon: 'trash', key: 'remove', label: p.removeFromSidebar, onSelect: removeAuto, variant: 'destructive' }
     : {
@@ -142,6 +156,11 @@ function useProjectActions({
       {workflowOpen && (
         <Suspense fallback={null}>
           <ProjectWorkflowDialog onClose={() => setWorkflowOpen(false)} project={target} />
+        </Suspense>
+      )}
+      {transferOpen && (
+        <Suspense fallback={null}>
+          <ProjectTransferDialog onClose={() => setTransferOpen(false)} project={target} />
         </Suspense>
       )}
       <ConfirmDialog

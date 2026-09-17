@@ -168,6 +168,7 @@ _LONG_HANDLERS = frozenset({
     "projects.actions.list", "projects.actions.draft", "projects.actions.edit", "projects.actions.dismiss", "projects.actions.accept",
     "projects.results.refresh", "projects.results.list", "projects.results.versions",
     "projects.results.capture", "projects.results.review", "projects.results.preview",
+    "projects.transfer_plan", "projects.transfer",
     "session.foreign.list", "session.foreign.preview", "session.foreign.import",
     "billing.state", "subscription.state", "subscription.preview", "subscription.change",
     "subscription.resume", "subscription.upgrade", "usage.bars", "session.usage", "billing.step_up",

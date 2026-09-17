@@ -1203,6 +1203,65 @@ export async function deleteProject(id: string): Promise<void> {
   void refreshProjectTree()
 }
 
+// ── Transfer to another profile ──────────────────────────────────────────────
+// A project is a pointer at folders on disk, so nothing here moves a directory:
+// what crosses is the record and the conversations. Copy is the default because
+// a move retires the source history into an archive the app cannot undo, which
+// is why the dialog reads the plan first and asks before sending `move`.
+
+export interface ProjectTransferPlan {
+  ok: boolean
+  name: string
+  folders: string[]
+  session_count: number
+  message_count: number
+  target_profile: string
+  target_project_name: string
+  blockers: string[]
+  notes: string[]
+}
+
+export interface ProjectTransferReport {
+  ok: boolean
+  moved_sessions: number
+  skipped_sessions: number
+  target_profile: string
+  source_archived: boolean
+}
+
+export async function readProjectTransferPlan(id: string, targetProfile: string): Promise<ProjectTransferPlan> {
+  const context = await activeProjectsContext(writableProjectProfile())
+
+  return await gatewayRequestOn<ProjectTransferPlan>(
+    context.gateway,
+    'projects.transfer_plan',
+    projectParams({ id, target_profile: targetProfile }, context.profile)
+  )
+}
+
+export async function transferProject(
+  id: string,
+  targetProfile: string,
+  move: boolean
+): Promise<ProjectTransferReport> {
+  const context = await activeProjectsContext(writableProjectProfile())
+
+  const report = await gatewayRequestOn<ProjectTransferReport>(
+    context.gateway,
+    'projects.transfer',
+    projectParams({ id, move, target_profile: targetProfile }, context.profile)
+  )
+
+  // A move archives the source record and retires its conversations, so this
+  // profile's sidebar is wrong until it refetches. A copy changes nothing here.
+  if (move) {
+    await refreshProjects()
+    void refreshProjectTree()
+  }
+
+  return report
+}
+
 export async function setActiveProject(id: null | string): Promise<void> {
   const context = await activeProjectsContext(writableProjectProfile())
 

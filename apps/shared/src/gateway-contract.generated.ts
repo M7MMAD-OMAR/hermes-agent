@@ -2235,6 +2235,44 @@ export interface ProjectsProjectSessionsParams {
 export interface ProjectsProjectSessionsResult {
   project?: ProjectTreeNode | null
 }
+/** ``id`` is the project in the CURRENT profile; ``target_profile`` the one it lands in. */
+export interface ProjectsTransferParams {
+  profile?: string | null
+  id: string
+  target_profile: string
+  move?: boolean | null
+}
+/** What a transfer would carry. ``blockers`` non-empty means the run would refuse. */
+export interface ProjectsTransferPlanResult {
+  ok: boolean
+  project_id: string
+  name?: string
+  slug?: string
+  target_profile?: string
+  folders?: string[]
+  session_count?: number
+  message_count?: number
+  target_project_id?: string | null
+  target_project_name?: string
+  reference_file_count?: number
+  result_count?: number
+  blockers?: string[]
+  notes?: string[]
+}
+export interface ProjectsTransferResult {
+  ok: boolean
+  error?: string
+  project_id: string
+  target_project_id?: string
+  target_profile?: string
+  moved_sessions?: number
+  skipped_sessions?: number
+  failed_sessions?: number
+  copied_results?: number
+  copied_reference_files?: number
+  source_archived?: boolean
+  retired_source_sessions?: boolean
+}
 /** ``knownRevision``: the spritesheet revision the caller already holds (send-once bytes). */
 export interface PetInfoParams {
   profile?: string | null
@@ -4742,6 +4780,10 @@ export interface RpcMethods {
   'projects.set_active': { params: ProjectsSetActiveParams; result: ActiveIdResult }
   /** Make one attached folder the project's primary path. */
   'projects.set_primary': { params: ProjectFolderParams; result: ProjectResult }
+  /** Copy (or with move, relocate) a project, its data and its conversations into another profile. */
+  'projects.transfer': { params: ProjectsTransferParams; result: ProjectsTransferResult }
+  /** What copying this project into another profile would carry. Writes nothing. */
+  'projects.transfer_plan': { params: ProjectsTransferParams; result: ProjectsTransferPlanResult }
   /** Project → repo → lane overview with counts and a few preview sessions per project. */
   'projects.tree': { params: ProjectsTreeParams; result: ProjectsTreeResult }
   /** Patch a project's display fields; answers the refreshed project. */
@@ -5067,6 +5109,8 @@ export const RPC_METHODS = [
   'projects.results.versions',
   'projects.set_active',
   'projects.set_primary',
+  'projects.transfer',
+  'projects.transfer_plan',
   'projects.tree',
   'projects.update',
   'projects.workflow',

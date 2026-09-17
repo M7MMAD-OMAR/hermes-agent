@@ -2539,6 +2539,18 @@ export interface Translations {
       menuAddFolder: string
       menuSetActive: string
       menuDelete: string
+      menuTransfer: string
+      transferTitle: (name: string) => string
+      transferHint: string
+      transferTarget: string
+      transferNoTargets: string
+      transferCarries: (sessions: number, messages: number) => string
+      transferFoldersStay: string
+      transferMove: string
+      transferMoveHint: string
+      transferConfirmCopy: string
+      transferConfirmMove: string
+      transferDone: (sessions: number, profile: string) => string
       moveToProject: string
       movedTo: (name: string) => string
       moveFailed: string

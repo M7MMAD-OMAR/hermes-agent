@@ -61,6 +61,14 @@ def build_parser(parent_subparsers: argparse._SubParsersAction) -> argparse.Argu
     project_sub("bind-board", "Bind a kanban board to a project").add_argument(
         "board", nargs="?", default="", help="Board slug (omit to unbind)"
     )
+    p_transfer = project_sub("transfer", "Copy a project and its conversations into another profile")
+    p_transfer.add_argument("--to", dest="target_profile", required=True, metavar="PROFILE",
+                            help="Target profile name")
+    p_transfer.add_argument("--move", action="store_true",
+                            help="Retire the source conversations and archive the source record")
+    p_transfer.add_argument("--dry-run", action="store_true",
+                            help="Print what would be carried and stop")
+    p_transfer.add_argument("--yes", action="store_true", help="Skip the confirmation prompt")
     parser.set_defaults(_project_parser=parser)
     return parser
 
@@ -258,6 +266,62 @@ def _cmd_propose_actions(args, conn, proj):
     return json.dumps(propose_actions(conn, proj.id, proposals), ensure_ascii=False)
 
 
+@_with_project
+def _cmd_transfer(args: argparse.Namespace, conn, proj) -> int:
+    """Copy (or move) a project, its data and its conversations into another profile.
+
+    The folders on disk are never touched: a project is a pointer at them, and the same
+    folder may be a project in several profiles at once. Copy is the default because a
+    move retires the source conversations into a non-recoverable archive.
+    """
+    from hermes_cli import project_transfer
+    from hermes_state import SessionDB
+
+    source_db = SessionDB()
+    try:
+        plan = project_transfer.plan_transfer(
+            project_id=proj.id, target_profile=args.target_profile,
+            source_conn=conn, source_db=source_db)
+        verb = "Move" if args.move else "Copy"
+        print(f"{verb} '{plan['name']}' to profile '{plan['target_profile']}'")
+        for folder in plan["folders"]:
+            print(f"   folder   {folder}")
+        print(f"   carries  {plan['session_count']} conversation(s), "
+              f"{plan['message_count']} message(s)")
+        for note in plan["notes"]:
+            print(f"   note     {note}")
+        for blocker in plan["blockers"]:
+            print(f"   blocked  {blocker}", file=sys.stderr)
+        if plan["blockers"]:
+            return 1
+        if args.dry_run:
+            return 0
+        if args.move:
+            print("   the source conversations are archived with no way back through the app")
+        if not args.yes and input("Proceed? [y/N] ").strip().lower() not in ("y", "yes"):
+            print("Nothing was carried.")
+            return 0
+
+        with project_transfer.open_target_projects_db(plan["target_profile"]) as target_conn:
+            target_db = SessionDB(db_path=project_transfer.target_state_db(plan["target_profile"]))
+            try:
+                report = project_transfer.transfer_project(
+                    plan, source_conn=conn, target_conn=target_conn,
+                    source_db=source_db, target_db=target_db, retire_source=args.move)
+            finally:
+                target_db.close()
+    finally:
+        source_db.close()
+
+    print(f"Carried {report['moved_sessions']} conversation(s)"
+          + (f", {report['skipped_sessions']} already there" if report["skipped_sessions"] else "")
+          + f" into '{report['target_profile']}'.")
+    if not report["ok"]:
+        print(f"project: {report['error']}", file=sys.stderr)
+        return 1
+    return 0
+
+
 _HANDLERS = {
     "sources": _cmd_sources,
     "evidence": _cmd_evidence,
@@ -274,4 +338,5 @@ _HANDLERS = {
     "archive": _flag_command("archive_project", "Archived"),
     "restore": _flag_command("restore_project", "Restored"),
     "bind-board": _cmd_bind_board,
+    "transfer": _cmd_transfer,
 }

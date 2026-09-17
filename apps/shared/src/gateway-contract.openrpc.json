@@ -2779,6 +2779,42 @@
       }
     },
     {
+      "name": "projects.transfer",
+      "summary": "Copy (or with move, relocate) a project, its data and its conversations into another profile.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/ProjectsTransferParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/ProjectsTransferResult"
+        }
+      }
+    },
+    {
+      "name": "projects.transfer_plan",
+      "summary": "What copying this project into another profile would carry. Writes nothing.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/ProjectsTransferParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/ProjectsTransferPlanResult"
+        }
+      }
+    },
+    {
       "name": "projects.tree",
       "summary": "Project \u2192 repo \u2192 lane overview with counts and a few preview sessions per project.",
       "params": [
@@ -22790,6 +22826,212 @@
           }
         },
         "title": "ProjectsSetActiveParams",
+        "type": "object"
+      },
+      "ProjectsTransferParams": {
+        "additionalProperties": false,
+        "description": "``id`` is the project in the CURRENT profile; ``target_profile`` the one it lands in.",
+        "properties": {
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "target_profile": {
+            "title": "Target Profile",
+            "type": "string"
+          },
+          "move": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Move"
+          }
+        },
+        "required": [
+          "id",
+          "target_profile"
+        ],
+        "title": "ProjectsTransferParams",
+        "type": "object"
+      },
+      "ProjectsTransferPlanResult": {
+        "additionalProperties": false,
+        "description": "What a transfer would carry. ``blockers`` non-empty means the run would refuse.",
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "default": "",
+            "title": "Slug",
+            "type": "string"
+          },
+          "target_profile": {
+            "default": "",
+            "title": "Target Profile",
+            "type": "string"
+          },
+          "folders": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Folders",
+            "type": "array"
+          },
+          "session_count": {
+            "default": 0,
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "message_count": {
+            "default": 0,
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "target_project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target Project Id"
+          },
+          "target_project_name": {
+            "default": "",
+            "title": "Target Project Name",
+            "type": "string"
+          },
+          "reference_file_count": {
+            "default": 0,
+            "title": "Reference File Count",
+            "type": "integer"
+          },
+          "result_count": {
+            "default": 0,
+            "title": "Result Count",
+            "type": "integer"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "project_id"
+        ],
+        "title": "ProjectsTransferPlanResult",
+        "type": "object"
+      },
+      "ProjectsTransferResult": {
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "target_project_id": {
+            "default": "",
+            "title": "Target Project Id",
+            "type": "string"
+          },
+          "target_profile": {
+            "default": "",
+            "title": "Target Profile",
+            "type": "string"
+          },
+          "moved_sessions": {
+            "default": 0,
+            "title": "Moved Sessions",
+            "type": "integer"
+          },
+          "skipped_sessions": {
+            "default": 0,
+            "title": "Skipped Sessions",
+            "type": "integer"
+          },
+          "failed_sessions": {
+            "default": 0,
+            "title": "Failed Sessions",
+            "type": "integer"
+          },
+          "copied_results": {
+            "default": 0,
+            "title": "Copied Results",
+            "type": "integer"
+          },
+          "copied_reference_files": {
+            "default": 0,
+            "title": "Copied Reference Files",
+            "type": "integer"
+          },
+          "source_archived": {
+            "default": false,
+            "title": "Source Archived",
+            "type": "boolean"
+          },
+          "retired_source_sessions": {
+            "default": false,
+            "title": "Retired Source Sessions",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "project_id"
+        ],
+        "title": "ProjectsTransferResult",
         "type": "object"
       },
       "ProjectsTreeParams": {

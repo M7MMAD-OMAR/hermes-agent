@@ -2935,6 +2935,22 @@ export const en: Translations = {
       menuAddFolder: 'Add folder',
       menuSetActive: 'Set active',
       menuDelete: 'Delete',
+      menuTransfer: 'Move to profile…',
+      transferTitle: name => `Move "${name}" to another profile`,
+      transferHint:
+        'The folders stay where they are on disk. What travels is the project and its conversations.',
+      transferTarget: 'Profile',
+      transferNoTargets: 'There is no other profile to move this to.',
+      transferCarries: (sessions, messages) =>
+        `Carries ${sessions} conversation${sessions === 1 ? '' : 's'}, ${messages} message${messages === 1 ? '' : 's'}.`,
+      transferFoldersStay: 'No folder on disk is moved, renamed or deleted.',
+      transferMove: 'Move instead of copying',
+      transferMoveHint:
+        'The conversations here are archived and the project leaves this sidebar. The app cannot undo that.',
+      transferConfirmCopy: 'Copy',
+      transferConfirmMove: 'Move',
+      transferDone: (sessions, profile) =>
+        `Carried ${sessions} conversation${sessions === 1 ? '' : 's'} into ${profile}.`,
       moveToProject: 'Move to project',
       movedTo: name => `Moved to ${name}`,
       moveFailed: 'Could not move session',

@@ -216,6 +216,46 @@ def _copy_project_data(source_conn: sqlite3.Connection, target_conn: sqlite3.Con
     return copied
 
 
+# How many failed conversations the summary names before it stops listing them.
+_FAILURE_DETAIL_LIMIT = 3
+
+
+def _adoption_failure_reason(adoption: dict) -> str:
+    """Why an adoption did not complete, as one line for a person to read."""
+    if adoption.get("error"):
+        return str(adoption["error"])
+    reasons = []
+    for entry in adoption.get("errors") or []:
+        text = str((entry or {}).get("error") or "").strip()
+        if text and text not in reasons:
+            reasons.append(text)
+    return "; ".join(reasons) if reasons else "the adoption did not complete"
+
+
+def _session_label(source_db: Any, session_id: str) -> str:
+    """A conversation's title for the failure summary, falling back to its id."""
+    try:
+        row = source_db.get_session(session_id) or {}
+    except Exception:
+        return session_id
+    title = str(row.get("title") or "").strip()
+    return f"{title!r}" if title else session_id
+
+
+def _failure_summary(failed: list[tuple[str, str]], source_db: Any) -> str:
+    """``N conversation(s) could not be carried`` plus which ones and why.
+
+    Named rather than counted: the count alone tells the user nothing they can act on, and
+    the dialog's advice (run it again) does not help a conversation that fails for a standing
+    reason. Bounded so a wholesale failure cannot build an unreadable string.
+    """
+    head = f"{len(failed)} conversation(s) could not be carried"
+    details = [f"{_session_label(source_db, sid)} ({reason})" for sid, reason in failed[:_FAILURE_DETAIL_LIMIT]]
+    if len(failed) > _FAILURE_DETAIL_LIMIT:
+        details.append(f"and {len(failed) - _FAILURE_DETAIL_LIMIT} more")
+    return f"{head}: {', '.join(details)}" if details else head
+
+
 def transfer_project(
         plan: dict, *, source_conn: sqlite3.Connection, target_conn: sqlite3.Connection,
         source_db: Any, target_db: Any, retire_source: bool = False) -> dict:
@@ -234,7 +274,12 @@ def transfer_project(
     target_id = _ensure_target_project(target_conn, project, plan)
     copied = _copy_project_data(source_conn, target_conn, project.id, target_id)
 
-    moved, skipped, failed = [], [], []
+    moved, skipped = [], []
+    # (session_id, reason). The reason travels to the UI: "1 could not be carried" with no
+    # conversation and no cause leaves the user with nothing to act on, and re-running picks
+    # up only what is missing — so a conversation that fails for a STANDING reason (an
+    # oversize transcript, say) fails identically every time with no explanation.
+    failed: list[tuple[str, str]] = []
     for session_id in list(plan.get("session_ids") or []):
         try:
             # One lineage at a time: a project's whole history never has to fit in memory at once.
@@ -244,10 +289,12 @@ def transfer_project(
                 source_db, session_id, retire_donor=retire_source)
         except Exception as exc:
             logger.warning("transfer: session %s could not be carried: %s", session_id, exc)
-            failed.append(session_id)
+            failed.append((session_id, f"{type(exc).__name__}: {exc}"))
             continue
         if not adoption.get("adopted"):
-            failed.append(session_id)
+            reason = _adoption_failure_reason(adoption)
+            logger.warning("transfer: session %s could not be carried: %s", session_id, reason)
+            failed.append((session_id, reason))
         elif int(adoption.get("imported") or 0) > 0:
             moved.append(session_id)
         else:
@@ -261,7 +308,7 @@ def transfer_project(
 
     return {
         "ok": not failed,
-        "error": "" if not failed else f"{len(failed)} conversation(s) could not be carried",
+        "error": "" if not failed else _failure_summary(failed, source_db),
         "project_id": project.id,
         "target_project_id": target_id,
         "target_profile": plan.get("target_profile", ""),

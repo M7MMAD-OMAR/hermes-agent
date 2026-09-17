@@ -233,3 +233,67 @@ def test_a_conversation_that_fails_to_cross_is_reported_not_hidden(stores, tmp_p
     # The source record stays live: half a history is not a completed move.
     assert report["source_archived"] is False
     assert [p.id for p in pdb.list_projects(source_conn)] == [pid]
+
+
+def test_a_long_conversation_the_untrusted_import_cap_would_refuse_still_travels(stores, tmp_path):
+    """A transfer carries content this machine already stores, at the user's request.
+
+    The per-session import cap bounds an untrusted ``sessions.import`` payload; applying it
+    to a local adoption made a real conversation impossible to move (measured: 16.6 MB of
+    tool output across 438 messages) and reported only "1 could not be carried".
+    """
+    source_conn, _target_conn, source_db, target_db = stores
+    folder = tmp_path / "work" / "big"
+    folder.mkdir(parents=True)
+    pid = pdb.create_project(source_conn, name="Big", folders=[str(folder)])
+    source_db.create_session("s_big", source="tui", cwd=str(folder))
+    source_db.set_session_title("s_big", "a long coding session")
+    # One message past the untrusted per-session ceiling, the shape that failed.
+    source_db.append_message("s_big", "user", "please review")
+    source_db.append_message("s_big", "tool", "x" * (SessionDB._IMPORT_MAX_SESSION_BYTES + 1))
+
+    report = _run(stores, _plan(stores, pid))
+
+    assert report["ok"] is True
+    assert report["failed_sessions"] == 0
+    assert report["moved_sessions"] == 1
+    assert len(target_db.get_messages("s_big")) == 2
+
+
+def test_a_refusal_names_the_conversation_and_the_reason(stores, tmp_path, monkeypatch):
+    """"1 could not be carried" with no conversation and no cause leaves nothing to act on —
+    and re-running, which the dialog suggests, cannot help a standing reason."""
+    source_conn, _target_conn, source_db, target_db = stores
+    folder = tmp_path / "work" / "named"
+    folder.mkdir(parents=True)
+    pid = pdb.create_project(source_conn, name="Named", folders=[str(folder)])
+    _seed_session(source_db, "s_one", str(folder), title="the one that fails")
+
+    monkeypatch.setattr(
+        target_db, "adopt_session_lineage_from",
+        lambda *a, **k: {"ok": False, "adopted": False, "imported": 0, "skipped": 0,
+                         "errors": [{"error": "session exceeds the import size limit"}]})
+    report = _run(stores, _plan(stores, pid))
+
+    assert report["ok"] is False
+    assert "the one that fails" in report["error"]
+    assert "session exceeds the import size limit" in report["error"]
+
+
+def test_a_wholesale_failure_summary_stays_readable(stores, tmp_path, monkeypatch):
+    """Every failed conversation in the string would be unreadable for a whole project."""
+    source_conn, _target_conn, source_db, target_db = stores
+    folder = tmp_path / "work" / "many"
+    folder.mkdir(parents=True)
+    pid = pdb.create_project(source_conn, name="Many", folders=[str(folder)])
+    for i in range(6):
+        _seed_session(source_db, f"s_{i}", str(folder), title=f"conversation {i}")
+
+    monkeypatch.setattr(
+        target_db, "adopt_session_lineage_from",
+        lambda *a, **k: {"ok": False, "adopted": False, "imported": 0, "skipped": 0, "errors": []})
+    report = _run(stores, _plan(stores, pid))
+
+    assert report["failed_sessions"] == 6
+    assert "and 3 more" in report["error"]
+    assert report["error"].count("conversation ") == project_transfer._FAILURE_DETAIL_LIMIT

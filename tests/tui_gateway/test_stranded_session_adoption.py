@@ -420,3 +420,52 @@ def test_donor_growth_between_export_and_retire_blocks_retirement(stores, monkey
     second = profile_db.adopt_session_lineage_from(default_db, STRANDED_ID)
     assert second["donor_retired"] is False
     assert not default_db.get_session(STRANDED_ID)["archived"]
+
+
+def test_a_conversation_past_the_untrusted_import_cap_is_still_adopted(stores):
+    """The import caps bound an untrusted ``sessions.import`` payload. An adoption carries
+    content this machine already stores between two of its own profiles, so applying those
+    caps to it refused real conversations outright (measured: 16.6 MB across 438 messages)
+    and left them unreachable in the target."""
+    default_db, profile_db = stores
+    default_db.create_session(STRANDED_ID, source="tui")
+    default_db.append_message(STRANDED_ID, "user", "please review the diff")
+    default_db.append_message(STRANDED_ID, "tool", "x" * (SessionDB._IMPORT_MAX_SESSION_BYTES + 1))
+
+    result = profile_db.adopt_session_lineage_from(default_db, STRANDED_ID)
+
+    assert result["adopted"] is True
+    assert result["errors"] == []
+    assert len(profile_db.get_messages(STRANDED_ID)) == 2
+
+
+def test_the_untrusted_import_path_keeps_its_own_cap(stores):
+    """The larger ceilings belong to adoption alone; a plain import must still refuse."""
+    _default_db, profile_db = stores
+    oversized = "x" * (SessionDB._IMPORT_MAX_SESSION_BYTES + 1)
+
+    result = profile_db.import_sessions([{"id": "oversized", "messages": [{"role": "user", "content": oversized}]}])
+
+    assert result["ok"] is False
+    assert result["errors"][0]["error"] == "session exceeds the import size limit"
+    assert profile_db.get_session("oversized") is None
+
+
+def test_a_lineage_whose_total_exceeds_one_payload_still_adopts_every_segment(stores):
+    """Segments are imported one per transaction, so a lineage is never refused as a whole
+    for a total that no single conversation reaches — and each write stays bounded."""
+    default_db, profile_db = stores
+    parent, child = "sess-parent", "sess-child"
+    big = "x" * (SessionDB._IMPORT_MAX_SESSION_BYTES + 1)
+    default_db.create_session(parent, source="tui")
+    default_db.append_message(parent, "user", big)
+    default_db.end_session(parent, "compression")
+    default_db.create_session(child, source="tui", parent_session_id=parent)
+    default_db.append_message(child, "user", big)
+
+    result = profile_db.adopt_session_lineage_from(default_db, parent)
+
+    assert result["adopted"] is True
+    assert result["imported"] == 2
+    # Order is load-bearing: a child imported before its parent would be detached.
+    assert profile_db.get_session(child)["parent_session_id"] == parent

@@ -356,7 +356,13 @@ class SessionPortabilityMixin:
                 logger.warning("adoption divergence: donor segment %s has %d messages, "
                                "local copy has %d — donor will NOT be retired", seg_id, donor_count, local_count)
 
-        result = self.import_sessions([dict(seg) for seg in segments])
+        # One segment per import, in lineage order (root first), for two reasons: each
+        # BEGIN IMMEDIATE then spans a single conversation rather than a whole lineage —
+        # a real difference on a 16 MB segment — and a lineage whose TOTAL exceeds the
+        # size ceiling still adopts every segment that fits instead of failing whole.
+        # Order is load-bearing: a child imported before its parent exists is DETACHED,
+        # which would sever the compression chain in the target.
+        result = self._adopt_segments(segments)
         imported = int(result.get("imported") or 0)
         skipped = int(result.get("skipped") or 0)
         adopted = result.get("ok", False) and (imported + skipped) == len(segments)
@@ -368,6 +374,25 @@ class SessionPortabilityMixin:
         if adopted and retire_donor and not donor_ahead:
             donor_retired = all(self._retire_donor_segment(donor_db, seg["id"]) for seg in segments if seg.get("id"))
         return {**result, "adopted": adopted, "donor_retired": donor_retired}
+
+    def _adopt_segments(self, segments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Import each lineage segment on its own, merged into one ``import_sessions`` shape.
+
+        ``ok`` is true only when every segment's import was; the counts and ``errors`` are the
+        sum across segments, so a caller reads this exactly as it read the single-call result.
+        """
+        merged: Dict[str, Any] = {
+            "ok": True, "imported": 0, "skipped": 0, "detached": 0,
+            "imported_ids": [], "skipped_ids": [], "errors": [],
+        }
+        for segment in segments:
+            result = self.import_sessions([dict(segment)], local_adoption=True)
+            merged["ok"] = merged["ok"] and bool(result.get("ok"))
+            for count in ("imported", "skipped", "detached"):
+                merged[count] += int(result.get(count) or 0)
+            for ids in ("imported_ids", "skipped_ids", "errors"):
+                merged[ids].extend(result.get(ids) or [])
+        return merged
 
     def _retire_donor_segment(self, donor_db: Any, seg_id: str) -> bool:
         """Archive one adopted donor segment; False when skipped or failed. TOCTOU close-out:
@@ -456,7 +481,24 @@ class SessionPortabilityMixin:
             clean_messages.append(clean_message)
         return {"session": clean_session, "messages": clean_messages}
 
-    def _validate_import_payload(self, sessions: List[Dict[str, Any]]) -> tuple:
+    def _import_size_limits(self, local_adoption: bool) -> Dict[str, int]:
+        """The size ceilings one import runs under. A local adoption gets the larger set
+        (see ``_ADOPT_MAX_*``); every other caller keeps the untrusted-payload caps."""
+        if local_adoption:
+            return {
+                "session_bytes": self._ADOPT_MAX_SESSION_BYTES,
+                "total_bytes": self._ADOPT_MAX_TOTAL_BYTES,
+                "messages_per_session": self._ADOPT_MAX_MESSAGES_PER_SESSION,
+                "total_messages": self._IMPORT_MAX_TOTAL_MESSAGES,
+            }
+        return {
+            "session_bytes": self._IMPORT_MAX_SESSION_BYTES,
+            "total_bytes": self._IMPORT_MAX_TOTAL_BYTES,
+            "messages_per_session": self._IMPORT_MAX_MESSAGES_PER_SESSION,
+            "total_messages": self._IMPORT_MAX_TOTAL_MESSAGES,
+        }
+
+    def _validate_import_payload(self, sessions: List[Dict[str, Any]], limits: Dict[str, int]) -> tuple:
         """Size/shape/type validation of the whole payload; returns ``(normalized_items,
         errors)``. Every rejected entry is reported."""
         normalized: List[Dict[str, Any]] = []
@@ -466,7 +508,7 @@ class SessionPortabilityMixin:
         for index, raw in enumerate(sessions):
             session_id = str(raw.get("id") or "").strip() if isinstance(raw, dict) else ""
             try:
-                item = self._validate_import_session(raw, session_id, seen_ids, totals)
+                item = self._validate_import_session(raw, session_id, seen_ids, totals, limits)
             except ValueError as exc:
                 item = {"index": index, "error": str(exc)}
                 if session_id:
@@ -477,9 +519,12 @@ class SessionPortabilityMixin:
             normalized.append({"index": index, **item})
         return normalized, errors
 
-    def _validate_import_session(self, raw: Any, session_id: str, seen_ids: set, totals: Dict[str, int]) -> Dict[str, Any]:
+    def _validate_import_session(
+            self, raw: Any, session_id: str, seen_ids: set, totals: Dict[str, int],
+            limits: Dict[str, int]) -> Dict[str, Any]:
         """One payload session -> normalized item; ValueError(message) on rejection. *totals*
-        accumulate before their limit check (a rejected oversize entry still counts)."""
+        accumulate before their limit check (a rejected oversize entry still counts).
+        *limits* are the ceilings for this import (see :meth:`_import_size_limits`)."""
         if not isinstance(raw, dict):
             raise ValueError("session must be an object")
         if not session_id:
@@ -489,7 +534,7 @@ class SessionPortabilityMixin:
         messages = raw.get("messages") or []
         if not isinstance(messages, list):
             raise ValueError("messages must be a list")
-        if len(messages) > self._IMPORT_MAX_MESSAGES_PER_SESSION:
+        if len(messages) > limits["messages_per_session"]:
             raise ValueError("messages exceeds the per-session import limit")
         if any(not isinstance(msg, dict) for msg in messages):
             raise ValueError("messages must contain only objects")
@@ -500,14 +545,14 @@ class SessionPortabilityMixin:
             session_bytes = len(json.dumps(measured, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
         except (TypeError, ValueError):
             raise ValueError("session must be JSON serializable") from None
-        if session_bytes > self._IMPORT_MAX_SESSION_BYTES:
+        if session_bytes > limits["session_bytes"]:
             raise ValueError("session exceeds the import size limit")
         totals["bytes"] += session_bytes
-        if totals["bytes"] > self._IMPORT_MAX_TOTAL_BYTES:
+        if totals["bytes"] > limits["total_bytes"]:
             raise ValueError("import exceeds the total size limit")
         item = self._normalize_import_session(raw, session_id, messages)
         totals["messages"] += len(item["messages"])
-        if totals["messages"] > self._IMPORT_MAX_TOTAL_MESSAGES:
+        if totals["messages"] > limits["total_messages"]:
             raise ValueError("messages exceeds the total import limit")
         return item
 
@@ -568,10 +613,15 @@ class SessionPortabilityMixin:
                 detached += 1
         return detached
 
-    def import_sessions(self, sessions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def import_sessions(self, sessions: List[Dict[str, Any]], *, local_adoption: bool = False) -> Dict[str, Any]:
         """Import sessions exported by :meth:`export_session` or ``export_all``. Existing ids
         are skipped. A child keeps its parent only when the parent exists or is in the
         same payload; otherwise it is detached so partial imports pass FK validation.
+
+        ``local_adoption`` runs the import under the adoption ceilings (``_ADOPT_MAX_*``)
+        instead of the untrusted-payload caps — see :meth:`_import_size_limits`. It is for
+        :meth:`adopt_session_lineage_from` only: content this machine already stores,
+        moving between two of its own profiles. Every other caller keeps the small caps.
         Gateway routing, handoff, rewind and other live runtime state are reset: this
         restores history, not ownership of a live channel or process. Export INCLUDES
         ``last_activity_*`` but import RESETS them to NULL — resurrecting a stale
@@ -587,7 +637,7 @@ class SessionPortabilityMixin:
             raise ValueError("sessions must be a list")
         if len(sessions) > self._IMPORT_MAX_SESSIONS:
             raise ValueError(f"sessions must contain at most {self._IMPORT_MAX_SESSIONS} entries")
-        normalized, errors = self._validate_import_payload(sessions)
+        normalized, errors = self._validate_import_payload(sessions, self._import_size_limits(local_adoption))
         if errors:
             return {"ok": False, "imported": 0, "skipped": 0, "detached": 0, "errors": errors}
 

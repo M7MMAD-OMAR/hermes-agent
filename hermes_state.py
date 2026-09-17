@@ -484,6 +484,17 @@ class SessionDB(
     # Imports cap lower than exports: an import holds one BEGIN IMMEDIATE.
     _IMPORT_MAX_SESSIONS, _IMPORT_MAX_MESSAGES_PER_SESSION, _IMPORT_MAX_TOTAL_MESSAGES = 500, 10_000, 50_000
     _IMPORT_MAX_SESSION_BYTES, _IMPORT_MAX_TOTAL_BYTES = 5 * 1024 * 1024, 25 * 1024 * 1024
+    # Ceilings for a LOCAL ADOPTION (``adopt_session_lineage_from``) instead of the caps above.
+    # Those bound an untrusted ``sessions.import`` payload; an adoption carries a conversation this
+    # machine already stores, between two of its own profiles, at the user's explicit request — and
+    # refusing one loses that conversation in the target with no way to force it through. A real
+    # coding session reaches tens of megabytes on tool output alone (16.6 MB measured, single
+    # messages of 3.1 MB), so the untrusted 5 MB cap made a legitimate project transfer impossible.
+    # The invariant these restore: whatever this store can EXPORT, a sibling profile can adopt.
+    # Still bounded, so a corrupt export cannot be written in one transaction — and adoption imports
+    # one segment per call, so a lineage never widens the transaction beyond a single conversation.
+    _ADOPT_MAX_SESSION_BYTES = _ADOPT_MAX_TOTAL_BYTES = 64 * 1024 * 1024
+    _ADOPT_MAX_MESSAGES_PER_SESSION = _MAX_SAFE_MESSAGES
     # Accounting workers retire when idle so a bound-method target can't keep an abandoned SessionDB alive.
     _TOKEN_WRITER_IDLE_SECONDS = 30.0
 

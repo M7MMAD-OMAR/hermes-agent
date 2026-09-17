@@ -2551,6 +2551,7 @@ export interface Translations {
       transferConfirmCopy: string
       transferConfirmMove: string
       transferDone: (sessions: number, profile: string) => string
+      transferPartial: (failed: number) => string
       moveToProject: string
       movedTo: (name: string) => string
       moveFailed: string

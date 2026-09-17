@@ -2951,6 +2951,8 @@ export const en: Translations = {
       transferConfirmMove: 'Move',
       transferDone: (sessions, profile) =>
         `Carried ${sessions} conversation${sessions === 1 ? '' : 's'} into ${profile}.`,
+      transferPartial: failed =>
+        `${failed} could not be carried. Running this again picks up only what is missing.`,
       moveToProject: 'Move to project',
       movedTo: name => `Moved to ${name}`,
       moveFailed: 'Could not move session',

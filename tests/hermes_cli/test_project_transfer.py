@@ -204,3 +204,32 @@ def test_delivered_results_travel_and_the_document_index_is_re_queued(stores, tm
     # queued for a fresh scan rather than arriving with a stale hash.
     assert (row[0], row[1], row[2]) == ("/docs/brief.pdf", "pending", None)
     assert target_conn.execute("SELECT value FROM project_results").fetchone()[0] == "/out/report.pdf"
+
+
+def test_a_conversation_that_fails_to_cross_is_reported_not_hidden(stores, tmp_path, monkeypatch):
+    """One bad lineage must not lose the count of the ones that made it, and must not let a
+    move archive a source whose history is only partly on the other side."""
+    source_conn, target_conn, source_db, target_db = stores
+    folder = tmp_path / "work" / "sdeira"
+    folder.mkdir(parents=True)
+    pid = pdb.create_project(source_conn, name="Sdeira", folders=[str(folder)])
+    _seed_session(source_db, "s_one", str(folder))
+    _seed_session(source_db, "s_two", str(folder))
+
+    real = target_db.adopt_session_lineage_from
+
+    def _fail_on_second(donor_db, session_id, **kwargs):
+        if session_id == "s_two":
+            raise RuntimeError("donor read failed")
+        return real(donor_db, session_id, **kwargs)
+
+    monkeypatch.setattr(target_db, "adopt_session_lineage_from", _fail_on_second)
+    report = _run(stores, _plan(stores, pid), retire_source=True)
+
+    assert report["ok"] is False
+    assert report["moved_sessions"] == 1
+    assert report["failed_sessions"] == 1
+    assert len(target_db.get_messages("s_one")) == 4
+    # The source record stays live: half a history is not a completed move.
+    assert report["source_archived"] is False
+    assert [p.id for p in pdb.list_projects(source_conn)] == [pid]

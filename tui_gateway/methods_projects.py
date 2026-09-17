@@ -581,8 +581,9 @@ def _(rid, params, pdb, conn) -> dict:
                     retire_source=bool(params.get("move")))
         finally:
             release_or_close(target_db)
-    if not report.get("ok"):
-        raise ValueError(report.get("error") or "the transfer did not complete")
+    # A partial failure answers with the report, not an error: at 143 lineages the counts
+    # are the whole story ("39 carried, 1 failed, run it again"), and raising would throw
+    # them away to say only that something went wrong. Re-running is idempotent.
     return _ok(rid, report)
 
 

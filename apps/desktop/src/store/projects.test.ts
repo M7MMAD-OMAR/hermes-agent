@@ -1328,6 +1328,8 @@ describe('transferring a project to another profile', () => {
 
   it('copies by default and leaves this sidebar alone', async () => {
     const report = {
+      error: '',
+      failed_sessions: 0,
       moved_sessions: 2,
       ok: true,
       skipped_sessions: 0,
@@ -1335,7 +1337,7 @@ describe('transferring a project to another profile', () => {
       target_profile: 'dn'
     }
 
-    const request = vi.fn(async () => report)
+    const request = vi.fn(async (_method: string, _params?: unknown) => report)
     const gateway = { connectionState: 'open', request }
 
     activeGateway.mockReturnValue(gateway as never)
@@ -1355,7 +1357,15 @@ describe('transferring a project to another profile', () => {
   it('refetches after a move, because this profile no longer owns the project', async () => {
     const request = vi.fn(async (method: string) =>
       method === 'projects.transfer'
-        ? { moved_sessions: 2, ok: true, skipped_sessions: 0, source_archived: true, target_profile: 'dn' }
+        ? {
+            error: '',
+            failed_sessions: 0,
+            moved_sessions: 2,
+            ok: true,
+            skipped_sessions: 0,
+            source_archived: true,
+            target_profile: 'dn'
+          }
         : { active_id: null, projects: [], scoped_session_ids: [] }
     )
 

@@ -1223,8 +1223,10 @@ export interface ProjectTransferPlan {
 
 export interface ProjectTransferReport {
   ok: boolean
+  error: string
   moved_sessions: number
   skipped_sessions: number
+  failed_sessions: number
   target_profile: string
   source_archived: boolean
 }

@@ -185,6 +185,9 @@ def _copy_project_data(source_conn: sqlite3.Connection, target_conn: sqlite3.Con
     documents are files on disk and the scan is idempotent, so the target rebuilds an index
     that is correct instead of inheriting one that is not.
     """
+    # Both connections are in the house autocommit mode (``isolation_level=''`` with every
+    # writer wrapped in ``write_txn``), so no transaction is open here and the explicit
+    # BEGIN IMMEDIATE below cannot nest.
     copied = {"results": 0, "reference_files": 0}
     try:
         results = source_conn.execute(

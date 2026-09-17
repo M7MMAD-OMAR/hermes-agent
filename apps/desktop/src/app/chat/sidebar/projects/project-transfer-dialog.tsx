@@ -115,7 +115,16 @@ export function ProjectTransferDialog({ project, onClose }: ProjectTransferDialo
           <DialogDescription>{p.transferHint}</DialogDescription>
         </DialogHeader>
         {report ? (
-          <p className="text-sm">{p.transferDone(report.moved_sessions, report.target_profile)}</p>
+          <div className="space-y-1">
+            <p className="text-sm">{p.transferDone(report.moved_sessions, report.target_profile)}</p>
+            {/* A partial failure still carried most of the history; the counts say how much,
+                and re-running the same transfer picks up only what is missing. */}
+            {!report.ok && (
+              <p className="text-xs text-destructive" role="alert">
+                {p.transferPartial(report.failed_sessions)}
+              </p>
+            )}
+          </div>
         ) : (
           <div className="space-y-4">
             {targets.length === 0 ? (

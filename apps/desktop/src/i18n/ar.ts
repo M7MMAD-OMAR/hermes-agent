@@ -2978,6 +2978,7 @@ export const ar = defineLocale({
       transferConfirmCopy: 'نسخ',
       transferConfirmMove: 'نقل',
       transferDone: (sessions, profile) => `نُقلت ${sessions} محادثة إلى ${profile}.`,
+      transferPartial: failed => `تعذّر نقل ${failed}. إعادة التنفيذ تكمل الناقص فقط.`,
       reveal: 'إظهار في المجلد',
       copyPath: 'نسخ المسار',
       removeFromSidebar: 'إخفاء من الشريط الجانبي',

@@ -527,22 +527,25 @@ def _dir_exists_cached(path: str) -> bool:
     return hit
 
 
-def _transfer_plan(pdb, conn, params: dict) -> dict:
+def _transfer_plan(pdb, conn, params: dict, source_db) -> dict:
     """The plan for ``projects.transfer``, shared by the preview and the run."""
     from hermes_cli import project_transfer
     project = _require_project(pdb, conn, params)
-    db = _get_db()
-    if db is None:
+    if source_db is None:
         raise ValueError("this profile's session store is unavailable")
     return project_transfer.plan_transfer(
         project_id=project.id, target_profile=str(params.get("target_profile") or ""),
-        source_conn=conn, source_db=db, resolve=git_probe.resolve)
+        source_conn=conn, source_db=source_db, resolve=git_probe.resolve)
 
 
 @_projects_method("projects.transfer_plan")
 def _(rid, params, pdb, conn) -> dict:
     """What moving this project to another profile would carry. Writes nothing."""
-    plan = _transfer_plan(pdb, conn, params)
+    # The SOURCE is whichever profile the sidebar is showing, not the launch profile:
+    # in app-global remote mode those differ, and reading the wrong store would count
+    # someone else's conversations.
+    with _profile_db(params) as source_db:
+        plan = _transfer_plan(pdb, conn, params, source_db)
     # session_ids is an implementation detail of the run; the client shows counts.
     return _ok(rid, {k: v for k, v in plan.items() if k != "session_ids"})
 
@@ -559,23 +562,25 @@ def _(rid, params, pdb, conn) -> dict:
     from hermes_cli import project_transfer
     from hermes_state_registry import acquire, release_or_close
 
-    plan = _transfer_plan(pdb, conn, params)
-    if plan.get("blockers"):
-        raise ValueError("; ".join(plan["blockers"]))
-    target_profile = str(plan["target_profile"])
-    source_db = _get_db()
-    # The registry hands back the SAME handle when this gateway already serves the target
-    # profile (the multiplexer case), so a transfer never opens a second writer on a store
-    # its own process is writing.
-    target_db = acquire(project_transfer.target_state_db(target_profile))
-    try:
-        with project_transfer.open_target_projects_db(target_profile) as target_conn:
-            report = project_transfer.transfer_project(
-                plan, source_conn=conn, target_conn=target_conn,
-                source_db=source_db, target_db=target_db,
-                retire_source=bool(params.get("move")))
-    finally:
-        release_or_close(target_db)
+    # A move retires the donor rows, so the source handle is a writer even though the
+    # plan itself only reads.
+    with _profile_db(params, writer=True) as source_db:
+        plan = _transfer_plan(pdb, conn, params, source_db)
+        if plan.get("blockers"):
+            raise ValueError("; ".join(plan["blockers"]))
+        target_profile = str(plan["target_profile"])
+        # The registry hands back the SAME handle when this gateway already serves the
+        # target profile (the multiplexer case), so a transfer never opens a second
+        # writer on a store its own process is already writing.
+        target_db = acquire(project_transfer.target_state_db(target_profile))
+        try:
+            with project_transfer.open_target_projects_db(target_profile) as target_conn:
+                report = project_transfer.transfer_project(
+                    plan, source_conn=conn, target_conn=target_conn,
+                    source_db=source_db, target_db=target_db,
+                    retire_source=bool(params.get("move")))
+        finally:
+            release_or_close(target_db)
     if not report.get("ok"):
         raise ValueError(report.get("error") or "the transfer did not complete")
     return _ok(rid, report)

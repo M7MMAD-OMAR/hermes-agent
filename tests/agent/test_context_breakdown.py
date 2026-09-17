@@ -312,3 +312,47 @@ def test_result_name_wins_over_a_recycled_call_id():
 
     assert _category(data, "files")["tokens"] > 0
     assert _category(data, "conversation")["tokens"] > 0
+
+
+# ── prompt tiers are rendered once per cached prompt ────────────────────────
+
+
+def test_prompt_tiers_are_reused_while_the_cached_prompt_is_unchanged():
+    """The desktop asks for a breakdown on every session switch; the prompt is byte-stable for the
+    conversation, so rendering it again for each request is pure waste on a busy gateway."""
+    agent, parts = _make_agent()
+    agent._cached_system_prompt = "identity and guidance\n\ntimestamp line"
+    history = [{"role": "user", "content": "hello there"}]
+
+    with patch("agent.system_prompt.build_system_prompt_parts", return_value=parts) as build:
+        first = compute_session_context_breakdown(agent, history)
+        second = compute_session_context_breakdown(agent, history + [{"role": "assistant", "content": "hi"}])
+
+    assert build.call_count == 1
+    assert first["estimated_total"] <= second["estimated_total"]
+
+
+def test_prompt_tiers_are_rebuilt_when_the_cached_prompt_changes():
+    agent, parts = _make_agent()
+    agent._cached_system_prompt = "prompt before compression"
+    history = [{"role": "user", "content": "hello there"}]
+
+    with patch("agent.system_prompt.build_system_prompt_parts", return_value=parts) as build:
+        compute_session_context_breakdown(agent, history)
+        # Compression rebuilds the prompt (a new string), so the tiers must follow it.
+        agent._cached_system_prompt = "prompt after compression"
+        compute_session_context_breakdown(agent, history)
+
+    assert build.call_count == 2
+
+
+def test_prompt_tiers_are_not_cached_without_a_built_prompt():
+    agent, parts = _make_agent()
+    agent._cached_system_prompt = None
+    history = [{"role": "user", "content": "hello there"}]
+
+    with patch("agent.system_prompt.build_system_prompt_parts", return_value=parts) as build:
+        compute_session_context_breakdown(agent, history)
+        compute_session_context_breakdown(agent, history)
+
+    assert build.call_count == 2

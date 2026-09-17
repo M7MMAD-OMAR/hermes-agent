@@ -241,6 +241,38 @@ def context_usage_fields(compressor: Any) -> Dict[str, Any]:
             "context_source": source, "context_estimated": source != "provider_usage"}
 
 
+_PROMPT_PARTS_CACHE_ATTR = "_context_breakdown_prompt_parts"
+
+
+def _prompt_parts_for_breakdown(agent: Any, build_parts: Any) -> Dict[str, str]:
+    """The prompt tiers the breakdown measures, rebuilt only when the agent's prompt changes.
+
+    ``build_system_prompt_parts`` renders the whole system prompt (skills index, memory, project
+    context, plugin sections) from scratch. The desktop asks for a breakdown on every session switch,
+    twice, for every open tile, so with a handful of busy sessions that rebuild ran several times a
+    second on the gateway while the same prompt was already cached on the agent for the turn loop.
+    The prompt is byte-stable for the life of a conversation (``build_system_prompt`` caches it on
+    ``_cached_system_prompt`` and only ``invalidate_system_prompt`` clears it), so the rendered
+    tiers are keyed on that cached string: the same prompt gives the same tiers, a rebuilt prompt
+    (compression) is a different string and misses. Agents without a string cache (not built yet,
+    or test doubles) rebuild every call, as before.
+    """
+    cached_prompt = getattr(agent, "_cached_system_prompt", None)
+    if not isinstance(cached_prompt, str) or not cached_prompt:
+        return build_parts(agent)
+    entry = getattr(agent, _PROMPT_PARTS_CACHE_ATTR, None)
+    # Identity, not equality: the entry keeps the prompt string alive, so the same object means
+    # the same prompt and a rebuilt prompt can never alias a freed one.
+    if isinstance(entry, tuple) and len(entry) == 2 and entry[0] is cached_prompt:
+        return entry[1]
+    parts = build_parts(agent)
+    try:
+        setattr(agent, _PROMPT_PARTS_CACHE_ATTR, (cached_prompt, parts))
+    except Exception:
+        pass
+    return parts
+
+
 def compute_session_context_breakdown(agent: Any, messages: Optional[List[dict]] = None) -> Dict[str, Any]:
     """Return a Cursor-style context usage breakdown for one live agent."""
     from agent.model_metadata import estimate_messages_tokens_rough
@@ -248,7 +280,7 @@ def compute_session_context_breakdown(agent: Any, messages: Optional[List[dict]]
     from agent.system_prompt import build_system_prompt_parts
 
     messages = messages or []
-    parts = build_system_prompt_parts(agent)
+    parts = _prompt_parts_for_breakdown(agent, build_system_prompt_parts)
     stable = parts.get("stable", "") or ""
     skills_index = _skills_block(stable)
     memory_block, user_block = _memory_blocks(agent)

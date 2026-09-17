@@ -89,7 +89,6 @@ const SOURCE_ID = 'homelab'
 const OPS_PORT = 7171
 const SOURCE_DEFAULT_PORT = 7070
 const V1_PORT = 5151
-const OMAR_PORT = 7171
 const RUNTIME_ID = 'rt-ops-fresh-1'
 const STORED_ID = 'stored-ops-fresh-1'
 
@@ -498,25 +497,25 @@ describe('profile rail: a fresh Ops chat keeps its exact registry owner across t
   it('an ordinary profile pick supersedes the legacy default pin on the active registry source', async () => {
     setPrimaryGateway(makePrimary() as never, 'default')
     await ensureGatewayAgent(SOURCE_ID, 'default')
-    pinLegacyNewChatProfile('omar')
+    pinLegacyNewChatProfile('ops')
     expect(resolveNewChatOwnerRoute()).toBeNull()
 
-    selectProfile('omar')
-    expect(resolveNewChatOwnerRoute()).toEqual({ connectionId: SOURCE_ID, profile: 'omar' })
-    await waitFor(() => expect(activeGatewayProfileKey()).toBe('omar'))
+    selectProfile('ops')
+    expect(resolveNewChatOwnerRoute()).toEqual({ connectionId: SOURCE_ID, profile: 'ops' })
+    await waitFor(() => expect(activeGatewayProfileKey()).toBe('ops'))
     expect(activeGatewayConnectionId()).toBe(SOURCE_ID)
-    expect(window.hermesDesktop.getConnection).not.toHaveBeenCalledWith('omar')
+    expect(window.hermesDesktop.getConnection).not.toHaveBeenCalledWith('ops')
   })
 
   it.each([
     { connectionId: null, activeProfile: 'default' },
     { connectionId: 'local', activeProfile: 'default' },
-    { connectionId: null, activeProfile: 'omar' }
+    { connectionId: null, activeProfile: 'ops' }
   ])('captures the saved $connectionId default before activation from remote $activeProfile', async ({ connectionId, activeProfile }) => {
     const primary = makePrimary()
     setPrimaryGateway(primary as never, 'default')
     await ensureGatewayAgent(SOURCE_ID, activeProfile)
-    ownerPort = connectionId === null ? V1_PORT : OMAR_PORT
+    ownerPort = connectionId === null ? V1_PORT : OPS_PORT
     const activation = deferred<void>()
     const desktop = window.hermesDesktop!
     vi.mocked(desktop.getConnectionFor!).mockClear()
@@ -538,13 +537,13 @@ describe('profile rail: a fresh Ops chat keeps its exact registry owner across t
     let handle: HarnessHandle | null = null
     render(<Harness ambientRequest={ambientRequest} onReady={h => (handle = h)} />)
     await waitFor(() => expect(handle).not.toBeNull())
-    $defaultProfileRoute.set({ connectionId, profile: 'omar' })
+    $defaultProfileRoute.set({ connectionId, profile: 'ops' })
     let creating!: Promise<string | null>
 
     try {
       act(() => prepareDefaultNewSession())
       expect(activeGatewayConnectionId()).toBe(SOURCE_ID)
-      expect(resolveNewChatOwnerRoute()).toEqual(connectionId === null ? null : { connectionId, profile: 'omar' })
+      expect(resolveNewChatOwnerRoute()).toEqual(connectionId === null ? null : { connectionId, profile: 'ops' })
       creating = handle!.createSession()
       expect(runtimeOwner).toBeNull()
     } finally {
@@ -559,17 +558,17 @@ describe('profile rail: a fresh Ops chat keeps its exact registry owner across t
     expect(runtimeOwner).toBe(owner)
     expect(calls(owner).filter(method => method === 'session.create')).toHaveLength(1)
     expect(calls(owner).filter(method => method === 'prompt.submit')).toHaveLength(2)
-    expect(desktop.getConnectionFor).not.toHaveBeenCalledWith({ connectionId: SOURCE_ID, profile: 'omar' })
+    expect(desktop.getConnectionFor).not.toHaveBeenCalledWith({ connectionId: SOURCE_ID, profile: 'ops' })
 
     if (connectionId === null) {
-      expect(desktop.getConnection).toHaveBeenCalledWith('omar')
-      expect(desktop.getConnectionFor).not.toHaveBeenCalledWith({ connectionId: 'local', profile: 'omar' })
+      expect(desktop.getConnection).toHaveBeenCalledWith('ops')
+      expect(desktop.getConnectionFor).not.toHaveBeenCalledWith({ connectionId: 'local', profile: 'ops' })
       expect($connection.get()?.mode).toBe('remote')
       expect(getSessionOwnerHint(mintedStoredId)).toBeUndefined()
     } else {
-      expect(desktop.getConnectionFor).toHaveBeenCalledWith({ connectionId: 'local', profile: 'omar' })
-      expect(desktop.getConnection).not.toHaveBeenCalledWith('omar')
-      expect(getSessionOwnerHint(mintedStoredId)).toEqual({ connectionId, profile: 'omar' })
+      expect(desktop.getConnectionFor).toHaveBeenCalledWith({ connectionId: 'local', profile: 'ops' })
+      expect(desktop.getConnection).not.toHaveBeenCalledWith('ops')
+      expect(getSessionOwnerHint(mintedStoredId)).toEqual({ connectionId, profile: 'ops' })
     }
 
     for (const socket of [primary, ...sockets]) {
@@ -592,14 +591,14 @@ describe('profile rail: a fresh Ops chat keeps its exact registry owner across t
     setConnection({ connectionId: SOURCE_ID, mode: 'remote', profile: 'default' } as never)
     expect(activeGatewayConnectionId()).toBe(SOURCE_ID)
 
-    selectProfile('omar')
+    selectProfile('ops')
 
     const desktop = window.hermesDesktop!
 
     await waitFor(() =>
-      expect(desktop.getConnectionFor).toHaveBeenCalledWith({ connectionId: SOURCE_ID, profile: 'omar' })
+      expect(desktop.getConnectionFor).toHaveBeenCalledWith({ connectionId: SOURCE_ID, profile: 'ops' })
     )
-    expect(desktop.getConnection).not.toHaveBeenCalledWith('omar')
+    expect(desktop.getConnection).not.toHaveBeenCalledWith('ops')
     expect($newChatConnectionId.get()).toBe(SOURCE_ID)
   })
   it('dials homelab::ops when boot published homelab on the active primary gateway', async () => {

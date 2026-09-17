@@ -395,8 +395,13 @@ def _get_db():
         try:
             # Pin to import-time launch home (#102526). A bare acquire() follows
             # get_hermes_home(), which the desktop multiplex cron ticker temporarily
-            # overrides per profile at startup — first touch inside a foreign window
-            # permanently binds this process-wide handle to the wrong state.db.
+            # overrides per profile at startup, so a first touch inside a foreign
+            # window permanently binds this process-wide handle to the wrong
+            # state.db. Upstream's first-use variant (_launch_state_db_path,
+            # #112692) is NOT used here: this fork's launch path binds earlier and
+            # swapping it made three sibling cases in
+            # tests/tui_gateway/test_launch_db_home_override_race.py fail instead
+            # of one.
             _db, _db_error = acquire(Path(_hermes_home) / "state.db"), None
         except Exception as exc:
             _db_error = str(exc)

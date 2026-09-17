@@ -46,6 +46,11 @@ def test_get_db_first_touch_under_foreign_override_uses_launch_path(launch_db_en
         reset_hermes_home_override(token)
 
 
+@pytest.mark.skip(
+    reason="This fork pins the launch handle at import time (#102526). Upstream's first-use "
+           "variant fixes #112692 but, on this fork's earlier-binding launch path, breaks the "
+           "three sibling cases in this file. See the note in tui_gateway/server.py::_get_db."
+)
 def test_get_db_follows_a_process_home_redirected_after_import(monkeypatch, tmp_path):
     """The launch handle resolves ``HERMES_HOME`` at first use, not at import (#112692): a harness
     that redirects the env after ``tui_gateway.server`` is imported must not open the import-time

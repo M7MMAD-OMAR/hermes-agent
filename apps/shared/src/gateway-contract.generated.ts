@@ -1382,7 +1382,7 @@ export interface ProjectBriefResult {
   files?: ReferenceFile[]
   approved_results?: ApprovedResult[]
 }
-/** ``hermes_cli/projects_health.py::project_with_health`` — the stored project plus its derived health fields. */
+/** ``hermes_cli/projects_health.py::project_with_health``: the stored project plus its derived health fields. */
 export interface ProjectHealth {
   id: string
   name: string
@@ -1408,7 +1408,7 @@ export interface ProjectWorkflowParams {
   approach?: string
   task?: string | null
 }
-/** ``hermes_cli/project_workflows.py::workflow_draft`` — composer text, never an agent change. Building a draft never touches the live agent's tools or system prompt. */
+/** ``hermes_cli/project_workflows.py::workflow_draft``: composer text, never an agent change. Building a draft never touches the live agent's tools or system prompt. */
 export interface ProjectWorkflowResult {
   cwd?: string | null
   draft: string
@@ -1438,7 +1438,7 @@ export interface ReferenceSearchParams {
 export interface ReferenceSearchResult {
   matches?: Citation[]
 }
-/** ``_CITATION_SELECT`` — one quotation tied to the exact saved source version. */
+/** ``_CITATION_SELECT``: one quotation tied to the exact saved source version. */
 export interface Citation {
   citation_id: number
   text: string
@@ -1594,7 +1594,7 @@ export interface ProviderUsageResult {
   available: boolean
   providers?: ProviderUsage[]
 }
-/** ``agent/provider_usage.py::ProviderUsage.to_payload`` — one provider's windows. */
+/** ``agent/provider_usage.py::ProviderUsage.to_payload``: one provider's windows. */
 export interface ProviderUsage {
   provider: string
   available: boolean

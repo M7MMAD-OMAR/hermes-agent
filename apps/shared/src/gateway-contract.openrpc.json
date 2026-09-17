@@ -7465,7 +7465,7 @@
       },
       "Citation": {
         "additionalProperties": true,
-        "description": "``_CITATION_SELECT`` \u2014 one quotation tied to the exact saved source version.",
+        "description": "``_CITATION_SELECT``: one quotation tied to the exact saved source version.",
         "properties": {
           "citation_id": {
             "title": "Citation Id",
@@ -21470,7 +21470,7 @@
       },
       "ProjectHealth": {
         "additionalProperties": true,
-        "description": "``hermes_cli/projects_health.py::project_with_health`` \u2014 the stored project plus its\nderived health fields.",
+        "description": "``hermes_cli/projects_health.py::project_with_health``: the stored project plus its\nderived health fields.",
         "properties": {
           "id": {
             "title": "Id",
@@ -22214,7 +22214,7 @@
       },
       "ProjectWorkflowResult": {
         "additionalProperties": false,
-        "description": "``hermes_cli/project_workflows.py::workflow_draft`` \u2014 composer text, never an agent change.\nBuilding a draft never touches the live agent's tools or system prompt.",
+        "description": "``hermes_cli/project_workflows.py::workflow_draft``: composer text, never an agent change.\nBuilding a draft never touches the live agent's tools or system prompt.",
         "properties": {
           "cwd": {
             "anyOf": [
@@ -23211,7 +23211,7 @@
       },
       "ProviderUsage": {
         "additionalProperties": true,
-        "description": "``agent/provider_usage.py::ProviderUsage.to_payload`` \u2014 one provider's windows.",
+        "description": "``agent/provider_usage.py::ProviderUsage.to_payload``: one provider's windows.",
         "properties": {
           "provider": {
             "title": "Provider",

@@ -36,7 +36,7 @@ class ProjectIdParams(ProfileParams):
 
 
 class ProjectHealth(OpenModel):
-    """``hermes_cli/projects_health.py::project_with_health`` — the stored project plus its
+    """``hermes_cli/projects_health.py::project_with_health``: the stored project plus its
     derived health fields."""
 
     id: str
@@ -77,7 +77,7 @@ class ProjectWorkflowParams(ProjectIdParams):
 
 
 class ProjectWorkflowResult(Result):
-    """``hermes_cli/project_workflows.py::workflow_draft`` — composer text, never an agent change.
+    """``hermes_cli/project_workflows.py::workflow_draft``: composer text, never an agent change.
     Building a draft never touches the live agent's tools or system prompt."""
 
     cwd: str | None = None
@@ -120,7 +120,7 @@ method("projects.references.index", params=ProjectIdParams, result=ReferenceInde
 
 
 class Citation(OpenModel):
-    """``_CITATION_SELECT`` — one quotation tied to the exact saved source version."""
+    """``_CITATION_SELECT``: one quotation tied to the exact saved source version."""
 
     citation_id: int
     text: str
@@ -378,7 +378,7 @@ class ProviderUsageParams(Params):
 
 
 class ProviderUsage(OpenModel):
-    """``agent/provider_usage.py::ProviderUsage.to_payload`` — one provider's windows."""
+    """``agent/provider_usage.py::ProviderUsage.to_payload``: one provider's windows."""
 
     provider: str
     available: bool

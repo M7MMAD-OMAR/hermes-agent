@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Slot as ContribSlot } from '@/contrib/react/slot'
 import { useI18n } from '@/i18n'
 import { chatMessageText } from '@/lib/chat-messages'
-import { PR_COMMENT_URL_RE } from '@/lib/chat-runtime'
 import { sanitizeComposerInput } from '@/lib/composer-input-sanitize'
 import { DATA_IMAGE_URL_RE } from '@/lib/embedded-images'
 import { triggerHaptic } from '@/lib/haptics'
@@ -116,7 +115,6 @@ export function ChatBar({
   onAddUrl,
   onAttachDroppedItems,
   onAttachImageBlob,
-  onAttachPrCommentUrl,
   onAttachPastedText,
   onPasteClipboardImage,
   onPickFiles,
@@ -603,17 +601,13 @@ export function ChatBar({
       return
     }
 
-    // A pasted GitHub PR-comment deep link resolves to a structured review
-    // attachment (author, body, file:line anchor, diff hunk) instead of a bare
-    // `@url:` chip. Optimistic card first, resolve via gh in the background —
-    // if gh can't answer (offline, unauthenticated, foreign repo) the card
-    // swaps back to the plain URL ref so nothing is lost.
-    if (PR_COMMENT_URL_RE.test(pastedText) && onAttachPrCommentUrl?.(pastedText)) {
-      event.preventDefault()
-
-      return
-    }
-
+    // A pasted GitHub PR-comment deep link used to be intercepted here: it
+    // raised a structured review card and returned, so the clipboard payload
+    // never reached the editor and the user saw only a pill. Upstream removed
+    // that (paste-url-is-text.test.tsx pins it), and the removal is right: a
+    // pasted URL is never swallowed. The review attachment itself stays, raised
+    // from the git review pane, and `reviewCommentBlock` still expands it at
+    // send time.
     event.preventDefault()
 
     // Pasting exactly one link while composer text is selected turns that text

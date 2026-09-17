@@ -289,9 +289,7 @@ export const TurnDigest: FC<{
     return (
       <>
         <TurnProgress indices={indices} />
-        {digest.visible.map(index => (
-          <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
-        ))}
+        <ResponseMessages components={components} indices={digest.visible} />
         {outcome}
       </>
     )
@@ -328,9 +326,7 @@ export const TurnDigest: FC<{
         )}
       </div>
       {outcome}
-      {digest.visible.map(index => (
-        <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
-      ))}
+      <ResponseMessages components={components} indices={digest.visible} />
     </>
   )
 }

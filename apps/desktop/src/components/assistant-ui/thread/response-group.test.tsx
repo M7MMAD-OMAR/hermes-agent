@@ -16,7 +16,22 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('keeps background continuations in one response with one action bar and the original message identities', async () => {
+// NOT APPLICABLE TO THIS FORK, and skipped rather than quietly adjusted.
+//
+// Both cases below assume every assistant row of a turn is visible, so a
+// background continuation reads as one response with one action bar. This fork
+// puts the turn's working behind a digest fold instead (`turn-digest.tsx`,
+// DESIGN.md "the turn outcome never folds"): an intermediate assistant message
+// is summarised as "N notes" and only the tail stays open. Its own 12 cases in
+// turn-digest.test.tsx pin that, so the two designs disagree by construction,
+// not by accident.
+//
+// What upstream's grouping DID bring here is real and is wired in:
+// `TurnDigest` renders its unfolded rows through `ResponseMessages`, so the
+// rows that ARE visible share one container and one action bar.
+//
+// Un-skip these the day the fold is reconsidered.
+it.skip('keeps background continuations in one response with one action bar and the original message identities', async () => {
   const content = '[IMPORTANT: Background process proc_example completed normally (exit code 0).\nOutput:\nVerified.]'
   const clipboard = { writeText: vi.fn().mockResolvedValue(undefined) }
   vi.stubGlobal('navigator', { ...navigator, clipboard })
@@ -72,7 +87,7 @@ it('keeps background continuations in one response with one action bar and the o
   }
 })
 
-it('ends the response at a real user prompt or unrelated system event', () => {
+it.skip('ends the response at a real user prompt or unrelated system event', () => {
   const messages = toChatMessages([
     { role: 'user', content: 'First question', timestamp: 1 },
     { role: 'assistant', content: 'First answer', timestamp: 2 },

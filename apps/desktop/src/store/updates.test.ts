@@ -85,6 +85,7 @@ const {
   $backendUpdateStatus,
   applyBackendUpdate,
   $backendUpdateApply,
+  REQUIRED_BACKEND_CONTRACT,
   reportBackendContract,
   resetBackendContractMemory,
   applyUpdates,
@@ -196,7 +197,9 @@ describe('reportBackendContract', () => {
   })
 
   it('treats a payload without the key as partial once the backend has proven current', () => {
-    reportBackendContract(6)
+    // The constant, not a literal: upstream raises it, and a hardcoded version
+    // silently turns this case into "the backend is behind".
+    reportBackendContract(REQUIRED_BACKEND_CONTRACT)
     dismissSpy.mockClear()
 
     // A hand-rolled session `info` that forgot desktop_contract (the
@@ -211,7 +214,7 @@ describe('reportBackendContract', () => {
   })
 
   it('dismisses the toast when the backend meets the contract', () => {
-    reportBackendContract(6)
+    reportBackendContract(REQUIRED_BACKEND_CONTRACT)
     expect(dismissSpy).toHaveBeenCalledWith('backend-contract-skew')
     expect(notifySpy).not.toHaveBeenCalled()
   })
@@ -251,7 +254,7 @@ describe('reportBackendContract', () => {
     lastToast().onDismiss()
     notifySpy.mockClear()
 
-    reportBackendContract(6) // backend updated → satisfied, snooze cleared
+    reportBackendContract(REQUIRED_BACKEND_CONTRACT) // backend updated → satisfied, snooze cleared
     reportBackendContract(5) // a later regression must warn immediately
     expect(notifySpy).toHaveBeenCalledTimes(1)
   })

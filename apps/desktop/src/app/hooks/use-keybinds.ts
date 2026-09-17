@@ -19,6 +19,7 @@ import { setWorkspaceScope } from '@/components/pane-shell/workspace-scope'
 import { onReleaseTypingFocus } from '@/components/ui/keyboard-first'
 import { findBarClaimsCombo } from '@/lib/find-in-page'
 import { contributedKeybindHandler, PROFILE_SLOT_COUNT, SESSION_SLOT_COUNT } from '@/lib/keybinds/actions'
+import { handleApprovalKey, releaseApprovalKey } from '@/lib/keybinds/approval-keys'
 import { actionAllowedInInput, comboFromEvent, isEditableTarget } from '@/lib/keybinds/combo'
 import { composerFocusKeysAllowed, isComposerFocusSoftCombo, typeToFocusChar } from '@/lib/keybinds/composer-focus-keys'
 import { openWorktreeDialog } from '@/store/coding-status'
@@ -47,6 +48,7 @@ import {
   switchToDefaultProfile,
   toggleShowAllProfiles
 } from '@/store/profile'
+import { toggleProfileRailVisible } from '@/store/profile-rail-prefs'
 import { openFolderAsProject } from '@/store/projects'
 import { toggleReview } from '@/store/review'
 import { $selectedStoredSessionId, setModelPickerOpen } from '@/store/session'
@@ -250,6 +252,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       layoutHasRootSide('right') ? toggleFileBrowserOpen() : togglePaneVisible('terminal'),
     'view.toggleReview': toggleReview,
     'view.toggleStatusbar': toggleStatusbarVisible,
+    'view.toggleProfileRail': toggleProfileRailVisible,
     'view.toggleTabStrip': () => void toggleTargetZoneTabStrip(),
     'view.showFiles': showFiles,
     // The conversation's OWN browser, not a stray tab in the strip. These three
@@ -392,6 +395,10 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
         return
       }
 
+      if (handleApprovalKey(event)) {
+        return
+      }
+
       const actionId = $comboIndex.get().get(combo)
 
       // Unbound printable → type-to-focus. Bound chords (shift+n, …) win above.
@@ -439,6 +446,10 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     // highlighted session. A window blur (Cmd+Tab away mid-switch) cancels so
     // the overlay never gets stranded waiting for a keyup that never comes.
     const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === 'Escape') {
+        releaseApprovalKey()
+      }
+
       if (event.key === 'Tab') {
         onSwitcherTabUp()
       }
@@ -448,7 +459,13 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       }
     }
 
-    const onBlur = () => switcherActive() && closeSwitcher()
+    const onBlur = () => {
+      releaseApprovalKey()
+
+      if (switcherActive()) {
+        closeSwitcher()
+      }
+    }
 
     // Swallow trailing contextmenu after Ctrl+click commit (Electron main menu).
     const onContextMenu = (event: MouseEvent) => {

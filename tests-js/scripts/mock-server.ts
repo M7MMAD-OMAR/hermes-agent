@@ -31,6 +31,12 @@ import { pathToFileURL } from 'node:url'
 export const MOCK_REPLY = 'Hello from the mock inference server! The full boot chain is working.'
 
 export interface MockServerOptions {
+  /** Choose distinct replies from the latest input without replaying history. */
+  replyForPrompt?: (prompt: string) => string
+
+  /** Extra ids listed by GET /v1/models beside `mock-model` (a pickable second model). */
+  extraModels?: string[]
+
   /** Pause the matching stream after its first token for session-switch E2E coverage. */
   holdFirstStreamForPrompt?: string
 /** Pause the first completion whose request JSON contains this text. */
@@ -51,6 +57,8 @@ export interface MockServer {
   port: number
   url: string
   receivedPrompts: string[]
+  /** The `model` field of every chat completion request, in arrival order. */
+  receivedModels: string[]
   waitForHeldStream: () => Promise<void>
   waitForHeldCompletion: () => Promise<void>
   releaseHeldStream: () => void
@@ -343,6 +351,15 @@ const TASK_PANEL_RESUME_SCRIPT: ScriptedTurn[] = [
   },
 ]
 
+/**
+ * A marker that makes the mock answer the completion with a non-retryable
+ * provider failure (401 invalid key). The gateway then fails the member's
+ * turn and RETAINS it under `session.resume.inflight` as `{ status: 'error' }`
+ * — the tombstone a Bot Mode room must read as "finished", not "still busy".
+ */
+export const PROVIDER_FAILURE_TRIGGER = 'E2E_PROVIDER_FAILURE_TRIGGER'
+export const PROVIDER_FAILURE_MESSAGE = 'E2E invalid_api_key: the mock refused this completion on purpose'
+
 const BLOCKING_CLARIFY_TURN: ScriptedTurn = {
   text: '',
   toolCalls: [{ name: 'clarify', args: { question: BLOCKING_CLARIFY_QUESTION, choices: ['Yes', 'No'] } }],
@@ -382,6 +399,66 @@ function includesBatchClarifyTrigger(value: unknown): boolean {
   return false
 }
 
+/**
+ * A marker that makes the mock run a recursive delete through the real
+ * `terminal` tool. Under `approvals: mode: "manual"` the backend parks the
+ * turn behind a command-approval prompt (once/session/always/deny), which is
+ * how a Bot Mode group room gets its approval card. The path is a scratch
+ * directory so an approved run is harmless; once the tool result is in the
+ * history the mock falls through to the canned reply.
+ */
+export const APPROVAL_COMMAND_TRIGGER = 'E2E_APPROVAL_COMMAND_TRIGGER'
+export const APPROVAL_COMMAND = 'rm -rf /tmp/hermes-e2e-approval-probe'
+
+const APPROVAL_COMMAND_TURN: ScriptedTurn = {
+  text: '',
+  toolCalls: [{ name: 'terminal', args: { command: APPROVAL_COMMAND } }],
+}
+
+function includesApprovalCommandTrigger(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return value.includes(APPROVAL_COMMAND_TRIGGER)
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(includesApprovalCommandTrigger)
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(includesApprovalCommandTrigger)
+  }
+
+  return false
+}
+
+/**
+ * Per-speaker scripted line for Bot Mode group rooms. A room turn prompt opens
+ * with `You are @<handle>` and quotes the user's message verbatim, so one user
+ * send can script every member's reply:
+ * `E2E_SAY(code-farmer)[{at}hermes Reply with B.] E2E_SAY(hermes)[B]`.
+ * The script deliberately carries no literal `@` (the room's mention parser
+ * would otherwise pull every scripted speaker into round one); `{at}` becomes
+ * `@` in the reply. The mock answers with the bracketed text whose handle
+ * matches the prompt's `You are @…` line; other prompts fall through.
+ */
+export function groupScriptedLine(userText: string, history: string[] = []): string | null {
+  const viewer = /You are @([a-z0-9][a-z0-9._-]*)/i.exec(userText)?.[1]?.toLowerCase()
+
+  if (!viewer || ![userText, ...history].some(text => text.includes('E2E_SAY('))) {
+    return null
+  }
+
+  for (const match of userText.matchAll(/E2E_SAY\(([a-z0-9][a-z0-9._-]*)\)\[([^\]]*)\]/gi)) {
+    if (match[1].toLowerCase() === viewer) {
+      return match[2].replace(/\{at\}/g, '@')
+    }
+  }
+
+  // A scripted room turn with nothing for this speaker stays silent, so the
+  // room settles instead of every member echoing the canned reply.
+  return '(pass)'
+}
+
 function includesBlockingClarifyTrigger(value: unknown): boolean {
   if (typeof value === 'string') {
     return value.includes(BLOCKING_CLARIFY_TRIGGER)
@@ -406,6 +483,7 @@ function includesBlockingClarifyTrigger(value: unknown): boolean {
 export function startMockServer(options: MockServerOptions = {}): Promise<MockServer> {
   return new Promise((resolve, reject) => {
     const receivedPrompts: string[] = []
+    const receivedModels: string[] = []
     let resolveHeldStreamStarted: (() => void) | null = null
     let releaseHeldStream: (() => void) | null = null
     let heldCompletionCount = 0
@@ -438,14 +516,12 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
         res.end(
           JSON.stringify({
             object: 'list',
-            data: [
-              {
-                id: 'mock-model',
-                object: 'model',
-                created: 0,
-                owned_by: 'mock',
-              },
-            ],
+            data: ['mock-model', ...(options.extraModels ?? [])].map(id => ({
+              id,
+              object: 'model',
+              created: 0,
+              owned_by: 'mock',
+            })),
           }),
         )
 
@@ -479,6 +555,7 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
 
           const stream = parsed.stream === true
           const model = parsed.model || 'mock-model'
+          receivedModels.push(model)
 
           const holdThisCompletion = Boolean(
             options.holdFirstCompletionContaining &&
@@ -540,6 +617,23 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
             return
           }
 
+          if (includesApprovalCommandTrigger(parsed.messages)) {
+            // First completion scripts the gated command; once its tool
+            // result is in the history, fall through to the canned reply.
+            const hasToolResult = Array.isArray(parsed.messages)
+              && parsed.messages.some((message: { role?: string }) => message?.role === 'tool')
+
+            if (!hasToolResult) {
+              if (stream) {
+                streamScriptedTurn(res, model, APPROVAL_COMMAND_TURN)
+              } else {
+                nonStreamingScriptedTurn(res, model, APPROVAL_COMMAND_TURN)
+              }
+
+              return
+            }
+          }
+
           if (includesBatchClarifyTrigger(parsed.messages)) {
             // Only the FIRST completion of the conversation scripts the batch
             // clarify. The trigger text stays in message history, so once the
@@ -565,6 +659,13 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
             } else {
               nonStreamingScriptedTurn(res, model, BLOCKING_CLARIFY_TURN)
             }
+
+            return
+          }
+
+          if (userText.includes(PROVIDER_FAILURE_TRIGGER)) {
+            res.writeHead(401, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: { code: 'invalid_api_key', message: PROVIDER_FAILURE_MESSAGE, type: 'invalid_request_error' } }))
 
             return
           }
@@ -649,13 +750,30 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
             return
           }
 
+          const groupLine = groupScriptedLine(
+            userText,
+            messages.flatMap(m => (m?.role === 'user' && typeof m?.content === 'string' ? [m.content] : [])),
+          )
+
+          if (groupLine !== null) {
+            if (stream) {
+              streamTextResponse(res, model, groupLine)
+            } else {
+              nonStreamingTextResponse(res, model, groupLine)
+            }
+
+            return
+          }
+
+          const reply = options.replyForPrompt?.(userText) ?? MOCK_REPLY
+
           if (stream) {
             const holdThisStream = Boolean(
               options.holdFirstStreamForPrompt && typeof lastUserMessage?.content === 'string' &&
                 lastUserMessage.content.includes(options.holdFirstStreamForPrompt),
             )
 
-            streamTextResponse(res, model, MOCK_REPLY, holdThisStream || holdThisCompletion ? () => {
+            streamTextResponse(res, model, reply, holdThisStream || holdThisCompletion ? () => {
               if (holdThisCompletion) {
                 heldCompletionCount++
               }
@@ -668,9 +786,9 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
             if (holdThisCompletion) {
               heldCompletionCount++
               resolveHeldStreamStarted?.()
-              void heldStreamReleased.then(() => nonStreamingTextResponse(res, model, MOCK_REPLY))
+              void heldStreamReleased.then(() => nonStreamingTextResponse(res, model, reply))
             } else {
-              nonStreamingTextResponse(res, model, MOCK_REPLY)
+              nonStreamingTextResponse(res, model, reply)
             }
           }
         })
@@ -706,6 +824,7 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
         port,
         url,
         receivedPrompts,
+        receivedModels,
         waitForHeldStream: () => heldStreamStarted,
         waitForHeldCompletion: () => heldStreamStarted,
         releaseHeldStream: () => releaseHeldStream?.(),

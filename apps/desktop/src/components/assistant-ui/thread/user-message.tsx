@@ -2,8 +2,9 @@ import { ActionBarPrimitive, BranchPickerPrimitive, MessagePrimitive, useAuiStat
 import { type FC, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
 import { DirectiveContent } from '@/components/assistant-ui/directive-text'
-import { messageAttachmentRefs, messageContentText } from '@/components/assistant-ui/thread/content'
+import { messageAttachmentRefs, messageContentText, PROCESS_NOTIFICATION_RE } from '@/components/assistant-ui/thread/content'
 import { ReactionBadge, ReactionPicker } from '@/components/assistant-ui/thread/message-reactions'
+import { BackgroundResult } from '@/components/assistant-ui/thread/system-message'
 import { MessageTimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
 import { type RestoreMessageTarget } from '@/components/assistant-ui/thread/types'
 import { useMessageReactions } from '@/components/assistant-ui/thread/use-message-reactions'
@@ -242,27 +243,7 @@ const ProcessNotificationNote: FC<{ text: string }> = ({ text }) => {
   const headline = (newline === -1 ? body : body.slice(0, newline)).trim()
   const detail = newline === -1 ? '' : body.slice(newline + 1).trim()
 
-  return (
-    <div className="flex max-w-[min(86%,44rem)] flex-col gap-0.5 self-center px-2 py-0.5 text-[0.6875rem] leading-5 text-muted-foreground/60">
-      <span className="flex items-center gap-1.5">
-        <Codicon className="shrink-0 text-muted-foreground/55" name="terminal" size="0.75rem" />
-        <span className="wrap-anywhere">{headline}</span>
-      </span>
-      {detail && (
-        <details className="ps-[1.3125rem]">
-          <summary className="cursor-pointer select-none text-muted-foreground/45 hover:text-muted-foreground/70">
-            output
-          </summary>
-          <pre
-            className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[0.625rem] leading-4 text-muted-foreground/55"
-            data-selectable-text="true"
-          >
-            {detail}
-          </pre>
-        </details>
-      )}
-    </div>
-  )
+  return <BackgroundResult process report={detail} text={headline} />
 }
 
 /** One dim line, centred, matching ProcessNotificationNote's voice. The text is
@@ -403,7 +384,6 @@ export const UserMessage: FC<{
         data-slot="aui_user-message-root"
       >
         <ProcessNotificationNote text={messageText.trim()} />
-        <MessageTimelineTimestamp className="self-center" />
       </MessagePrimitive.Root>
     )
   }

@@ -97,7 +97,8 @@ async def test_gateway_stop_interrupts_running_agents_and_cancels_adapter_tasks(
     ):
         await runner.stop()
 
-    running_agent.interrupt.assert_called_once_with("Gateway shutting down", origin=_io.SESSION_CLOSED)
+    running_agent.interrupt.assert_called_once_with(
+        "Gateway shutting down", tool_reason="gateway shutdown", origin=_io.SESSION_CLOSED)
     disconnect_mock.assert_awaited_once()
     shutdown_cached_clients.assert_called_once()
     assert runner.adapters == {}
@@ -244,7 +245,7 @@ async def test_in_chat_restart_skips_home_shutdown_even_with_active_session():
     assert len(adapter.sent_calls) == 1
     chat_id, message, metadata = adapter.sent_calls[0]
     assert chat_id == source.chat_id
-    assert "Gateway restarting" in message
+    assert "Hermes is restarting" in message
     assert metadata["telegram_reply_to_message_id"] == "restart-command"
 
 

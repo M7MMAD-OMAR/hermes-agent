@@ -2,6 +2,7 @@ import { useStore } from '@nanostores/react'
 import { useReducedMotion } from 'motion/react'
 import { useMemo, useRef } from 'react'
 
+import { useTranscriptWindow } from '@/components/assistant-ui/thread/transcript-window'
 import { Codicon } from '@/components/ui/codicon'
 import { AnimatedInt } from '@/components/ui/diff-count'
 import { useI18n } from '@/i18n'
@@ -9,7 +10,13 @@ import { triggerHaptic } from '@/lib/haptics'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { sessionApprovalRequest } from '@/store/prompts'
-import { $threadScrollBySession, requestScrollToBottom, threadScrollFor } from '@/store/thread-scroll'
+import {
+  $threadJumpButtonVisibleBySession,
+  $threadMessagesBelowBySession,
+  requestScrollToBottom
+} from '@/store/thread-scroll'
+
+import { useComposerSurfaceId } from './composer/scope'
 
 /**
  * Floating "jump to bottom" control. Sits centered just above the composer,
@@ -20,12 +27,8 @@ import { $threadScrollBySession, requestScrollToBottom, threadScrollFor } from '
  * away from the bottom, with an animated count of messages below the viewport.
  * Clicking re-arms sticky-bottom and pins the viewport.
  *
- * When the turn is BLOCKED on an approval, this same control morphs into an
- * "Approval needed" pill — the only response surface is the inline Run/Reject
- * bar on the parked tool row, which is always the bottom-most content, so the
- * existing scroll-to-bottom action lands the user right on it. One control, no
- * collision, no second scroll path (native scrollIntoView would scroll
- * overflow:hidden ancestors that can't scroll back and wreck the layout).
+ * While approvals are pending, relabel this control to lead back to the
+ * transcript-owned stack using the existing scroll path.
  *
  * Enter/exit motion lives in styles.css under `.thread-jump-button` — a
  * directional scale (contract in from 1.1, contract out to 0.9) keyed off
@@ -34,13 +37,19 @@ import { $threadScrollBySession, requestScrollToBottom, threadScrollFor } from '
  */
 export function ScrollToBottomButton({ sessionId }: { sessionId: string | null }) {
   const { t } = useI18n()
-  // Every read is scoped to THIS transcript. They used to be global atoms and
-  // the ACTIVE session's approval, so with panes side by side every chat raised
-  // its pill the moment any one of them scrolled up or was asked to approve
-  // something.
-  const chrome = useStoreSelector($threadScrollBySession, all => threadScrollFor(all, sessionId))
-  const visible = chrome.jumpVisible
-  const count = chrome.messagesBelow
+  const surfaceId = useComposerSurfaceId()
+  const scrollSessionId = sessionId ?? surfaceId
+  const { isHistorical } = useTranscriptWindow()
+
+  const scrollVisible = useStoreSelector($threadJumpButtonVisibleBySession, map =>
+    Boolean(scrollSessionId && map[scrollSessionId])
+  )
+
+  const count = useStoreSelector($threadMessagesBelowBySession, map =>
+    scrollSessionId ? (map[scrollSessionId] ?? 0) : 0
+  )
+
+  const visible = isHistorical || scrollVisible
   const reducedMotion = useReducedMotion()
   const request = useStore(useMemo(() => sessionApprovalRequest(sessionId), [sessionId]))
   // Scrolled away while an approval is pending → the inline Run/Reject bar is
@@ -77,7 +86,7 @@ export function ScrollToBottomButton({ sessionId }: { sessionId: string | null }
       data-state={state}
       onClick={() => {
         triggerHaptic('selection')
-        requestScrollToBottom(sessionId)
+        requestScrollToBottom(scrollSessionId)
       }}
       style={{
         bottom: 'calc(var(--composer-measured-height) + 1rem)'

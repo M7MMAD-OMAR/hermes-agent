@@ -37,32 +37,48 @@ vi.mock('@/store/gateway', () => ({
   $gateway: { get: () => ({ request }), listen: () => () => undefined, subscribe: () => () => undefined }
 }))
 
-const { handleDesktopBridgeEvent, previewActionFromPayload } = await import('./desktop-bridge')
+const { handleServerRequest, previewActionFromPayload } = await import('./server-requests')
+const { createClientSessionState } = await import('@/lib/chat-runtime')
+
+const deps = {
+  activeSessionIdRef: { current: null },
+  sessionInterrupted: () => false,
+  updateSessionState: (_sessionId: string, update: (s: never) => never) =>
+    update(createClientSessionState('stored-session') as never),
+  upsertToolCall: () => undefined
+} as never
 
 const PRIMARY = 'runtime-primary'
 const TILE = 'runtime-tile'
 
-/** Minimal context: the act handler reads only these four fields. */
-function actEvent(sessionId: string, payload: Record<string, unknown>) {
-  return {
-    event: { type: 'preview.act.request', session_id: sessionId },
-    // isActiveEvent is what index.ts computes against the PRIMARY ref, which is
-    // exactly the value the old gate trusted on its own.
-    isActiveEvent: sessionId === $activeSessionId.get(),
-    payload: { request_id: 'req-1', ...payload },
-    sessionId
-  } as never
+/** The act request now rides the JSON-RPC server-request rail rather than an
+ *  event notification; `isActiveSession` is what the old gate trusted alone. */
+const respond = vi.fn()
+
+function act(sessionId: string, params: Record<string, unknown>) {
+  respond.mockClear()
+
+  return handleServerRequest(
+    {
+      fail: vi.fn(),
+      id: 'srq-1',
+      method: 'preview.act',
+      params: { session_id: sessionId, ...params },
+      profile: 'default',
+      respond
+    } as never,
+    deps,
+    $activeSessionId.get()
+  )
 }
 
-/** The single answer this handler sends back over the gateway. */
+/** The single answer this handler sends back. */
 async function answered() {
-  await vi.waitFor(() => expect(request).toHaveBeenCalled())
+  await vi.waitFor(() => expect(respond).toHaveBeenCalled())
 
-  const [method, params] = request.mock.calls.at(-1) as unknown as [string, { text: string }]
+  const [payload] = respond.mock.calls.at(-1) as unknown as [{ value: string }]
 
-  expect(method).toBe('preview.act.respond')
-
-  return JSON.parse(params.text) as { error?: string; success: boolean }
+  return JSON.parse(payload.value) as { error?: string; success: boolean }
 }
 
 beforeEach(() => {
@@ -75,7 +91,7 @@ beforeEach(() => {
 
 describe('preview.act.request gate', () => {
   it('acts for the primary view when it holds focus', async () => {
-    handleDesktopBridgeEvent(actEvent(PRIMARY, { action: 'navigate', url: 'https://example.com' }))
+    act(PRIMARY, { action: 'navigate', url: 'https://example.com' })
 
     expect(await answered()).toMatchObject({ success: true })
     expect(navigate).toHaveBeenCalledWith('https://example.com')
@@ -92,12 +108,10 @@ describe('preview.act.request gate', () => {
     )
     noteActiveTreeGroup('grp-main')
 
-    const ctx = actEvent(TILE, { action: 'navigate', url: 'https://example.com' })
-
     // The old gate's whole input, and it says no.
-    expect((ctx as { isActiveEvent: boolean }).isActiveEvent).toBe(false)
+    expect(TILE === $activeSessionId.get()).toBe(false)
 
-    handleDesktopBridgeEvent(ctx)
+    act(TILE, { action: 'navigate', url: 'https://example.com' })
 
     expect(await answered()).toMatchObject({ success: true })
     expect(navigate).toHaveBeenCalledWith('https://example.com')
@@ -113,20 +127,23 @@ describe('preview.act.request gate', () => {
     $layoutTree.set(group(['workspace', 'session-tile:stored-tile', 'preview'], { active: 'preview', id: 'grp-main' }))
     noteActiveTreeGroup('grp-main')
 
-    handleDesktopBridgeEvent(actEvent(TILE, { action: 'navigate', url: 'https://example.com' }))
+    act(TILE, { action: 'navigate', url: 'https://example.com' })
 
     expect(await answered()).toMatchObject({ success: true })
     expect(navigate).toHaveBeenCalledWith('https://example.com')
   })
 
-  it('still refuses a session with no surface on screen', async () => {
-    handleDesktopBridgeEvent(actEvent('runtime-background', { action: 'navigate', url: 'https://example.com' }))
+  it('leaves a session with no surface on screen to the window that owns it', async () => {
+    // This used to answer with a named refusal. On the server-request rail every
+    // mounted window sees the same request, so a refusal from a window that has
+    // nowhere to run it can beat the owning window's real result onto the wire.
+    // Silence is the answer; the named message below is still what an UNSCOPED
+    // request with nothing in view gets (see server-requests.test.ts).
+    expect(act('runtime-background', { action: 'navigate', url: 'https://example.com' })).toBe(true)
 
-    const result = await answered()
+    await new Promise(resolve => setTimeout(resolve, 10))
 
-    expect(result.success).toBe(false)
-    // The session is named, so a bug report says which chat asked.
-    expect(result.error).toContain('runtime-background')
+    expect(respond).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
   })
 
@@ -135,9 +152,13 @@ describe('preview.act.request gate', () => {
     // not keep driving the pane.
     $sessionTiles.set([])
 
-    handleDesktopBridgeEvent(actEvent(TILE, { action: 'navigate', url: 'https://example.com' }))
+    act(TILE, { action: 'navigate', url: 'https://example.com' })
 
-    expect(await answered()).toMatchObject({ success: false })
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    // Same rule as above: no surface here means this window does not answer.
+    // What matters for the hijack property is that it does not ACT.
+    expect(respond).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
   })
 })

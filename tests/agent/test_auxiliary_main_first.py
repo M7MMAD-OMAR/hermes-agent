@@ -59,9 +59,13 @@ class TestResolveAutoMainFirst:
         def resolve(_provider, model, **_kwargs):
             return mock_client, model
 
+        # This fork reads the opt-in through `auxiliary_flag`, not through the
+        # task config dict directly, so that is the seam to pin: patching the
+        # dict leaves the flag resolving to the task's default and the assertion
+        # silently measures the main model instead.
         with patch(
-            "agent.auxiliary_client._get_auxiliary_task_config",
-            return_value={"prefer_fast_model": True},
+            "agent.auxiliary_client.auxiliary_flag",
+            side_effect=lambda _block, key, *, default, name: True if key == "prefer_fast_model" else default,
         ), patch(
             "agent.auxiliary_client._get_aux_model_for_provider",
             return_value=fast_model,

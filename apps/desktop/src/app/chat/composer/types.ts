@@ -57,12 +57,13 @@ export interface ChatBarProps {
   onCancel: () => Promise<void> | void
   onAddContextRef?: (refText: string, label?: string, detail?: string) => void
   onAddUrl?: (url: string) => void
-  onAttachImageBlob?: (blob: Blob) => Promise<boolean | void> | boolean | void
+  onAttachImageBlob?: (blob: Blob, isCurrent?: () => boolean) => Promise<boolean | void> | boolean | void
   onAttachDroppedItems?: (candidates: DroppedFile[]) => Promise<boolean | void> | boolean | void
-  /** Pasted GitHub PR-comment deep link → structured review attachment.
-   *  Returns true when the paste was consumed as an attachment. */
-  onAttachPrCommentUrl?: (url: string) => boolean
   onAttachPastedText?: (text: string) => Promise<boolean> | boolean
+  /** A pasted GitHub PR-comment deep link resolves into a structured review
+   *  attachment; returns false when it could not be resolved and the paste
+   *  should stay a plain URL chip. */
+  onAttachPrCommentUrl?: (url: string) => Promise<boolean> | boolean
   onPasteClipboardImage?: (opts?: { silent?: boolean }) => Promise<boolean> | void
   onPickFiles?: () => void
   onPickFolders?: () => void

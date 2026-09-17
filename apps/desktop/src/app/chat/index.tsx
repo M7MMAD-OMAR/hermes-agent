@@ -1,5 +1,5 @@
 import { type AppendMessage, AssistantRuntimeProvider, type ThreadMessage } from '@assistant-ui/react'
-import type { ModelOptionsResponse } from '@hermes/shared'
+import type { ModelOptionsResult } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import type { ReadableAtom } from 'nanostores'
@@ -13,8 +13,8 @@ import { Thread } from '@/components/assistant-ui/thread'
 import { TranscriptWindowProvider } from '@/components/assistant-ui/thread/transcript-window'
 import { Backdrop } from '@/components/Backdrop'
 import { COMPOSER_HEART_CONFIG, HeartField } from '@/components/chat/vibe-hearts'
-import { usePaneVisible } from '@/components/pane-shell/pane-visibility'
-import { $sessionTileDragging, $sessionTileEdgeHover } from '@/components/pane-shell/tree/store'
+import { usePaneGroup, usePaneVisible } from '@/components/pane-shell/pane-visibility'
+import { $hoveredTreeGroup, $sessionTileDragging, $sessionTileEdgeHover } from '@/components/pane-shell/tree/store'
 import { PromptOverlays } from '@/components/prompt-overlays'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/error-state'
@@ -69,6 +69,7 @@ import { requestComposerInsert } from './composer/focus'
 import { droppedFileInlineRefs } from './composer/inline-refs'
 import { ComposerSurfaceProvider, useComposerScope, useComposerSurfaceId } from './composer/scope'
 import type { ChatBarState } from './composer/types'
+import { useHistoryWindow } from './history-window'
 import { DevicePanel } from './device-panel'
 import { EmbeddedBrowserPanel } from './embedded-browser-panel'
 import { type DroppedFile, partitionDroppedFiles } from './hooks/use-composer-actions'
@@ -102,7 +103,7 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onAddUrl: (url: string) => void
   onBranchInNewChat?: (messageId: string) => void
   maxVoiceRecordingSeconds?: number
-  onAttachImageBlob: (blob: Blob) => Promise<boolean | void> | boolean | void
+  onAttachImageBlob: (blob: Blob, isCurrent?: () => boolean) => Promise<boolean | void> | boolean | void
   onAttachDroppedItems: (candidates: DroppedFile[]) => Promise<boolean | void> | boolean | void
   onAttachPrCommentUrl?: (url: string) => boolean
   onAttachPastedText?: (text: string) => Promise<boolean> | boolean
@@ -218,15 +219,15 @@ const NO_MESSAGES: ChatMessage[] = []
  * dots stay live through the separate status atoms) and catch up in one
  * commit on reveal — the subscribe fires immediately with the current value.
  */
-function useMessagesWhileVisible($messages: ReadableAtom<ChatMessage[]>): ChatMessage[] {
+function useMessagesWhileVisible($messages: ReadableAtom<ChatMessage[]>, enabled = true): ChatMessage[] {
   const visible = usePaneVisible()
   const [messages, setMessages] = useState(() => $messages.get())
 
   // nanostores types the listener value ReadonlyIfObject; the store publishes
   // a fresh array per flush, so the cast is safe and avoids a per-token clone.
   useEffect(
-    () => (visible ? $messages.subscribe(value => setMessages(value as ChatMessage[])) : undefined),
-    [$messages, visible]
+    () => (visible && enabled ? $messages.subscribe(value => setMessages(value as ChatMessage[])) : undefined),
+    [$messages, visible, enabled]
   )
 
   return messages
@@ -242,7 +243,7 @@ function useMessagesWhileVisible($messages: ReadableAtom<ChatMessage[]>): ChatMe
  * of re-rendering them by element identity and the stream's render cost stays
  * confined to the streaming message's own subtree.
  */
-function ChatRuntimeBoundary({
+export function ChatRuntimeBoundary({
   busy,
   children,
   onCancel,
@@ -253,7 +254,32 @@ function ChatRuntimeBoundary({
 }: ChatRuntimeBoundaryProps) {
   const view = useSessionView()
   const runtimeId = useStore(view.$runtimeId)
-  const storeMessages = useMessagesWhileVisible(view.$messages)
+  const storedId = useStore(view.$storedId)
+  const connection = useStore($connection)
+  const activeProfile = useStore($activeGatewayProfile)
+  const connectionId = connection?.connectionId || (connection?.mode === 'local' ? 'local' : '')
+
+  const ownerRoute = storedId
+    ? getSessionOwnerHint(storedId, connectionId ? { connectionId, profile: activeProfile } : undefined)
+    : undefined
+
+  const ownerConnection = ownerRoute?.connectionId
+  const ownerProfile = ownerRoute?.targetProfile || ownerRoute?.profile
+
+  const tailProfile = useMemo(() => ownerProfile
+    ? { connectionId: ownerConnection, profile: ownerProfile }
+    : undefined, [ownerConnection, ownerProfile])
+
+  const history = useHistoryWindow({
+    scopeKey: JSON.stringify([runtimeId, storedId, tailProfile, connectionId, activeProfile, suppressMessages]),
+    storedId,
+    scope: tailProfile ?? { connectionId: connectionId || undefined, profile: activeProfile },
+    isCurrent: () => !suppressMessages && view.$storedId.get() === storedId && view.$runtimeId.get() === runtimeId
+  })
+
+  // History is a static display page. The live store continues streaming but
+  // no delta subscribes/reconverts this historical runtime until return.
+  const storeMessages = useMessagesWhileVisible(view.$messages, !history.page)
   const messages = suppressMessages ? NO_MESSAGES : storeMessages
 
   const [windowPages, setWindowPages] = useState(1)
@@ -293,75 +319,89 @@ function ChatRuntimeBoundary({
     return next.window
   }, [messages, windowPages])
 
-  const runtimeMessageRepository = useRuntimeMessageRepository(windowedMessages)
-
-  const storedId = useStore(view.$storedId)
-  const connection = useStore($connection)
-  const activeProfile = useStore($activeGatewayProfile)
+  const currentMessages = history.page?.messages ?? windowedMessages
+  const runtimeMessageRepository = useRuntimeMessageRepository(currentMessages)
   // Subscribed (not read imperatively) so the "Show earlier" affordance
   // appears/retires as tail hydrations and backfill pages record their state.
   const transcriptTailStates = useStore($transcriptTailBySessionId)
-  const connectionId = connection?.connectionId || (connection?.mode === 'local' ? 'local' : '')
-
-  const ownerRoute = storedId
-    ? getSessionOwnerHint(storedId, connectionId ? { connectionId, profile: activeProfile } : undefined)
-    : undefined
-
-  const tailProfile = ownerRoute
-    ? { connectionId: ownerRoute.connectionId, profile: ownerRoute.targetProfile || ownerRoute.profile }
-    : undefined
-
   const tailState = storedId && transcriptTailStates ? transcriptTailState(storedId, tailProfile) : undefined
   const restBackfillAvailable = Boolean(tailState?.possiblyTruncated)
 
-  const expandWindow = useCallback(() => {
-    // The store window still holds older messages: growing pages is enough.
-    // Otherwise the whole in-memory transcript is already materialized — if
-    // the REST tail hydration was truncated, fetch the next older page and
-    // PREPEND it to the session store before growing, so the grown window has
-    // something older to show. Fire-and-forget: the prepend lands through the
-    // session-state write path and re-renders this boundary.
-    if (
-      !windowStateRef.current.get(runtimeIdRef.current ?? '')?.state.window.windowed &&
-      runtimeId &&
-      storedId &&
-      transcriptBackfillAvailable(storedId, tailProfile)
-    ) {
-      void backfillOlderTranscriptPage({
-        storedSessionId: storedId,
-        profile: tailProfile,
-        // Stale-response guard: a session switch remounts/re-keys this view;
-        // checking the live atoms (not captured props) discards a page that
-        // resolves after the user moved on — same pattern as isCurrentResume.
-        isCurrent: () => view.$storedId.get() === storedId && view.$runtimeId.get() === runtimeId,
-        applyOlderPage: olderPage => {
-          sessionTileDelegate()?.updateSession(runtimeId, state => {
-            const merged = mergeOlderTranscriptPage(state.messages, olderPage)
+  const expandWindow = useCallback(
+    async (beforePrepend?: () => void) => {
+      // A historical page is not the live tail: never backfill into its store.
+      if (history.page) {return false}
 
-            return merged === state.messages ? state : { ...state, messages: merged }
-          })
-        }
-      })
-    }
+      // Network latency is not scroll intent. Capture at arrival, immediately
+      // before the store prepend, and only grow a window that has a page to show.
+      if (
+        !windowStateRef.current.get(runtimeIdRef.current ?? '')?.state.window.windowed &&
+        runtimeId &&
+        storedId &&
+        transcriptBackfillAvailable(storedId, tailProfile)
+      ) {
+        let grew = false
+        await backfillOlderTranscriptPage({
+          storedSessionId: storedId,
+          profile: tailProfile,
+          // Stale-response guard: a session switch remounts/re-keys this view;
+          // checking the live atoms (not captured props) discards a page that
+          // resolves after the user moved on — same pattern as isCurrentResume.
+          isCurrent: () => view.$storedId.get() === storedId && view.$runtimeId.get() === runtimeId,
+          applyOlderPage: olderPage => {
+            const current = view.$messages.get()
 
-    setWindowPages(pages => pages + 1)
-  }, [runtimeId, storedId, tailProfile, view])
+            if (mergeOlderTranscriptPage(current, olderPage) === current) {
+              return
+            }
 
-  const olderAvailable = windowed || restBackfillAvailable
+            beforePrepend?.()
+            setWindowPages(pages => pages + 1)
+            sessionTileDelegate()?.updateSession(runtimeId, state => {
+              const merged = mergeOlderTranscriptPage(state.messages, olderPage)
+              grew = merged !== state.messages
 
-  const transcriptWindow = useMemo(() => ({ olderAvailable, expandWindow }), [expandWindow, olderAvailable])
+              return grew ? { ...state, messages: merged } : state
+            })
+          }
+        })
+
+        // Exhaustion and overlapping-only pages have no structural publication.
+        // Do not leave the list waiting for a commit that will never arrive.
+        return grew
+      }
+
+      beforePrepend?.()
+      setWindowPages(pages => pages + 1)
+
+      return true
+    },
+    [runtimeId, storedId, tailProfile, view, history.page]
+  )
+
+  // Page navigation stays on the timeline while inspecting history; the
+  // existing prepend action is specifically a live-tail operation.
+  const olderAvailable = !history.page && (windowed || restBackfillAvailable)
+  const isHistorical = Boolean(history.page)
+  const newerAvailable = history.page?.newerAvailable ?? false
+  const { revealRow, returnToLatest } = history
+
+  const transcriptWindow = useMemo(() => ({
+    olderAvailable, expandWindow, revealRow, returnToLatest, currentMessages, isHistorical, newerAvailable
+  }), [expandWindow, olderAvailable, revealRow, returnToLatest, currentMessages, isHistorical, newerAvailable])
 
   const runtime = useIncrementalExternalStoreRuntime<ThreadMessage>({
     messageRepository: runtimeMessageRepository,
-    isRunning: busy,
-    setMessages: onThreadMessagesChange,
+    isRunning: !isHistorical && busy,
+    isDisabled: isHistorical,
+    setMessages: isHistorical ? undefined : onThreadMessagesChange,
     onNew: async () => {
       // Submission is handled explicitly by ChatBar.
       // Keeping this no-op avoids duplicate prompt.submit calls.
     },
-    onEdit,
-    onCancel: async () => onCancel(),
-    onReload
+    onEdit: isHistorical ? undefined : onEdit,
+    onCancel: isHistorical ? undefined : async () => onCancel(),
+    onReload: isHistorical ? undefined : onReload
   })
 
   return (
@@ -441,6 +481,8 @@ const ChatViewContent = memo(function ChatViewContent({
   // always focused (the atom falls back to the primary's selection), so a
   // single-pane workspace never dims.
   const surfaceFocused = useStoreSelector($focusedStoredSessionId, focused => focused === storedId)
+  const groupId = usePaneGroup()
+  const surfaceHovered = useStoreSelector($hoveredTreeGroup, hovered => hovered === groupId)
   // Dock anchor for a session drop onto this surface: the workspace pane for the
   // primary, this tile's pane id for a tile. Read by the session-drop bridge.
   const sessionAnchor = isPrimary ? 'workspace' : `session-tile:${storedId ?? ''}`
@@ -610,7 +652,7 @@ const ChatViewContent = memo(function ChatViewContent({
   const showChatBar = !resumeExhausted && !isWatchWindow()
   const threadKey = selectedSessionId || activeSessionId || (isRoutedSessionView ? location.pathname : 'new')
 
-  const modelOptionsQuery = useQuery<ModelOptionsResponse>({
+  const modelOptionsQuery = useQuery<ModelOptionsResult>({
     queryKey: modelOptionsQueryKey(
       modelOptionsProfile || activeGatewayProfile,
       activeSessionId,
@@ -723,7 +765,7 @@ const ChatViewContent = memo(function ChatViewContent({
         className
       )}
       data-chat-surface=""
-      data-chat-unfocused={surfaceFocused ? undefined : ''}
+      data-chat-unfocused={surfaceFocused || surfaceHovered ? undefined : ''}
       data-composer-surface-id={composerSurfaceId}
       data-composer-target={composerScope.target}
       data-session-anchor={sessionAnchor}
@@ -799,6 +841,7 @@ const ChatViewContent = memo(function ChatViewContent({
                 onCancel={haltRun}
                 onDismissError={onDismissError}
                 onRestoreToMessage={onRestoreToMessage}
+                scrollProfile={modelOptionsProfile || activeGatewayProfile}
                 sessionId={activeSessionId}
                 sessionKey={threadKey}
               />

@@ -11,6 +11,7 @@ import type { TurnOutcome } from '@/lib/turn-outcome'
 import { cn } from '@/lib/utils'
 import { $toolDisclosureOpen, setToolDisclosureOpen } from '@/store/tool-view'
 
+import { ResponseMessages } from './response-group'
 import { TurnProgress } from './turn-progress'
 
 type ThreadMessageComponents = ComponentProps<typeof ThreadPrimitive.MessageByIndex>['components']
@@ -288,9 +289,7 @@ export const TurnDigest: FC<{
     return (
       <>
         <TurnProgress indices={indices} />
-        {digest.visible.map(index => (
-          <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
-        ))}
+        <ResponseMessages components={components} indices={digest.visible} />
         {outcome}
       </>
     )
@@ -327,9 +326,7 @@ export const TurnDigest: FC<{
         )}
       </div>
       {outcome}
-      {digest.visible.map(index => (
-        <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
-      ))}
+      <ResponseMessages components={components} indices={digest.visible} />
     </>
   )
 }

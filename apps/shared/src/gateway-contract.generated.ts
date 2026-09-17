@@ -3047,6 +3047,7 @@ export interface ContextCategory {
   id: string
   label: string
   tokens: number
+  count?: number | null
 }
 /** One row of ``agent.context_file_sources.list_context_file_sources``. */
 export interface ContextFileSource {

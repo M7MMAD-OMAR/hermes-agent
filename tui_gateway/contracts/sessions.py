@@ -432,6 +432,9 @@ class ContextCategory(Result):
     id: str
     label: str
     tokens: int
+    # Only the ``files`` category carries one (agent/context_breakdown.py): how many
+    # files the row stands for, so the panel can say "9 files" beside the token count.
+    count: int | None = None
 
 
 class ContextFileSource(Result):

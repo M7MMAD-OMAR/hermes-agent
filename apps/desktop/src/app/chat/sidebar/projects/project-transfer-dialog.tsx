@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { localeDirection, useI18n } from '@/i18n'
+import { Loader2 } from '@/lib/icons'
 import { $activeGatewayProfile, $profiles, profileLabel } from '@/store/profile'
 import {
   type ProjectTransferPlan,
@@ -118,11 +119,20 @@ export function ProjectTransferDialog({ project, onClose }: ProjectTransferDialo
           <div className="space-y-1">
             <p className="text-sm">{p.transferDone(report.moved_sessions, report.target_profile)}</p>
             {/* A partial failure still carried most of the history; the counts say how much,
-                and re-running the same transfer picks up only what is missing. */}
+                and re-running the same transfer picks up only what is missing. The backend's
+                reason rides underneath, because "1 could not be carried" on its own leaves
+                nothing to act on — and re-running cannot help a conversation that fails for a
+                standing reason. It is the backend's English string, so it sits below the
+                localized line rather than inside it. */}
             {!report.ok && (
-              <p className="text-xs text-destructive" role="alert">
-                {p.transferPartial(report.failed_sessions)}
-              </p>
+              <div role="alert">
+                <p className="text-xs text-destructive">{p.transferPartial(report.failed_sessions)}</p>
+                {report.error && (
+                  <p className="wrap-anywhere mt-1 font-mono text-[0.7rem] text-(--ui-text-tertiary)">
+                    {report.error}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         ) : (
@@ -186,8 +196,20 @@ export function ProjectTransferDialog({ project, onClose }: ProjectTransferDialo
               <Button onClick={onClose} variant="ghost">
                 {t.common.cancel}
               </Button>
+              {/* Carrying a project is a long operation — one adoption per conversation, and
+                  a real project runs to hundreds. A disabled button alone read as "nothing
+                  happened", so the press says what it is doing and how much is travelling. */}
               <Button disabled={busy || !plan || blocked} onClick={() => void run()}>
-                {move ? p.transferConfirmMove : p.transferConfirmCopy}
+                {busy ? (
+                  <>
+                    <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                    {p.transferWorking(plan?.session_count ?? 0)}
+                  </>
+                ) : move ? (
+                  p.transferConfirmMove
+                ) : (
+                  p.transferConfirmCopy
+                )}
               </Button>
             </>
           )}

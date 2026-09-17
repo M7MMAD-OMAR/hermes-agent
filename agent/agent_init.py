@@ -516,11 +516,22 @@ _CONTROL_STATE: Dict[str, Any] = {
     # the cause atomic for auxiliary stream pollers.
     "_interrupt_requested": False,
     "_interrupt_message": None,  # optional message that triggered the interrupt
+    # Which stop path fired (agent.interrupt_origin). Read at settlement so the transcript
+    # placeholder and the turn result name the cause instead of a bare "Operation interrupted."
+    "_interrupt_origin": None,
     "_hard_interrupt_requested": threading.Event,
     "_execution_thread_id": None,  # set at run_conversation() start
     "_interrupt_thread_signal_pending": False,
     "_client_lock": threading.RLock,
     "_model_request_active": threading.Event,
+    # Set for the whole of run_conversation. Distinguishes "between phases of a live turn"
+    # (redirect degrades to a steer that lands at the next tool boundary) from "no turn at
+    # all" (redirect declines and the caller queues). See InterruptControlMixin.redirect.
+    "_turn_loop_active": threading.Event,
+    # How the last accepted /steer or redirect will reach the model (see
+    # InterruptControlMixin delivery constants). Reported to the client so the composer can
+    # say "waiting for the running command" instead of implying immediate delivery.
+    "_last_correction_delivery": None,
     "_supports_active_turn_redirect": True,
     # /steer: the drain hook appends the note to the last tool result after the current
     # batch — no interrupt, no new user turn (role alternation preserved).

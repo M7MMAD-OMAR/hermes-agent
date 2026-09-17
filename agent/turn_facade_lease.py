@@ -14,6 +14,9 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from agent import interrupt_origin as _io
+from agent.interrupt_compat import origin_kwargs
+
 # Same logger name as the origin module so log records / caplog filters are unchanged.
 logger = logging.getLogger("run_agent")
 
@@ -117,7 +120,12 @@ class DurableTurnLease:
                 return
             self.interrupt_message = message
             try:
-                self.agent.interrupt(message, hard_cancel=True)
+                # Not ``request_hard_interrupt``: that shim prefers ``hard_interrupt`` when the
+                # agent exposes one, which would bypass an instance-level ``interrupt`` override.
+                # Only the kwarg-gating rule is shared.
+                self.agent.interrupt(
+                    message, hard_cancel=True, **origin_kwargs(self.agent, _io.LEASE_LOST)
+                )
             except Exception:
                 self.agent._interrupt_requested = True
                 self.agent._interrupt_message = message
@@ -142,7 +150,8 @@ class DurableTurnLease:
                 return False
         try:
             published = agent.interrupt(
-                message, hard_cancel=True, require_generation=current_generation
+                message, hard_cancel=True, require_generation=current_generation,
+                **origin_kwargs(agent, _io.LIVENESS_WATCHDOG),
             )
         except Exception:
             logger.debug("Turn liveness abort interrupt raised; declining the abort", exc_info=True)

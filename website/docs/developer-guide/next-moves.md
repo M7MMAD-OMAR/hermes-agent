@@ -3,7 +3,7 @@
 Status: implemented (`54fc5dd08`, `7a136e374`, `319cf04ba`), on by default
 Blockers: landed first — see below
 Surfaces: `apps/desktop` renderer + `agent/` + `tui_gateway/`
-Anchors below were verified against `autobuild/sidebar-browser`.
+Anchors below were verified against `sbar-hermes`.
 
 When a turn ends, offer the user a concrete next move derived from what that
 turn actually did — a follow-up prompt, a skill they have, a delegation, or a

@@ -1592,23 +1592,46 @@ def run_conversation(
     ``{turn_id, current_turn_user_idx}`` pair is stamped beside the exact ``messages`` it
     addresses, after every history rewrite including post-turn micro-compaction.
     """
+    from agent.interrupt_origin import reset_interrupt_origin
     from agent.turn_context import export_current_turn_boundary
 
-    result = _run_conversation_turn(
-        agent,
-        user_message,
-        system_message=system_message,
-        conversation_history=conversation_history,
-        task_id=task_id,
-        stream_callback=stream_callback,
-        persist_user_message=persist_user_message,
-        persist_user_timestamp=persist_user_timestamp,
-        persist_user_display_kind=persist_user_display_kind,
-        persist_user_display_metadata=persist_user_display_metadata,
-        persist_user_platform_id=persist_user_platform_id,
-        moa_config=moa_config,
-        turn_author=turn_author,
-    )
+    # One turn's attribution must never be read as the next turn's. Reset here, the single
+    # chokepoint every turn passes through — but NOT when an interrupt is already pending,
+    # because a stop published between turns legitimately belongs to the turn about to run.
+    if not getattr(agent, "_interrupt_requested", False):
+        reset_interrupt_origin(agent)
+
+    # "Is there still a loop to redirect into?" — the one question ``redirect()`` could not
+    # answer. Between the model request clearing and the tool batch starting, neither of its
+    # own flags is set, and it could not tell that window apart from a turn that had ended;
+    # it returned False for both, so a correction typed at exactly the wrong millisecond was
+    # demoted to a separate next turn. This bracket spans the whole loop, so the window is
+    # now "alive but between phases" and the correction can wait for the tool boundary.
+    _turn_loop_active = getattr(agent, "_turn_loop_active", None)
+    # Restore rather than clear: should this ever be re-entered for one agent, the inner
+    # return must not tell redirect() that the outer turn has ended.
+    _loop_was_active = _turn_loop_active is not None and _turn_loop_active.is_set()
+    if _turn_loop_active is not None:
+        _turn_loop_active.set()
+    try:
+        result = _run_conversation_turn(
+            agent,
+            user_message,
+            system_message=system_message,
+            conversation_history=conversation_history,
+            task_id=task_id,
+            stream_callback=stream_callback,
+            persist_user_message=persist_user_message,
+            persist_user_timestamp=persist_user_timestamp,
+            persist_user_display_kind=persist_user_display_kind,
+            persist_user_display_metadata=persist_user_display_metadata,
+            persist_user_platform_id=persist_user_platform_id,
+            moa_config=moa_config,
+            turn_author=turn_author,
+        )
+    finally:
+        if _turn_loop_active is not None and not _loop_was_active:
+            _turn_loop_active.clear()
     return export_current_turn_boundary(agent, result, user_message)
 
 

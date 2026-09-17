@@ -33,9 +33,11 @@ def _apply(agent, flag: str, restart_count: int):
 def _agent():
     budget = SimpleNamespace(refunds=0)
     budget.refund = lambda: setattr(budget, "refunds", budget.refunds + 1)
-    agent = SimpleNamespace(iteration_budget=budget, steered=[])
+    # The hand-back goes through ``_requeue_pending_steer``, not ``steer()``: it re-queues text
+    # that was already accepted once, so it must not be stamped as a new correction. That means
+    # the observable is the slot, not a call.
+    agent = SimpleNamespace(iteration_budget=budget, _pending_steer=None)
     agent._drain_pending_redirect = lambda: "last correction"
-    agent.steer = agent.steered.append
     return agent
 
 
@@ -63,4 +65,4 @@ def test_restart_refunds_are_bounded_per_turn(flag):
     assert agent.iteration_budget.refunds == MAX_RETRIES
     assert verdicts[-1]._turn_exit_reason.endswith("restart_limit_exceeded")
     # The correction that tripped the redirect cap is handed back as the next user turn.
-    assert agent.steered == (["last correction"] if flag == "restart_with_redirected_messages" else [])
+    assert agent._pending_steer == ("last correction" if flag == "restart_with_redirected_messages" else None)

@@ -1,7 +1,7 @@
 # In-App Office Editing, or why the rail stops at "Open in app"
 
 Status: feasibility study (not implemented, no code written). Written 2026-09-11
-on `autobuild/sidebar-browser`; every anchor below was verified against that
+on `sbar-hermes`; every anchor below was verified against that
 branch.
 Surfaces: `apps/desktop` renderer (`src/components/office`, right rail),
 `apps/desktop/electron` (fs IPC, LibreOffice bridge), `apps/shared`.

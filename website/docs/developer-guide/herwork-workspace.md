@@ -1,7 +1,7 @@
 # HerWork Workspace, and a Turn Outcome the user can always read
 
 Status: design proposal (not yet implemented). Written 2026-09-10 on
-`autobuild/sidebar-browser`; every anchor below was verified against that branch.
+`sbar-hermes`; every anchor below was verified against that branch.
 Surfaces: `apps/desktop` renderer, `agent/`, `tui_gateway/`, `~/.hermes/skill-bundles`.
 
 Two features, one document, because they are asked for together and the second

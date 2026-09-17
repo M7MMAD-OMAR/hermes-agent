@@ -182,18 +182,25 @@ def _repair_tool_call_arguments(raw_args: str, tool_name: str = "?") -> str:
     return "{}"
 
 
-def close_interrupted_tool_sequence(messages: list, final_response: Any = None) -> bool:
+def close_interrupted_tool_sequence(
+    messages: list, final_response: Any = None, *, origin: Any = None,
+) -> bool:
     """Append a synthetic assistant turn when an interrupted tail is a tool result: a transcript
     ending on a raw ``tool`` message makes the next user message land as ``tool → user``, an
     alternation violation strict providers (Gemini, Claude) answer by hallucinating a
-    continuation. Mutates in place; True if a closing turn was appended."""
+    continuation. Mutates in place; True if a closing turn was appended.
+
+    ``origin`` (see ``agent.interrupt_origin``) names the stop path in the placeholder the
+    transcript keeps, so the person reading it later learns whether they stopped the turn or
+    something else did. Omitted or unregistered keeps the historical bare sentence."""
     last = messages[-1] if messages else None
     if not isinstance(last, dict) or last.get("role") != "tool":
         return False
     text = final_response if isinstance(final_response, str) else ""
+    from agent.interrupt_origin import interrupt_placeholder
     from agent.message_metadata import append_message
 
-    append_message(messages, {"role": "assistant", "content": text.strip() or "Operation interrupted."})
+    append_message(messages, {"role": "assistant", "content": text.strip() or interrupt_placeholder(origin)})
     return True
 
 

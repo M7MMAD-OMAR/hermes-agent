@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from hermes_constants import get_hermes_home
-from tools.interrupt import consume_yield, is_interrupted, is_thread_interrupted
+from tools.interrupt import clear_thread_yieldable, consume_yield, is_interrupted, is_thread_interrupted, mark_thread_yieldable
 from tools.environments.base_output import (
     ProcessHandle, _finalize_wait_result, _new_output_collector, _start_drain_thread,
 )
@@ -370,11 +370,16 @@ class BaseEnvironment(ABC):
         _activity_state = {"last_touch": _now, "start": _now}
         trace = _WaitTrace(proc, timeout, enabled=_DEBUG_INTERRUPT, logger=logger)
         trace.enter()
+        # Only a wait with a handler can actually hand the process over; publishing that fact
+        # lets a mid-turn correction be described honestly rather than guessed at, and drops
+        # any stale request so it cannot fire against the next command on this thread.
+        _yield_tid = watch_interrupt_tid if yield_handler is not None else None
 
         def _kill_and_join():
             self._kill_process(proc)
             drain_thread.join(timeout=2)
 
+        mark_thread_yieldable(_yield_tid)
         try:
             # Adaptive poll: start at 5ms so fast commands return in ~6ms, back
             # off exponentially toward 200ms so long builds don't pay poll CPU.
@@ -417,6 +422,10 @@ class BaseEnvironment(ABC):
             except Exception:
                 pass  # cleanup is best-effort
             raise
+        finally:
+            # Covers every exit including the four ``return``s inside the loop; a ``with``
+            # around the body would need the whole block re-indented for no added safety.
+            clear_thread_yieldable(_yield_tid)
 
         # The drain thread exits promptly after bash does (~300ms idle check);
         # a long join here would itself indicate a bug in the drain loop.

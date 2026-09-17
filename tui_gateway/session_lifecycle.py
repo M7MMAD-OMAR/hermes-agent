@@ -387,9 +387,19 @@ def _ws_session_is_orphaned(session: dict | None) -> bool:
     return bool(_ws_session_is_detached(session) and not session.get("running"))
 
 
-def _interrupt_session_turn(sid: str, session: dict, *, request_id: str | None = None) -> bool:
+def _interrupt_session_turn(
+    sid: str, session: dict, *, request_id: str | None = None, origin: str | None = None,
+) -> bool:
     """Apply the shared ``session.interrupt`` contract to one claimed session; returns whether the compute-host control
-    channel was used. The WS orphan reaper reuses this so a dead client gets the same partial-history/queue semantics."""
+    channel was used. The WS orphan reaper reuses this so a dead client gets the same partial-history/queue semantics.
+
+    ``origin`` (see ``agent.interrupt_origin``) is what distinguishes those two callers in the settled
+    transcript: the default is a person pressing Stop, and the reaper passes its own. Without it both
+    settle as an unattributed "Operation interrupted." and a lost connection is indistinguishable from
+    a deliberate stop (#95327 triage). ``None`` means the default, a person pressing Stop."""
+    from agent.interrupt_origin import USER_STOP
+
+    origin = origin or USER_STOP
     use_compute_host = _session_uses_compute_host(session)
     should_interrupt = bool(session.get("running"))
     run_thread_alive = False
@@ -420,7 +430,7 @@ def _interrupt_session_turn(sid: str, session: dict, *, request_id: str | None =
     if not use_compute_host:
         if should_interrupt:
             from agent.interrupt_compat import request_hard_interrupt
-            request_hard_interrupt(session.get("agent"))
+            request_hard_interrupt(session.get("agent"), origin=origin)
         if not run_thread_alive:
             with session["history_lock"]:
                 if session.get("running"):
@@ -590,7 +600,11 @@ def _schedule_ws_orphan_reap(
                 _pending_ws_reaps.pop(sid, None)
         if interrupt_session is not None:
             try:
-                isolated = _interrupt_session_turn(sid, interrupt_session, request_id=f"client-gone-{sid}")
+                from agent.interrupt_origin import WS_ORPHAN_REAP as _WS_ORPHAN_REAP_ORIGIN
+
+                isolated = _interrupt_session_turn(
+                    sid, interrupt_session, request_id=f"client-gone-{sid}", origin=_WS_ORPHAN_REAP_ORIGIN,
+                )
                 logger.info("client_gone sid=%s action=interrupt turn_isolation=%s", sid, isolated)
             except Exception:
                 logger.exception("client_gone interrupt failed sid=%s", sid)

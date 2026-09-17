@@ -6,6 +6,7 @@ is_interrupted(), which checks the CURRENT thread."""
 import logging
 import os
 import threading
+from contextlib import contextmanager
 from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,12 @@ _interrupt_reasons: dict[int, str] = {}
 # Threads asked to YIELD: hand a long-running foreground command to the background
 # instead of killing it, so a mid-turn user message is not parked behind it.
 _yield_threads: set[int] = set()
+# Threads currently inside a wait that CAN honour a yield. Only the local backend can adopt a
+# live host process into the background registry; a container backend has no adoptable host
+# process, so its wait ignores the request. Recording which is which is what lets the composer
+# tell the person "this will arrive at the next tool boundary" instead of implying it already
+# has — and stops an unconsumed request leaking onto the next command on the same thread.
+_yieldable_threads: set[int] = set()
 _lock = threading.Lock()
 
 
@@ -38,6 +45,7 @@ def set_interrupt(active: bool, thread_id: int | None = None, *, reason: str | N
             _interrupt_reasons.pop(tid, None)
         if not active:
             _yield_threads.discard(tid)
+            _yieldable_threads.discard(tid)
         _snapshot = set(_interrupted_threads) if _DEBUG_INTERRUPT else None
     if _DEBUG_INTERRUPT:
         logger.info(
@@ -78,6 +86,60 @@ def is_thread_yield_requested(thread_id: int | None) -> bool:
         return False
     with _lock:
         return thread_id in _yield_threads
+
+
+def mark_thread_yieldable(thread_id: int | None) -> None:
+    """Declare that *thread_id* is entering a wait that will honour ``request_yield``.
+
+    Also clears any yield left pending from an earlier command on this thread: a request
+    nobody consumed must not fire against an unrelated later command.
+    """
+    if thread_id is None:
+        return
+    with _lock:
+        _yield_threads.discard(thread_id)
+        _yieldable_threads.add(thread_id)
+
+
+def clear_thread_yieldable(thread_id: int | None) -> None:
+    """Declare that *thread_id*'s yield-honouring wait has ended.
+
+    Drops a request that arrived too late to be consumed, so it dies with the wait it was
+    aimed at rather than surfacing against whatever runs next.
+    """
+    if thread_id is None:
+        return
+    with _lock:
+        _yieldable_threads.discard(thread_id)
+        _yield_threads.discard(thread_id)
+
+
+@contextmanager
+def yieldable_wait(thread_id: int | None):
+    """``mark_thread_yieldable`` for the duration of the block.
+
+    For waits whose whole body sits inside one scope. A wait with several ``return`` points
+    inside a ``try`` (the terminal poll loop) calls the two functions directly instead of
+    re-indenting the block around a ``with``.
+    """
+    mark_thread_yieldable(thread_id)
+    try:
+        yield
+    finally:
+        clear_thread_yieldable(thread_id)
+
+
+def any_thread_yieldable(thread_ids) -> bool:
+    """Whether ANY of ``thread_ids`` is inside a yield-honouring wait.
+
+    A tool batch can run several workers; one that can yield is enough for the correction to
+    be delivered promptly, so the optimistic answer is the right one here.
+    """
+    ids = [tid for tid in (thread_ids or ()) if tid is not None]
+    if not ids:
+        return False
+    with _lock:
+        return any(tid in _yieldable_threads for tid in ids)
 
 
 def consume_yield(thread_id: int | None) -> bool:

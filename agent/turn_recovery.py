@@ -982,13 +982,17 @@ def abort_turn_on_interrupt(
 ) -> Dict[str, Any]:
     """Announce ``abort_message``, close any open tool sequence with ``interrupt_text``,
     persist, clear the interrupt and return the ``interrupted`` result dict."""
+    from agent.interrupt_origin import agent_interrupt_origin
+
+    # Read BEFORE clear_interrupt, which hands the attribution to its settled slot.
+    origin = agent_interrupt_origin(agent)
     _vlines(agent, f"⚡ {abort_message}")
-    close_interrupted_tool_sequence(messages, interrupt_text)
+    close_interrupted_tool_sequence(messages, interrupt_text, origin=origin)
     agent._persist_session(messages, conversation_history)
     agent.clear_interrupt()
     return {
         "final_response": interrupt_text, "messages": messages, "api_calls": api_call_count,
-        "completed": False, "interrupted": True,
+        "completed": False, "interrupted": True, "interrupt_origin": origin,
     }
 
 

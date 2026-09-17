@@ -1701,6 +1701,7 @@ class ProcessRegistry(ProcessCheckpointMixin):
         ``timeout`` defaults to (and is clamped by) TERMINAL_TIMEOUT. Returns a dict
         with status exited|timeout|interrupted|not_found|error and an output snapshot."""
         from tools.interrupt import consume_yield as _consume_yield, is_interrupted as _is_interrupted
+        from tools.interrupt import yieldable_wait as _yieldable_wait
 
         try:
             max_timeout = int(os.getenv("TERMINAL_TIMEOUT", "180"))
@@ -1719,37 +1720,40 @@ class ProcessRegistry(ProcessCheckpointMixin):
         if session is None:
             return _not_found(session_id)
         deadline = time.monotonic() + effective_timeout
-        while time.monotonic() < deadline:
-            session = self._refresh_detached_session(session)
-            if session is None:
-                return _not_found(session_id)
-            self._reconcile_local_exit(session)  # orphaned-pipe reader guard
-            result = None
-            if session.exited:
-                self._completion_consumed.add(session_id)
-                result = self._exit_snapshot(session, "exited")
-            elif _is_interrupted():
-                result = {
-                    "status": "interrupted", "command": session.command, "output": _output_tail(session, 1000),
-                    "note": "User sent a new message -- wait interrupted"}
-            elif _consume_yield(threading.current_thread().ident):
-                # A steer/redirect landed mid-turn: redirect() asks tool workers to YIELD so
-                # the user's message is delivered instead of parked behind this wait. The
-                # process is untouched and still notify-tracked; the model should read the
-                # steer text and respond, not re-issue the wait (kimi-code#3697 class).
-                result = {
-                    "status": "interrupted", "command": session.command, "output": _output_tail(session, 1000),
-                    "process_running": True,
-                    "note": ("User sent a new message -- wait released; the process is still "
-                             "running and you will be notified on exit. Respond to the user now.")}
-            if result is not None:
-                if timeout_note:
-                    result["timeout_note"] = timeout_note
-                return result
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                break
-            session._completion_event.wait(timeout=min(1.0, remaining))
+        # This wait always honours a yield (releasing it leaves the process running and
+        # notify-tracked), so say so for the whole of it.
+        with _yieldable_wait(threading.current_thread().ident):
+            while time.monotonic() < deadline:
+                session = self._refresh_detached_session(session)
+                if session is None:
+                    return _not_found(session_id)
+                self._reconcile_local_exit(session)  # orphaned-pipe reader guard
+                result = None
+                if session.exited:
+                    self._completion_consumed.add(session_id)
+                    result = self._exit_snapshot(session, "exited")
+                elif _is_interrupted():
+                    result = {
+                        "status": "interrupted", "command": session.command, "output": _output_tail(session, 1000),
+                        "note": "User sent a new message -- wait interrupted"}
+                elif _consume_yield(threading.current_thread().ident):
+                    # A steer/redirect landed mid-turn: redirect() asks tool workers to YIELD so
+                    # the user's message is delivered instead of parked behind this wait. The
+                    # process is untouched and still notify-tracked; the model should read the
+                    # steer text and respond, not re-issue the wait (kimi-code#3697 class).
+                    result = {
+                        "status": "interrupted", "command": session.command, "output": _output_tail(session, 1000),
+                        "process_running": True,
+                        "note": ("User sent a new message -- wait released; the process is still "
+                                 "running and you will be notified on exit. Respond to the user now.")}
+                if result is not None:
+                    if timeout_note:
+                        result["timeout_note"] = timeout_note
+                    return result
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                session._completion_event.wait(timeout=min(1.0, remaining))
         result = {
             "status": "timeout", "command": session.command, "output": _output_tail(session, 1000),
             # Not a failure — models re-issued identical waits after misreading this as an error.

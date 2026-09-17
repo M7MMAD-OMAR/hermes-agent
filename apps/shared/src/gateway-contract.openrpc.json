@@ -23018,6 +23018,18 @@
             "default": null,
             "title": "Surface"
           },
+          "client_turn_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Client Turn Id"
+          },
           "voice_context": {
             "anyOf": [
               {

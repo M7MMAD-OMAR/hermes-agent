@@ -2353,6 +2353,7 @@ export interface PromptSubmitParams {
   interrupted?: boolean | null
   queued?: boolean | null
   surface?: string | null
+  client_turn_id?: string | null
   voice_context?: string | null
   truncate_before_user_ordinal?: number | null
   truncate_before_row_id?: number | null

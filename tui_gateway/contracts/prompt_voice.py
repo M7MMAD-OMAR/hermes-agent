@@ -34,6 +34,11 @@ class PromptSubmitParams(SessionParams):
     interrupted: bool | None = None  # client-side barge-in: the turn's model message carries the note
     queued: bool | None = None  # client queue drain — the busy path must hold it, never redirect/steer
     surface: str | None = None  # a ClientSurface value; unknown values clear the surface
+    # The client's own id for this turn, echoed back on ``session.outcome`` so the outcome lands
+    # on the row it describes (``methods_prompt`` parks it as ``_pending_client_turn_id``). Local
+    # to this fork, and declared here because params are ``extra="forbid"``: without it every
+    # desktop submit answers 4000 "client and backend are out of sync".
+    client_turn_id: str | None = None
     voice_context: str | None = None  # recent spoken transcript, model input only (voice-live)
     truncate_before_user_ordinal: int | None = None
     truncate_before_row_id: int | None = None

@@ -9845,6 +9845,16 @@
         "title": "ControllerScope",
         "type": "object"
       },
+      "CorrectionDelivery": {
+        "description": "How an accepted correction reaches the turn (``agent/interrupt_control.py``).",
+        "enum": [
+          "model_cancelled",
+          "tool_boundary",
+          "tool_boundary_blocked"
+        ],
+        "title": "CorrectionDelivery",
+        "type": "string"
+      },
       "CorrectionStatus": {
         "enum": [
           "queued",
@@ -26891,6 +26901,17 @@
           "text": {
             "title": "Text",
             "type": "string"
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CorrectionDelivery"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [

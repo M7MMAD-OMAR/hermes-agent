@@ -540,6 +540,14 @@ class CorrectionStatus(WireEnum):
     rejected = "rejected"
 
 
+class CorrectionDelivery(WireEnum):
+    """How an accepted correction reaches the turn (``agent/interrupt_control.py``)."""
+
+    model_cancelled = "model_cancelled"
+    tool_boundary = "tool_boundary"
+    tool_boundary_blocked = "tool_boundary_blocked"
+
+
 class SessionCorrectionParams(SessionParams):
     text: str
 
@@ -547,6 +555,11 @@ class SessionCorrectionParams(SessionParams):
 class SessionCorrectionResult(Result):
     status: CorrectionStatus
     text: str
+    # Whether the correction is already in the rebuilt turn, or is waiting for a tool
+    # boundary that may itself be blocked. The composer's pending-correction row says
+    # which; undeclared, the field was stripped here and that row could only show a
+    # bubble and hope. Absent from an agent that predates delivery reporting.
+    delivery: CorrectionDelivery | None = None
 
 
 method("session.steer", params=SessionCorrectionParams, result=SessionCorrectionResult,

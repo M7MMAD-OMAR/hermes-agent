@@ -3150,8 +3150,11 @@ export interface SessionCorrectionParams {
 export interface SessionCorrectionResult {
   status: CorrectionStatus
   text: string
+  delivery?: CorrectionDelivery | null
 }
 export type CorrectionStatus = 'queued' | 'redirected' | 'rejected'
+/** How an accepted correction reaches the turn (``agent/interrupt_control.py``). */
+export type CorrectionDelivery = 'model_cancelled' | 'tool_boundary' | 'tool_boundary_blocked'
 export interface SpawnTreeSaveParams {
   profile?: string | null
   subagents: Record<string, unknown>[]

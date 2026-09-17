@@ -161,6 +161,13 @@ def validate_outcome(raw: Any, source: str) -> Optional[TurnOutcome]:
         if value is None:
             continue
 
+        # A provider that ignored ``response_format`` (it is OpenAI-only) writes the
+        # obvious spelling instead: one sentence where the contract asks for a list of
+        # one. That is the same information, so read it rather than discarding the whole
+        # outcome and falling back to a file tally.
+        if isinstance(value, str):
+            value = [value]
+
         if not isinstance(value, (list, tuple)):
             return None
 
@@ -269,8 +276,7 @@ def model_outcome(
 ) -> Optional[TurnOutcome]:
     """One auxiliary call. Never raises: ``None`` means "use the rules"."""
     try:
-        from agent.auxiliary_client import call_llm
-        from utils import safe_json_loads
+        from agent.auxiliary_client import call_llm, parse_json_reply
 
         if config is None:
             config = _outcome_config()
@@ -292,7 +298,7 @@ def model_outcome(
             temperature=0.2,
             extra_body={"response_format": _RESPONSE_FORMAT},
         )
-        parsed = safe_json_loads(response.choices[0].message.content or "")
+        parsed = parse_json_reply(response.choices[0].message.content or "")
     except Exception as exc:
         logger.debug("Turn-outcome model call failed: %s", exc)
 

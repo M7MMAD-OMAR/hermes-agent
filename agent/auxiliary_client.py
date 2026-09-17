@@ -5926,6 +5926,48 @@ def _get_auxiliary_task_config(task: str) -> Dict[str, Any]:
 auxiliary_block = _get_auxiliary_task_config
 
 
+# ``response_format`` is an OpenAI-only parameter. Every auxiliary task that wants JSON
+# sends one, and a provider that does not honour it (Anthropic, and the local runtimes)
+# answers with the same JSON inside a ``` fence, sometimes with a sentence around it.
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.+?)\s*```", re.DOTALL)
+
+
+def parse_json_reply(text: Any, default: Any = None) -> Any:
+    """The JSON value in an auxiliary reply, whether or not the provider fenced it.
+
+    A bare ``json.loads`` reads a fenced body as a parse error, and every auxiliary task
+    treats a parse error as "the model declined" and falls back to its rule table. That is
+    silent by design, so a whole feature can read as merely unhelpful: turn outcomes showed
+    a file tally instead of an outcome for weeks on an Anthropic auxiliary lane, because
+    the answer was correct JSON wrapped in three backticks.
+
+    Tried in order: the text as-is, the contents of a fenced block, then the first balanced
+    ``{...}`` or ``[...]`` span. Never raises; *default* is returned when none of them parse.
+    """
+    if not isinstance(text, str):
+        return default
+
+    body = text.strip()
+    if not body:
+        return default
+
+    candidates = [body]
+    fenced = _JSON_FENCE_RE.search(body)
+    if fenced:
+        candidates.append(fenced.group(1))
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start, end = body.find(opener), body.rfind(closer)
+        if 0 <= start < end:
+            candidates.append(body[start:end + 1])
+
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            continue
+    return default
+
+
 def auxiliary_flag(
     block: Optional[Mapping[str, Any]], key: str, *, default: bool, name: str
 ) -> bool:

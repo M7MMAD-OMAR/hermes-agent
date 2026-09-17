@@ -198,8 +198,21 @@ def test_finished_todos_are_not_open():
 
 def test_model_output_off_shape_is_discarded():
     assert validate_outcome("nope", "model") is None
-    assert validate_outcome({"delivered": "a string"}, "model") is None
     assert validate_outcome([], "model") is None
+    assert validate_outcome({"delivered": 7}, "model") is None
+    assert validate_outcome({"delivered": {"a": 1}}, "model") is None
+
+
+def test_one_sentence_where_a_list_was_asked_for_is_read_as_one_item():
+    """``response_format`` is OpenAI-only, so a provider that ignores it answers with the
+    obvious spelling: a sentence, not a list of one. Discarding that threw away every
+    outcome on an Anthropic auxiliary lane and showed a file tally in its place."""
+    outcome = validate_outcome({"delivered": "the report", "failed": "", "open": "review it"}, "model")
+
+    assert outcome.delivered == ["the report"]
+    assert outcome.failed == []
+    assert outcome.open == ["review it"]
+    assert outcome.source == "model"
 
 
 def test_lists_are_capped_and_items_clipped():

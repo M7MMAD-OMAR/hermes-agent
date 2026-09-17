@@ -631,8 +631,7 @@ def model_moves(evidence: TurnEvidence, main_runtime: Optional[Dict[str, Any]] =
     surfacing a provider error for.
     """
     try:
-        from agent.auxiliary_client import call_llm
-        from utils import safe_json_loads
+        from agent.auxiliary_client import call_llm, parse_json_reply
 
         config = _next_moves_config()
         language = str(config.get("language") or "").strip()
@@ -667,7 +666,7 @@ def model_moves(evidence: TurnEvidence, main_runtime: Optional[Dict[str, Any]] =
 
             return []
 
-        parsed = safe_json_loads(response.choices[0].message.content or "")
+        parsed = parse_json_reply(response.choices[0].message.content or "")
     except Exception as exc:
         logger.debug("Next-moves model call failed: %s", exc)
 

@@ -2069,9 +2069,14 @@ def _(rid, params: dict) -> dict:
 
 def _apply_correction(rid, session: dict, verb: str, text: str, accepted_status: str) -> dict:
     """``agent.<verb>(text)``; on acceptance record it on the live turn (mid-turn resume rebuilds the bubble)
-    and purge queued self-copies so post-turn drain cannot re-fire the old prompt."""
+    and purge queued self-copies so post-turn drain cannot re-fire the old prompt.
+
+    The reply carries ``delivery`` (see ``agent.interrupt_control``): whether the correction is already
+    in the rebuilt turn, or is waiting for a tool boundary that may itself be blocked on a command
+    that cannot yield. A client that cannot tell those apart can only show a bubble and hope."""
+    agent = session["agent"]
     try:
-        accepted = getattr(session["agent"], verb)(text)
+        accepted = getattr(agent, verb)(text)
     except Exception as exc:
         return _err(rid, 5000, f"{verb} failed: {exc}")
     if accepted:
@@ -2083,7 +2088,14 @@ def _apply_correction(rid, session: dict, verb: str, text: str, accepted_status:
             # restart the pre-correction prompt.
             _drop_queued_duplicates_of_inflight_user(session)
             session["last_active"] = time.time()
-    return _ok(rid, {"status": accepted_status if accepted else "rejected", "text": text})
+    payload = {"status": accepted_status if accepted else "rejected", "text": text}
+    if accepted and callable(_delivery := getattr(agent, "last_correction_delivery", None)):
+        # Absent for agents that predate delivery reporting; the client treats a missing
+        # field as "accepted, mode unknown" rather than inventing one.
+        with contextlib.suppress(Exception):
+            if mode := _delivery():
+                payload["delivery"] = mode
+    return _ok(rid, payload)
 
 
 def _correction_method(name: str, verb: str, accepted_status: str, supported, unsupported: str):

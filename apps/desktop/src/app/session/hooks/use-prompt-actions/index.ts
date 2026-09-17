@@ -24,6 +24,7 @@ import {
   updateComposerAttachment
 } from '@/store/composer'
 import { resetSessionBackground } from '@/store/composer-status'
+import { clearPendingCorrection, setPendingCorrection } from '@/store/correction-delivery'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
 import { clearPreviewArtifacts } from '@/store/preview-status'
 import { clearAllPrompts } from '@/store/prompts'
@@ -719,6 +720,8 @@ export function usePromptActions({
     // an answer the backend will reject.
     clearAllPrompts(sessionId)
     clearClarifyRequest(undefined, sessionId)
+    // The turn is over, so a correction aimed at it can no longer be waiting for anything.
+    clearPendingCorrection(sessionId)
 
     try {
       await withSessionNotFoundResume(
@@ -788,6 +791,15 @@ export function usePromptActions({
           const result = await requestGateway<SessionRedirectResponse>('session.redirect', { session_id: id, text })
 
           if (result?.status === 'redirected') {
+            // Accepted is not the same as delivered. A redirect degrades to a steer whenever
+            // there is no live model request to cancel, and that steer can sit behind a command
+            // the backend cannot hand to the background. Record which happened so the composer
+            // can say "waiting for the running command" instead of leaving the person watching
+            // a bubble that appears to have done nothing.
+            if (result.delivery) {
+              setPendingCorrection(id, text, result.delivery)
+            }
+
             triggerHaptic('submit')
 
             return true

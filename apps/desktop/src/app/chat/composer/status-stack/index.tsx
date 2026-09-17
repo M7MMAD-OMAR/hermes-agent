@@ -27,12 +27,14 @@ import {
   type StatusGroup,
   stopBackgroundProcess
 } from '@/store/composer-status'
+import { $pendingCorrections, isCorrectionWaiting } from '@/store/correction-delivery'
 import { $freeTierRoute, $freeTierStatus, freeTierStripPending } from '@/store/free-tier'
 import { $previewStatusBySession, dismissPreviewArtifact } from '@/store/preview-status'
 import { $sessionControlBySession, refreshSessionControl } from '@/store/session-control'
 import { $threadScrollBySession, threadScrollFor } from '@/store/thread-scroll'
 import { openSessionInNewWindow } from '@/store/windows'
 
+import { PendingCorrectionRow } from './pending-correction-row'
 import { PreviewStatusRow } from './preview-row'
 import { SessionControlSections } from './session-control'
 import { useSessionValue } from './session-control-utils'
@@ -86,6 +88,9 @@ interface ComposerStatusStackProps {
   /** The queue, built by the composer (it owns the queue's callbacks). */
   queue: ReactNode
   sessionId: null | string
+  /** Whether this session's turn is live. Gates the pending-correction row: a settled turn
+   *  cannot still be holding a correction, whichever of the many settle paths ran. */
+  busy?: boolean
 }
 
 /**
@@ -93,7 +98,7 @@ interface ComposerStatusStackProps {
  * every session-scoped status — subagents, background tasks, queue — grouped by
  * type and separated by light dividers. Collapses to nothing when empty.
  */
-export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStatusStackProps) {
+export function ComposerStatusStack({ busy = false, onSubmit, queue, sessionId }: ComposerStatusStackProps) {
   const { t } = useI18n()
   const navigate = useNavigate()
   useSubagentSnapshot(sessionId)
@@ -103,6 +108,7 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
   // per open tile — on all of it. The per-key arrays are referentially stable
   // across unrelated writes, so the slice hook bails out unless OUR session's
   // items actually changed.
+  const pendingCorrections = useStore($pendingCorrections)
   const items = useSessionSlice($statusItemsBySession, sessionId)
   const previews = useSessionSlice($previewStatusBySession, sessionId)
   const controlEntry = useSessionValue($sessionControlBySession, sessionId)
@@ -261,6 +267,23 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
             />
           ))}
         </StatusSection>
+      )
+    })
+  }
+
+  // Directly above the queue: a correction that is waiting and a prompt that is queued are the
+  // same question ("where did my message go?"), so they answer it in the same place.
+  // Gated on having something to say, not merely on having a session — an always-pushed
+  // section makes the stack non-empty and the whole card appears over an idle composer.
+  const pendingCorrection = sessionId ? pendingCorrections[sessionId] : undefined
+
+  if (busy && isCorrectionWaiting(pendingCorrection) && pendingCorrection) {
+    sections.push({
+      key: 'pending-correction',
+      node: (
+        <div className="px-1">
+          <PendingCorrectionRow pending={pendingCorrection} />
+        </div>
       )
     })
   }

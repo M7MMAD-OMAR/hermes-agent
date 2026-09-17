@@ -89,9 +89,25 @@ export interface SessionSteerResponse {
   text?: string
 }
 
+/**
+ * How a mid-turn correction will actually reach the model (gateway `delivery` field).
+ *
+ * `status` alone says only that the correction was accepted, which is why a message that was
+ * quietly waiting behind a long tool call looked identical to one already delivered. Absent
+ * for backends that predate delivery reporting.
+ */
+export type CorrectionDelivery =
+  /** The in-flight model request was cancelled; the correction is already in the rebuilt turn. */
+  | 'model_cancelled'
+  /** Queued for the end of the current tool batch, which was asked to yield promptly. */
+  | 'tool_boundary'
+  /** Queued for a tool batch that cannot yield, so it waits for the running command. */
+  | 'tool_boundary_blocked'
+
 export interface SessionRedirectResponse {
   status?: 'redirected' | 'queued' | 'rejected'
   text?: string
+  delivery?: CorrectionDelivery
 }
 
 export interface SessionTitleResponse {

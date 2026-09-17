@@ -66,10 +66,18 @@ comments, and the **two-deck composer**.
 
 ```bash
 cd apps/desktop && npx vitest run          # ~9,600 tests, ~4 min
-python -m pytest tests/agent tests/state -q # scope it — see below
+scripts/run_tests.sh tests/agent/ -j 8 -q # scope it, see below
 ```
 
-**Do not run `pytest tests/` unscoped.** It spawns real Chromium instances and
+**Never run bare `pytest` over whole directories.** One process keeps every
+file's module state alive: `pytest tests/gateway tests/tui_gateway` reached
+19 GB RSS on 17 Sept 2026, swapped the desktop out, and systemd-oomd killed
+Claude Desktop. `tests/conftest.py` now refuses more than 40 files in one
+process. Use `scripts/run_tests.sh`, which runs each file in its own process
+and sizes its workers to free memory; pass `-j 8` so other agents keep room.
+Run one suite at a time, not several in the background at once.
+
+**Do not run `tests/` unscoped** either. It spawns real Chromium instances and
 drove load average to 42 on this machine. Pick the directories your change
 touches.
 

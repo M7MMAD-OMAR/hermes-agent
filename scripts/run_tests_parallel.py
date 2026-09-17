@@ -411,6 +411,9 @@ def _run_one_file_once(
     env = os.environ.copy()
     temproot = tempfile.mkdtemp(prefix="hermes-pytest-tmproot-")
     env["PYTEST_DEBUG_TEMPROOT"] = temproot
+    # Tells tests/conftest.py this process is one isolated file, so its guard
+    # against bare whole-directory pytest runs stays out of the way.
+    env["HERMES_TEST_RUNNER_CHILD"] = "1"
 
     subproc_start = time.monotonic()
     # launch the pytest process
@@ -781,6 +784,38 @@ def _make_stdio_glyph_safe() -> None:
                 pass
 
 
+#: Resident memory one per-file pytest child can reach. The heavy gateway and
+#: agent files peak around 600 MB; the margin covers the rest of the host.
+_WORKER_MEMORY_BYTES = 750 * 1024 * 1024
+
+
+def _available_memory_bytes() -> int | None:
+    """MemAvailable from /proc/meminfo, or None where it cannot be read."""
+    try:
+        with open("/proc/meminfo", encoding="ascii") as meminfo:
+            for line in meminfo:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def _default_jobs() -> int:
+    """cpu_count*2, but never more workers than free memory can hold.
+
+    On a 24-core workstation the CPU rule alone asks for 48 children. Beside a
+    desktop, a VM and other agents that pushed the host into disk swap and got
+    unrelated applications killed by systemd-oomd. CI runners have memory to
+    spare, so the bound does not change their worker count.
+    """
+    jobs = (os.cpu_count() or 4) * 2
+    available = _available_memory_bytes()
+    if available is not None:
+        jobs = min(jobs, max(2, available // _WORKER_MEMORY_BYTES))
+    return jobs
+
+
 def main() -> int:
     _make_stdio_glyph_safe()
     parser = argparse.ArgumentParser(
@@ -791,8 +826,11 @@ def main() -> int:
         "-j",
         "--jobs",
         type=int,
-        default=int(os.environ.get("HERMES_TEST_WORKERS") or (os.cpu_count() or 4) * 2),
-        help="Parallel worker count (default: $HERMES_TEST_WORKERS or cpu_count*2)",
+        default=int(os.environ.get("HERMES_TEST_WORKERS") or _default_jobs()),
+        help=(
+            "Parallel worker count (default: $HERMES_TEST_WORKERS, else "
+            "cpu_count*2 bounded by available memory)"
+        ),
     )
     parser.add_argument(
         "--paths",

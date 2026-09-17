@@ -1317,6 +1317,39 @@ def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
             item.add_marker(skip_marker)
 
 
+#: Most test files one bare pytest process may collect outside CI and outside
+#: scripts/run_tests.sh. Enough for a hand-picked set of related files.
+_BARE_PYTEST_FILE_LIMIT = 40
+
+
+def pytest_collection_finish(session):  # noqa: D401 - pytest hook
+    """Refuse a whole-directory run in one pytest process.
+
+    Module-level state from every collected file stays alive until the process
+    exits. A bare ``pytest tests/gateway tests/tui_gateway`` (about 990 files)
+    grew to 19 GB RSS on a 31 GB workstation, pushed it into disk swap, and
+    systemd-oomd killed the desktop application that had launched the run.
+    The canonical runner gives each file its own short-lived process.
+    """
+    if (
+        os.environ.get("CI")
+        or os.environ.get("HERMES_TEST_RUNNER_CHILD")
+        or os.environ.get("HERMES_ALLOW_BARE_PYTEST")
+        or session.config.option.collectonly
+    ):
+        return
+    files = {item.path for item in session.items}
+    if len(files) <= _BARE_PYTEST_FILE_LIMIT:
+        return
+    pytest.exit(
+        f"refusing to run {len(files)} test files in one pytest process "
+        f"(limit {_BARE_PYTEST_FILE_LIMIT}): memory accumulates across files "
+        "until the host swaps. Use scripts/run_tests.sh <paths> instead, or "
+        "set HERMES_ALLOW_BARE_PYTEST=1 to override.",
+        returncode=4,
+    )
+
+
 @pytest.fixture(autouse=True)
 def _live_system_guard(request, monkeypatch):
     """Block real os.kill / systemctl / gateway-pid scans during tests.

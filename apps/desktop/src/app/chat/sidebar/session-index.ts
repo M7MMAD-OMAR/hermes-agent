@@ -59,13 +59,19 @@ export function resolvePinnedSessions(
   pinnedSessionIds: readonly string[],
   sessionByAnyId: Map<string, SessionInfo>,
   allSessions: readonly SessionInfo[],
-  unconfirmedPinWrites: ReadonlySet<string>
+  unconfirmedPinWrites: ReadonlySet<string>,
+  rememberedRows: Readonly<Record<string, SessionInfo>> = {}
 ): SessionInfo[] {
   const seen = new Set<string>()
   const out: SessionInfo[] = []
 
   for (const pinId of pinnedSessionIds) {
-    const session = sessionByAnyId.get(pinId)
+    // A loaded row is authoritative; the remembered one only covers the pins no loaded
+    // slice holds — a search result, a row in a project lane (those lanes are a separate
+    // backend fetch), anything past the first page. Without it those pins resolved to
+    // nothing while every other list still hid the conversation as "pinned", so pinning
+    // made the conversation disappear from the sidebar altogether.
+    const session = sessionByAnyId.get(pinId) ?? rememberedRows[pinId]
 
     if (session && !seen.has(session.id)) {
       seen.add(session.id)

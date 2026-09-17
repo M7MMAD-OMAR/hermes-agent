@@ -16,6 +16,11 @@ vi.mock('@/hermes', () => ({
 import { $pinnedSessionIds } from '@/store/layout'
 import { $activeGatewayProfile } from '@/store/profile'
 import { $cronSessions, $messagingSessions, $sessions } from '@/store/session'
+import {
+  rememberPinnedSessionRows,
+  resetPinnedSessionRows,
+  watchPinnedSessionRows
+} from '@/store/session-pin-rows'
 
 import { $unconfirmedPinWrites, resetSessionPinMirror, watchSessionPins } from './session-pin-sync'
 
@@ -29,6 +34,7 @@ beforeAll(() => {
   ;(window as unknown as { hermesDesktop: unknown }).hermesDesktop = {}
   // Attach the listeners once — module state is process-global.
   watchSessionPins()
+  watchPinnedSessionRows()
 })
 
 beforeEach(() => {
@@ -40,6 +46,7 @@ beforeEach(() => {
   // bookkeeping would otherwise suppress the next test's PATCH (or fence out
   // its page). Same reset the gateway switch uses.
   resetSessionPinMirror()
+  resetPinnedSessionRows()
   patch.mockClear()
 })
 
@@ -401,5 +408,73 @@ describe('watchSessionPins remote pull', () => {
     // The active profile's row is authoritative, so the pin is dropped.
     expect($pinnedSessionIds.get()).toEqual([])
     $activeGatewayProfile.set('default')
+  })
+})
+
+describe('watchSessionPins with a remembered row', () => {
+  // The pin that vanished: a conversation pinned from a surface the loaded slices do not
+  // hold (a search result, a project lane row). The push pass could not name its profile,
+  // so the PATCH never fired, the backend never recorded the pin, and the sidebar — which
+  // hides a pinned conversation from every other list — had nowhere to show it.
+  it('mirrors a pin whose conversation is in no loaded slice', async () => {
+    $activeGatewayProfile.set('work')
+    $pinnedSessionIds.set(['deep'])
+    await flush()
+    expect(patch).not.toHaveBeenCalled()
+
+    rememberPinnedSessionRows([row('deep', { profile: 'work' })])
+    await flush()
+
+    expect(patch).toHaveBeenCalledWith('deep', true, 'work')
+  })
+
+  it('prefers a loaded row over the remembered one for the profile', async () => {
+    $activeGatewayProfile.set('live')
+    rememberPinnedSessionRows([row('a', { profile: 'stale' })])
+    $sessions.set([row('a', { profile: 'live' })])
+    $pinnedSessionIds.set(['a'])
+    await flush()
+
+    expect(patch).toHaveBeenCalledWith('a', true, 'live')
+  })
+
+  it('eventually writes a pin no row ever resolves, and stops', async () => {
+    $activeGatewayProfile.set('default')
+    // A stale id in localStorage would otherwise keep the conversation hidden forever with
+    // nothing on the backend to heal it — but it must not re-PATCH on every list change.
+    $pinnedSessionIds.set(['ghost'])
+
+    for (let pass = 0; pass < 12; pass++) {
+      $sessions.set([row(`churn-${pass}`)])
+      await flush()
+    }
+
+    const ghostWrites = patch.mock.calls.filter(([id]) => id === 'ghost')
+    expect(ghostWrites.length).toBeGreaterThan(0)
+    expect(ghostWrites.length).toBeLessThanOrEqual(3)
+    expect(ghostWrites[0]).toEqual(['ghost', true, undefined])
+  })
+})
+
+describe('watchSessionPins across profiles that share session ids', () => {
+  // A copied project leaves two profiles holding the same session ids, and the pin set is
+  // not profile-scoped. The pull already collapses to one row per id; these pin the push.
+  it('never routes a pin to a profile the active gateway is not serving', async () => {
+    $activeGatewayProfile.set('dn')
+    rememberPinnedSessionRows([row('shared', { profile: 'default' })])
+    $pinnedSessionIds.set(['shared'])
+    await flush()
+
+    expect(patch).not.toHaveBeenCalledWith('shared', true, 'default')
+  })
+
+  it('uses the active profile own loaded row when both profiles hold the id', async () => {
+    $activeGatewayProfile.set('dn')
+    rememberPinnedSessionRows([row('shared', { profile: 'default' })])
+    $sessions.set([row('shared', { profile: 'default' }), row('shared', { profile: 'dn' })])
+    $pinnedSessionIds.set(['shared'])
+    await flush()
+
+    expect(patch).toHaveBeenCalledWith('shared', true, 'dn')
   })
 })

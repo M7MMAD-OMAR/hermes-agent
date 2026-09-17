@@ -15,6 +15,7 @@ export {
   liveSessionProjectId,
   overlayLiveLanes,
   overlayLivePreviews,
+  projectTreeSessions,
   reconcileEnteredProjectSessions,
   sessionBucketId,
   sessionMatchesProjectFilter,

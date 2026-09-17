@@ -155,3 +155,49 @@ describe('resolvePinnedSessions', () => {
     expect(resolvePinnedSessions([], index, sessions, settled)).toEqual([])
   })
 })
+
+describe('resolvePinnedSessions with a remembered row', () => {
+  // The bug this closes: a conversation the user pins from a surface the loaded slices do
+  // not hold — a search result, a row in a project lane — resolved to nothing here while
+  // every other list still filtered it out as pinned, so it disappeared from the sidebar
+  // entirely and stayed gone across restarts.
+  it('renders a pin whose conversation is in no loaded slice', () => {
+    const remembered = row('deep-in-the-list')
+    const index = buildSessionByAnyId([row('loaded')], [], [])
+
+    const out = resolvePinnedSessions(['deep-in-the-list'], index, [row('loaded')], settled, {
+      'deep-in-the-list': remembered
+    })
+
+    expect(out.map(s => s.id)).toEqual(['deep-in-the-list'])
+  })
+
+  it('prefers the loaded row over the remembered one', () => {
+    // The cache must never outlive the truth: a remembered row can carry a stale title.
+    const index = buildSessionByAnyId([row('a', { title: 'current' })], [], [])
+
+    const out = resolvePinnedSessions(['a'], index, [row('a')], settled, {
+      a: row('a', { title: 'stale' })
+    })
+
+    expect(out.map(s => s.title)).toEqual(['current'])
+  })
+
+  it('keeps the hand-picked order across loaded and remembered rows', () => {
+    const index = buildSessionByAnyId([row('loaded')], [], [])
+
+    const out = resolvePinnedSessions(['remembered', 'loaded'], index, [row('loaded')], settled, {
+      remembered: row('remembered')
+    })
+
+    expect(out.map(s => s.id)).toEqual(['remembered', 'loaded'])
+  })
+
+  it('never lists one conversation twice when both sources hold it', () => {
+    const index = buildSessionByAnyId([row('a')], [], [])
+
+    const out = resolvePinnedSessions(['a'], index, [row('a', { pinned: true })], settled, { a: row('a') })
+
+    expect(out.map(s => s.id)).toEqual(['a'])
+  })
+})

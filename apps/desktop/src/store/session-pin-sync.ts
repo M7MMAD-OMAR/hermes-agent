@@ -28,6 +28,7 @@ import { onConnectionScopeChange } from '@/lib/connection-scoped'
 import { $pinnedSessionIds, pinSession, unpinSession } from '@/store/layout'
 import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
 import { $cronSessions, $messagingSessions, $sessions, sessionMatchesStoredId, sessionPinId } from '@/store/session'
+import { $pinnedSessionRows, rememberedPinnedRow } from '@/store/session-pin-rows'
 import type { SessionInfo } from '@/types/hermes'
 
 // pin ids we've successfully PATCHed pinned=true this session.
@@ -74,6 +75,40 @@ function profileFor(pinId: string): null | string | undefined {
   return loadedRowFor(pinId)?.profile
 }
 
+// Waiting for the row is right: it names the profile the PATCH must target, and it usually
+// arrives on the very next slice update. Waiting FOREVER is the bug — a pin whose row is in
+// no loaded page and on no surface (a stale id in localStorage, a conversation the backend
+// back-fill cannot reach) never reached the backend at all, so the pin lived only in this
+// window while every list hid the conversation as "pinned".
+//
+// So: defer for a few passes, then write blind against the ambient profile — the gateway
+// serving the surface the pin was made on, right in every ordinary case. Bounded twice over,
+// by passes before the first attempt and by attempts after it, so an id that can never
+// resolve cannot re-PATCH on every session-list change for the life of the window.
+const unresolvedPasses = new Map<string, number>()
+const blindWriteAttempts = new Map<string, number>()
+const BLIND_WRITE_AFTER_PASSES = 3
+const MAX_BLIND_WRITE_ATTEMPTS = 3
+
+function shouldWriteWithoutRow(pinId: string): boolean {
+  const passes = (unresolvedPasses.get(pinId) ?? 0) + 1
+  unresolvedPasses.set(pinId, passes)
+
+  if (passes < BLIND_WRITE_AFTER_PASSES) {
+    return false
+  }
+
+  const attempts = blindWriteAttempts.get(pinId) ?? 0
+
+  if (attempts >= MAX_BLIND_WRITE_ATTEMPTS) {
+    return false
+  }
+
+  blindWriteAttempts.set(pinId, attempts + 1)
+
+  return true
+}
+
 function loadedSessionRows(): SessionInfo[] {
   return [...$sessions.get(), ...$cronSessions.get(), ...$messagingSessions.get()]
 }
@@ -83,12 +118,32 @@ function loadedSessionRows(): SessionInfo[] {
  * `rowsByPinId`: when two profiles share the id, the write must target the
  * row the pull adopted — the active gateway's — or an unpin PATCHes the other
  * profile and the next page re-adopts the pin.
+ *
+ * Falls back to the row the pin was made on (`session-pin-rows`) when no slice
+ * holds it. Without that fallback a pin on a conversation outside the loaded
+ * pages — a search result, a project lane row — could never resolve a profile,
+ * so its PATCH never fired and the backend never learned about the pin.
  */
 function loadedRowFor(pinId: string): SessionInfo | undefined {
   const rows = loadedSessionRows().filter(row => sessionMatchesStoredId(row, pinId))
   const gateway = normalizeProfileKey($activeGatewayProfile.get())
+  const loaded = rows.find(row => normalizeProfileKey(row.profile) === gateway) ?? rows[0]
 
-  return rows.find(row => normalizeProfileKey(row.profile) === gateway) ?? rows[0]
+  if (loaded) {
+    return loaded
+  }
+
+  // The remembered row may describe ANOTHER profile: pin ids are not profile-scoped, and a
+  // copied project leaves two profiles holding the same session ids. Routing this profile's
+  // pin to that one would pin the wrong conversation, so a foreign row counts as unresolved
+  // and the bounded last-resort write (ambient profile) handles it instead.
+  const remembered = rememberedPinnedRow(pinId)
+
+  if (!remembered?.profile || normalizeProfileKey(remembered.profile) === gateway) {
+    return remembered
+  }
+
+  return undefined
 }
 
 /**
@@ -268,13 +323,15 @@ function reconcileInner(): void {
   for (const id of [...pending]) {
     const row = loadedRowFor(id)
 
-    if (!row) {
+    if (!row && !shouldWriteWithoutRow(id)) {
       continue
     }
 
     pending.delete(id)
     mirrored.add(id)
-    void writePin(id, true, row.profile).catch(() => {
+    unresolvedPasses.delete(id)
+    // `row` is undefined only on the bounded last-resort path above.
+    void writePin(id, true, row?.profile).catch(() => {
       // Let a later reconcile retry the mirror.
       mirrored.delete(id)
       pending.add(id)
@@ -295,6 +352,12 @@ export function watchSessionPins(): void {
   $sessions.listen(reconcile)
   $cronSessions.listen(reconcile)
   $messagingSessions.listen(reconcile)
+  // A row remembered for a pin that is still waiting on one is exactly the event the push
+  // pass is blocked on: the pin was made on a surface no slice holds (a search result, a
+  // project lane), so nothing else will fire. This module only ever READS that store —
+  // writing it from inside reconcile would put a notification cycle through the shared
+  // nanostores listener queue, the overflow the re-entrancy guard above exists to avoid.
+  $pinnedSessionRows.listen(reconcile)
 }
 
 /**
@@ -312,5 +375,7 @@ export function resetSessionPinMirror(): void {
   mirrored.clear()
   pending.clear()
   unconfirmed.clear()
+  unresolvedPasses.clear()
+  blindWriteAttempts.clear()
   publishUnconfirmed()
 }

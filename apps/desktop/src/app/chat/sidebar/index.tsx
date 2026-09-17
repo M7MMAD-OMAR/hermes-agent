@@ -126,6 +126,7 @@ import {
   setCurrentCwd
 } from '@/store/session'
 import { $sessionDotStateById, sessionStatusBucket } from '@/store/session-dot-state'
+import { $pinnedSessionRows, rememberPinnedSessionRows } from '@/store/session-pin-rows'
 import { $unconfirmedPinWrites } from '@/store/session-pin-sync'
 import { $removedSessionIds } from '@/store/session-removal'
 import { $focusedSessionIsTile, $focusedStoredSessionId, $workingSessionIds } from '@/store/session-states'
@@ -165,6 +166,7 @@ import {
   ProjectBackRow,
   ProjectMenu,
   projectTreeCwd,
+  projectTreeSessions,
   reconcileEnteredProjectSessions,
   sessionBucketId,
   sessionMatchesProjectFilter,
@@ -390,6 +392,8 @@ export function ChatSidebar({
   const showAllSessions = useStore($sidebarShowAllSessions)
   const pinnedSessionIds = useStore($pinnedSessionIds)
   const unconfirmedPinWrites = useStore($unconfirmedPinWrites)
+  // Rows behind pins the loaded slices don't hold (search results, project lanes).
+  const pinnedSessionRows = useStore($pinnedSessionRows)
   const pinsOpen = useStore($sidebarPinsOpen)
   const agentsOpen = useStore($sidebarRecentsOpen)
   const cronOpen = useStore($sidebarCronOpen)
@@ -596,26 +600,57 @@ export function ChatSidebar({
   // local set doesn't know about — a backend `pinned=1` row must never be
   // invisible just because localStorage is cold or was clobbered (#85969) —
   // minus the rows whose flag our own in-flight pin write already contradicts.
+  // Remembered rows are not profile-scoped (pin ids are shared across profiles, and a copied
+  // project leaves two profiles holding the same ids), so scope them the way every other
+  // slice is scoped before they can render.
+  const scopedPinnedRows = useMemo(() => {
+    const rows = Object.entries(pinnedSessionRows)
+
+    const kept = filterSessionsByProfileScope(
+      rows.map(([, session]) => session),
+      profileScope
+    )
+
+    const allowed = new Set(kept)
+
+    return Object.fromEntries(rows.filter(([, session]) => allowed.has(session)))
+  }, [pinnedSessionRows, profileScope])
+
   const pinnedSessions = useMemo(
     () =>
       resolvePinnedSessions(
         pinnedSessionIds,
         sessionByAnyId,
         [...visibleSessions, ...cronSessions, ...messagingSessions],
-        unconfirmedPinWrites
+        unconfirmedPinWrites,
+        scopedPinnedRows
       ),
-    [pinnedSessionIds, sessionByAnyId, visibleSessions, cronSessions, messagingSessions, unconfirmedPinWrites]
+    [
+      pinnedSessionIds,
+      sessionByAnyId,
+      visibleSessions,
+      cronSessions,
+      messagingSessions,
+      unconfirmedPinWrites,
+      scopedPinnedRows
+    ]
   )
 
-  // Every id a pin is reachable under: the raw stored ids, plus BOTH identities
-  // of each session we resolved one to. A pin is stored on the durable lineage
-  // root, but the lists that must filter it out are fed from three independent
-  // fetches (recents, the messaging slice, the backend project tree) and each
-  // can surface the same conversation under either its live tip or its root.
-  // Comparing one identity against the other is how a pinned session ended up
-  // rendered twice — once in Pinned, once in its project group.
+  // Every id a pin is reachable under: BOTH identities of each session the Pinned
+  // section actually RENDERS. A pin is stored on the durable lineage root, but the
+  // lists that must filter it out are fed from three independent fetches (recents,
+  // the messaging slice, the backend project tree) and each can surface the same
+  // conversation under either its live tip or its root. Comparing one identity
+  // against the other is how a pinned session ended up rendered twice — once in
+  // Pinned, once in its project group.
+  //
+  // Deliberately NOT the raw stored ids. A list hides a conversation here for one
+  // reason only: it is on screen under Pinned. A pin that resolves to no row —
+  // localStorage naming a conversation this profile does not have, a pin whose row
+  // has not loaded yet — must leave every list untouched, or it deletes that
+  // conversation from the sidebar instead of moving it.
   const pinnedIdentitySet = useMemo(() => {
-    const ids = new Set(pinnedSessionIds)
+    const ids = new Set<string>()
 
     for (const session of pinnedSessions) {
       ids.add(session.id)
@@ -626,7 +661,7 @@ export function ChatSidebar({
     }
 
     return ids
-  }, [pinnedSessionIds, pinnedSessions])
+  }, [pinnedSessions])
 
   // A pinned session belongs to the Pinned section and nowhere else, so every
   // other list filters it out. Match on either identity the row carries — a
@@ -706,6 +741,15 @@ export function ChatSidebar({
 
     return [...out.values()]
   }, [trimmedQuery, sortedSessions, serverMatches, sessionByAnyId])
+
+  // Keep the row behind every pin made on a surface the loaded slices don't hold: search
+  // results and the entered project's lanes are separate fetches, and a pin on one of those
+  // rows used to resolve to nothing — which hid the conversation everywhere instead of
+  // moving it to Pinned. Re-runs when the pin set changes, so the row the user just pinned
+  // (still on screen) is captured right after the gesture.
+  useEffect(() => {
+    rememberPinnedSessionRows(searchResults)
+  }, [searchResults, pinnedSessionIds])
 
   const unpinnedAgentSessions = useMemo(
     () => sortedSessions.filter(s => !isPinnedSession(s)),
@@ -1014,6 +1058,13 @@ export function ChatSidebar({
     () => reconcileEnteredProjectSessions(agentSessions, overviewEnteredProject?.previewSessions),
     [agentSessions, overviewEnteredProject?.previewSessions]
   )
+
+  // The entered project's lanes are their own backend fetch, so a row pinned from one is in
+  // no loaded slice. Remember it, or the pin resolves to nothing and the conversation drops
+  // out of the sidebar instead of moving to Pinned.
+  useEffect(() => {
+    rememberPinnedSessionRows(projectTreeSessions(enteredProjectTree))
+  }, [enteredProjectTree, pinnedSessionIds])
 
   // Overlay live `$sessions` onto the entered project so a just-created session
   // (which the backend snapshot hasn't folded in yet) counts as content and

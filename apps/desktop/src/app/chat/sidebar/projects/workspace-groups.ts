@@ -859,3 +859,25 @@ export function overlayLivePreviews(
 
   return out
 }
+
+/** Every session row a project tree holds, across its repos and lanes.
+ *
+ *  These rows come straight from the backend drill-in fetch, so they are frequently NOT in
+ *  the sidebar's loaded slices — which is why a pin made on one has to be remembered
+ *  separately (see `store/session-pin-rows`).
+ */
+export function projectTreeSessions(project: null | SidebarProjectTree | undefined): SessionInfo[] {
+  if (!project) {
+    return []
+  }
+
+  const out: SessionInfo[] = []
+
+  for (const repo of project.repos) {
+    for (const group of repo.groups) {
+      out.push(...group.sessions)
+    }
+  }
+
+  return out
+}

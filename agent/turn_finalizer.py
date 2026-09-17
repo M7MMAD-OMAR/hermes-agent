@@ -13,6 +13,7 @@ from typing import Any, Callable, List, Optional, Tuple
 
 from agent.codex_responses_adapter import _summarize_user_message_for_log
 from agent.context_compressor import _DB_PERSISTED_MARKER
+from agent.interrupt_origin import agent_interrupt_origin as _agent_interrupt_origin
 from agent.message_content import flatten_message_text
 from agent.message_metadata import append_message, stamp_message_timestamp
 from agent.message_sanitization import _sanitize_surrogates
@@ -229,6 +230,19 @@ def _preserve_delivered_media(agent, messages, final_response):
     tail content against `final_response` to decide whether to append a closing
     row: leaving the two divergent would duplicate the whole reply.
 
+    What the rewrite must NOT do is change the bytes the model replays. The store
+    path would then become the shape a delivery has in the model's own context,
+    and the next turn would name a NEW result by the path it expects to be
+    preserved to rather than the path it actually wrote. Nothing is copied there,
+    so the user meets a card for a file that never existed (three of five
+    delivered results in one measured conversation). So the original text is
+    stamped back on the row as an `api_content` sidecar once the tail is shaped
+    (`_stamp_media_replay_sidecar`), which is exactly the existing
+    "persist what you see, replay what you sent" seam: `build_api_messages`
+    substitutes the sidecar back into historical assistant rows, `_db_flush_row`
+    writes it beside the rewritten content, and `_rows_to_conversation` restores
+    both, so the split survives a gateway restart as well.
+
     Fail-open. Preservation is a safety net, and a net that can lose the turn is
     worse than no net.
     """
@@ -240,6 +254,11 @@ def _preserve_delivered_media(agent, messages, final_response):
 
         preserved = preserve_response_media(
             final_response, session_key=getattr(agent, "session_id", "") or "",
+            # The conversation is where a delivered path that no longer exists is
+            # recovered from: its own delivery history names the directories to
+            # look in, and unlike anything held in process memory it survives the
+            # restart that a resumed conversation always is.
+            agent_history=messages,
         )
     except Exception:
         from agent.conversation_loop import logger as _logger
@@ -257,6 +276,39 @@ def _preserve_delivered_media(agent, messages, final_response):
     return preserved
 
 
+def _stamp_media_replay_sidecar(messages, original, preserved) -> None:
+    """Give the row carrying a media-rewritten reply the bytes the model wrote.
+
+    Run AFTER `_close_transcript_tail`, because the row that ends up holding the
+    reply is not always the one `_preserve_delivered_media` rewrote: the tail
+    branch there can append a closing row, or fill a blank tool-call row, with
+    the already-preserved text. Stamping at that point covers all three shapes
+    with one pass and still lands before the flush, so the sidecar reaches the
+    durable row.
+
+    The sidecar is what keeps the store path out of the model's context. See
+    `_preserve_delivered_media` for why that matters. Never displaces a sidecar
+    the row already carries: an existing one is the exact bytes sent for this
+    content (a sanitize-divergence stamp, or a replayed row's) and replacing it
+    would resend something else.
+
+    Not absolute, and not meant to be. A sidecar is dropped wherever a later pass
+    rewrites the row's content and replaying the old bytes would undo the rewrite:
+    an assistant-turn merge (`agent_runtime_helpers`), image stripping
+    (`message_sanitization`), compaction (`micro_compaction`,
+    `conversation_compression`). Each of those is a row whose content changed, so
+    the drop is right; it just leaves the store path readable again for that row.
+    `media_preservation._recover_source` stays as the backstop for that residue.
+    """
+    if not original or not preserved or original == preserved:
+        return
+    for msg in reversed(messages):
+        if isinstance(msg, dict) and msg.get("role") == "assistant" and msg.get("content") == preserved:
+            if not isinstance(msg.get("api_content"), str) or not msg["api_content"]:
+                msg["api_content"] = original
+            break
+
+
 def _close_transcript_tail(agent, messages, final_response, interrupted, _recovered_from_stream) -> None:
     """Shape the transcript tail before the durable snapshot (scaffolding already dropped
     and ``final_response`` already stream-recovered by the caller)."""
@@ -264,7 +316,7 @@ def _close_transcript_tail(agent, messages, final_response, interrupted, _recove
     # providers don't see ``tool → user`` (placeholder: final_response is usually empty).
     if interrupted:
         from agent.message_sanitization import close_interrupted_tool_sequence
-        close_interrupted_tool_sequence(messages, final_response)
+        close_interrupted_tool_sequence(messages, final_response, origin=_agent_interrupt_origin(agent))
 
     # Recovery ``break`` sites can return a final_response with no closing assistant
     # row; enforce "delivered final_response ⇒ assistant row" here. Compare content,
@@ -523,8 +575,12 @@ def finalize_turn(
         final_response, _recovered_from_stream = _recover_final_from_stream(
             agent, final_response, interrupted, failed
         )
+        _pre_media_response = final_response
         final_response = _preserve_delivered_media(agent, messages, final_response)
         _close_transcript_tail(agent, messages, final_response, interrupted, _recovered_from_stream)
+        # After the tail is shaped: it can append or fill the row that carries the
+        # reply, so the row to stamp is only settled here.
+        _stamp_media_replay_sidecar(messages, _pre_media_response, final_response)
         if not interrupted and not failed:
             _micro_compact_after_turn(agent, messages, final_response, logger)
         agent._persist_session(messages, conversation_history)
@@ -589,6 +645,9 @@ def finalize_turn(
         "failed": failed,
         "partial": False,  # True only when stopped due to invalid tool calls
         "interrupted": interrupted,
+        # Which stop path ended it (agent.interrupt_origin). Only meaningful alongside
+        # ``interrupted``; omitted otherwise so a completed turn carries no stale attribution.
+        **({"interrupt_origin": _agent_interrupt_origin(agent)} if interrupted else {}),
         "response_transformed": _response_transformed,
         "pre_transform_response": _pre_transform_response,
         "response_previewed": getattr(agent, "_response_was_previewed", False),

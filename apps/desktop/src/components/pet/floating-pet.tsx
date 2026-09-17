@@ -6,6 +6,7 @@ import { useOnProfileSwitch } from '@/app/hooks/use-on-profile-switch'
 import { useRouteOverlayActive } from '@/app/hooks/use-route-overlay-active'
 import { PetHeartField } from '@/components/chat/vibe-hearts'
 import { persistString, storedString } from '@/lib/storage'
+import { subscribeWindowReturn } from '@/lib/window-return'
 import { $changeEventsAvailable, $petChange } from '@/store/live-sync'
 import {
   $petAtRest,
@@ -26,7 +27,7 @@ import { $gatewayState } from '@/store/session'
 import { isSecondaryWindow } from '@/store/windows'
 import { useTheme } from '@/themes/context'
 
-import { PET_STARTUP_RETRY_MS, petInfoPollIntervalMs } from './pet-info-poll'
+import { PET_RETURN_MIN_INTERVAL_MS, PET_STARTUP_RETRY_MS, petInfoPollIntervalMs } from './pet-info-poll'
 import { PetSprite, roamWalkRow } from './pet-sprite'
 import { usePetRoam } from './use-pet-roam'
 import { type PetZoomAnchor, usePetZoomGesture } from './use-pet-zoom-gesture'
@@ -231,7 +232,9 @@ export function FloatingPet() {
     }
 
     void pull()
-    window.addEventListener('focus', pull)
+    // One pull per return to the window, and only once the last one is stale:
+    // a multi-MB spritesheet check has no business riding every focus flip.
+    const unsubscribeReturn = subscribeWindowReturn(pullIfVisible, { minIntervalMs: PET_RETURN_MIN_INTERVAL_MS })
 
     // Cover the cold-start race where the first pull hit fail-open enabled:false
     // before the pet store was warm. Skip further retries once the mascot is live.
@@ -258,7 +261,7 @@ export function FloatingPet() {
 
     return () => {
       cancelled = true
-      window.removeEventListener('focus', pull)
+      unsubscribeReturn()
 
       for (const id of startupRetryTimers) {
         window.clearTimeout(id)

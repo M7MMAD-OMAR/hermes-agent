@@ -9,6 +9,7 @@ import keystroke from './keystroke.mjs'
 import multitab from './multitab.mjs'
 import profileSwitch from './profile-switch.mjs'
 import renderChurn from './render-churn.mjs'
+import returnBurst from './return-burst.mjs'
 import rightPane from './right-pane.mjs'
 import sessionLoad from './session-load.mjs'
 import sessionSwitch from './session-switch.mjs'
@@ -25,6 +26,7 @@ export const SCENARIOS = {
   [browser.name]: browser,
   [multitab.name]: multitab,
   [renderChurn.name]: renderChurn,
+  [returnBurst.name]: returnBurst,
   [rightPane.name]: rightPane,
   [idleCost.name]: idleCost,
   [coldStart.name]: coldStart,

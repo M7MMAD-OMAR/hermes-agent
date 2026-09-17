@@ -6,6 +6,7 @@ import { getLatestSessionMessages, type ProfileScope } from '@/hermes'
 import { preserveLocalAssistantErrors, sealOpenToolParts, toChatMessages } from '@/lib/chat-messages'
 import { createClientSessionState } from '@/lib/chat-runtime'
 import { sessionMessagesSignature } from '@/lib/session-signatures'
+import { subscribeWindowReturn } from '@/lib/window-return'
 import { $changeEventsAvailable, $cronChangeTick, $sessionsChangeTick } from '@/store/live-sync'
 import { $onBattery, batteryPollInterval } from '@/store/power'
 import { refreshActiveProfile } from '@/store/profile'
@@ -541,14 +542,14 @@ function visiblePoll(intervalMs: number, tick: () => void): () => void {
     intervalId = window.setInterval(run, batteryPollInterval(intervalMs, onBattery))
   })
 
-  document.addEventListener('visibilitychange', run)
-  window.addEventListener('focus', run)
+  // One catch-up per return to the window (focus and visibility used to fire
+  // this twice), after the reveal has painted.
+  const unsubscribeReturn = subscribeWindowReturn(run)
 
   return () => {
     unsubscribeBattery()
     window.clearInterval(intervalId)
-    document.removeEventListener('visibilitychange', run)
-    window.removeEventListener('focus', run)
+    unsubscribeReturn()
   }
 }
 

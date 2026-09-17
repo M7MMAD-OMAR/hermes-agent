@@ -1,6 +1,8 @@
 import { useStore } from '@nanostores/react'
 import { useEffect } from 'react'
 
+import { usePaneVisible } from '@/components/pane-shell/pane-visibility'
+import { subscribeWindowReturn } from '@/lib/window-return'
 import { $gatewayState } from '@/store/session'
 import { knownOwnerForSession, requestForOwnedSession } from '@/store/session-states'
 import { $subagentsBySession, reconcileSubagentSnapshot, type SubagentPayload } from '@/store/subagents'
@@ -9,11 +11,22 @@ export const rejectUnownedSubagentRequest = async <T>(): Promise<T> => {
   throw new Error('Subagent owner unavailable')
 }
 
-/** Hydrate even an empty composer; live events remain authoritative over reads. */
+/** Safety-net cadence behind the live subagent events, for the VISIBLE stack only. */
+export const SUBAGENT_SNAPSHOT_POLL_MS = 5_000
+
+/** Hydrate even an empty composer; live events remain authoritative over reads.
+ *
+ *  Keep-alive keeps every ever-active tab mounted, so the poll is gated on the
+ *  pane being the visible tab AND the document being visible: eight open
+ *  sessions used to cost eight `subagent.list` round-trips every five seconds
+ *  forever, hidden window included. A tab that comes back into view (or the
+ *  window that returns) pulls once, immediately. */
 export function useSubagentSnapshot(sessionId: string | null) {
   const gatewayState = useStore($gatewayState)
+  const paneVisible = usePaneVisible()
+
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId || !paneVisible) {
       return
     }
 
@@ -56,20 +69,24 @@ export function useSubagentSnapshot(sessionId: string | null) {
       }
     }
 
-    void refresh()
-    const timer = window.setInterval(() => void refresh(), 5000)
-
-    const retry = () => {
-      failures = 0
-      void refresh()
+    const refreshWhileViewed = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh()
+      }
     }
 
-    window.addEventListener('focus', retry)
+    void refresh()
+    const timer = window.setInterval(refreshWhileViewed, SUBAGENT_SNAPSHOT_POLL_MS)
+
+    const unsubscribeReturn = subscribeWindowReturn(() => {
+      failures = 0
+      void refresh()
+    })
 
     return () => {
       cancelled = true
       window.clearInterval(timer)
-      window.removeEventListener('focus', retry)
+      unsubscribeReturn()
     }
-  }, [sessionId, gatewayState])
+  }, [sessionId, gatewayState, paneVisible])
 }

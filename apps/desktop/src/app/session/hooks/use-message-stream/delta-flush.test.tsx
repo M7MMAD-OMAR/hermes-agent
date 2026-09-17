@@ -84,7 +84,18 @@ describe('useMessageStream delta flush scheduling', () => {
     act(() => globalThis.document.dispatchEvent(new Event('visibilitychange')))
 
     expect(assistantText()).toBe('caught up on focus')
-    expect(vi.getTimerCount()).toBe(0)
+
+    // The stream's own flush timer is gone: letting every other timer run
+    // (the shared window-return coalescer also listens to this event) must
+    // not produce a second write.
+    const writes = updateSessionState.mock.calls.length
+
+    act(() => {
+      vi.runAllTimers()
+    })
+
+    expect(updateSessionState.mock.calls.length).toBe(writes)
+    expect(assistantText()).toBe('caught up on focus')
   })
 
   it('flushes queued text on focus when visibility remains visible', () => {

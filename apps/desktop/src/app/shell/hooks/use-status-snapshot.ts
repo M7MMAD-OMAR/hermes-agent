@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react'
 
 import { getStatus } from '@/hermes'
 import { evaluateRuntimeReadiness, type RuntimeReadinessResult } from '@/lib/runtime-readiness'
+import { subscribeWindowReturn } from '@/lib/window-return'
 import { refreshFreeTierStatus, setFreeTierRoute } from '@/store/free-tier'
 import { $setupReadyTick } from '@/store/live-sync'
 import type { StatusResponse } from '@/types/hermes'
 
 // Statusbar health is ambient chrome, not live data — nothing the user acts on
-// within seconds. 60s + an actively-viewed check keeps traffic low; focus and
-// visibility listeners refresh immediately on return.
+// within seconds. 60s + an actively-viewed check keeps traffic low; a return to
+// the window refreshes once the last round is older than a quick alt-tab.
 const REFRESH_MS = 60_000
+export const RETURN_MIN_INTERVAL_MS = 5_000
 
 type GatewayRequester = <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
 
@@ -129,15 +131,16 @@ export function useStatusSnapshot(
     // outside the status tick so it neither resets nor waits on the timer.
     const unsubscribeSetupReady = $setupReadyTick.listen(() => void refreshReadiness())
 
-    document.addEventListener('visibilitychange', onReturn)
-    window.addEventListener('focus', onReturn)
+    // One coalesced return (focus + visibility used to fire this twice, and a
+    // return is three RPCs) and only when the last round is older than a quick
+    // alt-tab: ambient chrome does not need re-asking every few seconds.
+    const unsubscribeReturn = subscribeWindowReturn(onReturn, { minIntervalMs: RETURN_MIN_INTERVAL_MS })
     void refresh({ readiness: true })
 
     return () => {
       cancelled = true
       unsubscribeSetupReady()
-      document.removeEventListener('visibilitychange', onReturn)
-      window.removeEventListener('focus', onReturn)
+      unsubscribeReturn()
 
       if (timer !== undefined) {
         window.clearTimeout(timer)

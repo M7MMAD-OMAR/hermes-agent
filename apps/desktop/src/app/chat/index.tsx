@@ -594,10 +594,20 @@ const ChatViewContent = memo(function ChatViewContent({
   })
 
   const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse, lastVisibleIsUser)
-  // Hide the composer in the exhausted error state too: there's no live runtime
-  // to send to until a retry rebinds one. Watch windows are pure spectators of a
+  // No composer in the exhausted error state: there's no live runtime to send
+  // to until a retry rebinds one. Watch windows are pure spectators of a
   // subagent run driven elsewhere — no composer, transcript is read-only.
-  const showChatBar = !loadingSession && !resumeExhausted && !isWatchWindow()
+  //
+  // A LOADING session keeps the composer mounted (disabled, see ChatBar's
+  // `disabled`) rather than unmounting it. Every session switch passes through
+  // the loading state for a few frames while the resume resolves its owner,
+  // and unmounting the bar there remounted the whole composer subtree twice per
+  // switch: the rich editor, and every mount effect behind it, which re-issued
+  // the status-stack RPCs (process.list, session.control.read, subagent.list,
+  // context breakdown, `@` completion warm-up) for the OUTGOING session before
+  // running them again for the new one. Keeping it mounted turns the switch
+  // into one prop change and one set of requests.
+  const showChatBar = !resumeExhausted && !isWatchWindow()
   const threadKey = selectedSessionId || activeSessionId || (isRoutedSessionView ? location.pathname : 'new')
 
   const modelOptionsQuery = useQuery<ModelOptionsResponse>({
@@ -841,7 +851,7 @@ const ChatViewContent = memo(function ChatViewContent({
                 <ChatBar
                   busy={busy}
                   cwd={currentCwd}
-                  disabled={!gatewayOpen}
+                  disabled={!gatewayOpen || loadingSession}
                   focusKey={activeSessionId}
                   gateway={gateway}
                   maxRecordingSeconds={maxVoiceRecordingSeconds}

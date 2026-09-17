@@ -2,6 +2,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getStatus } from '@/hermes'
+import { resetWindowReturnForTests, WINDOW_RETURN_COALESCE_MS } from '@/lib/window-return'
 import { $setupReadyTick, notifySetupReady } from '@/store/live-sync'
 
 import { deferred } from '../../../test/deferred'
@@ -20,8 +21,17 @@ async function flushAsync() {
   })
 }
 
+// The shared return signal coalesces focus/visibility and runs after a paint.
+async function settleReturn() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(WINDOW_RETURN_COALESCE_MS + 1)
+    await vi.advanceTimersByTimeAsync(64)
+  })
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
+  vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => window.setTimeout(() => fn(performance.now()), 16))
   vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   vi.mocked(getStatus)
     .mockReset()
@@ -31,6 +41,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  resetWindowReturnForTests()
+  vi.unstubAllGlobals()
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
@@ -53,11 +65,37 @@ describe('useStatusSnapshot', () => {
 
     vi.mocked(document.hasFocus).mockReturnValue(true)
     window.dispatchEvent(new Event('focus'))
-    await flushAsync()
+    await settleReturn()
 
     expect(getStatus).toHaveBeenCalledOnce()
     // One refresh round = setup.status + setup.runtime_check + free_tier.status.
     expect(requestGateway).toHaveBeenCalledTimes(3)
+  })
+
+  it('runs one round per return, not one per raw focus/visibility event, and skips a quick alt-tab', async () => {
+    const requestGateway = vi.fn().mockResolvedValue({}) as unknown as GatewayRequester
+
+    renderHook(() => useStatusSnapshot('open', requestGateway))
+    await flushAsync()
+    expect(getStatus).toHaveBeenCalledOnce()
+
+    // Past the quick alt-tab window, so the return is allowed to refresh.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000)
+    })
+
+    document.dispatchEvent(new Event('visibilitychange'))
+    window.dispatchEvent(new Event('focus'))
+    window.dispatchEvent(new Event('focus'))
+    await settleReturn()
+
+    expect(getStatus).toHaveBeenCalledTimes(2)
+
+    // Straight back again: the round from a moment ago is still fresh.
+    window.dispatchEvent(new Event('focus'))
+    await settleReturn()
+
+    expect(getStatus).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the last authoritative readiness through a transient RPC failure', async () => {

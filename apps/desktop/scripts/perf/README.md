@@ -52,6 +52,7 @@ directly via `window.__PERF_DRIVE__`, so no LLM credits are spent.
 | `keystroke` | ci | composer keystroke → paint latency | measure-latency, profile-typing, leak-typing |
 | `transcript` | ci | large-transcript mount + paint cost | (new) |
 | `render-churn` | ci | per-component render attribution + store churn while N tabs stream | (new) |
+| `return-burst` | ci | RPC count, duplicate requests and long tasks in the seconds after the window comes back | (new) |
 | `idle-cost` | report | busy-but-silent tiles: idle commit rate, + fps while resizing / typing | (new) |
 | `right-pane` | report | file tree + persistent xterm tabs under chat/terminal output and split dragging | (new) |
 | `cold-start` | cold | launch → CDP → driver → first paint (fresh spawn/run) | (new) |

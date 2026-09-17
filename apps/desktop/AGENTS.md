@@ -187,6 +187,24 @@ after writing style; and don't mount expensive content mid-gesture. Prove speed
 against realistic content — a fast empty demo proves nothing about a long
 transcript. If motion is masking latency, remove the motion, don't tune it.
 
+Two edges deserve the same care as a gesture, because the user feels them as
+"the app is slow":
+
+- **Coming back to the window.** `focus` and `visibilitychange` both fire on a
+  return, often more than once each. Refresh-on-return work subscribes through
+  `src/lib/window-return.ts`, which collapses them into one callback that runs
+  after the reveal has painted; never add a raw `focus`/`visibilitychange`
+  listener for a refresh. `scripts/perf/run.mjs return-burst` counts the RPCs
+  and long tasks a return costs.
+- **Switching sessions.** A switch passes through the loading state while the
+  resume resolves its owner; nothing that mounts effects with RPCs (the
+  composer and its status stack) may unmount there, or the whole fan-out runs
+  twice. Per-session polls (subagents, background processes) are gated on the
+  pane being the visible tab, so eight open sessions cost one session's polls.
+  While any turn is in flight the main process keeps chat windows unthrottled,
+  which pins `document.visibilityState` to `visible` even for a hidden window:
+  do not gate hidden-window savings on visibility alone.
+
 ## Testing as a habit of proof
 
 Test the behavior that would actually break a user, not a snapshot of today's

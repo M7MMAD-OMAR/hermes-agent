@@ -2,6 +2,7 @@ import { atom, computed, type ReadableAtom } from 'nanostores'
 
 import type { HermesGitWorktree, HermesRepoStatus } from '@/global'
 import { desktopGit } from '@/lib/desktop-git'
+import { subscribeWindowReturn } from '@/lib/window-return'
 
 import {
   $projectScope,
@@ -458,9 +459,9 @@ $busy.subscribe(busy => {
   prevBusy = busy
 })
 
-// Window focus: external changes while we were away (an outside terminal).
+// Return to the window: external changes while we were away (an outside terminal).
 if (typeof window !== 'undefined') {
-  window.addEventListener('focus', () => scheduleRepoStatusRefresh())
+  subscribeWindowReturn(() => scheduleRepoStatusRefresh())
 }
 
 /** Test-only: drop in-flight / pending / registered state so cases don't leak. */

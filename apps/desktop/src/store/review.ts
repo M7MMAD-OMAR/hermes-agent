@@ -9,6 +9,7 @@ import { desktopGit } from '@/lib/desktop-git'
 import { isExcludedPath } from '@/lib/excluded-paths'
 import { requestOneShot } from '@/lib/oneshot'
 import { Codecs, persistentAtom } from '@/lib/persisted'
+import { subscribeWindowReturn } from '@/lib/window-return'
 
 import { refreshRepoStatus, repoStatusForCwd } from './coding-status'
 import { stampSessionPrBranch } from './pull-requests'
@@ -619,7 +620,7 @@ $reviewScopeCwd.subscribe(scope => {
 
 // An outside terminal may have changed the tree while we were away.
 if (typeof window !== 'undefined') {
-  window.addEventListener('focus', () => {
+  subscribeWindowReturn(() => {
     if ($reviewOpen.get()) {
       scheduleReviewRefresh()
       refreshShipInfoIfStale()

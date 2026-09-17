@@ -29,6 +29,7 @@ import { comboTokens } from '@/lib/keybinds/combo'
 import { sessionMatchesSearch } from '@/lib/session-search'
 import { normalizeSessionSource, sessionSourceLabel } from '@/lib/session-source'
 import { cn } from '@/lib/utils'
+import { subscribeWindowReturn } from '@/lib/window-return'
 import { $activeConnectionId } from '@/store/connections'
 import { $cronJobs } from '@/store/cron'
 import { $bindings } from '@/store/keybinds'
@@ -863,20 +864,8 @@ export function ChatSidebar({
 
     // A PR opens, merges or gets closed on github.com, not in here — so like
     // the project tree, re-pull when the window comes back. The store's own
-    // staleness window keeps a flurry of focus events to one call per repo.
-    const onActive = () => {
-      if (document.visibilityState !== 'hidden') {
-        void refreshPullRequests(byRepo)
-      }
-    }
-
-    window.addEventListener('focus', onActive)
-    document.addEventListener('visibilitychange', onActive)
-
-    return () => {
-      window.removeEventListener('focus', onActive)
-      document.removeEventListener('visibilitychange', onActive)
-    }
+    // staleness window keeps a flurry of returns to one call per repo.
+    return subscribeWindowReturn(() => void refreshPullRequests(byRepo))
   }, [prQueryKey])
 
   // Out-of-band repo changes (a `git init` / `rm -rf` in another terminal) emit
@@ -893,11 +882,9 @@ export function ChatSidebar({
     let lastScanAt = 0
     const SCAN_THROTTLE_MS = 30_000
 
-    const onActive = () => {
-      if (document.visibilityState === 'hidden') {
-        return
-      }
-
+    // One coalesced return per reveal (focus + visibility used to fire this
+    // twice, and each run is two backend reads plus a possible disk crawl).
+    return subscribeWindowReturn(() => {
       void refreshProjects()
       void refreshProjectTree()
 
@@ -913,15 +900,7 @@ export function ChatSidebar({
         lastScanAt = now
         void scanAndRecordRepos(true)
       }
-    }
-
-    window.addEventListener('focus', onActive)
-    document.addEventListener('visibilitychange', onActive)
-
-    return () => {
-      window.removeEventListener('focus', onActive)
-      document.removeEventListener('visibilitychange', onActive)
-    }
+    })
   }, [worktreeGroupingActive, showAllProfiles, gatewayReady])
 
   // Apply the persisted repo + worktree orders to a project's repo subtrees.
@@ -1093,10 +1072,7 @@ export function ChatSidebar({
       return
     }
 
-    const onFocus = () => refreshWorktrees()
-    window.addEventListener('focus', onFocus)
-
-    return () => window.removeEventListener('focus', onFocus)
+    return subscribeWindowReturn(() => refreshWorktrees())
   }, [inEnteredProject])
 
   const lastProjectCwdSyncRef = useRef<null | string>(null)

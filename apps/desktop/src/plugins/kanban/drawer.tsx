@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
   ErrorState,
   host,
+  isSubmitEnter,
   Loader,
   LogView,
   Textarea,
@@ -322,7 +323,7 @@ function CommentComposer({
           className={cn('field-sizing-content max-h-40 min-h-0 resize-none', running ? 'pe-[3.5rem]' : 'pe-[5rem]')}
           onChange={event => setBody(event.target.value)}
           onKeyDown={event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
+            if (isSubmitEnter(event) && !event.shiftKey) {
               event.preventDefault()
               submit()
             }

@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/i18n'
-import { resetAllThreadScroll, setThreadAtBottom } from '@/store/thread-scroll'
+import { resetThreadScroll, setThreadAtBottom } from '@/store/thread-scroll'
 
 import { ComposerStatusStack } from './index'
 
@@ -17,19 +17,20 @@ vi.stubGlobal('ResizeObserver', TestResizeObserver)
 
 describe('ComposerStatusStack scroll treatment', () => {
   beforeEach(() => {
-    setThreadAtBottom(null, false)
+    setThreadAtBottom(false, 'sess-a')
   })
 
   afterEach(() => {
     cleanup()
-    resetAllThreadScroll()
+    resetThreadScroll('sess-a')
   })
 
   it('dims only the status content while keeping the dock card opaque', () => {
     const view = render(
       <MemoryRouter>
         <I18nProvider configClient={null} initialLocale="en">
-          <ComposerStatusStack queue={<div>Queued task</div>} sessionId={null} />
+          <ComposerStatusStack queue={<div>Queued task</div>} sessionId="sess-a" />
+          <ComposerStatusStack queue={<div>Sibling task</div>} sessionId="sess-b" />
         </I18nProvider>
       </MemoryRouter>
     )
@@ -42,5 +43,6 @@ describe('ComposerStatusStack scroll treatment', () => {
     expect(dimmedContent).not.toBeNull()
     expect(dimmedContent).not.toBe(card)
     expect(card?.contains(dimmedContent)).toBe(true)
+    expect(screen.getByText('Sibling task').closest('.opacity-30')).toBeNull()
   })
 })

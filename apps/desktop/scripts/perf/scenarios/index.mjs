@@ -6,6 +6,7 @@ import coldStart from './cold-start.mjs'
 import firstToken from './first-token.mjs'
 import idleCost from './idle-cost.mjs'
 import keystroke from './keystroke.mjs'
+import liveWindow from './live-window.mjs'
 import multitab from './multitab.mjs'
 import profileSwitch from './profile-switch.mjs'
 import renderChurn from './render-churn.mjs'
@@ -24,6 +25,7 @@ export const SCENARIOS = {
   [transcript.name]: transcript,
   [browser.name]: browser,
   [multitab.name]: multitab,
+  [liveWindow.name]: liveWindow,
   [renderChurn.name]: renderChurn,
   [rightPane.name]: rightPane,
   [idleCost.name]: idleCost,

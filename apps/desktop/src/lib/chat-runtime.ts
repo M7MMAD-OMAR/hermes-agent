@@ -1,5 +1,5 @@
 import type { ThreadMessage } from '@assistant-ui/react'
-import type { ModelOptionsResponse } from '@hermes/shared'
+import type { ModelOptionsResult } from '@hermes/shared'
 
 import type { QuickModelOption } from '@/app/chat/composer/types'
 import type { ClientSessionState } from '@/app/types'
@@ -174,6 +174,7 @@ export function attachmentId(kind: ComposerAttachment['kind'], value: string): s
   return `${kind}:${normalizeAttachmentValue(kind, value)}`
 }
 
+
 /** A GitHub PR review-thread (`#discussion_r<id>`) or conversation
  *  (`#issuecomment-<id>`) deep link — the one paste shape that can resolve to
  *  a structured review attachment instead of a plain `@url:` chip. */
@@ -309,7 +310,7 @@ export function normalizePersonalityValue(value: string): string {
 }
 
 export function quickModelOptions(
-  data: ModelOptionsResponse | undefined,
+  data: ModelOptionsResult | undefined,
   currentProvider: string,
   currentModel: string
 ): QuickModelOption[] {
@@ -488,7 +489,13 @@ export function toRuntimeMessage(message: ChatMessage): ThreadMessage {
       role,
       content: [textPart(text)],
       createdAt,
-      metadata: { custom: { ...timelineMeta, ...(message.asyncResult ? { asyncResult: message.asyncResult } : {}) } }
+      metadata: {
+        custom: {
+          ...timelineMeta,
+          ...(message.asyncResult ? { asyncResult: message.asyncResult } : {}),
+          ...(message.asyncResultKind ? { asyncResultKind: message.asyncResultKind } : {})
+        }
+      }
     } as ThreadMessage
   }
 

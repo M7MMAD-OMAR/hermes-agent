@@ -1,21 +1,28 @@
 import { useAui, useAuiState } from '@assistant-ui/react'
+import { cn } from '@/lib/utils'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { useSessionView } from '@/app/chat/session-view'
 import { usePaneVisible } from '@/components/pane-shell/pane-visibility'
+import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
-import { cn } from '@/lib/utils'
+import { useStoreSelector } from '@/lib/use-session-slice'
 
+import { messageContentText } from './content'
 import {
-  activeTimelineIndex,
   deriveTimelineEntries,
+  EARLIER_TIMELINE_ID,
   sameTimelineEntries,
+  TIMELINE_REVEAL_EVENT,
   type TimelineEntry,
+  type TimelineRevealRequest,
   type TimelineSourceMessage
 } from './timeline-data'
+import { TimelineRail } from './timeline-rail'
+import { useTranscriptWindow } from './transcript-window'
+import { useTimelineHistory } from './use-timeline-history'
 
-const MIN_ENTRIES = 4
 const VIEWPORT = '[data-slot="aui_thread-viewport"]'
-const HOVER_CLOSE_MS = 140
 
 const ROW_CLASS =
   'row-hover relative flex w-full min-w-0 max-w-full select-none overflow-hidden rounded-md px-2 py-1 text-start outline-hidden'
@@ -114,212 +121,252 @@ function jumpScroll(viewport: HTMLElement, top: number, duration = 170): void {
 export const ownViewport = (root: HTMLElement | null): HTMLElement | null =>
   (root?.closest('[data-session-anchor]') ?? document).querySelector<HTMLElement>(VIEWPORT)
 
-function scrollToPrompt(root: HTMLElement | null, id: string) {
-  const viewport = ownViewport(root)
-  const node = viewport?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`)
+/** Hidden panes do not subscribe to streaming messages or measure layout. */
+export const ThreadTimeline: FC = () => (usePaneVisible() ? <ActiveThreadTimeline /> : null)
 
-  if (!viewport || !node) {
-    return
-  }
-
-  const top = viewport.scrollTop + (node.getBoundingClientRect().top - viewport.getBoundingClientRect().top) - 8
-
-  triggerHaptic('selection')
-  jumpScroll(viewport, Math.max(0, top))
-}
-
-/**
- * Right-edge prompt rail — hover previews, click to jump. ≥4 user turns only.
- *
- * Everything here is DEFERRED until it can actually be seen. A chat surface
- * stays mounted while its tab is in the background (keep-alive, see
- * pane-visibility.ts), and a background thread keeps streaming, so a naive
- * timeline would re-derive previews and re-measure prompt offsets all day for
- * a rail nobody is looking at. Four gates, cheapest first:
- *
- *  1. INACTIVE PANE → render null and subscribe to nothing. The transcript
- *     selector, the scroll listener, and the popover markup all stand down.
- *  2. ACTIVE BUT UNHOVERED → the ticks paint, but the popover's rows are not
- *     built at all; the previews only exist once the pointer opens it.
- *  3. BELOW THE THRESHOLD → the rail renders null, so the measure effect never
- *     touches layout for it.
- *  4. FOLLOWING THE BOTTOM → the active prompt is the last one by definition,
- *     answered from data instead of a rect walk (see compute() below).
- */
-export const ThreadTimeline: FC = () => {
-  // Cheapest possible gate, and it must come first: an inactive tab returns
-  // before any of the work below is even declared.
-  return usePaneVisible() ? <ActiveThreadTimeline /> : null
-}
-
-/** Derived prompt rail for a VISIBLE surface. Split out so the hook body — and
- *  the transcript subscription it opens — never runs for a background tab. */
 const ActiveThreadTimeline: FC = () => {
-  // Cheap in the selector, expensive only when it changes: the ids alone tell
-  // us whether the RAIL changed. Prompt text is immutable once sent, and an
-  // edit rewinds the transcript (dropping every id after it) and re-appends a
-  // fresh message id — so a preview can never go stale behind a stable id.
-  // Streaming an assistant reply churns that message's content on every token
-  // and leaves this string untouched, which is the whole point.
-  const promptIds = useAuiState(s => {
-    let ids = ''
-
-    for (const message of s.thread.messages) {
-      if (message.role === 'user') {
-        ids += `${message.id}\n`
-      }
-    }
-
-    return ids
-  })
-
-  // `promptIds` is the change signal; the transcript is read imperatively when
-  // it fires, so the selector above never pays for text extraction. The client
-  // goes through a ref so the memo keys on the SIGNAL alone — an accessor whose
-  // identity churned would otherwise re-derive every render, which is exactly
-  // the streaming cost this is here to avoid.
+  const view = useSessionView()
+  const { t } = useI18n()
+  const history = useTranscriptWindow()
+  const historyIndex = useTimelineHistory()
+  const { entries: indexedEntries, complete: indexComplete, failed: indexFailed, loadMore } = historyIndex
   const aui = useAui()
   const auiRef = useRef(aui)
   auiRef.current = aui
 
-  const previousRef = useRef<TimelineEntry[]>([])
+  // The store contains older prompts even when the runtime/DOM only paints a tail.
+  // Read text only when user IDs change, never for assistant streaming deltas.
+  const storeIds = useStoreSelector(view.$messages, messages =>
+    messages
+      .filter(m => m.role === 'user')
+      .map(m => m.id)
+      .join('\n')
+  )
+
+  const runtimeIds = useAuiState(s =>
+    s.thread.messages
+      .filter(m => m.role === 'user')
+      .map(m => m.id)
+      .join('\n')
+  )
+
+  const previous = useRef<TimelineEntry[]>([])
 
   const entries = useMemo(() => {
-    const rows: TimelineSourceMessage[] = []
+    const all = view.$messages.get()
 
-    for (const message of auiRef.current.thread().getState().messages) {
-      if (message.role === 'user') {
-        rows.push({ id: message.id, role: 'user', text: userPromptText(message.content) })
-      }
-    }
+    const rows: TimelineSourceMessage[] = all.length
+      ? all
+          .filter(m => m.role === 'user')
+          .map(m => ({ id: m.id, rowId: m.rowId, role: m.role, text: messageContentText(m.parts) }))
+      : auiRef.current
+          .thread()
+          .getState()
+          .messages.filter(m => m.role === 'user')
+          .map(m => ({ id: m.id, role: m.role, text: messageContentText(m.content) }))
 
     const next = deriveTimelineEntries(rows)
 
-    // Hand back the PREVIOUS array when nothing user-visible moved. Blank and
-    // background-notification prompts are filtered out, so a new id can leave
-    // the rail identical — without this, that re-renders both subtrees and
-    // restarts the measure effect for no visible change.
-    if (sameTimelineEntries(previousRef.current, next)) {
-      return previousRef.current
+    if (sameTimelineEntries(previous.current, next)) {
+      return previous.current
     }
 
-    previousRef.current = next
+    previous.current = next
 
     return next
-    // promptIds is the intentional re-eval TRIGGER, not a value the derivation
-    // reads (the transcript comes off the ref) — same shape as ChatRoutesSurface's
-    // gatewayState memo in app/contrib/controller.tsx.
+    // The IDs are the change signal; the source messages are read only here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [promptIds])
+  }, [storeIds, runtimeIds, view])
 
+  const railEntries = useMemo(() => {
+    const indexed = indexedEntries ?? []
+    const selected = history.isHistorical ? deriveTimelineEntries((history.currentMessages ?? []).map(message => ({ id: message.id, rowId: message.rowId, role: message.role, text: messageContentText(message.parts) }))) : []
+    const loaded = new Map([...entries, ...selected].filter(entry => entry.rowId !== undefined).map(entry => [entry.rowId, entry]))
+    const seen = new Set(indexed.map(entry => entry.rowId))
+
+    const merged = [
+      ...indexed.map(entry => loaded.get(entry.rowId) ?? entry),
+      ...entries.filter(entry => entry.rowId === undefined || !seen.has(entry.rowId))
+    ]
+
+    return (history.olderAvailable || indexedEntries) && !indexComplete
+      ? [{ id: EARLIER_TIMELINE_ID, preview: t.assistant.thread.showEarlier }, ...merged]
+      : merged
+  }, [entries, indexedEntries, indexComplete, history.olderAvailable, history.currentMessages, history.isHistorical, t.assistant.thread.showEarlier])
+
+  const root = useRef<HTMLDivElement>(null)
+  const jumpFrame = useRef(0)
+  const pending = useRef<AbortController | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [open, setOpen] = useState(false)
-  const closeTimerRef = useRef<number | undefined>(undefined)
-  const rootRef = useRef<HTMLDivElement | null>(null)
-  const jump = useCallback((id: string) => scrollToPrompt(rootRef.current, id), [])
+  const [loadingId, setLoadingId] = useState<string | null>(null)
 
-  // Hover sync lives on the DOM, not in React state — the tick and its popover
-  // row are siblings in different subtrees, so a shared index-keyed paint() lights
-  // both without a re-render (and without coupling them through a parent atom).
-  const tickRefs = useRef<(HTMLSpanElement | null)[]>([])
-  const rowRefs = useRef<(HTMLButtonElement | null)[]>([])
-
-  // Hover sync: light the tick + its popover row, and scroll that row into view
-  // when the list overflows so the hovered prompt is always visible.
-  const paint = useCallback((index: number, on: boolean) => {
-    const tick = tickRefs.current[index]
-
-    if (tick) {
-      tick.style.opacity = on ? '1' : ''
-    }
-
-    const row = rowRefs.current[index]
-    row?.classList.toggle('bg-(--ui-row-hover-background)', on)
-
-    if (on) {
-      row?.scrollIntoView({ block: 'nearest' })
-    }
+  const cancelJump = useCallback(() => {
+    pending.current?.abort()
+    pending.current = null
+    cancelAnimationFrame(jumpFrame.current)
+    setLoadingId(null)
   }, [])
 
-  const keepOpen = useCallback(() => {
-    window.clearTimeout(closeTimerRef.current)
-    setOpen(true)
-  }, [])
+  useEffect(() => cancelJump, [cancelJump, view])
 
-  const closeSoon = useCallback(() => {
-    window.clearTimeout(closeTimerRef.current)
-    closeTimerRef.current = window.setTimeout(() => setOpen(false), HOVER_CLOSE_MS)
-  }, [])
+  const jump = useCallback(
+    async (id: string) => {
+      cancelJump()
 
-  useEffect(() => () => window.clearTimeout(closeTimerRef.current), [])
+      if (id === EARLIER_TIMELINE_ID && indexedEntries && !indexComplete && !indexFailed) {
+        await loadMore()
+
+        return
+      }
+
+      const viewport = ownViewport(root.current)
+
+      if (!viewport) {
+        return
+      }
+
+      const controller = new AbortController()
+      pending.current = controller
+      setLoadingId(id)
+      triggerHaptic('selection')
+
+      try {
+        // The list owns loading and render budgets. Request it on THIS viewport,
+        // then wait for its commit rather than clicking a translated button label.
+        const revealed = await new Promise<string | false>(resolve => {
+          let settled = false
+
+          const finish = (value: string | false) => {
+            if (settled) {
+              return
+            }
+
+            settled = true
+            clearTimeout(timeout)
+            resolve(value)
+          }
+
+          const timeout = window.setTimeout(() => finish(false), 15000)
+          controller.signal.addEventListener('abort', () => finish(false), { once: true })
+          const detail: TimelineRevealRequest = { id, rowId: railEntries.find(entry => entry.id === id)?.rowId, signal: controller.signal, complete: finish }
+          viewport.dispatchEvent(new CustomEvent(TIMELINE_REVEAL_EVENT, { detail }))
+        })
+
+        if (!revealed || controller.signal.aborted) {
+          return
+        }
+
+        const node = viewport.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(revealed)}"]`)
+
+        if (!node) {
+          return
+        }
+
+        const start = viewport.scrollTop
+        const turn = node.closest<HTMLElement>('[data-slot="aui_turn-pair"]') ?? node
+
+        const destination = Math.max(
+          0,
+          start + turn.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 8
+        )
+
+        const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 170
+        const began = performance.now()
+
+        const step = (now: number) => {
+          if (controller.signal.aborted) {
+            return
+          }
+
+          const progress = duration ? Math.min(1, (now - began) / duration) : 1
+          viewport.scrollTop = start + (destination - start) * (1 - (1 - progress) ** 3)
+
+          if (progress < 1) {
+            jumpFrame.current = requestAnimationFrame(step)
+          }
+        }
+
+        jumpFrame.current = requestAnimationFrame(step)
+      } finally {
+        if (pending.current === controller) {
+          setLoadingId(null)
+        }
+      }
+    },
+    [cancelJump, indexedEntries, indexComplete, indexFailed, loadMore, railEntries]
+  )
 
   useEffect(() => {
-    // Below the threshold the rail renders null, so measuring prompt offsets
-    // buys nothing — bail before touching layout at all.
-    if (entries.length < MIN_ENTRIES) {
-      return
-    }
-
-    const viewport = ownViewport(rootRef.current)
+    const viewport = ownViewport(root.current)
 
     if (!viewport) {
       return
     }
 
-    let raf = 0
+    let frame = 0
+    const indexes = new Map(railEntries.map((entry, index) => [entry.id, index]))
 
     const compute = () => {
-      raf = 0
+      frame = 0
 
-      // Pinned to the bottom (the entire streaming steady-state): the active
-      // prompt is simply the last one. Skipping the walk matters — it reads a
-      // rect per user message per scroll frame, and interleaved with React's
-      // streaming style writes each read forces a full reflow (the single
-      // hottest frame in the multitab profile).
-      if (viewport.dataset.following === 'true') {
-        setActiveIndex(prev => (prev === entries.length - 1 ? prev : entries.length - 1))
+      if (viewport.dataset.following === 'true' && !history.isHistorical) {
+        setActiveIndex(Math.max(0, railEntries.length - 1))
 
         return
       }
 
       const top = viewport.getBoundingClientRect().top
+      let first = -1
+      let active = -1
 
-      const offsets = entries.map(entry => {
-        const node = viewport.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(entry.id)}"]`)
+      // Walk only mounted messages, never every archived prompt in the rail.
+      for (const node of viewport.querySelectorAll<HTMLElement>('[data-message-id]')) {
+        const index = indexes.get(node.dataset.messageId!)
 
-        return node ? node.getBoundingClientRect().top - top : null
-      })
+        if (index === undefined) {
+          continue
+        }
 
-      const next = activeTimelineIndex(offsets)
+        if (first === -1) {
+          first = index
+        }
 
-      setActiveIndex(prev => (prev === next ? prev : next))
+        const turn = node.closest<HTMLElement>('[data-slot="aui_turn-pair"]') ?? node
+
+        if (turn.getBoundingClientRect().top - top <= 8) {
+          active = index
+        }
+      }
+
+      setActiveIndex(active === -1 ? Math.max(0, first) : active)
     }
 
-    const onScroll = () => {
-      if (!raf) {
-        raf = requestAnimationFrame(compute)
+    const schedule = () => {
+      if (!frame) {
+        frame = requestAnimationFrame(compute)
       }
     }
 
-    // Initial compute rides the same rAF batching as scroll. A sync call here
-    // reads getBoundingClientRect for every user message while other commit
-    // effects are still writing styles — on a session switch that interleaving
-    // forces a full reflow per read on a large transcript. One rAF later the
-    // reads batch into a single layout pass, and back-to-back entries updates
-    // (prefetch paint, then resume reconcile) coalesce into one compute.
-    onScroll()
-    viewport.addEventListener('scroll', onScroll, { passive: true })
+    const observer = new MutationObserver(schedule)
+    const content = viewport.querySelector('[data-slot="aui_thread-content"]')
+
+    if (content) {
+      observer.observe(content, { childList: true })
+    }
+
+    viewport.addEventListener('scroll', schedule, { passive: true })
+    viewport.addEventListener('wheel', cancelJump, { passive: true })
+    schedule()
 
     return () => {
-      viewport.removeEventListener('scroll', onScroll)
-
-      if (raf) {
-        cancelAnimationFrame(raf)
-      }
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      viewport.removeEventListener('scroll', schedule)
+      viewport.removeEventListener('wheel', cancelJump)
     }
-  }, [entries])
+  }, [cancelJump, railEntries, history.isHistorical])
 
-  if (entries.length < MIN_ENTRIES) {
+  if (!railEntries.length) {
     return null
   }
 
@@ -329,19 +376,23 @@ const ActiveThreadTimeline: FC = () => {
       className="group/timeline pointer-events-auto absolute end-0 top-1/2 z-40 flex -translate-y-1/2 flex-col items-end"
       data-slot="thread-timeline"
       data-suppress-pane-reveal=""
-      onMouseEnter={keepOpen}
-      onMouseLeave={closeSoon}
-      ref={rootRef}
+      ref={root}
       role="navigation"
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        zIndex: 40,
+        pointerEvents: 'auto',
+        height: `min(${railEntries.length * 0.4375}rem, 50%)`
+      }}
     >
-      <TimelineTicks activeIndex={activeIndex} entries={entries} onHover={paint} onJump={jump} tickRefs={tickRefs} />
-      <TimelinePopover
+      <TimelineRail
         activeIndex={activeIndex}
-        entries={entries}
-        onHover={paint}
-        onJump={jump}
-        open={open}
-        rowRefs={rowRefs}
+        entries={railEntries}
+        loadingId={loadingId}
+        onJump={id => void jump(id)}
       />
     </div>
   )

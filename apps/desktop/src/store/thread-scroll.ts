@@ -1,4 +1,4 @@
-import { atom } from 'nanostores'
+import { atom, type WritableAtom } from 'nanostores'
 
 import { activeConnectionScopeSuffix } from '@/lib/connection-scoped'
 import { readKey, writeKey } from '@/lib/storage'
@@ -9,105 +9,79 @@ import { $activeProfile, normalizeProfileKey } from '@/store/profile'
 // subtree, so ThreadMessageList mirrors it out here for the composer, status
 // stack, and floating jump button, all of which render OUTSIDE the thread.
 //
-// KEYED BY SESSION, and that is the whole point. Panes are shown side by side,
-// so several transcripts are on screen at once. While this mirror was two
-// global booleans, whichever pane published last spoke for all of them:
-// scrolling up in one chat raised the jump pill in every other open chat and
-// dimmed all their composers. Each transcript owns its own answer.
-//
-// `scrolledUp` dims the composer / status stack; `jumpVisible` shows the
-// floating jump control; `messagesBelow` is the count that control badges with.
-// The first two track `!isAtBottom` today, but stay separate so their
-// thresholds can diverge again without touching consumers.
-//
-// The count is per session for the same reason the booleans are: upstream
-// published it into one global guarded by `paneVisible`, which a keep-alive
-// tab could still clobber. One entry per session needs no such guard.
-export interface ThreadScrollChromeState {
-  jumpVisible: boolean
-  messagesBelow: number
-  scrolledUp: boolean
+// Each session owns its live chrome, including when two split panes are visible.
+// Hidden keep-alive panes may neither publish nor reset a visible pane's state.
+// Keep the flags separate so their thresholds can diverge without changing consumers.
+export const $threadScrolledUpBySession = atom<Record<string, boolean>>({})
+export const $threadJumpButtonVisibleBySession = atom<Record<string, boolean>>({})
+export const $threadMessagesBelowBySession = atom<Record<string, number>>({})
+
+export const publishThreadMessagesBelow = (
+  count: number,
+  publisher: { paneVisible: boolean; sessionId?: string | null }
+): void => {
+  if (publisher.paneVisible) {
+    setSessionValue($threadMessagesBelowBySession, publisher.sessionId, count, 0)
+  }
 }
 
-/** Draft transcripts have no session id yet and share the empty key, so two
- *  un-persisted drafts on screen at once still mirror each other. Same
- *  compromise the prompt store makes, and for the same reason: there is no
- *  other identity to key on until the first turn persists. */
-const keyFor = (sessionId: null | string | undefined): string => sessionId ?? ''
-
-const AT_BOTTOM: ThreadScrollChromeState = { jumpVisible: false, messagesBelow: 0, scrolledUp: false }
-
-export const $threadScrollBySession = atom<Record<string, ThreadScrollChromeState>>({})
-
-/** One transcript's chrome state. Never null: an unknown session has not
- *  scrolled, which is what a fresh pane should paint. */
-export const threadScrollFor = (
-  all: Record<string, ThreadScrollChromeState>,
-  sessionId: null | string | undefined
-): ThreadScrollChromeState => all[keyFor(sessionId)] ?? AT_BOTTOM
-
-export const setThreadAtBottom = (sessionId: null | string, isAtBottom: boolean): void => {
-  const key = keyFor(sessionId)
-  const all = $threadScrollBySession.get()
-  const current = all[key] ?? AT_BOTTOM
-
-  // Skip no-op writes so subscribers do not churn on every scroll tick.
-  if (current.scrolledUp === !isAtBottom && current.jumpVisible === !isAtBottom) {
+// Skip no-op writes and remove default entries so scroll ticks don't churn subscribers.
+// Missing identities are not a shared bucket: callers use their existing surface id
+// until a runtime session exists.
+function setSessionValue<T extends boolean | number>(
+  target: WritableAtom<Record<string, T>>,
+  sessionId: string | null | undefined,
+  value: T,
+  empty: T
+): void {
+  if (!sessionId) {
     return
   }
 
-  $threadScrollBySession.set({
-    ...all,
-    [key]: { ...current, jumpVisible: !isAtBottom, scrolledUp: !isAtBottom }
-  })
-}
+  const current = target.get()
 
-/** How many messages sit below this transcript's viewport (the jump control's
- *  badge). Same no-op guard: this is written on every scroll tick. */
-export const setThreadMessagesBelow = (sessionId: null | string, count: number): void => {
-  const key = keyFor(sessionId)
-  const all = $threadScrollBySession.get()
-  const current = all[key] ?? AT_BOTTOM
-
-  if (current.messagesBelow === count) {
+  if ((current[sessionId] ?? empty) === value) {
     return
   }
 
-  $threadScrollBySession.set({ ...all, [key]: { ...current, messagesBelow: count } })
+  const next = { ...current }
+
+  if (value === empty) {
+    delete next[sessionId]
+  } else {
+    next[sessionId] = value
+  }
+
+  target.set(next)
 }
 
-/** Park one transcript at the bottom and drop its pending count. */
-export const resetThreadScroll = (sessionId: null | string): void => {
-  setThreadAtBottom(sessionId, true)
-  setThreadMessagesBelow(sessionId, 0)
+export const setThreadAtBottom = (isAtBottom: boolean, sessionId: string | null = null) => {
+  setSessionValue($threadScrolledUpBySession, sessionId, !isAtBottom, false)
+  setSessionValue($threadJumpButtonVisibleBySession, sessionId, !isAtBottom, false)
 }
 
-/** Drop one transcript's entry when its list unmounts.
- *
- *  There is no `paneVisible` guard here or on the publisher any more. It existed
- *  because a hidden keep-alive tab writing the single global would clobber the
- *  visible pane's value; with one entry per session a hidden pane writing its
- *  own key harms nobody, and refusing its writes is worse than allowing them: a
- *  tab you scrolled up in and switched away from would keep a stale entry. */
-export const clearThreadScroll = (sessionId: null | string): void => {
-  const key = keyFor(sessionId)
-  const all = $threadScrollBySession.get()
+export const resetThreadScroll = (sessionId: string | null = null) => {
+  setThreadAtBottom(true, sessionId)
+  setSessionValue($threadMessagesBelowBySession, sessionId, 0, 0)
+}
 
-  if (!(key in all)) {
+export const publishThreadAtBottom = (
+  isAtBottom: boolean,
+  publisher: { paneVisible: boolean; sessionId?: string | null }
+): void => {
+  if (!publisher.paneVisible) {
     return
   }
 
-  const next = { ...all }
-
-  delete next[key]
-  $threadScrollBySession.set(next)
+  setThreadAtBottom(isAtBottom, publisher.sessionId)
 }
 
-/** Forget every transcript's state (gateway switch, tests). */
-export const resetAllThreadScroll = (): void => {
-  if (Object.keys($threadScrollBySession.get()).length > 0) {
-    $threadScrollBySession.set({})
+export const resetPublishedThreadScroll = (publisher: { paneVisible: boolean; sessionId?: string | null }): void => {
+  if (!publisher.paneVisible) {
+    return
   }
+
+  resetThreadScroll(publisher.sessionId)
 }
 
 // Cross-component bridge: the jump button lives by the composer, the viewport's
@@ -203,6 +177,43 @@ export function threadScrollTargetTop(
   const max = Math.max(0, metrics.scrollHeight - metrics.clientHeight)
 
   return state.kind === 'bottom' ? max : Math.max(0, max - state.fromBottom)
+}
+
+// Composer metrics write --composer-measured-height onto the chat surface,
+// which grows [data-slot="aui_composer-clearance"] and can shrink the
+// clampToComposer viewport. The post-settle restore ResizeObserver sees that
+// as a content resize and used to re-pin a frozen fromBottom — rewriting
+// scrollTop on every keystroke. Transcript height is scrollHeight minus the
+// clearance spacer, so composer-only layout is distinguishable from real
+// message/prepend/streaming growth.
+export type ThreadScrollRestoreResizeMetrics = {
+  clearanceHeight: number
+  clientHeight: number
+  scrollHeight: number
+}
+
+export function threadScrollTranscriptHeight(
+  metrics: Pick<ThreadScrollRestoreResizeMetrics, 'clearanceHeight' | 'scrollHeight'>
+): number {
+  return Math.max(0, metrics.scrollHeight - Math.max(0, metrics.clearanceHeight))
+}
+
+/**
+ * Post-settle restore RO may re-pin a frozen offset only when transcript
+ * rows actually changed height. Composer clearance / viewport-box resizes
+ * and no-op RO deliveries must not rewrite scrollTop.
+ */
+export function shouldReapplyFrozenThreadScrollOffset(
+  target: ThreadScrollState,
+  settled: boolean,
+  previous: Pick<ThreadScrollRestoreResizeMetrics, 'clearanceHeight' | 'scrollHeight'>,
+  next: Pick<ThreadScrollRestoreResizeMetrics, 'clearanceHeight' | 'scrollHeight'>
+): boolean {
+  if (target.kind !== 'offset' || !settled) {
+    return false
+  }
+
+  return Math.round(threadScrollTranscriptHeight(previous)) !== Math.round(threadScrollTranscriptHeight(next))
 }
 
 // Storage is scoped per profile with the same `.profile.<encoded>` suffix the

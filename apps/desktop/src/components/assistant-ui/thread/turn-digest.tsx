@@ -11,6 +11,7 @@ import type { TurnOutcome } from '@/lib/turn-outcome'
 import { cn } from '@/lib/utils'
 import { $toolDisclosureOpen, setToolDisclosureOpen } from '@/store/tool-view'
 
+import { ResponseMessages } from './response-group'
 import { TurnProgress } from './turn-progress'
 
 type ThreadMessageComponents = ComponentProps<typeof ThreadPrimitive.MessageByIndex>['components']

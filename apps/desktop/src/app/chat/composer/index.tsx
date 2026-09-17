@@ -29,12 +29,21 @@ import { sessionBlockingPrompt } from '@/store/prompts'
 import { toggleReview } from '@/store/review'
 import { $gatewayState } from '@/store/session'
 import { $botChatSessionIds, $sessionStates, $sessionTiles, isBotChatSession } from '@/store/session-states'
-import { $threadScrollBySession, threadScrollFor } from '@/store/thread-scroll'
+import { $threadScrolledUpBySession } from '@/store/thread-scroll'
 import { $autoSpeakReplies } from '@/store/voice-prefs'
 import { useTheme } from '@/themes'
 
 import { AttachmentList } from './attachments'
-import { acceptsGhostSuggestion, acceptsTriggerCompletion, COMPOSER_FADE_BACKGROUND, implicitSlashAcceptIndex, type QueueEditState, shouldDisableComposerInput, slashArgStage } from './composer-utils'
+import {
+  acceptsGhostSuggestion,
+  acceptsTriggerCompletion,
+  COMPOSER_FADE_BACKGROUND,
+  implicitSlashAcceptIndex,
+  liveComposerDraft,
+  type QueueEditState,
+  shouldDisableComposerInput,
+  slashArgStage
+} from './composer-utils'
 import { ContextMenu } from './context-menu'
 import { COMPOSER_AREAS, runComposerMiddleware } from './contrib'
 import { ComposerControls, ComposerSendControl } from './controls'
@@ -51,6 +60,7 @@ import { useComposerMetrics } from './hooks/use-composer-metrics'
 import { useComposerPlaceholder } from './hooks/use-composer-placeholder'
 import { useComposerPopout } from './hooks/use-composer-popout'
 import { useComposerQueue } from './hooks/use-composer-queue'
+import { useComposerScreenshot } from './hooks/use-composer-screenshot'
 import { useComposerSubmit } from './hooks/use-composer-submit'
 import { triggerKeyUpHandler, useComposerTrigger } from './hooks/use-composer-trigger'
 import { useComposerUndo } from './hooks/use-composer-undo'
@@ -73,7 +83,7 @@ import {
   normalizeComposerEditorDom,
   RICH_INPUT_SLOT
 } from './rich-editor'
-import { useComposerScope } from './scope'
+import { useComposerScope, useComposerSurfaceId } from './scope'
 import { ComposerStatusStack } from './status-stack'
 import { CodingStatusRow } from './status-stack/coding-row'
 import { SuggestionPills } from './suggestion-pills'
@@ -82,7 +92,13 @@ import { ComposerTriggerPopover } from './trigger-popover'
 import type { ChatBarProps } from './types'
 import { isRedoShortcut, isUndoShortcut } from './undo-history'
 import { UrlDialog } from './url-dialog'
-import { chipTypedUrlOnSpace, linkifyUrls } from './url-refs'
+import {
+  chipTypedUrlOnSpace,
+  linkifyUrls,
+  markdownLinkFor,
+  resolveExactLinkPaste,
+  selectionLinkLabel
+} from './url-refs'
 import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
 
 export function ChatBar({
@@ -163,7 +179,13 @@ export function ChatBar({
   const scope = useComposerScope()
   const attachments = useStore(scope.attachments.$attachments)
   const compacting = useStore(useMemo(() => sessionCompacting(sessionId ?? null), [sessionId]))
-  const scrolledUp = useStoreSelector($threadScrollBySession, all => threadScrollFor(all, sessionId).scrolledUp)
+  const surfaceId = useComposerSurfaceId()
+  const scrollSessionId = sessionId ?? surfaceId
+
+  const scrolledUp = useStoreSelector($threadScrolledUpBySession, map =>
+    Boolean(scrollSessionId && map[scrollSessionId])
+  )
+
   const autoSpeak = useStore($autoSpeakReplies)
   // The turn is parked on the user (clarify / approval / sudo / secret). Esc must
   // not interrupt it — there's nothing actively running to stop, and stopping
@@ -253,6 +275,8 @@ export function ChatBar({
     stashAt,
     syncDraftFromEditor
   } = useComposerDraft({ activeQueueSessionKey, focusKey, inputDisabled, queueEditRef, sessionId })
+
+  useComposerScreenshot({ sessionKey: activeQueueSessionKey, focusKey, onAttachImageBlob })
 
   // Undo/redo. The rich editor bypasses Chromium's editing pipeline for speed,
   // which also bypasses its undo stack — so we own the stack and every edit
@@ -592,6 +616,24 @@ export function ChatBar({
 
     event.preventDefault()
 
+    // Pasting exactly one link while composer text is selected turns that text
+    // into a markdown link instead of replacing it — the behavior every rich
+    // editor ships (ported from block/buzz#6684). Selections that span chips
+    // or lines fall through to the normal replace-with-chip path.
+    const exactLink = resolveExactLinkPaste(pastedText)
+
+    if (exactLink) {
+      const label = selectionLinkLabel(event.currentTarget)
+
+      if (label) {
+        recordUndoPoint()
+        insertComposerContentsAtCaret(event.currentTarget, markdownLinkFor(label, exactLink))
+        scheduleFlushEditorToDraft(event.currentTarget)
+
+        return
+      }
+    }
+
     // A paste past the large-paste threshold becomes a `.txt` attachment chip
     // instead of flooding the composer.
     // The instruction the user types stays in the input; the pasted source
@@ -868,7 +910,9 @@ export function ChatBar({
     // place) then sent-message history. The history ring is derived from live
     // session messages each press — single source of truth, no mirror.
     if (event.key === 'ArrowUp') {
-      const currentDraft = draftRef.current
+      // Decide from the live editor: the mirror is a frame behind typing or a
+      // paste, and this branch can replace what the user just wrote.
+      const currentDraft = liveComposerDraft(editorRef.current, draftRef.current)
 
       // Editing a queued turn → walk to the older entry.
       if (queueEdit && stepQueuedEdit(-1)) {
@@ -942,7 +986,7 @@ export function ChatBar({
       if (busy && !disabled) {
         // As with plain Enter, source the just-typed content from the DOM so a
         // fast keypress cannot queue a stale draft.
-        const editorText = editorRef.current ? composerPlainText(editorRef.current) : draftRef.current
+        const editorText = liveComposerDraft(editorRef.current, draftRef.current)
 
         if (editorText !== draftRef.current) {
           draftRef.current = editorText
@@ -964,7 +1008,7 @@ export function ChatBar({
       // Without the live read, a real message typed while prompts are queued
       // would drain the queue instead of sending. submitDraft() re-syncs and
       // sends the live editor text.
-      const editorText = editorRef.current ? composerPlainText(editorRef.current) : draftRef.current
+      const editorText = liveComposerDraft(editorRef.current, draftRef.current)
       const hasLivePayload = editorText.trim().length > 0 || attachments.length > 0
 
       if (disabled) {

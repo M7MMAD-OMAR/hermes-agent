@@ -1,77 +1,103 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  $threadScrollBySession,
-  clearThreadScroll,
+  $threadJumpButtonVisibleBySession,
+  $threadMessagesBelowBySession,
+  $threadScrolledUpBySession,
   onScrollToBottomRequest,
+  publishThreadAtBottom,
+  publishThreadMessagesBelow,
   requestScrollToBottom,
-  resetAllThreadScroll,
-  setThreadAtBottom,
-  threadScrollFor
+  resetPublishedThreadScroll,
+  resetThreadScroll,
+  setThreadAtBottom
 } from './thread-scroll'
 
 afterEach(() => {
-  resetAllThreadScroll()
+  resetThreadScroll('session-a')
+  resetThreadScroll('session-b')
 })
 
-const stateOf = (sessionId: null | string) => threadScrollFor($threadScrollBySession.get(), sessionId)
+describe('publishThreadAtBottom', () => {
+  it('lets the visible pane flash the jump pill when the thread leaves the bottom', () => {
+    publishThreadAtBottom(false, { paneVisible: true, sessionId: 'session-a' })
 
-describe('each transcript owns its own scroll chrome', () => {
-  it('raises the jump pill for the thread that actually left the bottom', () => {
-    setThreadAtBottom('a', false)
-
-    expect(stateOf('a').jumpVisible).toBe(true)
-    expect(stateOf('a').scrolledUp).toBe(true)
+    expect(Boolean($threadJumpButtonVisibleBySession.get()['session-a'])).toBe(true)
+    expect(Boolean($threadScrolledUpBySession.get()['session-a'])).toBe(true)
   })
 
-  it('leaves every other open chat alone', () => {
-    // The reported bug: panes sit side by side, so scrolling up in one chat
-    // raised the pill and dimmed the composer in all of them.
-    setThreadAtBottom('a', false)
+  it('ignores stick-to-bottom misses from a hidden keep-alive pane', () => {
+    setThreadAtBottom(true, 'session-a')
 
-    expect(stateOf('b').jumpVisible).toBe(false)
-    expect(stateOf('b').scrolledUp).toBe(false)
+    publishThreadAtBottom(false, { paneVisible: false, sessionId: 'session-a' })
+
+    expect(Boolean($threadJumpButtonVisibleBySession.get()['session-a'])).toBe(false)
+    expect(Boolean($threadScrolledUpBySession.get()['session-a'])).toBe(false)
   })
 
-  it('does not let one thread returning to the bottom clear another', () => {
-    setThreadAtBottom('a', false)
-    setThreadAtBottom('b', true)
+  it("keeps the visible pane's scrolled-up chrome when a hidden pane publishes", () => {
+    publishThreadAtBottom(false, { paneVisible: true, sessionId: 'session-a' })
 
-    expect(stateOf('a').jumpVisible).toBe(true)
-  })
+    publishThreadAtBottom(true, { paneVisible: false, sessionId: 'session-a' })
 
-  it('reports a thread nobody has scrolled as parked at the bottom', () => {
-    expect(stateOf('never-seen').scrolledUp).toBe(false)
-  })
-
-  it('keeps the map reference stable when nothing changed', () => {
-    // Published on every scroll tick, so a no-op write would re-render every
-    // composer and status stack on screen.
-    setThreadAtBottom('a', false)
-    const settled = $threadScrollBySession.get()
-
-    setThreadAtBottom('a', false)
-    expect($threadScrollBySession.get()).toBe(settled)
+    expect(Boolean($threadJumpButtonVisibleBySession.get()['session-a'])).toBe(true)
+    expect(Boolean($threadScrolledUpBySession.get()['session-a'])).toBe(true)
   })
 })
 
-describe('clearThreadScroll', () => {
-  it('forgets only the transcript that unmounted', () => {
-    setThreadAtBottom('a', false)
-    setThreadAtBottom('b', false)
+describe('resetPublishedThreadScroll', () => {
+  it('resets only the unmounting session, including its message count', () => {
+    for (const sessionId of ['session-a', 'session-b']) {
+      publishThreadAtBottom(false, { paneVisible: true, sessionId })
+      publishThreadMessagesBelow(7, { paneVisible: true, sessionId })
+    }
 
-    clearThreadScroll('a')
+    resetPublishedThreadScroll({ paneVisible: true, sessionId: 'session-a' })
 
-    expect(stateOf('a').jumpVisible).toBe(false)
-    expect(stateOf('b').jumpVisible).toBe(true)
+    expect($threadJumpButtonVisibleBySession.get()['session-a']).toBeUndefined()
+    expect($threadScrolledUpBySession.get()['session-a']).toBeUndefined()
+    expect($threadMessagesBelowBySession.get()['session-a']).toBeUndefined()
+    expect($threadJumpButtonVisibleBySession.get()['session-b']).toBe(true)
+    expect($threadScrolledUpBySession.get()['session-b']).toBe(true)
+    expect($threadMessagesBelowBySession.get()['session-b']).toBe(7)
   })
 
-  it('is a no-op for a transcript with no entry', () => {
-    setThreadAtBottom('a', false)
-    const settled = $threadScrollBySession.get()
+  it('preserves mirror references on no-op ticks, hidden publications, and missing identities', () => {
+    publishThreadAtBottom(false, { paneVisible: true, sessionId: 'session-a' })
+    publishThreadMessagesBelow(7, { paneVisible: true, sessionId: 'session-a' })
+    const flags = $threadScrolledUpBySession.get()
+    const jump = $threadJumpButtonVisibleBySession.get()
+    const counts = $threadMessagesBelowBySession.get()
 
-    clearThreadScroll('never-seen')
-    expect($threadScrollBySession.get()).toBe(settled)
+    publishThreadAtBottom(false, { paneVisible: true, sessionId: 'session-a' })
+    publishThreadMessagesBelow(7, { paneVisible: true, sessionId: 'session-a' })
+    publishThreadMessagesBelow(0, { paneVisible: false, sessionId: 'session-a' })
+    resetPublishedThreadScroll({ paneVisible: false, sessionId: 'session-a' })
+    publishThreadAtBottom(false, { paneVisible: true, sessionId: null })
+    publishThreadMessagesBelow(12, { paneVisible: true, sessionId: null })
+    resetThreadScroll(null)
+
+    expect($threadScrolledUpBySession.get()).toBe(flags)
+    expect($threadJumpButtonVisibleBySession.get()).toBe(jump)
+    expect($threadMessagesBelowBySession.get()).toBe(counts)
+  })
+
+  it('clears the jump pill when the visible pane unmounts', () => {
+    setThreadAtBottom(false, 'session-a')
+
+    resetPublishedThreadScroll({ paneVisible: true, sessionId: 'session-a' })
+
+    expect(Boolean($threadJumpButtonVisibleBySession.get()['session-a'])).toBe(false)
+    expect(Boolean($threadScrolledUpBySession.get()['session-a'])).toBe(false)
+  })
+
+  it('does not clear the visible pane when a hidden list unmounts', () => {
+    setThreadAtBottom(false, 'session-a')
+
+    resetPublishedThreadScroll({ paneVisible: false, sessionId: 'session-a' })
+
+    expect(Boolean($threadJumpButtonVisibleBySession.get()['session-a'])).toBe(true)
+    expect(Boolean($threadScrolledUpBySession.get()['session-a'])).toBe(true)
   })
 })
 

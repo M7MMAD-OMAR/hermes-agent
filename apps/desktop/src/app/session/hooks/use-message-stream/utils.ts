@@ -97,6 +97,16 @@ export const STREAM_DELTA_FLUSH_MS = 33
 // still visibly updates at least ~4x per second no matter the load.
 export const MAX_STREAM_FLUSH_GAP_MS = 250
 
+// Flush floor while the window is NOT focused. While any turn is in flight the
+// main process unthrottles chat windows, which pins `document.visibilityState`
+// to `visible` even for a window parked on another workspace or behind
+// everything else, so a hidden Hermes with several streaming sessions kept
+// re-rendering markdown 30 times a second for nobody. Focus is the one honest
+// signal left: unfocused text grows at 10 updates a second (still fluid on a
+// second monitor, one third of the commits), and the focus handler flushes
+// whatever is queued the instant the user comes back.
+export const UNFOCUSED_STREAM_FLUSH_MS = 100
+
 // How long an optimistically armed turn (busy/awaitingResponse set at submit /
 // restore / edit, before the backend confirms it live) may hold off a
 // session.info running=false heartbeat. Within this window a running=false is

@@ -177,6 +177,47 @@ describe('useMessageStream delta flush scheduling', () => {
     expect(assistantText()).toBe('firstsecond')
   })
 
+  it('paces an unfocused window at the slower floor and a focused one at the fast floor', async () => {
+    let now = 1000
+    vi.mocked(performance.now).mockImplementation(() => now)
+    vi.mocked(window.requestAnimationFrame).mockImplementation(() => 1)
+
+    mountStream()
+
+    act(() => stream.appendDelta(SID, 'first'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(assistantText()).toBe('first')
+
+    // Unfocused (the beforeEach default): 50ms after the last flush the next
+    // one waits out the 100ms floor instead of the 33ms one.
+    now = 1050
+    act(() => stream.appendDelta(SID, 'second'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(49)
+    })
+
+    expect(assistantText()).toBe('first')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+
+    expect(assistantText()).toBe('firstsecond')
+
+    // Focused: the same 50ms gap is already past the 33ms floor.
+    vi.mocked(document.hasFocus).mockReturnValue(true)
+    now = 1150
+    act(() => stream.appendDelta(SID, 'third'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(assistantText()).toBe('firstsecondthird')
+  })
+
   it('keeps the write-cost floor when no frame fires (hidden renderer)', async () => {
     // A parked renderer never runs rAF callbacks. The cost must stay at the
     // synchronous store-write measurement so the gap falls back to the fixed
@@ -205,6 +246,7 @@ describe('useMessageStream delta flush scheduling', () => {
   })
 
   it('ignores a late frame measurement once a newer flush has started', async () => {
+    vi.mocked(document.hasFocus).mockReturnValue(true)
     let now = 1000
     vi.mocked(performance.now).mockImplementation(() => now)
     const rafCallbacks: FrameRequestCallback[] = []

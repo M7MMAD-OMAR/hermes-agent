@@ -33,7 +33,13 @@ import { $todosBySession, setSessionTodos } from '@/store/todos'
 import type { ClientSessionState } from '../../../types'
 
 import { useGatewayEventHandler } from './gateway-event'
-import { completionErrorText, delegateTaskPayloads, MAX_STREAM_FLUSH_GAP_MS, STREAM_DELTA_FLUSH_MS } from './utils'
+import {
+  completionErrorText,
+  delegateTaskPayloads,
+  MAX_STREAM_FLUSH_GAP_MS,
+  STREAM_DELTA_FLUSH_MS,
+  UNFOCUSED_STREAM_FLUSH_MS
+} from './utils'
 
 interface MessageStreamOptions {
   activeGatewayProfile?: string
@@ -265,10 +271,12 @@ export function useMessageStream({
     // actually happens; see runFlush below.
     const sinceLast = performance.now() - lastFlushAtRef.current
 
-    const adaptiveFloor = Math.min(
-      Math.max(STREAM_DELTA_FLUSH_MS, lastFlushCostRef.current * 3),
-      MAX_STREAM_FLUSH_GAP_MS
-    )
+    // Unfocused windows take the slower floor (see UNFOCUSED_STREAM_FLUSH_MS):
+    // the stream-aware unthrottle keeps a parked window "visible", so focus is
+    // the only signal that nobody is reading this text right now.
+    const attentionFloor = document.hasFocus() ? STREAM_DELTA_FLUSH_MS : UNFOCUSED_STREAM_FLUSH_MS
+
+    const adaptiveFloor = Math.min(Math.max(attentionFloor, lastFlushCostRef.current * 3), MAX_STREAM_FLUSH_GAP_MS)
 
     const runFlush = () => {
       flushHandleRef.current = null

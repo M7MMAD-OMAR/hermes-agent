@@ -203,7 +203,9 @@ Two edges deserve the same care as a gesture, because the user feels them as
   pane being the visible tab, so eight open sessions cost one session's polls.
   While any turn is in flight the main process keeps chat windows unthrottled,
   which pins `document.visibilityState` to `visible` even for a hidden window:
-  do not gate hidden-window savings on visibility alone.
+  do not gate hidden-window savings on visibility alone. Focus is the honest
+  signal; the stream flush already slows to 10 updates a second while the
+  window is unfocused and catches up on the focus event.
 
 ## Testing as a habit of proof
 

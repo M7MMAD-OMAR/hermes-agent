@@ -17,6 +17,8 @@ let stream: MessageStreamHarness
 
 async function mountHarness() {
   vi.useFakeTimers()
+  // A focused window streams at the fast floor; jsdom reports no focus.
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   stream = renderMessageStream(SID)
   await act(async () => {
     await Promise.resolve()

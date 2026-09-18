@@ -290,9 +290,9 @@ export function useMessageStream({
     // stutters even though no render is wasted. Yielding 3x the measured cost
     // keeps the thread ~75% idle for input at any load: cheap flushes stay at
     // 30fps of text growth, expensive multi-stream flushes degrade text fps
-    // instead of interactivity — capped so text never updates slower than 4/s.
-    // The cost has to include the deferred view-sync frame where the commit
-    // actually happens; see runFlush below.
+    // instead of interactivity. The cost has to include the deferred view-sync
+    // frame where the commit actually happens; see runFlush below, and
+    // streamFlushGapMs for how the floor and the cap compose.
     const sinceLast = performance.now() - lastFlushAtRef.current
 
     // Unfocused windows take the slower floor (see UNFOCUSED_STREAM_FLUSH_MS),

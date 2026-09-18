@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClientSessionState } from '@/app/types'
 import type { ChatMessage } from '@/lib/chat-messages'
 import { createClientSessionState } from '@/lib/chat-runtime'
-import { PRESENT_STALE_MS, resetWindowPresentedForTests } from '@/lib/window-presented'
+import { isPresentationProbeFrame, PRESENT_STALE_MS, resetWindowPresentedForTests } from '@/lib/window-presented'
 
 import { useSessionStateCache } from '../use-session-state-cache'
 
@@ -38,7 +38,7 @@ const assistantText = () => stream.text()
  *  on screen at all), and these assertions are about the flush's own
  *  measurement frame, not about it. */
 const collectStreamFrames = (sink: FrameRequestCallback[]) => (callback: FrameRequestCallback) => {
-  if (callback.name !== 'onFrame') {
+  if (!isPresentationProbeFrame(callback)) {
     sink.push(callback)
   }
 
@@ -197,7 +197,7 @@ describe('useMessageStream delta flush scheduling', () => {
 
     expect(updateSessionState).toHaveBeenCalledTimes(updatesAfterUnmount)
     expect(
-      vi.mocked(window.requestAnimationFrame).mock.calls.filter(([callback]) => callback.name !== 'onFrame')
+      vi.mocked(window.requestAnimationFrame).mock.calls.filter(([callback]) => !isPresentationProbeFrame(callback))
     ).toHaveLength(0)
   })
 

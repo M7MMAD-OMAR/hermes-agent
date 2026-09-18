@@ -64,7 +64,7 @@ export function DecodeText({
       return
     }
 
-    // Under reduced motion, skip the scramble interval and render the fully
+    // Under reduced motion, skip the scramble entirely and render the fully
     // resolved text immediately. The cursor blink (CSS animation) is also
     // killed by the blanket reduced-motion CSS rule.
     if (prefersReducedMotion()) {

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { type FakeFrames, installFakeFrames } from '@/test/frames'
+import { setDocumentHidden } from '@/test/window-state'
+
 import {
+  isPresentationProbeFrame,
   isWindowPresented,
   PRESENT_CHECK_MS,
   PRESENT_STALE_MS,
@@ -8,46 +12,17 @@ import {
   subscribeWindowPresented
 } from './window-presented'
 
-/** Drive rAF by hand: the whole point of the module is what happens when the
- *  compositor stops asking for frames while timers keep running. */
-let frameCallbacks: Map<number, FrameRequestCallback>
-let nextFrameHandle: number
-let clock: number
-
-const paintFrames = () => {
-  const pending = [...frameCallbacks.entries()]
-  frameCallbacks.clear()
-
-  for (const [, callback] of pending) {
-    callback(clock)
-  }
-}
-
-const advance = async (ms: number) => {
-  clock += ms
-  await vi.advanceTimersByTimeAsync(ms)
-}
+let frames: FakeFrames
 
 describe('window presentation detector', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    clock = 1_000
-    nextFrameHandle = 1
-    frameCallbacks = new Map()
-    vi.spyOn(performance, 'now').mockImplementation(() => clock)
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
-      const handle = nextFrameHandle++
-      frameCallbacks.set(handle, callback)
-
-      return handle
-    })
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(handle => {
-      frameCallbacks.delete(handle)
-    })
+    frames = installFakeFrames()
   })
 
   afterEach(() => {
     resetWindowPresentedForTests()
+    setDocumentHidden(false)
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
@@ -60,8 +35,8 @@ describe('window presentation detector', () => {
     subscribeWindowPresented(() => undefined)
 
     for (let i = 0; i < 10; i++) {
-      await advance(PRESENT_CHECK_MS)
-      paintFrames()
+      await frames.advance(PRESENT_CHECK_MS)
+      frames.paint()
     }
 
     expect(isWindowPresented()).toBe(true)
@@ -71,8 +46,8 @@ describe('window presentation detector', () => {
     const seen: boolean[] = []
     subscribeWindowPresented(presented => seen.push(presented))
 
-    paintFrames()
-    await advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
+    frames.paint()
+    await frames.advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
 
     expect(isWindowPresented()).toBe(false)
     expect(seen).toEqual([false])
@@ -82,22 +57,22 @@ describe('window presentation detector', () => {
     const seen: boolean[] = []
     subscribeWindowPresented(presented => seen.push(presented))
 
-    paintFrames()
-    await advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
+    frames.paint()
+    await frames.advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
     expect(isWindowPresented()).toBe(false)
 
-    // Coming back re-arms the chain that the stale check left pending.
-    paintFrames()
+    frames.paint()
+
     expect(isWindowPresented()).toBe(true)
     expect(seen).toEqual([false, true])
   })
 
   it('trusts a hidden document even while frames are still arriving', async () => {
     subscribeWindowPresented(() => undefined)
-    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    setDocumentHidden(true)
 
-    paintFrames()
-    await advance(PRESENT_CHECK_MS)
+    frames.paint()
+    await frames.advance(PRESENT_CHECK_MS)
 
     expect(isWindowPresented()).toBe(false)
   })
@@ -106,11 +81,45 @@ describe('window presentation detector', () => {
     const seen: boolean[] = []
     const unsubscribe = subscribeWindowPresented(presented => seen.push(presented))
 
-    paintFrames()
+    frames.paint()
     unsubscribe()
-    await advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
+    await frames.advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
 
     expect(isWindowPresented()).toBe(false)
     expect(seen).toEqual([])
+  })
+
+  it('probes for a frame rather than riding every one', async () => {
+    subscribeWindowPresented(() => undefined)
+
+    // A second of an ordinary 60fps window: the detector must not want a
+    // callback per vsync, which is the cost it exists to remove elsewhere.
+    await frames.advancePainting(1_000)
+
+    const requested = vi.mocked(window.requestAnimationFrame).mock.calls.length
+
+    expect(requested).toBeLessThanOrEqual(1_000 / PRESENT_CHECK_MS + 2)
+    expect(isWindowPresented()).toBe(true)
+  })
+
+  it('stops its clock while the window is away, leaving one frame to catch the return', async () => {
+    subscribeWindowPresented(() => undefined)
+    frames.paint()
+
+    await frames.advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
+    expect(isWindowPresented()).toBe(false)
+
+    // Nothing left ticking, and exactly one frame parked to fire on return.
+    expect(vi.getTimerCount()).toBe(0)
+    expect(frames.pending()).toBe(1)
+  })
+
+  it('identifies its own probe frame for tests that stub rAF', () => {
+    subscribeWindowPresented(() => undefined)
+
+    const [callback] = vi.mocked(window.requestAnimationFrame).mock.calls.at(-1) ?? []
+
+    expect(isPresentationProbeFrame(callback)).toBe(true)
+    expect(isPresentationProbeFrame(() => undefined)).toBe(false)
   })
 })

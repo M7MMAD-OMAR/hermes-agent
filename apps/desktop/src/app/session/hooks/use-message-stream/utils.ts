@@ -118,26 +118,18 @@ export const UNFOCUSED_STREAM_FLUSH_MS = 100
 // for why a frame, not `document.visibilityState`, is what proves this.
 export const HIDDEN_STREAM_FLUSH_MS = 1_000
 
-/** The floor a delta flush may not beat, given how much of the window the user
- *  can actually see. Presentation outranks focus: an unfocused window on a
- *  second monitor is still being read, a focused-looking window on another
- *  workspace is not. */
-export function streamFlushFloorMs({ focused, presented }: { focused: boolean; presented: boolean }): number {
-  if (!presented) {
-    return HIDDEN_STREAM_FLUSH_MS
-  }
-
-  return focused ? STREAM_DELTA_FLUSH_MS : UNFOCUSED_STREAM_FLUSH_MS
-}
-
-/** The gap the next flush waits out: the attention floor, stretched toward 3x
- *  what the last flush actually cost so a heavy multi-stream commit leaves the
- *  main thread idle frames for input.
+/** The gap the next flush waits out.
+ *
+ *  The floor comes from how much of this window the user can actually see, and
+ *  presentation outranks focus: an unfocused window on a second monitor is
+ *  still being read, a focused-looking window on another workspace is not.
+ *  From there the gap stretches toward 3x what the last flush cost, so a heavy
+ *  multi-stream commit leaves the main thread idle frames for input.
  *
  *  MAX_STREAM_FLUSH_GAP_MS caps the COST stretch only. Capping the result
- *  would also cap the attention floor, which quietly clamped the hidden floor
- *  back to 250ms: the promise the cap exists to keep, that text never updates
- *  slower than 4/s, is about text somebody is watching. */
+ *  would also cap the floor, which quietly clamped the hidden floor back to
+ *  250ms: the promise that cap exists to keep, that text never updates slower
+ *  than 4 times a second, is a promise about text somebody is watching. */
 export function streamFlushGapMs({
   focused,
   lastFlushCostMs,
@@ -147,7 +139,9 @@ export function streamFlushGapMs({
   lastFlushCostMs: number
   presented: boolean
 }): number {
-  return Math.max(streamFlushFloorMs({ focused, presented }), Math.min(lastFlushCostMs * 3, MAX_STREAM_FLUSH_GAP_MS))
+  const floor = presented ? (focused ? STREAM_DELTA_FLUSH_MS : UNFOCUSED_STREAM_FLUSH_MS) : HIDDEN_STREAM_FLUSH_MS
+
+  return Math.max(floor, Math.min(lastFlushCostMs * 3, MAX_STREAM_FLUSH_GAP_MS))
 }
 
 // How long an optimistically armed turn (busy/awaitingResponse set at submit /

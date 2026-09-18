@@ -12,75 +12,60 @@
  * that nobody has clicked is fully presented, and pausing its clocks freezes a
  * counter the user is watching.
  *
- * The compositor does say one thing truthfully, by not saying it: when a
- * surface is not being presented, it stops asking for frames, so
- * `requestAnimationFrame` callbacks stop arriving while timers carry on. That
- * gap IS the signal. A frame proves presentation; a long silence with timers
- * still ticking means the pixels go nowhere.
+ * The compositor does say one thing truthfully, by not saying it: a surface
+ * that is not being presented stops getting `wl_surface.frame` callbacks, and
+ * those are what drive `requestAnimationFrame`. A frame is therefore not a
+ * heuristic standing in for a real signal, it is the compositor answering
+ * through the only channel it uses. A frame proves presentation; a long
+ * silence while timers keep firing proves the opposite.
+ *
+ * **Who needs to ask.** rAF-shaped work does not: a `requestAnimationFrame`
+ * loop (everything built on `createBudgetedLoop`) stops dead on its own when
+ * the frames stop, which is why the decorative animations were fixed by moving
+ * onto that loop rather than by calling in here. Only TIMER-shaped work has to
+ * ask — a `setInterval` clock, a `setTimeout` flush floor — because a timer
+ * keeps its cadence whatever the compositor is doing.
  *
  * The one false positive worth naming: a main thread blocked for longer than
- * `PRESENT_STALE_MS` starves rAF too, so a very busy visible window can read as
- * not presented. Callers must therefore treat this as a hint for how much
- * COSMETIC work to do (flush cadence, decorative clocks), never as a condition
- * for correctness. The state corrects itself on the next frame.
+ * `PRESENT_STALE_MS` starves the probe too, so a very busy visible window can
+ * read as not presented. Callers must therefore treat this as a hint for how
+ * much COSMETIC work to do (flush cadence, decorative clocks), never as a
+ * condition for correctness. The state corrects itself on the next frame.
  */
 
 /** No frame for this long, while timers keep running, means "not presented". */
 export const PRESENT_STALE_MS = 1_200
 
-/** How often the PUSH path re-checks staleness. Answering `isWindowPresented()`
- *  needs no timer at all (the frame stamp is compared on demand); this interval
- *  exists only while something subscribes for edges. */
+/** How often presentation is probed, and how often the push path re-checks.
+ *  The detector PROBES for a frame at this cadence instead of riding every
+ *  one: a chain that re-arms inside its own callback is a main-thread task per
+ *  vsync for the life of the renderer (240 a second on this workstation's
+ *  panel), which is the very cost this module exists to remove elsewhere.
+ *  Three probes fit inside `PRESENT_STALE_MS`, so detection latency is
+ *  unchanged. */
 export const PRESENT_CHECK_MS = 400
 
 type Listener = (presented: boolean) => void
 
 const listeners = new Set<Listener>()
 
-let presented = true
+/** The last value handed to listeners: the dedupe for `publish`, and nothing
+ *  else. The live answer is always `evaluate()`. */
+let lastPublished = true
 let armed = false
 let lastFrameAt = 0
+let lastProbeAt = 0
 let frameHandle: null | number = null
 let checkHandle: null | number = null
 
 function now(): number {
-  return typeof performance === 'undefined' ? Date.now() : performance.now()
+  return performance.now()
 }
 
-function publish(next: boolean): void {
-  if (presented === next) {
-    return
-  }
-
-  presented = next
-
-  for (const listener of [...listeners]) {
-    listener(next)
-  }
-}
-
-function onFrame(): void {
-  frameHandle = null
-  lastFrameAt = now()
-  // Through evaluate(), not straight to true: a frame is strong evidence but
-  // not the only evidence, and a document the platform has told us is hidden
-  // stays hidden however many frames arrive.
-  publish(evaluate())
-  scheduleFrame()
-}
-
-function scheduleFrame(): void {
-  if (frameHandle !== null || !armed || typeof window === 'undefined') {
-    return
-  }
-
-  frameHandle = window.requestAnimationFrame(onFrame)
-}
-
-/** The current answer, computed from the frame stamp — no timer involved. A
- *  hidden document is not presented whatever the frame clock says, which is
- *  the platform telling the truth where it can (minimise on macOS/Windows, and
- *  a window Electron itself hid). */
+/** The current answer, from the frame stamp — no timer involved. A hidden
+ *  document is not presented whatever the frame clock says, which is the
+ *  platform telling the truth where it can (minimise on macOS/Windows, and a
+ *  window Electron itself hid). */
 function evaluate(): boolean {
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
     return false
@@ -89,8 +74,79 @@ function evaluate(): boolean {
   return now() - lastFrameAt < PRESENT_STALE_MS
 }
 
-function check(): void {
+function publish(next: boolean): void {
+  if (lastPublished === next) {
+    return
+  }
+
+  lastPublished = next
+
+  // While nothing is being painted there is nothing more for the clock to
+  // learn: only a frame can end that state, and the frame publishes for
+  // itself. Stopping it here is what makes an off-screen window cost zero
+  // wakeups instead of 2.5 a second.
+  if (next) {
+    startClock()
+  } else {
+    stopClock()
+  }
+
+  for (const listener of [...listeners]) {
+    listener(next)
+  }
+}
+
+/** The frame that proves presentation. A named function so a test that stubs
+ *  rAF can tell this probe apart from the frames its own subject scheduled;
+ *  see `isPresentationProbeFrame`. */
+function presentationProbeFrame(): void {
+  frameHandle = null
+  lastFrameAt = now()
   publish(evaluate())
+}
+
+/** True for the callback this module schedules. Exported so a test filters on
+ *  a real reference instead of a copied string. */
+export function isPresentationProbeFrame(callback: unknown): boolean {
+  return typeof callback === 'function' && callback.name === presentationProbeFrame.name
+}
+
+/** Ask for one frame, at most one per `PRESENT_CHECK_MS`. A request left
+ *  pending while the window is away costs nothing and is exactly what fires on
+ *  the way back in. */
+function probe(): void {
+  if (frameHandle !== null || !armed || typeof window === 'undefined') {
+    return
+  }
+
+  const at = now()
+
+  if (at - lastProbeAt < PRESENT_CHECK_MS) {
+    return
+  }
+
+  lastProbeAt = at
+  frameHandle = window.requestAnimationFrame(presentationProbeFrame)
+}
+
+function tick(): void {
+  probe()
+  publish(evaluate())
+}
+
+function startClock(): void {
+  if (typeof window === 'undefined' || checkHandle !== null || listeners.size === 0) {
+    return
+  }
+
+  checkHandle = window.setInterval(tick, PRESENT_CHECK_MS)
+}
+
+function stopClock(): void {
+  if (checkHandle !== null) {
+    window.clearInterval(checkHandle)
+    checkHandle = null
+  }
 }
 
 function start(): void {
@@ -100,68 +156,51 @@ function start(): void {
 
   armed = true
   lastFrameAt = now()
-  presented = true
-  scheduleFrame()
-}
-
-/** Edge notifications need a clock of their own: the whole premise is that no
- *  frame arrives to tell us. Armed only while someone subscribes. */
-function startPush(): void {
-  if (typeof window === 'undefined' || checkHandle !== null) {
-    return
-  }
-
-  checkHandle = window.setInterval(check, PRESENT_CHECK_MS)
-}
-
-function stop(): void {
-  armed = false
-
-  if (checkHandle !== null) {
-    window.clearInterval(checkHandle)
-    checkHandle = null
-  }
-
-  if (frameHandle !== null) {
-    window.cancelAnimationFrame(frameHandle)
-    frameHandle = null
-  }
+  lastPublished = true
 }
 
 /**
  * Whether the window is being presented. The first call arms the detector and
  * answers `true`: until a frame has had the chance to arrive, the safe answer
- * is the one that does the work.
+ * is the one that does the work. Cheap enough for a scheduling path — a
+ * timestamp compare plus, at most every `PRESENT_CHECK_MS`, one frame request.
  */
 export function isWindowPresented(): boolean {
   start()
-  presented = evaluate()
+  probe()
 
-  return presented
+  return evaluate()
 }
 
-/** Subscribe to presentation changes. Arming is one rAF chain plus one 400ms
- *  timer for the whole renderer, so the detector stays armed once anything has
- *  asked rather than restarting per subscriber. */
+/** Subscribe to presentation changes. Edges need a clock of their own, since
+ *  the premise is that no frame arrives to announce the bad news; it runs only
+ *  while someone is listening, and only while the window is up. */
 export function subscribeWindowPresented(listener: Listener): () => void {
   listeners.add(listener)
   start()
-  startPush()
+  probe()
+  startClock()
 
   return () => {
     listeners.delete(listener)
 
-    if (listeners.size === 0 && checkHandle !== null) {
-      window.clearInterval(checkHandle)
-      checkHandle = null
+    if (listeners.size === 0) {
+      stopClock()
     }
   }
 }
 
-/** Test seam: drop all subscribers and return to the "presented" default. */
+/** Test seam: drop every subscriber, cancel the probe, and return to the
+ *  "presented until proven otherwise" default. */
 export function resetWindowPresentedForTests(): void {
   listeners.clear()
-  stop()
-  presented = true
-  lastFrameAt = 0
+  stopClock()
+
+  if (frameHandle !== null && typeof window !== 'undefined') {
+    window.cancelAnimationFrame(frameHandle)
+  }
+
+  frameHandle = null
+  armed = false
+  lastProbeAt = 0
 }

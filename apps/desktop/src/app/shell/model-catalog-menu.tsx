@@ -25,7 +25,8 @@ import { getLocalModelsStatus } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { isSubmitEnter } from '@/lib/ime'
 import { catalogProviderMatches, modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
-import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
+import { modelPrefsScope } from '@/lib/model-scope'
+import { displayModelName, isMultiVendorCatalog, modelDisplayParts, modelVendorLabel } from '@/lib/model-status-label'
 import { reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { foldIncludes, normalize } from '@/lib/text'
 import { useStoreSelector } from '@/lib/use-session-slice'
@@ -33,15 +34,16 @@ import { cn } from '@/lib/utils'
 import { $localModelsEnabled } from '@/store/local-models-flag'
 import { $localRuntimeJobs, runningModelDownloads, watchLocalRuntimeJobs } from '@/store/local-runtime-jobs'
 import {
-  $visibleModels,
+  $visibleModelsByScope,
   collapseModelFamilies,
   DEFAULT_VISIBLE_PER_PROVIDER,
   effectiveVisibleKeys,
   type ModelFamily,
   modelVisibilityKey,
-  setModelVisibilityOpen
+  setModelVisibilityOpen,
+  visibleModelsForScope
 } from '@/store/model-visibility'
-import { $collapsedProviders, toggleCollapsedProvider } from '@/store/provider-collapse'
+import { $collapsedProvidersByScope, collapsedProvidersForScope, toggleCollapsedProvider } from '@/store/provider-collapse'
 import { $defaultReasoningEffort } from '@/store/session'
 import type { LocalModelLoadProgress } from '@/types/hermes'
 
@@ -136,13 +138,18 @@ export function ModelCatalogMenu({
   const copyPicker = t.modelPicker
   const closeMenu = useContext(ModelMenuCloseContext)
   const [search, setSearch] = useState('')
-  const collapsedProviders = useStoreCollapsed()
+  // Curation and collapse belong to the BOT, not to the app: a profile pinned
+  // to one provider keeps its own shortlist, and tidying it leaves every other
+  // profile's menu alone. Scope comes from the catalog owner this menu already
+  // queries, so a tile bound to another profile reads that profile's list.
+  const scope = modelPrefsScope(profile, ownerConnectionId)
   const defaultEffort = useDefaultEffort()
-  // Which models the user curated in Edit Models. Read HERE rather than taken
-  // as a prop: it's one global preference, so every surface that shows a
-  // catalog must show the same shortlist. A per-caller opt-in is how the board
-  // and the composer would end up disagreeing about what "my models" means.
-  const visibleModels = useStore($visibleModels)
+  const collapsedProviders = collapsedProvidersForScope(useStore($collapsedProvidersByScope), scope)
+  // Read HERE rather than taken as a prop: within one scope every surface that
+  // shows a catalog must show the same shortlist. A per-caller opt-in is how
+  // the board and the composer would end up disagreeing about what "my models"
+  // means for the same bot.
+  const visibleModels = visibleModelsForScope(useStore($visibleModelsByScope), scope)
 
   const modelOptions = useQuery({
     queryKey: modelOptionsQueryKey(profile, sessionId, ownerConnectionId),
@@ -457,6 +464,12 @@ export function ModelCatalogMenu({
           {groups.map(group => {
             const slug = group.provider.slug
 
+            // A routing provider serves other labs' models under their own
+            // namespace (`anthropic/claude-opus-5`), which the display name
+            // drops. Qualify those rows with the lab, so an OpenRouter-served
+            // Claude can never be mistaken for the subscription one.
+            const routed = isMultiVendorCatalog(group.provider.models)
+
             // Collapsed when the user stored it (and not while searching, which
             // spans every model regardless of collapse state).
             const collapsed = collapsedProviders.includes(slug) && !search
@@ -467,7 +480,7 @@ export function ModelCatalogMenu({
                   className="group/label flex w-full items-center gap-1 px-2 pb-0.5 pt-0.5 text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-tertiary) cursor-pointer !bg-transparent focus:!bg-transparent"
                   onSelect={event => {
                     event.preventDefault()
-                    toggleCollapsedProvider(slug)
+                    toggleCollapsedProvider(scope, slug)
                   }}
                   textValue=""
                 >
@@ -492,6 +505,7 @@ export function ModelCatalogMenu({
 
                     const isCurrent = activeId !== null
                     const name = modelDisplayParts(family.id).name
+                    const vendor = routed ? modelVendorLabel(family.id) : ''
                     const caps = group.provider.capabilities?.[family.id]
 
                     // Managed local model loading into memory right now:
@@ -546,6 +560,7 @@ export function ModelCatalogMenu({
                         >
                           <span className="min-w-0 flex-1 truncate">
                             <HighlightMatches foldSeparators query={search} text={name} />
+                            {vendor ? <span className="text-(--ui-text-tertiary)"> · {vendor}</span> : null}
                             {meta ? <span className="text-(--ui-text-tertiary)"> {meta}</span> : null}
                           </span>
                           {loadProgress ? (
@@ -650,7 +665,7 @@ export function ModelCatalogMenu({
       {footer}
       <DropdownMenuItem
         className={cn(dropdownMenuRow, 'text-(--ui-text-tertiary)')}
-        onSelect={() => setModelVisibilityOpen(true)}
+        onSelect={() => setModelVisibilityOpen(true, { ownerConnectionId, profile })}
       >
         <Codicon name="settings-gear" size="0.75rem" />
         {copy.editModels}
@@ -762,10 +777,6 @@ function groupModels(
 }
 
 // Small hooks kept at the bottom so the component reads top-down.
-function useStoreCollapsed(): string[] {
-  return useStore($collapsedProviders)
-}
-
 function useDefaultEffort(): string {
   return useStore($defaultReasoningEffort) || DEFAULT_REASONING_EFFORT
 }

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { currentPickerSelection, displayModelName, formatModelPillLabel, modelDisplayParts } from './model-status-label'
+import {
+  currentPickerSelection,
+  displayModelName,
+  formatModelPillLabel,
+  isMultiVendorCatalog,
+  modelDisplayParts,
+  modelVendorLabel,
+  modelVendorSlug
+} from './model-status-label'
 import { reasoningEffortLabel } from './reasoning-effort'
 
 describe('model-status-label', () => {
@@ -66,5 +74,31 @@ describe('model-status-label', () => {
     it('falls back to the store while options are still loading', () => {
       expect(currentPickerSelection(store, undefined)).toEqual(store)
     })
+  })
+})
+
+describe('vendor namespaces of a routed catalog', () => {
+  it('reads the lab out of an aggregator model id', () => {
+    expect(modelVendorLabel('anthropic/claude-opus-5')).toBe('Anthropic')
+    expect(modelVendorLabel('z-ai/glm-5.3-flash')).toBe('Z.AI')
+    expect(modelVendorLabel('x-ai/grok-4.6')).toBe('xAI')
+    expect(modelVendorLabel('~anthropic/claude-fable-latest')).toBe('Anthropic')
+    expect(modelVendorLabel('some-new-lab/model-1')).toBe('Some New Lab')
+  })
+
+  it('has no lab for a first-party id', () => {
+    expect(modelVendorLabel('claude-opus-5')).toBe('')
+    expect(modelVendorLabel('gpt-5.5')).toBe('')
+    // A local GGUF path is not a vendor namespace we can name, but it is one
+    // vendor at most, so `isMultiVendorCatalog` keeps it unqualified below.
+    expect(modelVendorSlug('/models/qwen.gguf')).toBe('')
+  })
+
+  it('calls a catalog routed only when it spans more than one lab', () => {
+    expect(isMultiVendorCatalog(['anthropic/claude-opus-5', 'deepseek/deepseek-v4.1-flash'])).toBe(true)
+    expect(isMultiVendorCatalog(['anthropic/claude-opus-5', 'anthropic/claude-sonnet-5'])).toBe(false)
+    expect(isMultiVendorCatalog(['claude-opus-5', 'claude-sonnet-5'])).toBe(false)
+    expect(isMultiVendorCatalog([])).toBe(false)
+    expect(isMultiVendorCatalog(undefined)).toBe(false)
   })
 })

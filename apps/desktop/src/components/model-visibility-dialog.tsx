@@ -14,18 +14,25 @@ import type { HermesGateway } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { Search } from '@/lib/icons'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
-import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
+import { modelPrefsScope } from '@/lib/model-scope'
+import { displayModelName, isMultiVendorCatalog, modelDisplayParts, modelVendorLabel } from '@/lib/model-status-label'
 import { foldIncludes, normalize } from '@/lib/text'
 import {
-  $visibleModels,
+  $visibleModelsByScope,
   collapseModelFamilies,
   effectiveVisibleKeys,
   modelVisibilityKey,
   setProviderVisibility,
   setVisibleModels,
-  toggleModelVisibility
+  toggleModelVisibility,
+  visibleModelsForScope
 } from '@/store/model-visibility'
-import { $collapsedProviders, toggleCollapsedProvider } from '@/store/provider-collapse'
+import { $profiles, normalizeProfileKey, profileLabel } from '@/store/profile'
+import {
+  $collapsedProvidersByScope,
+  collapsedProvidersForScope,
+  toggleCollapsedProvider
+} from '@/store/provider-collapse'
 
 interface ModelVisibilityDialogProps {
   gw?: HermesGateway
@@ -49,8 +56,19 @@ export function ModelVisibilityDialog({
   const { t } = useI18n()
   const copy = t.modelVisibility
   const [search, setSearch] = useState('')
-  const stored = useStore($visibleModels)
-  const collapsedProviders = useStore($collapsedProviders)
+  // This dialog edits ONE bot's shortlist: the profile whose catalog it shows.
+  const scope = modelPrefsScope(profile, ownerConnectionId)
+  const stored = visibleModelsForScope(useStore($visibleModelsByScope), scope)
+  const collapsedProviders = collapsedProvidersForScope(useStore($collapsedProvidersByScope), scope)
+  // Name the bot being edited: the shortlist is per-profile now, so the title
+  // is the only thing that says which one a toggle here will change.
+  const profiles = useStore($profiles)
+  const profileKey = normalizeProfileKey(profile)
+
+  const scopeLabel =
+    profiles.length > 1
+      ? profileLabel(profiles.find(entry => entry.name === profileKey) ?? { name: profileKey })
+      : ''
 
   const modelOptions = useQuery({
     queryKey: modelOptionsQueryKey(profile, sessionId, ownerConnectionId),
@@ -66,11 +84,11 @@ export function ModelVisibilityDialog({
   const visible = effectiveVisibleKeys(stored, providers)
 
   const toggle = (provider: ModelOptionProvider, model: string) => {
-    setVisibleModels(toggleModelVisibility($visibleModels.get(), providers, provider.slug, model))
+    setVisibleModels(scope, toggleModelVisibility(stored, providers, provider.slug, model))
   }
 
   const setProviderVisible = (provider: ModelOptionProvider, next: boolean) => {
-    setVisibleModels(setProviderVisibility($visibleModels.get(), providers, provider.slug, next))
+    setVisibleModels(scope, setProviderVisibility(stored, providers, provider.slug, next))
   }
 
   const q = normalize(search)
@@ -82,7 +100,10 @@ export function ModelVisibilityDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent bodyClassName="gap-0 overflow-hidden p-0" className="max-w-xs">
         <DialogHeader className="px-3 pb-1 pt-3">
-          <DialogTitle className="text-[0.8125rem]">{copy.title}</DialogTitle>
+          <DialogTitle className="text-[0.8125rem]">
+            {copy.title}
+            {scopeLabel ? <span className="ps-1.5 font-normal text-(--ui-text-tertiary)">{scopeLabel}</span> : null}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex items-center gap-1.5 px-3 py-1.5">
@@ -119,13 +140,14 @@ export function ModelVisibilityDialog({
               const checkState = onCount === 0 ? false : onCount === allFamilies.length ? true : 'indeterminate'
 
               const collapsed = collapsedProviders.includes(provider.slug) && !q
+              const routed = isMultiVendorCatalog(provider.models)
 
               return (
                 <div className="py-0.5" key={provider.slug}>
                   <div className="flex items-center gap-2 px-3 pb-0.5 pt-1">
                     <button
                       className="group/label flex w-full items-center gap-1 pb-0.5 pt-0.5 text-start text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-tertiary) hover:bg-transparent"
-                      onClick={() => toggleCollapsedProvider(provider.slug)}
+                      onClick={() => toggleCollapsedProvider(scope, provider.slug)}
                       type="button"
                     >
                       <span className="min-w-0 truncate">
@@ -145,6 +167,7 @@ export function ModelVisibilityDialog({
                   {!collapsed &&
                     models.map(family => {
                       const { name, tag } = modelDisplayParts(family.id)
+                      const vendor = routed ? modelVendorLabel(family.id) : ''
                       const key = modelVisibilityKey(provider.slug, family.id)
 
                       return (
@@ -154,6 +177,7 @@ export function ModelVisibilityDialog({
                         >
                           <span className="min-w-0 flex-1 truncate">
                             <HighlightMatches foldSeparators query={search} text={name} />
+                            {vendor ? <span className="text-(--ui-text-tertiary)"> · {vendor}</span> : null}
                             {tag ? <span className="text-(--ui-text-tertiary)"> {tag}</span> : null}
                           </span>
                           <Switch

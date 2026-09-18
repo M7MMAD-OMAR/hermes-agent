@@ -7,7 +7,7 @@ import { $localModelsEnabled } from '@/store/local-models-flag'
 import { $localRuntimeJobs } from '@/store/local-runtime-jobs'
 import {
   $modelVisibilityOpen,
-  $visibleModels,
+  $visibleModelsByScope,
   modelVisibilityKey,
   setModelVisibilityOpen,
   setVisibleModels
@@ -40,7 +40,7 @@ vi.mock('@/hermes', () => ({
 }))
 
 beforeEach(() => {
-  $visibleModels.set(null)
+  $visibleModelsByScope.set({})
   $localRuntimeJobs.set([])
   // These suites exercise the local-models rows, which ship behind --local.
   $localModelsEnabled.set(true)
@@ -60,7 +60,7 @@ afterEach(() => {
 
 // A minimal controller — these tests are about the CATALOG's own behaviour
 // (what it lists, what it offers), not about what any host does with a pick.
-function renderMenu() {
+function renderMenu(profile?: string) {
   const select = vi.fn()
 
   const controller: ModelMenuController = {
@@ -77,7 +77,7 @@ function renderMenu() {
     <QueryClientProvider client={client}>
       <DropdownMenu open>
         <DropdownMenuContent>
-          <ModelCatalogMenu controller={controller} />
+          <ModelCatalogMenu controller={controller} {...(profile ? { profile } : {})} />
         </DropdownMenuContent>
       </DropdownMenu>
     </QueryClientProvider>
@@ -86,13 +86,14 @@ function renderMenu() {
   return select
 }
 
-// Curation is ONE global preference, so it belongs to the catalog rather than
-// to whichever surface mounted it. If a host had to opt in, the composer and
-// the kanban board would end up disagreeing about what "my models" means —
-// which is exactly the drift extracting this component was meant to prevent.
+// Curation is one preference PER BOT (profile), and within a bot it belongs to
+// the catalog rather than to whichever surface mounted it. If a host had to opt
+// in, the composer and the kanban board would end up disagreeing about what "my
+// models" means for the same bot, which is exactly the drift extracting this
+// component was meant to prevent.
 describe('the catalog owns model curation', () => {
   it('honours the stored Edit Models shortlist', async () => {
-    setVisibleModels(new Set([modelVisibilityKey('google', 'gemini-2.5-flash')]))
+    setVisibleModels('default', new Set([modelVisibilityKey('google', 'gemini-2.5-flash')]))
 
     renderMenu()
 
@@ -101,7 +102,7 @@ describe('the catalog owns model curation', () => {
   })
 
   it('still finds a hidden model by search — curation narrows the default view, not the catalog', async () => {
-    setVisibleModels(new Set([modelVisibilityKey('google', 'gemini-2.5-flash')]))
+    setVisibleModels('default', new Set([modelVisibilityKey('google', 'gemini-2.5-flash')]))
 
     renderMenu()
     await screen.findByText(/Gemini 2\.5 Flash/i)
@@ -205,5 +206,74 @@ describe('in-flight local downloads', () => {
     expect(screen.queryByText(/Qwen3\.6 27B/i)).toBeNull()
     expect(screen.queryByText('Qwen3.8 Flash Next (UD-Q4_K_XL)')).toBeNull()
     expect(screen.queryByText('Local')).toBeNull()
+  })
+})
+
+
+// One curation per bot. Someone who runs a profile as a bot pins it to one
+// provider and trims its menu down; doing that must not retune every other
+// bot's menu, which is what a single global shortlist did.
+describe('curation is scoped to the bot', () => {
+  it('does not apply one profile\'s shortlist to another profile', async () => {
+    setVisibleModels('dn', new Set([modelVisibilityKey('google', 'gemini-2.5-flash')]))
+
+    renderMenu('dn')
+    await screen.findByText(/Gemini 2\.5 Flash/i)
+    expect(screen.queryByText(/Gemini 3\.1 Pro/i)).toBeNull()
+
+    cleanup()
+
+    // A different bot never customized: it still gets the curated default,
+    // which is the whole catalog here.
+    renderMenu('builder')
+    await screen.findByText(/Gemini 3\.1 Pro/i)
+  })
+
+  it('leaves the other profile untouched when one profile is edited', async () => {
+    setVisibleModels('dn', new Set([modelVisibilityKey('google', 'gemini-2.5-flash')]))
+    setVisibleModels('builder', new Set([modelVisibilityKey('google', 'gemini-3.1-pro')]))
+
+    renderMenu('dn')
+    await screen.findByText(/Gemini 2\.5 Flash/i)
+    expect(screen.queryByText(/Gemini 3\.1 Pro/i)).toBeNull()
+  })
+})
+
+// A router serves other labs' models under their own namespace, which the
+// display name drops: `anthropic/claude-opus-5` reads as plain "Opus 5", the
+// same as the Anthropic-subscription row. The lab has to stay on the row.
+describe('models routed through an aggregator name their lab', () => {
+  beforeEach(() => {
+    getGlobalModelOptions.mockResolvedValue({
+      providers: [
+        { models: ['claude-opus-5'], name: 'Anthropic', slug: 'anthropic' },
+        {
+          models: ['anthropic/claude-opus-5', 'deepseek/deepseek-v4.1-flash'],
+          name: 'OpenRouter',
+          slug: 'openrouter'
+        }
+      ]
+    })
+  })
+
+  it('qualifies a routed row with its lab and leaves the first-party row plain', async () => {
+    renderMenu()
+
+    await screen.findByText('Anthropic', { selector: 'span' })
+    // Two rows read "Opus 5"; only the routed one carries the lab beside it.
+    expect(await screen.findAllByText(/Opus 5/)).toHaveLength(2)
+    expect(screen.getByText(/· Anthropic/)).toBeTruthy()
+    expect(screen.getByText(/· DeepSeek/)).toBeTruthy()
+  })
+
+  it('leaves a single-vendor provider unqualified', async () => {
+    getGlobalModelOptions.mockResolvedValue({
+      providers: [{ models: ['gemini-3.1-pro'], name: 'Google', slug: 'google' }]
+    })
+
+    renderMenu()
+
+    await screen.findByText(/Gemini 3\.1 Pro/i)
+    expect(screen.queryByText(/· /)).toBeNull()
   })
 })

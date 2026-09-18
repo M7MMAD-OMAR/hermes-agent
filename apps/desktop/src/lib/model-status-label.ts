@@ -122,3 +122,85 @@ export function formatModelPillLabel(model: string, options?: { fastMode?: boole
 
   return name
 }
+
+// Vendor namespaces an aggregator catalog uses (`anthropic/claude-opus-5`).
+// `modelBaseId` drops them for display, which is right for a first-party
+// provider and wrong for a router: "Opus 5" under OpenRouter then reads
+// exactly like the Anthropic-subscription row two groups above it.
+const VENDOR_LABELS: Readonly<Record<string, string>> = {
+  'ai21': 'AI21',
+  'ai-sweden': 'AI Sweden',
+  'alibaba': 'Alibaba',
+  'amazon': 'Amazon',
+  'anthracite-org': 'Anthracite',
+  'anthropic': 'Anthropic',
+  'cohere': 'Cohere',
+  'deepseek': 'DeepSeek',
+  'google': 'Google',
+  'inflection': 'Inflection',
+  'meta': 'Meta',
+  'meta-llama': 'Meta',
+  'microsoft': 'Microsoft',
+  'minimax': 'MiniMax',
+  'mistralai': 'Mistral',
+  'moonshotai': 'Moonshot',
+  'nousresearch': 'Nous Research',
+  'nvidia': 'NVIDIA',
+  'openai': 'OpenAI',
+  'perplexity': 'Perplexity',
+  'poolside': 'Poolside',
+  'qwen': 'Qwen',
+  'sakana': 'Sakana',
+  'stepfun': 'StepFun',
+  'tencent': 'Tencent',
+  'thinkingmachines': 'Thinking Machines',
+  'x-ai': 'xAI',
+  'xiaomi': 'Xiaomi',
+  'z-ai': 'Z.AI'
+}
+
+/** The vendor namespace of a model id (`anthropic/claude-opus-5` → `anthropic`),
+ *  '' when the id carries none. A `~` routing marker and a `:free` / `:batch`
+ *  variant suffix are not part of the namespace. */
+export function modelVendorSlug(model: string): string {
+  const trimmed = model.trim().replace(/^~+/, '')
+  const slash = trimmed.indexOf('/')
+
+  return slash > 0 ? trimmed.slice(0, slash).toLowerCase() : ''
+}
+
+/** Display form of a model id's vendor namespace, '' when it has none. Used to
+ *  qualify rows of a multi-vendor (routing) provider so an OpenRouter-served
+ *  Claude never renders identically to the Anthropic-subscription one. */
+export function modelVendorLabel(model: string): string {
+  const slug = modelVendorSlug(model)
+
+  if (!slug) {
+    return ''
+  }
+
+  return VENDOR_LABELS[slug] ?? titleCase(slug.replace(/[-_]/g, ' '))
+}
+
+/** True when a provider's catalog spans more than one vendor namespace, i.e.
+ *  it routes other labs' models rather than serving its own. Derived from the
+ *  ids themselves, never from a slug allowlist, so every router (OpenRouter,
+ *  Vercel AI Gateway, Kilo Code, DeepInfra, a custom proxy) is covered without
+ *  anyone maintaining a list. */
+export function isMultiVendorCatalog(models: readonly string[] | undefined): boolean {
+  const vendors = new Set<string>()
+
+  for (const model of models ?? []) {
+    const vendor = modelVendorSlug(model)
+
+    if (vendor) {
+      vendors.add(vendor)
+
+      if (vendors.size > 1) {
+        return true
+      }
+    }
+  }
+
+  return false
+}

@@ -1,16 +1,20 @@
 import type { ModelOptionProvider } from '@hermes/shared'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
+  $visibleModelsByScope,
   collapseModelFamilies,
   defaultVisibleKeys,
   effectiveVisibleKeys,
   emptyProviderSentinelKey,
   isProviderSentinel,
+  modelPrefsScope,
   modelVisibilityKey,
   resolveVisibleKeys,
   setProviderVisibility,
-  toggleModelVisibility
+  setVisibleModels,
+  toggleModelVisibility,
+  visibleModelsFor
 } from './model-visibility'
 
 const provider = (slug: string, models: string[]): ModelOptionProvider => ({
@@ -324,5 +328,44 @@ describe('setProviderVisibility', () => {
     expect(next.has(modelVisibilityKey('nous', 'model'))).toBe(true)
     // The -fast sibling is represented by its base family, not its own key.
     expect(next.has(modelVisibilityKey('nous', 'model-fast'))).toBe(false)
+  })
+})
+
+describe('curation is per bot', () => {
+  it('reads and writes one scope without touching another', () => {
+    $visibleModelsByScope.set({})
+
+    setVisibleModels('dn', new Set(['openrouter::anthropic/claude-opus-5']))
+
+    expect(visibleModelsFor('dn')).toEqual(new Set(['openrouter::anthropic/claude-opus-5']))
+    expect(visibleModelsFor('builder')).toBeNull()
+  })
+
+  it('names a remote connection in the scope so two profiles called default stay apart', () => {
+    expect(modelPrefsScope('default')).toBe('default')
+    expect(modelPrefsScope('default', 'conn-a')).toBe('conn-a/default')
+    expect(modelPrefsScope('DN')).toBe('dn')
+    expect(modelPrefsScope('')).toBe('default')
+  })
+
+  it('inherits the pre-scoping shortlist until that bot is edited', async () => {
+    window.localStorage.setItem('hermes.desktop.visible-models', JSON.stringify(['google::gemini-3.1-pro']))
+    vi.resetModules()
+
+    const store = await import('./model-visibility')
+
+    // Every bot starts on the old single list, so an upgrade resets nobody.
+    expect(store.visibleModelsForScope({}, 'dn')).toEqual(new Set(['google::gemini-3.1-pro']))
+
+    // The first edit inside a bot gives it its own list and stops the inheritance.
+    expect(store.visibleModelsForScope({ dn: ['openrouter::z-ai/glm-5.3'] }, 'dn')).toEqual(
+      new Set(['openrouter::z-ai/glm-5.3'])
+    )
+    expect(store.visibleModelsForScope({ dn: ['openrouter::z-ai/glm-5.3'] }, 'builder')).toEqual(
+      new Set(['google::gemini-3.1-pro'])
+    )
+
+    window.localStorage.removeItem('hermes.desktop.visible-models')
+    vi.resetModules()
   })
 })

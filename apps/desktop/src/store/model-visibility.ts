@@ -1,9 +1,17 @@
 import type { ModelOptionProvider } from '@hermes/shared'
 import { atom } from 'nanostores'
 
+import { modelPrefsScope } from '@/lib/model-scope'
 import { persistString, storedString } from '@/lib/storage'
 
-const STORAGE_KEY = 'hermes.desktop.visible-models'
+// Pre-scoping key: ONE curation shared by every profile. Kept as a read-only
+// fallback so nobody's existing shortlist resets on first launch after the
+// upgrade; the first edit inside a profile writes that profile's own bucket
+// and the profile stops reading this.
+const LEGACY_STORAGE_KEY = 'hermes.desktop.visible-models'
+
+// Per-scope curation: `{ "<connection>/<profile>": ["provider::model", ...] }`.
+const STORAGE_KEY = 'hermes.desktop.visible-models.by-scope'
 
 /** Models shown per provider in the status-bar dropdown before the user has
  *  customized the list. Backend `models` are already relevance-ordered. */
@@ -68,9 +76,7 @@ export function collapseModelFamilies(models: readonly string[]): ModelFamily[] 
   return families
 }
 
-function loadVisible(): Set<string> | null {
-  const raw = storedString(STORAGE_KEY)
-
+function parseKeyList(raw: null | string): null | string[] {
   if (!raw) {
     return null
   }
@@ -78,24 +84,88 @@ function loadVisible(): Set<string> | null {
   try {
     const parsed = JSON.parse(raw)
 
-    return Array.isArray(parsed) ? new Set(parsed.filter((x): x is string => typeof x === 'string')) : null
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : null
   } catch {
     return null
   }
 }
 
-/** Explicit set of visible `provider::model` keys, or null when the user
- *  hasn't customized — in which case the curated default applies. */
-export const $visibleModels = atom<Set<string> | null>(loadVisible())
+// Read once at load: a scope with no bucket of its own inherits this on every
+// render, and localStorage is synchronous.
+const LEGACY_VISIBLE = parseKeyList(storedString(LEGACY_STORAGE_KEY))
+
+function loadByScope(): Record<string, string[]> {
+  const raw = storedString(STORAGE_KEY)
+
+  if (!raw) {
+    return {}
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw)
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
+
+    const out: Record<string, string[]> = {}
+
+    for (const [scope, keys] of Object.entries(parsed as Record<string, unknown>)) {
+      if (Array.isArray(keys)) {
+        out[scope] = keys.filter((x): x is string => typeof x === 'string')
+      }
+    }
+
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/** Curation per (connection, profile) scope. Read through
+ *  `visibleModelsForScope` rather than directly: a scope with no entry of its
+ *  own still inherits the pre-scoping global list. */
+export const $visibleModelsByScope = atom<Record<string, string[]>>(loadByScope())
 
 export const $modelVisibilityOpen = atom(false)
 
-export function setVisibleModels(keys: Set<string>): void {
-  $visibleModels.set(new Set(keys))
-  persistString(STORAGE_KEY, JSON.stringify([...keys]))
+/** Which catalog owner the Edit Models dialog should edit while it is open.
+ *  A menu mounted for another bot (a kanban tile, a secondary pane) must not
+ *  hand its Edit Models click to the app's own profile, or a toggle lands on
+ *  the wrong bot's shortlist. Null falls back to the host surface's profile. */
+export const $modelVisibilityTarget = atom<null | { ownerConnectionId?: string; profile: string }>(null)
+
+/** Explicit set of visible `provider::model` keys for one scope, or null when
+ *  that scope was never customized, in which case the curated default applies. */
+export function visibleModelsForScope(byScope: Record<string, string[]>, scope: string): null | Set<string> {
+  const own = byScope[scope]
+
+  if (own) {
+    return new Set(own)
+  }
+
+  return LEGACY_VISIBLE ? new Set(LEGACY_VISIBLE) : null
 }
 
-export function setModelVisibilityOpen(open: boolean): void {
+/** Reactive read of one scope's curation. */
+export function visibleModelsFor(scope: string): null | Set<string> {
+  return visibleModelsForScope($visibleModelsByScope.get(), scope)
+}
+
+export function setVisibleModels(scope: string, keys: Set<string>): void {
+  const next = { ...$visibleModelsByScope.get(), [scope]: [...keys] }
+
+  $visibleModelsByScope.set(next)
+  persistString(STORAGE_KEY, JSON.stringify(next))
+}
+
+export { modelPrefsScope }
+
+export function setModelVisibilityOpen(
+  open: boolean,
+  target?: { ownerConnectionId?: string; profile: string }
+): void {
+  $modelVisibilityTarget.set(open ? (target ?? null) : null)
   $modelVisibilityOpen.set(open)
 }
 

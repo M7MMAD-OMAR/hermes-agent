@@ -2,6 +2,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  $holdAfterDrain,
   $parkedQueueSessions,
   $queuedPromptsBySession,
   enqueueQueuedPrompt,
@@ -423,5 +424,110 @@ describe('useComposerQueue give-up', () => {
 
     expect(onSubmit.mock.calls.length).toBe(spent)
     expect($notifications.get()).toHaveLength(0)
+  })
+})
+
+// Picking ONE entry out of several means that entry, not the whole queue. The
+// auto-drain is edge-independent, so without a hold the settle after a chosen
+// send walks straight through everything left behind.
+describe('useComposerQueue send-this-one-only', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    $queuedPromptsBySession.set({})
+    $parkedQueueSessions.set({})
+    $holdAfterDrain.set({})
+    resetQueueDrainState()
+    $notifications.set([])
+    setSessionsLoading(false)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    $queuedPromptsBySession.set({})
+    $parkedQueueSessions.set({})
+    $holdAfterDrain.set({})
+    resetQueueDrainState()
+    $notifications.set([])
+    setSessionsLoading(true)
+  })
+
+  it('sends only the chosen entry while idle and parks what is left', async () => {
+    enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'first' })
+    const chosen = enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'second' })!
+    enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'third' })
+
+    // Park first so the auto-drain does not consume the queue before the pick.
+    parkQueuedPrompts(SESSION_KEY)
+
+    const { hook, onSubmit } = renderQueueHook()
+
+    await act(async () => {
+      await hook.result.current.sendQueuedNow(chosen.id, 'hold')
+    })
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(onSubmit.mock.calls[0]?.[0]).toBe('second')
+    expect(getQueuedPrompts(SESSION_KEY).map(item => item.text)).toEqual(['first', 'third'])
+    expect(isQueueParked(SESSION_KEY)).toBe(true)
+  })
+
+  it('holds the rest across the interrupt a busy send-now needs', async () => {
+    const chosen = enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'urgent' })!
+    enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'later' })
+
+    const { hook, onCancel, onSubmit } = renderQueueHook({ busy: true })
+
+    await act(async () => {
+      await hook.result.current.sendQueuedNow(chosen.id, 'hold')
+    })
+
+    // The interrupt must actually fire, and the queue must be unparked meanwhile
+    // or the settle drain would never reach the entry the user chose.
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(isQueueParked(SESSION_KEY)).toBe(false)
+
+    // The settle: the turn unwinds and the drain sends exactly the chosen entry.
+    hook.rerender({ busy: false })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0]?.[0]).toBe('urgent')
+    expect(getQueuedPrompts(SESSION_KEY).map(item => item.text)).toEqual(['later'])
+    expect(isQueueParked(SESSION_KEY)).toBe(true)
+  })
+
+  it('leaves no park behind when the chosen entry was the only one', async () => {
+    const only = enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'alone' })!
+
+    parkQueuedPrompts(SESSION_KEY)
+
+    const { hook } = renderQueueHook()
+
+    await act(async () => {
+      await hook.result.current.sendQueuedNow(only.id, 'hold')
+    })
+
+    expect(getQueuedPrompts(SESSION_KEY)).toEqual([])
+    // A park with nothing queued would gate the next prompt the user writes.
+    expect(isQueueParked(SESSION_KEY)).toBe(false)
+  })
+
+  it("still flushes the queue for a caller that asks to resume", async () => {
+    const head = enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'head' })!
+    enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'tail' })
+
+    parkQueuedPrompts(SESSION_KEY)
+
+    const { hook, onSubmit } = renderQueueHook()
+
+    await act(async () => {
+      await hook.result.current.sendQueuedNow(head.id, 'resume')
+    })
+
+    await waitFor(() => expect(getQueuedPrompts(SESSION_KEY)).toEqual([]))
+    expect(onSubmit.mock.calls.map(call => call[0])).toEqual(['head', 'tail'])
   })
 })

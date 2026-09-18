@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { $composerAttachments, $composerDraft, type ComposerAttachment } from './composer'
 import {
+  $holdAfterDrain,
   $parkedQueueSessions,
   $queuedPromptsBySession,
   $stuckQueueEntries,
@@ -11,6 +12,7 @@ import {
   enqueueQueuedPrompt,
   getQueuedPrompts,
   hasExhaustedDrain,
+  isHeldAfterDrain,
   isQueueParked,
   MAX_AUTO_DRAIN_ATTEMPTS,
   migrateQueuedPrompts,
@@ -23,6 +25,7 @@ import {
   removeQueuedPrompt,
   resetQueueDrainState,
   resolveQueueStuck,
+  setHoldAfterDrain,
   shouldAutoDrain,
   unparkQueuedPrompts,
   updateQueuedPrompt,
@@ -439,5 +442,48 @@ describe('hidden entries', () => {
       { text: '[setup] links opened', displayKind: 'hidden' },
       { text: 'Start without connections.', displayKind: undefined }
     ])
+  })
+})
+
+describe('send-this-one-only holds', () => {
+  beforeEach(() => {
+    $holdAfterDrain.set({})
+  })
+
+  it('re-homes with the entries on a session re-key', () => {
+    enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'held' })
+    setHoldAfterDrain(SESSION_KEY, 'entry-1')
+
+    migrateQueuedPrompts(SESSION_KEY, 'session-new')
+
+    // The interrupt a hold waits on is exactly what mints a new key, so a hold
+    // left on the dead key would let the settle drain flush the rest.
+    expect(isHeldAfterDrain('session-new', 'entry-1')).toBe(true)
+    expect(isHeldAfterDrain(SESSION_KEY, 'entry-1')).toBe(false)
+  })
+
+  it('is retired when the user resumes the queue', () => {
+    setHoldAfterDrain(SESSION_KEY, 'entry-1')
+
+    unparkQueuedPrompts(SESSION_KEY)
+
+    // Resuming says "let it flow"; a surviving hold would re-park on the very
+    // next drain and undo the gesture.
+    expect(isHeldAfterDrain(SESSION_KEY, 'entry-1')).toBe(false)
+  })
+
+  it('is retired when the user queues something new', () => {
+    setHoldAfterDrain(SESSION_KEY, 'entry-1')
+
+    enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'fresh intent' })
+
+    expect(isHeldAfterDrain(SESSION_KEY, 'entry-1')).toBe(false)
+  })
+
+  it('only matches the entry it was set for', () => {
+    setHoldAfterDrain(SESSION_KEY, 'entry-1')
+
+    expect(isHeldAfterDrain(SESSION_KEY, 'entry-2')).toBe(false)
+    expect(isHeldAfterDrain('other-session', 'entry-1')).toBe(false)
   })
 })

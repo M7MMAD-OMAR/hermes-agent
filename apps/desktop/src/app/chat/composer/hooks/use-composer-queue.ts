@@ -10,19 +10,23 @@ import {
   $parkedQueueSessions,
   $queuedPromptsBySession,
   clearDrainFailure,
+  clearHoldAfterDrain,
   enqueueQueuedPrompt,
   getQueuedPrompts,
   hasExhaustedDrain,
+  isHeldAfterDrain,
   isSteerableEntry,
   MAX_AUTO_DRAIN_ATTEMPTS,
   migrateQueuedPrompts,
   noteDrainFailure,
   noteQueueStuck,
+  parkQueuedPrompts,
   promoteQueuedPrompt,
   type QueuedPromptEntry,
   queueStuckNoticeId,
   removeQueuedPrompt,
   resolveQueueStuck,
+  setHoldAfterDrain,
   shouldAutoDrain,
   unparkQueuedPrompts,
   updateQueuedPrompt
@@ -206,8 +210,14 @@ export function useComposerQueue({
 
   // All queue drain paths share one lock + send-then-remove sequence.
   // `pickEntry` lets each caller choose head, by-id, or skip-edited.
+  // `intent` says what the send MEANS for the entries left behind: 'resume'
+  // lets the queue keep flowing (the historical behaviour), 'hold' parks what
+  // remains because the user picked exactly one entry.
   const runDrain = useCallback(
-    async (pickEntry: (entries: QueuedPromptEntry[]) => QueuedPromptEntry | undefined): Promise<boolean> => {
+    async (
+      pickEntry: (entries: QueuedPromptEntry[]) => QueuedPromptEntry | undefined,
+      intent: 'hold' | 'resume' = 'resume'
+    ): Promise<boolean> => {
       if (drainingQueueRef.current || !activeQueueSessionKey) {
         return false
       }
@@ -239,12 +249,24 @@ export function useComposerQueue({
         }
 
         clearDrainFailure(entry.id)
+        // Remove BEFORE parking: parkQueuedPrompts no-ops on an empty queue, so
+        // sending the only entry leaves no stale gate behind.
         removeQueuedPrompt(drainQueueSessionKey, entry.id)
         resetBrowseState(drainRuntimeSessionId)
-        // A successful drain means the queue is flowing again — lift any park
-        // so the remaining entries follow. Manual drains (Enter on an empty
-        // composer, the per-row send arrow) are exactly the resume gestures a
-        // parked queue waits for; the auto path only reaches here unparked.
+
+        // A send-this-one-only set before an interrupt lands here, on the drain
+        // the settle triggers, which is why the flag lives in the store.
+        if (intent === 'hold' || isHeldAfterDrain(drainQueueSessionKey, entry.id)) {
+          clearHoldAfterDrain(drainQueueSessionKey)
+          parkQueuedPrompts(drainQueueSessionKey)
+
+          return true
+        }
+
+        // Otherwise a successful drain means the queue is flowing again: lift
+        // any park so the remaining entries follow. A manual resume (Enter on
+        // an empty composer) is exactly the gesture a parked queue waits for;
+        // the auto path only reaches here unparked.
         unparkQueuedPrompts(drainQueueSessionKey)
 
         return true
@@ -266,8 +288,11 @@ export function useComposerQueue({
 
   const drainNextQueued = useCallback(() => runDrain(pickDrainHead), [pickDrainHead, runDrain])
 
+  // `intent` is the caller's gesture, not a property of the entry: 'hold' means
+  // "send THIS one and leave the rest queued", which is what picking one row
+  // out of several says. 'resume' keeps the old flush-the-queue behaviour.
   const sendQueuedNow = useCallback(
-    (id: string) => {
+    (id: string, intent: 'hold' | 'resume' = 'hold') => {
       if (!activeQueueSessionKey || id === queueEdit?.entryId) {
         return false
       }
@@ -277,9 +302,16 @@ export function useComposerQueue({
         // settle (message.complete + session.info running:false) when the
         // turn unwinds, and the busy→false auto-drain below sends this entry.
         // Unpark first: this interrupt exists to REACH the queue, so the
-        // settle drain must flow — unlike a Stop/Esc halt, which parks.
+        // settle drain must flow, unlike a Stop/Esc halt, which parks.
         promoteQueuedPrompt(activeQueueSessionKey, id)
         unparkQueuedPrompts(activeQueueSessionKey)
+
+        if (intent === 'hold') {
+          // Recorded AFTER the unpark, which clears it: the settle drain reads
+          // this to park whatever is still queued once this entry has gone.
+          setHoldAfterDrain(activeQueueSessionKey, id)
+        }
+
         triggerHaptic('selection')
         void Promise.resolve(onCancel())
 
@@ -293,7 +325,7 @@ export function useComposerQueue({
       clearDrainFailure(id)
       resolveQueueStuck(activeQueueSessionKey)
 
-      return runDrain(entries => entries.find(e => e.id === id))
+      return runDrain(entries => entries.find(e => e.id === id), intent)
     },
     [activeQueueSessionKey, busy, onCancel, queueEdit, runDrain]
   )

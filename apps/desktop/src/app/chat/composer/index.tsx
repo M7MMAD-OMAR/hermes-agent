@@ -1027,7 +1027,8 @@ export function ChatBar({
         const head = queuedPrompts.find(entry => entry.id !== queueEdit?.entryId)
 
         if (head) {
-          sendQueuedNow(head.id)
+          // 'hold': this Enter asked for the head, not for the whole queue.
+          sendQueuedNow(head.id, 'hold')
         }
 
         return
@@ -1382,7 +1383,7 @@ export function ChatBar({
                       void drainNextQueued()
                     }
                   }}
-                  onSendNow={id => void sendQueuedNow(id)}
+                  onSendNow={id => void sendQueuedNow(id, 'hold')}
                   onSteerNow={id => void steerQueuedNow(id)}
                   parked={queueParked}
                 />

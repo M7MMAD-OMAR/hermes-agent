@@ -73,6 +73,49 @@ export const $queuedPromptsBySession = atom<QueueState>(load())
  */
 export const $parkedQueueSessions = atom<Record<string, true>>({})
 
+/**
+ * The entry each session was told to send BY ITSELF, if any. Picking one entry
+ * (the panel's send arrow, empty Enter while busy) means "this one, not the
+ * rest": once it lands, whatever is still queued is parked so the auto-drain
+ * does not walk straight through the remaining entries.
+ *
+ * It lives here rather than in a composer ref because the send that sets it and
+ * the drain that consumes it are separated by an interrupt: the composer can
+ * remount on the gateway bounce in between, and the background drainer is a
+ * second drain path that never sees composer state at all.
+ */
+export const $holdAfterDrain = atom<Record<string, string>>({})
+
+/** Mark one entry as a send-this-one-only, so its drain parks what is left. */
+export const setHoldAfterDrain = (key: string | null | undefined, id: string): void => {
+  const sid = sidOf(key)
+
+  if (sid) {
+    $holdAfterDrain.set({ ...$holdAfterDrain.get(), [sid]: id })
+  }
+}
+
+/** True when `id` is the entry this session was told to send by itself. */
+export const isHeldAfterDrain = (key: string | null | undefined, id: string): boolean => {
+  const sid = sidOf(key)
+
+  return !!sid && $holdAfterDrain.get()[sid] === id
+}
+
+/** Drop a pending hold (it landed, or the user resumed the queue). */
+export const clearHoldAfterDrain = (key: string | null | undefined): void => {
+  const sid = sidOf(key)
+
+  if (!sid || !(sid in $holdAfterDrain.get())) {
+    return
+  }
+
+  const next = { ...$holdAfterDrain.get() }
+
+  delete next[sid]
+  $holdAfterDrain.set(next)
+}
+
 const setParked = (sid: string, parked: boolean) => {
   const current = $parkedQueueSessions.get()
 
@@ -237,6 +280,7 @@ export const enqueueQueuedPrompt = (
   // a park from an earlier Stop must not hold this (or the entries ahead of
   // it) back.
   setParked(sid, false)
+  clearHoldAfterDrain(sid)
 
   return entry
 }
@@ -436,6 +480,18 @@ export const migrateQueuedPrompts = (fromKey: string | null | undefined, toKey: 
     setParked(to, true)
   }
 
+  // A pending send-this-one-only re-homes for the same reason: the interrupt it
+  // is waiting on is exactly what can mint the new key, and a hold left behind
+  // would let the settle drain walk the rest of the queue.
+  const held = $holdAfterDrain.get()[from]
+
+  if (held) {
+    const next = { ...$holdAfterDrain.get(), [to]: held }
+
+    delete next[from]
+    $holdAfterDrain.set(next)
+  }
+
   return true
 }
 
@@ -457,12 +513,15 @@ export const parkQueuedPrompts = (key: string | null | undefined): boolean => {
   return true
 }
 
-/** Lift a park (user resumed the queue). Safe to call for any session. */
+/** Lift a park (user resumed the queue). Safe to call for any session.
+ *  Resuming also retires a pending send-this-one-only: the user just asked for
+ *  the queue to flow, so the next drain must not park it again. */
 export const unparkQueuedPrompts = (key: string | null | undefined): void => {
   const sid = sidOf(key)
 
   if (sid) {
     setParked(sid, false)
+    clearHoldAfterDrain(sid)
   }
 }
 

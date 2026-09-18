@@ -3,16 +3,16 @@
 import type { Unstable_DirectiveFormatter, Unstable_DirectiveSegment, Unstable_TriggerItem } from '@assistant-ui/core'
 import type { TextMessagePartComponent, TextMessagePartProps } from '@assistant-ui/react'
 import type { FC } from 'react'
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useMemo } from 'react'
 
 import { ZoomableImage } from '@/components/chat/zoomable-image'
 import type { I18nContextValue } from '@/i18n'
 import { extractEmbeddedImages } from '@/lib/embedded-images'
 import { ExternalLink, openLink } from '@/lib/external-link'
 import { triggerHaptic } from '@/lib/haptics'
-import { gatewayMediaDataUrl, isRemoteGateway } from '@/lib/media'
 import { useSessionLinkTitle } from '@/lib/session-link-title'
 import { parseSessionRefValue, sessionRefFallbackLabel } from '@/lib/session-refs'
+import { useAttachmentImage } from '@/lib/use-attachment-image'
 import { cn } from '@/lib/utils'
 
 import { referenceKind, referenceRe, referenceStyle, WIRE_REFERENCE_KINDS } from './reference-kinds'
@@ -139,7 +139,8 @@ const SLASH_SKILL_RE = /(?<=^|\s)\/([a-zA-Z][\w-]*)(?![\w-]*\/)/g
 
 const TRAILING_PUNCTUATION_RE = /[,.;!?]+$/
 
-function unwrapRefValue(raw: string): string {
+/** Strip the quoting `formatRefValue` adds to a value with spaces or brackets. */
+export function unwrapRefValue(raw: string): string {
   if (raw.length < 2) {
     return raw
   }
@@ -400,32 +401,9 @@ export const DirectiveText: TextMessagePartComponent = ({ text }: TextMessagePar
  * messages render after the backend embeds the data URL, so the UX is stable
  * across initial send and refresh. */
 const DirectiveImage: FC<{ id: string; label: string }> = ({ id, label }) => {
-  const isUrl = /^(?:https?|data):/i.test(id)
-  const [src, setSrc] = useState<string | null>(isUrl ? id : null)
-  const [failed, setFailed] = useState(false)
+  const { src, status } = useAttachmentImage(id)
 
-  useEffect(() => {
-    if (isUrl || !id) {
-      return
-    }
-
-    let alive = true
-
-    // Remote gateway: the image lives on the gateway's disk, not ours — fetch
-    // it over the authenticated API. Local: read it straight off this disk.
-    const load =
-      window.hermesDesktop && isRemoteGateway() ? gatewayMediaDataUrl(id) : window.hermesDesktop?.readFileDataUrl(id)
-
-    void Promise.resolve(load)
-      .then(url => alive && url && setSrc(url))
-      .catch(() => alive && setFailed(true))
-
-    return () => {
-      alive = false
-    }
-  }, [id, isUrl])
-
-  if (failed) {
+  if (status === 'failed') {
     return <DirectiveChip id={id} label={label} type="image" />
   }
 

@@ -2632,6 +2632,8 @@ export const ja = defineLocale({
     attachmentOnly: '添付のみのターン',
     emptyTurn: '空のターン',
     attachments: count => `${count} 件の添付`,
+    attachmentsShowAll: count => `すべて表示 (${count})`,
+    attachmentsShowFewer: '表示を減らす',
     editingInComposer: 'コンポーザーで編集中',
     editingQueuedInComposer: 'コンポーザーでキュー済みターンを編集中',
     queueEdit: '編集',

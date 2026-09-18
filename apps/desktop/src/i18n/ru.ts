@@ -2878,6 +2878,8 @@ export const ru = defineLocale({
     attachmentOnly: 'Ход только с вложениями',
     emptyTurn: 'Пустой ход',
     attachments: count => `${count} ${RU_NOUN(count, 'вложение', 'вложения', 'вложений')}`,
+    attachmentsShowAll: count => `Показать все (${count})`,
+    attachmentsShowFewer: 'Показать меньше',
     editingInComposer: 'Редактирование в композере',
     editingQueuedInComposer: 'Редактирование хода в очереди в композере',
     queueEdit: 'Изменить',

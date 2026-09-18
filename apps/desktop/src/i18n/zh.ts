@@ -3283,6 +3283,8 @@ export const zh = defineLocale({
     attachmentOnly: '仅附件回合',
     emptyTurn: '空回合',
     attachments: count => `${count} 个附件`,
+    attachmentsShowAll: count => `显示全部 (${count})`,
+    attachmentsShowFewer: '收起',
     editingInComposer: '正在输入框中编辑',
     editingQueuedInComposer: '正在输入框中编辑排队回合',
     queueEdit: '编辑',

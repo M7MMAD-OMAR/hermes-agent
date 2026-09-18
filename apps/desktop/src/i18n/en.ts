@@ -3167,6 +3167,8 @@ export const en: Translations = {
     emptyTurn: 'Empty turn',
     hiddenQueued: 'Setup note',
     attachments: count => `${count} attachment${count === 1 ? '' : 's'}`,
+    attachmentsShowAll: count => `Show all ${count}`,
+    attachmentsShowFewer: 'Show fewer',
     editingInComposer: 'Editing in composer',
     editingQueuedInComposer: 'Editing queued turn in composer',
     queueEdit: 'Edit',

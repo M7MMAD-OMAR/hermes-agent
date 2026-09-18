@@ -2732,6 +2732,9 @@ export interface Translations {
     emptyTurn: string
     hiddenQueued: string
     attachments: (count: number) => string
+    /** Expander on a sent message that carries more attachments than fit. */
+    attachmentsShowAll: (count: number) => string
+    attachmentsShowFewer: string
     editingInComposer: string
     editingQueuedInComposer: string
     queueEdit: string

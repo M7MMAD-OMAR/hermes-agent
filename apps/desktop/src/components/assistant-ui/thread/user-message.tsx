@@ -1,8 +1,8 @@
 import { ActionBarPrimitive, BranchPickerPrimitive, MessagePrimitive, useAuiState } from '@assistant-ui/react'
 import { type FC, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
-import { DirectiveContent } from '@/components/assistant-ui/directive-text'
-import { messageAttachmentRefs, messageContentText, PROCESS_NOTIFICATION_RE } from '@/components/assistant-ui/thread/content'
+import { messageAttachmentRefs, messageContentText } from '@/components/assistant-ui/thread/content'
+import { MessageAttachments } from '@/components/assistant-ui/thread/message-attachments'
 import { ReactionBadge, ReactionPicker } from '@/components/assistant-ui/thread/message-reactions'
 import { BackgroundResult } from '@/components/assistant-ui/thread/system-message'
 import { MessageTimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
@@ -458,10 +458,12 @@ export const UserMessage: FC<{
         attachments={
           // Attachments live BELOW the sticky bubble in normal flow, so they
           // scroll away behind the pinned bubble instead of riding along with
-          // it. Image refs render as thumbnails, file refs as chips; no border.
+          // it. Each one is a tile carrying its format: what the user attached
+          // is a block of things, not a reference written mid-sentence, which
+          // is the only thing `DirectiveContent` renders well.
           attachmentRefs.length > 0 ? (
-            <div className="flex flex-wrap gap-1 -mt-3 mb-2">
-              <DirectiveContent text={attachmentRefs.join(' ')} />
+            <div className="-mt-3 mb-2">
+              <MessageAttachments refs={attachmentRefs} />
             </div>
           ) : null
         }

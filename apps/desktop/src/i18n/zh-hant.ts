@@ -2614,6 +2614,8 @@ export const zhHant = defineLocale({
     attachmentOnly: '僅附件回合',
     emptyTurn: '空回合',
     attachments: count => `${count} 個附件`,
+    attachmentsShowAll: count => `顯示全部 (${count})`,
+    attachmentsShowFewer: '收合',
     editingInComposer: '在輸入框中編輯',
     editingQueuedInComposer: '在輸入框中編輯排隊回合',
     queueEdit: '編輯',

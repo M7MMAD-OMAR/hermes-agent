@@ -3162,6 +3162,8 @@ export const ar = defineLocale({
     attachmentOnly: 'إرفاق فقط',
     emptyTurn: 'اكتب رسالة أو أرفق ملفا.',
     attachments: count => `${count} مرفق`,
+    attachmentsShowAll: count => `إظهار الكل (${count})`,
+    attachmentsShowFewer: 'إظهار أقل',
     editingInComposer: 'جار التحرير في صندوق الكتابة',
     editingQueuedInComposer: 'جار تحرير رسالة في الطابور',
     queueEdit: 'تحرير الرسالة المجدولة',

@@ -41,8 +41,7 @@ import { handleServerRequest as dispatchServerRequest } from './gateway-event/se
 import {
   completionErrorText,
   delegateTaskPayloads,
-  MAX_STREAM_FLUSH_GAP_MS,
-  streamFlushFloorMs
+  streamFlushGapMs
 } from './utils'
 
 interface MessageStreamOptions {
@@ -225,6 +224,9 @@ export function useMessageStream({
   // The pending commit-cost measurement rAF, so a newer flush (or unmount)
   // can cancel it instead of letting parked callbacks pile up while hidden.
   const measureRafRef = useRef<number | null>(null)
+  /** A frame parked while the window is off screen, so the queued text lands
+   *  the moment it is painted again. See scheduleDeltaFlush. */
+  const returnFrameRef = useRef<number | null>(null)
   const nativeSubagentSessionsRef = useRef<Set<string>>(new Set())
   // Turns that auto-compacted: skip post-turn hydrate so live scrollback survives.
   const compactedTurnRef = useRef<Set<string>>(new Set())
@@ -298,9 +300,32 @@ export function useMessageStream({
     // the stream-aware unthrottle keeps a parked window "visible", so neither
     // `document.visibilityState` nor the timer cadence says anything about
     // whether this text reaches a screen.
-    const attentionFloor = streamFlushFloorMs({ focused: document.hasFocus(), presented: isWindowPresented() })
+    const presented = isWindowPresented()
 
-    const adaptiveFloor = Math.min(Math.max(attentionFloor, lastFlushCostRef.current * 3), MAX_STREAM_FLUSH_GAP_MS)
+    const adaptiveFloor = streamFlushGapMs({
+      focused: document.hasFocus(),
+      lastFlushCostMs: lastFlushCostRef.current,
+      presented
+    })
+
+    // Coming back must not wait out the hidden floor. `focus` and
+    // `visibilitychange` cover most returns but neither is guaranteed: a
+    // compositor can reveal a window without focusing it, and it never
+    // reported the window hidden in the first place. A frame is the signal
+    // that cannot be missed, because being painted is what a return IS. The
+    // callback sits parked for as long as the window is off screen and costs
+    // nothing until then.
+    if (!presented && returnFrameRef.current === null) {
+      returnFrameRef.current = window.requestAnimationFrame(() => {
+        returnFrameRef.current = null
+
+        if (flushHandleRef.current !== null) {
+          window.clearTimeout(flushHandleRef.current)
+          flushHandleRef.current = null
+          flushQueuedDeltas()
+        }
+      })
+    }
 
     const runFlush = () => {
       flushHandleRef.current = null
@@ -394,7 +419,12 @@ export function useMessageStream({
         window.cancelAnimationFrame(measureRafRef.current)
       }
 
+      if (returnFrameRef.current !== null && typeof window !== 'undefined') {
+        window.cancelAnimationFrame(returnFrameRef.current)
+      }
+
       measureRafRef.current = null
+      returnFrameRef.current = null
       flushQueuedDeltas()
     },
     [flushQueuedDeltas]

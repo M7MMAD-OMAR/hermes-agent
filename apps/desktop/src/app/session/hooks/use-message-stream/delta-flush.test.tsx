@@ -6,10 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClientSessionState } from '@/app/types'
 import type { ChatMessage } from '@/lib/chat-messages'
 import { createClientSessionState } from '@/lib/chat-runtime'
+import { PRESENT_STALE_MS, resetWindowPresentedForTests } from '@/lib/window-presented'
 
 import { useSessionStateCache } from '../use-session-state-cache'
 
 import { type MessageStreamHarness, renderMessageStream } from './test-harness'
+import { UNFOCUSED_STREAM_FLUSH_MS } from './utils'
 
 import { useMessageStream } from './index'
 
@@ -70,6 +72,53 @@ describe('useMessageStream delta flush scheduling', () => {
     })
 
     expect(assistantText()).toBe('still streaming')
+  })
+
+  it('flushes queued text on the first frame after an off-screen window is painted again', () => {
+    // No frames while the clock keeps moving is what a window on another
+    // workspace looks like: its timers run on, so nothing else tells the
+    // renderer it left the screen.
+    resetWindowPresentedForTests()
+
+    const frames: FrameRequestCallback[] = []
+    vi.mocked(window.requestAnimationFrame).mockImplementation(callback => {
+      frames.push(callback)
+
+      return frames.length
+    })
+
+    let clock = 0
+    vi.mocked(performance.now).mockImplementation(() => clock)
+    mountStream()
+
+    // Two deltas far enough apart to land immediately. The second is what puts
+    // the hidden floor in play for the third, and by then no frame has arrived
+    // for longer than PRESENT_STALE_MS.
+    act(() => stream.appendDelta(SID, 'first '))
+    act(() => vi.advanceTimersByTime(UNFOCUSED_STREAM_FLUSH_MS + 50))
+
+    clock = PRESENT_STALE_MS + 300
+    act(() => stream.appendDelta(SID, 'second '))
+    act(() => vi.advanceTimersByTime(1))
+    expect(assistantText()).toBe('first second ')
+
+    clock += 200
+    act(() => stream.appendDelta(SID, 'queued while off screen'))
+
+    // Well past the floor an unfocused window would use, still inside the
+    // hidden one.
+    act(() => vi.advanceTimersByTime(UNFOCUSED_STREAM_FLUSH_MS * 3))
+    expect(assistantText()).toBe('first second ')
+
+    // The window is painted again: the parked frame runs.
+    act(() => {
+      for (const frame of frames.splice(0)) {
+        frame(clock)
+      }
+    })
+
+    expect(assistantText()).toBe('first second queued while off screen')
+    resetWindowPresentedForTests()
   })
 
   it('flushes queued text immediately when a hidden window becomes visible', () => {

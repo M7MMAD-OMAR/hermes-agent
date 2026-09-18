@@ -130,6 +130,26 @@ export function streamFlushFloorMs({ focused, presented }: { focused: boolean; p
   return focused ? STREAM_DELTA_FLUSH_MS : UNFOCUSED_STREAM_FLUSH_MS
 }
 
+/** The gap the next flush waits out: the attention floor, stretched toward 3x
+ *  what the last flush actually cost so a heavy multi-stream commit leaves the
+ *  main thread idle frames for input.
+ *
+ *  MAX_STREAM_FLUSH_GAP_MS caps the COST stretch only. Capping the result
+ *  would also cap the attention floor, which quietly clamped the hidden floor
+ *  back to 250ms: the promise the cap exists to keep, that text never updates
+ *  slower than 4/s, is about text somebody is watching. */
+export function streamFlushGapMs({
+  focused,
+  lastFlushCostMs,
+  presented
+}: {
+  focused: boolean
+  lastFlushCostMs: number
+  presented: boolean
+}): number {
+  return Math.max(streamFlushFloorMs({ focused, presented }), Math.min(lastFlushCostMs * 3, MAX_STREAM_FLUSH_GAP_MS))
+}
+
 // How long an optimistically armed turn (busy/awaitingResponse set at submit /
 // restore / edit, before the backend confirms it live) may hold off a
 // session.info running=false heartbeat. Within this window a running=false is

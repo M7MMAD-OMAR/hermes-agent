@@ -58,7 +58,11 @@ describe('useMessageStream delta flush scheduling', () => {
 
     act(() => stream.appendDelta(SID, 'still streaming'))
 
-    expect(window.requestAnimationFrame).not.toHaveBeenCalled()
+    // A queued delta waits on a TIMER, never on a frame: an unfocused window
+    // may get no frames at all, and the text still has to arrive. (The only
+    // frame requested here belongs to the presentation probe in
+    // lib/window-presented, which is what tells the floor how hidden we are.)
+    expect(vi.getTimerCount()).toBe(1)
     expect(assistantText()).toBe('')
 
     await act(async () => {

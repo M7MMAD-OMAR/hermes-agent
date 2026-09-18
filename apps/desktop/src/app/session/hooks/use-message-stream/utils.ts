@@ -107,6 +107,29 @@ export const MAX_STREAM_FLUSH_GAP_MS = 250
 // whatever is queued the instant the user comes back.
 export const UNFOCUSED_STREAM_FLUSH_MS = 100
 
+// Flush floor while the window is not being PRESENTED at all — parked on
+// another workspace, minimised, fully covered. Focus already slows an
+// unfocused window to 10 commits a second, which is the right cadence for a
+// window someone can still see on a second monitor; for a window whose pixels
+// go nowhere it is still ten markdown re-parses a second per streaming
+// session, and this user runs eight at once. The deltas keep arriving and keep
+// landing in the queue either way: only the paint waits, at most a second, and
+// the return handler flushes on the way back in. See lib/window-presented.ts
+// for why a frame, not `document.visibilityState`, is what proves this.
+export const HIDDEN_STREAM_FLUSH_MS = 1_000
+
+/** The floor a delta flush may not beat, given how much of the window the user
+ *  can actually see. Presentation outranks focus: an unfocused window on a
+ *  second monitor is still being read, a focused-looking window on another
+ *  workspace is not. */
+export function streamFlushFloorMs({ focused, presented }: { focused: boolean; presented: boolean }): number {
+  if (!presented) {
+    return HIDDEN_STREAM_FLUSH_MS
+  }
+
+  return focused ? STREAM_DELTA_FLUSH_MS : UNFOCUSED_STREAM_FLUSH_MS
+}
+
 // How long an optimistically armed turn (busy/awaitingResponse set at submit /
 // restore / edit, before the backend confirms it live) may hold off a
 // session.info running=false heartbeat. Within this window a running=false is

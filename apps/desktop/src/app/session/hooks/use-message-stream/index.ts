@@ -25,6 +25,7 @@ import {
   stripGeneratedImageEchoes
 } from '@/lib/generated-images'
 import { isTodoToolName, nextTodosFromToolEvent, parseTodoRevision } from '@/lib/todos'
+import { isWindowPresented } from '@/lib/window-presented'
 import type { ScopedServerRequest } from '@/store/gateway'
 import { dispatchNativeNotification } from '@/store/native-notifications'
 import { isDiskFullErrorMessage, notifyError } from '@/store/notifications'
@@ -41,8 +42,7 @@ import {
   completionErrorText,
   delegateTaskPayloads,
   MAX_STREAM_FLUSH_GAP_MS,
-  STREAM_DELTA_FLUSH_MS,
-  UNFOCUSED_STREAM_FLUSH_MS
+  streamFlushFloorMs
 } from './utils'
 
 interface MessageStreamOptions {
@@ -293,10 +293,12 @@ export function useMessageStream({
     // actually happens; see runFlush below.
     const sinceLast = performance.now() - lastFlushAtRef.current
 
-    // Unfocused windows take the slower floor (see UNFOCUSED_STREAM_FLUSH_MS):
-    // the stream-aware unthrottle keeps a parked window "visible", so focus is
-    // the only signal that nobody is reading this text right now.
-    const attentionFloor = document.hasFocus() ? STREAM_DELTA_FLUSH_MS : UNFOCUSED_STREAM_FLUSH_MS
+    // Unfocused windows take the slower floor (see UNFOCUSED_STREAM_FLUSH_MS),
+    // and a window that is not being presented at all takes the slowest one:
+    // the stream-aware unthrottle keeps a parked window "visible", so neither
+    // `document.visibilityState` nor the timer cadence says anything about
+    // whether this text reaches a screen.
+    const attentionFloor = streamFlushFloorMs({ focused: document.hasFocus(), presented: isWindowPresented() })
 
     const adaptiveFloor = Math.min(Math.max(attentionFloor, lastFlushCostRef.current * 3), MAX_STREAM_FLUSH_GAP_MS)
 

@@ -1,6 +1,7 @@
 import { type RefObject, useEffect } from 'react'
 
 import { createRendererLoopPauseController } from '@/lib/renderer-loop-pause'
+import { isWindowPresented } from '@/lib/window-presented'
 import { $petMotion, $petRoamDir, type PetState } from '@/store/pet'
 
 import { chooseMove, dwellMs, PAUSE_DWELL, pickStrollTarget } from './roam-behavior'
@@ -143,7 +144,12 @@ export function usePetRoam({
       $petRoamDir.set(dir)
     }
 
-    const rendererPaused = () => pauseController?.isPaused() ?? document.visibilityState === 'hidden'
+    // Presentation, not just the pause controller: this loop parks itself on a
+    // TIMER, and a timer keeps its cadence for a window on another workspace
+    // where every other signal still reads "observable" (lib/window-presented).
+    // Without this the poll re-armed forever against pixels nobody could see.
+    const rendererPaused = () =>
+      !isWindowPresented() || (pauseController?.isPaused() ?? document.visibilityState === 'hidden')
 
     const cancelRaf = () => {
       if (raf !== 0) {

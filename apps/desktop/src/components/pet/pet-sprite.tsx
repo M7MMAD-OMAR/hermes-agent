@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createRendererLoopPauseController } from '@/lib/renderer-loop-pause'
+import { isWindowPresented } from '@/lib/window-presented'
 import { $petState, type PetInfo, type PetState } from '@/store/pet'
 
 const DEFAULT_FRAME_W = 192
@@ -234,7 +235,12 @@ function PetSpriteImpl({ info, zoom = 1, stateOverride, rowOverride, pauseWhenUn
     let activeCount = -1
     let pauseController: ReturnType<typeof createRendererLoopPauseController> | null = null
 
-    const rendererPaused = () => pauseController?.isPaused() ?? document.visibilityState === 'hidden'
+    // Presentation, not just the pause controller: this loop parks itself on a
+    // TIMER, and a timer keeps its cadence for a window on another workspace
+    // where every other signal still reads "observable" (lib/window-presented).
+    // Without this the poll re-armed forever against pixels nobody could see.
+    const rendererPaused = () =>
+      !isWindowPresented() || (pauseController?.isPaused() ?? document.visibilityState === 'hidden')
 
     const cancelWakeTimer = () => {
       if (wakeTimer !== 0) {

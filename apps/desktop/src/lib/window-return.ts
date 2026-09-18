@@ -18,7 +18,23 @@
  * The events are still observed individually so a listener never misses a
  * return: `focus` alone covers macOS wake (no visibilitychange), and
  * `visibilitychange` alone covers a compositor that reveals without focusing.
+ *
+ * On Wayland neither is guaranteed to fire at all. Leaving a workspace changes
+ * no visibility state (the page still reads `visible`, see lib/window-presented)
+ * and a compositor may reveal a window without focusing it, so a return can
+ * produce no raw event and every listener here sits on data from before the
+ * user left. The first frame after the window comes back IS a return, and it
+ * arrives whether or not anything else does, so presentation is a third source.
+ *
+ * It is a BACKSTOP, not a peer. Measured on sway (19 September 2026), a
+ * workspace switch does focus the window, so the frame arrives up to
+ * `PRESENT_CHECK_MS` after a return this module has already dispatched — and a
+ * second dispatch is precisely the duplicate-refresh burst the coalescing here
+ * exists to prevent (6 RPCs on return became 9). So the frame only counts as a
+ * return when the platform has said nothing for `PRESENTED_FALLBACK_GRACE_MS`.
  */
+
+import { subscribeWindowPresented } from '@/lib/window-presented'
 
 export interface WindowReturnOptions {
   /** Skip returns that land less than this many ms after the previous run. */
@@ -30,6 +46,12 @@ export interface WindowReturnOptions {
 /** Raw return events inside this window collapse into one callback. */
 export const WINDOW_RETURN_COALESCE_MS = 150
 
+/** How long after a real return event the presentation backstop stays quiet.
+ *  Long enough to cover a probe that lands a full cycle after the focus event
+ *  it duplicates, short enough that a compositor which says nothing still gets
+ *  its refresh in well under a second. */
+export const PRESENTED_FALLBACK_GRACE_MS = 1_000
+
 type Listener = {
   handler: () => void
   immediate: boolean
@@ -40,6 +62,8 @@ type Listener = {
 const listeners = new Set<Listener>()
 let coalesceTimer: number | null = null
 let installed = false
+let unsubscribePresented: (() => void) | null = null
+let lastRawReturnAt = Number.NEGATIVE_INFINITY
 let returnsSinceInstall = 0
 
 function now(): number {
@@ -118,11 +142,23 @@ function onRawReturn(): void {
     return
   }
 
+  lastRawReturnAt = now()
+
   if (coalesceTimer !== null) {
     return
   }
 
   coalesceTimer = window.setTimeout(dispatchReturn, WINDOW_RETURN_COALESCE_MS)
+}
+
+/** The frame that proves the window is back, used only when the platform did
+ *  not say so itself. */
+function onPresentedReturn(): void {
+  if (now() - lastRawReturnAt < PRESENTED_FALLBACK_GRACE_MS) {
+    return
+  }
+
+  onRawReturn()
 }
 
 function install(): void {
@@ -133,6 +169,11 @@ function install(): void {
   installed = true
   window.addEventListener('focus', onRawReturn)
   document.addEventListener('visibilitychange', onRawReturn)
+  unsubscribePresented = subscribeWindowPresented(presented => {
+    if (presented) {
+      onPresentedReturn()
+    }
+  })
 }
 
 function uninstall(): void {
@@ -143,6 +184,8 @@ function uninstall(): void {
   installed = false
   window.removeEventListener('focus', onRawReturn)
   document.removeEventListener('visibilitychange', onRawReturn)
+  unsubscribePresented?.()
+  unsubscribePresented = null
 
   if (coalesceTimer !== null) {
     window.clearTimeout(coalesceTimer)
@@ -187,4 +230,5 @@ export function resetWindowReturnForTests(): void {
   listeners.clear()
   uninstall()
   returnsSinceInstall = 0
+  lastRawReturnAt = Number.NEGATIVE_INFINITY
 }

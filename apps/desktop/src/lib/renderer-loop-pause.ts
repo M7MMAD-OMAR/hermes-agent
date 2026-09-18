@@ -5,6 +5,23 @@ interface WindowStatePayload {
 
 export const RENDERER_ANIMATIONS_PAUSED_ATTRIBUTE = 'data-renderer-animations-paused'
 
+/**
+ * "Can anything observe this loop right now?"
+ *
+ * Deliberately NOT the same question as `isWindowPresented()`, and deliberately
+ * not defined in terms of it. Every signal here reports "observable" for a
+ * window parked on another workspace — `visibilityState` stays visible, the
+ * window is neither minimised nor hidden as far as Electron knows — and that is
+ * fine for the loops this controller serves, because they are rAF-driven: no
+ * frames, no ticks, the pause is structural. Making the predicate itself
+ * frame-dependent would pause an animation whenever a busy main thread starved
+ * the probe, which is the moment an interface can least afford to freeze.
+ *
+ * A loop that schedules a TIMER while paused is the exception, and it must ask
+ * `isWindowPresented()` itself rather than trusting this: the pet's roam poll
+ * did not, and re-armed a setTimeout chain at full rate against a window nobody
+ * could see. See lib/window-presented.
+ */
 export function createRendererLoopPauseController(onChange: () => void, { pauseWhenUnfocused = false } = {}) {
   let windowPaused = false
   let windowFocused = document.hasFocus()

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { installFakeFrames } from '@/test/frames'
+
+import { PRESENT_CHECK_MS, PRESENT_STALE_MS, resetWindowPresentedForTests } from './window-presented'
 import {
   resetWindowReturnForTests,
   subscribeWindowReturn,
@@ -141,5 +144,55 @@ describe('subscribeWindowReturn', () => {
 
     expect(boom).toHaveBeenCalledTimes(1)
     expect(fine).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('a compositor that says nothing at all', () => {
+  it('treats the first frame back as a return', async () => {
+    // Wayland: leaving a workspace changes no visibility state and the reveal
+    // need not focus the window, so neither raw event fires. Every listener
+    // here would otherwise still be showing what was on screen before the user
+    // left. See lib/window-presented.
+    resetWindowPresentedForTests()
+    const frames = installFakeFrames()
+    const handler = vi.fn()
+    subscribeWindowReturn(handler, { immediate: true })
+
+    frames.paint()
+    await frames.advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
+    expect(handler).not.toHaveBeenCalled()
+
+    // Back on screen: a frame, and nothing else.
+    frames.paint()
+    await vi.advanceTimersByTimeAsync(WINDOW_RETURN_COALESCE_MS + 1)
+
+    expect(handler).toHaveBeenCalledTimes(1)
+    resetWindowPresentedForTests()
+  })
+})
+
+describe('the presentation backstop', () => {
+  it('stays quiet when the platform already reported the return', async () => {
+    // sway focuses the window on a workspace switch, so the frame lands after
+    // a return this module has already dispatched. Counting it again is the
+    // duplicate-refresh burst the coalescing exists to prevent.
+    resetWindowPresentedForTests()
+    const frames = installFakeFrames()
+    const handler = vi.fn()
+    subscribeWindowReturn(handler, { immediate: true })
+
+    frames.paint()
+    await frames.advance(PRESENT_STALE_MS + PRESENT_CHECK_MS)
+
+    comeBack()
+    await vi.advanceTimersByTimeAsync(WINDOW_RETURN_COALESCE_MS + 1)
+    expect(handler).toHaveBeenCalledTimes(1)
+
+    // The probe's frame arrives a cycle later, inside the grace window.
+    frames.paint()
+    await vi.advanceTimersByTimeAsync(WINDOW_RETURN_COALESCE_MS + 1)
+
+    expect(handler).toHaveBeenCalledTimes(1)
+    resetWindowPresentedForTests()
   })
 })

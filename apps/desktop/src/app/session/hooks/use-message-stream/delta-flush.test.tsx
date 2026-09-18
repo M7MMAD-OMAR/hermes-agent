@@ -33,6 +33,18 @@ function mountStream() {
 
 const assistantText = () => stream.text()
 
+/** Collect the frames the STREAM asked for. The window-presentation probe in
+ *  lib/window-presented rides rAF as well (that is how it knows the window is
+ *  on screen at all), and these assertions are about the flush's own
+ *  measurement frame, not about it. */
+const collectStreamFrames = (sink: FrameRequestCallback[]) => (callback: FrameRequestCallback) => {
+  if (callback.name !== 'onFrame') {
+    sink.push(callback)
+  }
+
+  return sink.length + 1
+}
+
 describe('useMessageStream delta flush scheduling', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -184,7 +196,9 @@ describe('useMessageStream delta flush scheduling', () => {
     await vi.advanceTimersByTimeAsync(100)
 
     expect(updateSessionState).toHaveBeenCalledTimes(updatesAfterUnmount)
-    expect(window.requestAnimationFrame).not.toHaveBeenCalled()
+    expect(
+      vi.mocked(window.requestAnimationFrame).mock.calls.filter(([callback]) => callback.name !== 'onFrame')
+    ).toHaveLength(0)
   })
 
   it('stretches the flush gap when the deferred commit frame is expensive', async () => {
@@ -195,11 +209,7 @@ describe('useMessageStream delta flush scheduling', () => {
     let now = 1000
     vi.mocked(performance.now).mockImplementation(() => now)
     const rafCallbacks: FrameRequestCallback[] = []
-    vi.mocked(window.requestAnimationFrame).mockImplementation(cb => {
-      rafCallbacks.push(cb)
-
-      return rafCallbacks.length
-    })
+    vi.mocked(window.requestAnimationFrame).mockImplementation(collectStreamFrames(rafCallbacks))
 
     mountStream()
 
@@ -303,11 +313,7 @@ describe('useMessageStream delta flush scheduling', () => {
     let now = 1000
     vi.mocked(performance.now).mockImplementation(() => now)
     const rafCallbacks: FrameRequestCallback[] = []
-    vi.mocked(window.requestAnimationFrame).mockImplementation(cb => {
-      rafCallbacks.push(cb)
-
-      return rafCallbacks.length
-    })
+    vi.mocked(window.requestAnimationFrame).mockImplementation(collectStreamFrames(rafCallbacks))
 
     mountStream()
 
@@ -417,11 +423,7 @@ describe('useMessageStream composed with the real useSessionStateCache', () => {
     let now = 1000
     vi.mocked(performance.now).mockImplementation(() => now)
     const rafCallbacks: FrameRequestCallback[] = []
-    vi.mocked(window.requestAnimationFrame).mockImplementation(cb => {
-      rafCallbacks.push(cb)
-
-      return rafCallbacks.length
-    })
+    vi.mocked(window.requestAnimationFrame).mockImplementation(collectStreamFrames(rafCallbacks))
 
     render(<ComposedHarness />)
     expect(appendAssistantDelta).not.toBeNull()

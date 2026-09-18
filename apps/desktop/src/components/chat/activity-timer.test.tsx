@@ -1,6 +1,8 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PRESENT_CHECK_MS } from '@/lib/window-presented'
+
 import { __resetElapsedTimerRegistryForTests, useElapsedSeconds, useMeasuredDuration } from './activity-timer'
 
 function Probe({ active, since, timerKey }: { active: boolean; since?: number; timerKey?: string }) {
@@ -75,7 +77,10 @@ describe('useElapsedSeconds', () => {
     expect(screen.getByTestId('elapsed').textContent).toBe('0')
   })
 
-  it('pauses UI ticks without focus and catches up immediately on return', () => {
+  it('keeps counting on a window the user can still see but has not focused', () => {
+    // A second monitor: the pixels are there, the focus is elsewhere. This
+    // counter used to freeze on blur and jump forward on the way back, which
+    // reads as the app having stalled.
     render(<Probe active timerKey="tool:background" />)
     vi.mocked(document.hasFocus).mockReturnValue(false)
     window.dispatchEvent(new Event('blur'))
@@ -83,11 +88,34 @@ describe('useElapsedSeconds', () => {
     act(() => {
       vi.advanceTimersByTime(5_000)
     })
-    expect(screen.getByTestId('elapsed').textContent).toBe('0')
 
-    vi.mocked(document.hasFocus).mockReturnValue(true)
-    act(() => window.dispatchEvent(new Event('focus')))
     expect(screen.getByTestId('elapsed').textContent).toBe('5')
+  })
+
+  it('pauses UI ticks once the window is no longer being shown, and catches up on return', () => {
+    let hidden = false
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => (hidden ? 'hidden' : 'visible'))
+    render(<Probe active timerKey="tool:offscreen" />)
+
+    hidden = true
+
+    act(() => {
+      vi.advanceTimersByTime(PRESENT_CHECK_MS * 2)
+    })
+
+    const parked = screen.getByTestId('elapsed').textContent
+
+    act(() => {
+      vi.advanceTimersByTime(5_000)
+    })
+    expect(screen.getByTestId('elapsed').textContent).toBe(parked)
+
+    hidden = false
+
+    act(() => {
+      vi.advanceTimersByTime(PRESENT_CHECK_MS * 2)
+    })
+    expect(Number(screen.getByTestId('elapsed').textContent)).toBeGreaterThanOrEqual(5)
   })
 })
 

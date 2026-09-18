@@ -1,4 +1,7 @@
 import { configure } from '@testing-library/react'
+import { beforeEach } from 'vitest'
+
+import { resetWindowPresentedForTests } from '@/lib/window-presented'
 
 import { stubResizeObserver } from './src/test/jsdom'
 
@@ -64,3 +67,13 @@ globalThis.IntersectionObserver = class {
 // as the 15s testTimeout above it while still finishing below it, so a
 // genuinely hung await still surfaces as this assertion, not a test timeout.
 configure({ asyncUtilTimeout: 12_000 })
+
+// The window-presentation detector (lib/window-presented) keeps one frame
+// stamp for the whole renderer, which is right in the app and wrong across
+// tests: a suite that installs fake timers inherits the previous test's stamp
+// against a clock that just restarted, so its first tick can land a frame late
+// and an elapsed-seconds assertion reads one second short. Each test starts it
+// fresh.
+beforeEach(() => {
+  resetWindowPresentedForTests()
+})

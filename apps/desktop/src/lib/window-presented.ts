@@ -62,7 +62,10 @@ function publish(next: boolean): void {
 function onFrame(): void {
   frameHandle = null
   lastFrameAt = now()
-  publish(true)
+  // Through evaluate(), not straight to true: a frame is strong evidence but
+  // not the only evidence, and a document the platform has told us is hidden
+  // stays hidden however many frames arrive.
+  publish(evaluate())
   scheduleFrame()
 }
 

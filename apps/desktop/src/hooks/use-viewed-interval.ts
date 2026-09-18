@@ -1,11 +1,22 @@
 import { useEffect, useRef } from 'react'
 
+import { isWindowPresented, subscribeWindowPresented } from '@/lib/window-presented'
+
 /** Run a UI-only clock while this document is actually being viewed.
  *
- * macOS can leave an occluded BrowserWindow `visible`, and active streaming
- * deliberately disables Chromium's background timer throttling. Pairing focus
- * with visibility avoids waking React for elapsed labels nobody can see while
- * a leading tick on return catches the UI up immediately.
+ * "Viewed" used to mean visible AND focused, because visibility alone lies:
+ * macOS can leave an occluded window `visible`, and active streaming
+ * deliberately disables Chromium's background timer throttling. Focus was the
+ * honest half of that pair and the wrong half. On a second monitor a window
+ * keeps showing its pixels after the user clicks something else, so pairing
+ * with focus froze every elapsed counter the moment attention moved: the turn
+ * timer, the subagent list, the status bar duration all stopped in plain sight
+ * and jumped forward when the window was clicked again.
+ *
+ * Presentation is the honest signal (see lib/window-presented): a window whose
+ * frames have stopped is off screen and its clocks can park, a window still
+ * being painted keeps counting whether or not anyone has focused it. A leading
+ * tick on return catches the label up immediately.
  */
 export function useViewedInterval(callback: () => void, intervalMs: number, enabled = true): void {
   const callbackRef = useRef(callback)
@@ -29,10 +40,8 @@ export function useViewedInterval(callback: () => void, intervalMs: number, enab
       }
     }
 
-    const sync = () => {
-      const viewed = document.visibilityState === 'visible' && document.hasFocus()
-
-      if (!viewed) {
+    const sync = (presented: boolean) => {
+      if (!presented) {
         stop()
 
         return
@@ -44,16 +53,13 @@ export function useViewedInterval(callback: () => void, intervalMs: number, enab
       }
     }
 
-    window.addEventListener('focus', sync)
-    window.addEventListener('blur', sync)
-    document.addEventListener('visibilitychange', sync)
-    sync()
+    const unsubscribe = subscribeWindowPresented(sync)
+
+    sync(isWindowPresented())
 
     return () => {
+      unsubscribe()
       stop()
-      window.removeEventListener('focus', sync)
-      window.removeEventListener('blur', sync)
-      document.removeEventListener('visibilitychange', sync)
     }
   }, [enabled, intervalMs])
 }

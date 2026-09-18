@@ -734,7 +734,7 @@ export interface ModelOptionProvider {
   free_tier_row?: boolean | null
   unavailable_models?: string[] | null
   account?: string | null
-  account_count?: number | null
+  routes_models?: boolean | null
   [key: string]: unknown
 }
 /** ``hermes_cli/inventory.py::_apply_capabilities``. */

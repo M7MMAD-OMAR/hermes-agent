@@ -1,8 +1,10 @@
 import type { ModelOptionProvider, ModelOptionsResult } from '@hermes/shared'
+import { backendScopeKey } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 
+import { settingsScopeLabel } from '@/app/settings/profile-scope'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,21 +16,18 @@ import type { HermesGateway } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { Search } from '@/lib/icons'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
-import { modelPrefsScope } from '@/lib/model-scope'
-import { displayModelName, isMultiVendorCatalog, modelDisplayParts, modelVendorLabel } from '@/lib/model-status-label'
+import { displayModelName, modelDisplayParts, modelVendorLabel, providerRoutesModels } from '@/lib/model-status-label'
 import { foldIncludes, normalize } from '@/lib/text'
 import {
   $visibleModelsByScope,
   collapseModelFamilies,
   effectiveVisibleKeys,
   modelVisibilityKey,
-  setProviderVisibility,
-  setVisibleModels,
-  toggleModelVisibility,
-  visibleModelsFor,
+  setProviderVisibleInScope,
+  toggleModelInScope,
   visibleModelsForScope
 } from '@/store/model-visibility'
-import { $profiles, normalizeProfileKey, profileLabel } from '@/store/profile'
+import { $profiles, normalizeProfileKey } from '@/store/profile'
 import {
   $collapsedProvidersByScope,
   collapsedProvidersForScope,
@@ -58,7 +57,7 @@ export function ModelVisibilityDialog({
   const copy = t.modelVisibility
   const [search, setSearch] = useState('')
   // This dialog edits ONE bot's shortlist: the profile whose catalog it shows.
-  const scope = modelPrefsScope(profile, ownerConnectionId)
+  const scope = backendScopeKey(ownerConnectionId, profile)
   const stored = visibleModelsForScope(useStore($visibleModelsByScope), scope)
   const collapsedProviders = collapsedProvidersForScope(useStore($collapsedProvidersByScope), scope)
   // Name the bot being edited: the shortlist is per-profile now, so the title
@@ -68,7 +67,9 @@ export function ModelVisibilityDialog({
 
   const scopeLabel =
     profiles.length > 1
-      ? profileLabel(profiles.find(entry => entry.name === profileKey) ?? { name: profileKey })
+      ? settingsScopeLabel(
+          profiles.find(entry => normalizeProfileKey(entry.name) === profileKey) ?? { name: profileKey }
+        )
       : ''
 
   const modelOptions = useQuery({
@@ -84,15 +85,12 @@ export function ModelVisibilityDialog({
 
   const visible = effectiveVisibleKeys(stored, providers)
 
-  // Read the set at CLICK time, not at render time: two toggles landing in the
-  // same frame would otherwise both start from the render's snapshot and the
-  // first one would be lost.
   const toggle = (provider: ModelOptionProvider, model: string) => {
-    setVisibleModels(scope, toggleModelVisibility(visibleModelsFor(scope), providers, provider.slug, model))
+    toggleModelInScope(scope, providers, provider.slug, model)
   }
 
   const setProviderVisible = (provider: ModelOptionProvider, next: boolean) => {
-    setVisibleModels(scope, setProviderVisibility(visibleModelsFor(scope), providers, provider.slug, next))
+    setProviderVisibleInScope(scope, providers, provider.slug, next)
   }
 
   const q = normalize(search)
@@ -144,7 +142,7 @@ export function ModelVisibilityDialog({
               const checkState = onCount === 0 ? false : onCount === allFamilies.length ? true : 'indeterminate'
 
               const collapsed = collapsedProviders.includes(provider.slug) && !q
-              const routed = isMultiVendorCatalog(provider.models)
+              const routed = providerRoutesModels(provider)
               // Always named here, unlike the menu: this is the pane you open
               // to ask which account a provider is actually running on.
               const account = String(provider.account ?? '')

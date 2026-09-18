@@ -689,6 +689,7 @@ def _apply_featured_with_dates(rows, dates: dict[str, str]):
 
 def test_account_label_names_the_credential_a_row_runs_on():
     """Two keys at one provider must be told apart; the pool is the only place that knows."""
+    from agent.credential_pool import STATUS_DEAD, STATUS_EXHAUSTED
     from hermes_cli.inventory import _account_label
 
     assert _account_label([{"label": "company", "priority": 0}]) == "company"
@@ -697,9 +698,14 @@ def test_account_label_names_the_credential_a_row_runs_on():
         {"label": "personal", "priority": 3},
         {"label": "company", "priority": 0},
     ]) == "company"
-    # A dead key is not the one serving you, so it never names the row.
+    # A dead key is not the one serving you, so it never names the row. The
+    # statuses come from the pool's own constants, not from strings spelled here.
     assert _account_label([
-        {"label": "revoked-one", "priority": 0, "last_status": "dead"},
+        {"label": "dead-one", "priority": 0, "last_status": STATUS_DEAD},
+        {"label": "live-one", "priority": 5},
+    ]) == "live-one"
+    assert _account_label([
+        {"label": "spent-one", "priority": 0, "last_status": STATUS_EXHAUSTED},
         {"label": "live-one", "priority": 5},
     ]) == "live-one"
     # An env-sourced key has the variable name as its identity.
@@ -720,8 +726,8 @@ def test_account_label_drops_the_name_of_the_sign_in_method():
     assert _account_label([{"label": "device_code", "email": "me@example.com", "priority": 0}]) == "me@example.com"
 
 
-def test_apply_account_labels_counts_only_credentials_you_can_spend_on(monkeypatch):
-    """A revoked key must not inflate the count, and a provider the pool never saw stays bare."""
+def test_apply_account_labels_skips_a_method_name_and_a_provider_the_pool_never_saw(monkeypatch):
+    """Only a label that names a holder reaches the row."""
     import hermes_cli.auth as auth
     from hermes_cli.inventory import _apply_account_labels
 
@@ -729,7 +735,7 @@ def test_apply_account_labels_counts_only_credentials_you_can_spend_on(monkeypat
         "openrouter": [
             {"label": "personal", "priority": 0},
             {"label": "company", "priority": 1},
-            {"label": "old-one", "priority": 2, "last_status": "revoked"},
+            {"label": "old-one", "priority": 2, "last_status": "dead"},
         ],
         "anthropic": [{"label": "claude_code", "priority": 0}],
     })
@@ -738,7 +744,23 @@ def test_apply_account_labels_counts_only_credentials_you_can_spend_on(monkeypat
     _apply_account_labels(rows)
 
     assert rows[0]["account"] == "personal"
-    assert rows[0]["account_count"] == 2
     # A sign-in method is not an account, so the Anthropic row carries nothing.
     assert "account" not in rows[1]
     assert "account" not in rows[2]
+
+
+def test_routing_flag_comes_from_the_one_backend_classifier():
+    """The picker qualifies routed rows with each model's lab, so the flag must agree with
+    is_routing_aggregator rather than with a second definition on the client."""
+    from hermes_cli.inventory import _apply_routing_flags
+    from hermes_cli.providers import is_routing_aggregator
+
+    rows = [{"slug": "openrouter"}, {"slug": "anthropic"}, {"slug": "opencode-go"}, {"slug": "huggingface"}]
+    _apply_routing_flags(rows)
+
+    for row in rows:
+        assert row["routes_models"] is is_routing_aggregator(row["slug"])
+
+    # A flat-namespace reseller serves shared names first-party: its rows must NOT be
+    # qualified, which is exactly the carve-out no id scan on the client could see.
+    assert rows[2]["routes_models"] is False

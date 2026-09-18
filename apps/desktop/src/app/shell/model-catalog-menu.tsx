@@ -1,5 +1,5 @@
 import type { ModelOptionProvider, ModelOptionsResult } from '@hermes/shared'
-import { DEFAULT_REASONING_EFFORT } from '@hermes/shared'
+import { backendScopeKey, DEFAULT_REASONING_EFFORT } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,8 +25,7 @@ import { getLocalModelsStatus } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { isSubmitEnter } from '@/lib/ime'
 import { catalogProviderMatches, modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
-import { modelPrefsScope } from '@/lib/model-scope'
-import { displayModelName, isMultiVendorCatalog, modelDisplayParts, modelVendorLabel } from '@/lib/model-status-label'
+import { displayModelName, modelDisplayParts, modelVendorLabel, providerRoutesModels } from '@/lib/model-status-label'
 import { reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { foldIncludes, normalize } from '@/lib/text'
 import { useStoreSelector } from '@/lib/use-session-slice'
@@ -114,6 +113,8 @@ interface ModelCatalogMenuProps {
 interface ProviderGroup {
   families: ModelFamily[]
   provider: ModelOptionProvider
+  /** The provider routes other labs' models, so each row names its lab. */
+  routed: boolean
 }
 
 /**
@@ -142,14 +143,22 @@ export function ModelCatalogMenu({
   // to one provider keeps its own shortlist, and tidying it leaves every other
   // profile's menu alone. Scope comes from the catalog owner this menu already
   // queries, so a tile bound to another profile reads that profile's list.
-  const scope = modelPrefsScope(profile, ownerConnectionId)
+  const scope = backendScopeKey(ownerConnectionId, profile)
   const defaultEffort = useDefaultEffort()
   const collapsedProviders = collapsedProvidersForScope(useStore($collapsedProvidersByScope), scope)
   // Read HERE rather than taken as a prop: within one scope every surface that
   // shows a catalog must show the same shortlist. A per-caller opt-in is how
   // the board and the composer would end up disagreeing about what "my models"
   // means for the same bot.
-  const visibleModels = visibleModelsForScope(useStore($visibleModelsByScope), scope)
+  const visibleModelsByScope = useStore($visibleModelsByScope)
+
+  // Memoised: the resolver mints a fresh Set, and `shownKeys` / `groups` /
+  // `kbRows` hang off its identity. Unmemoised it re-collapsed and re-sorted
+  // the whole catalog on every keystroke and every local-status poll tick.
+  const visibleModels = useMemo(
+    () => visibleModelsForScope(visibleModelsByScope, scope),
+    [visibleModelsByScope, scope]
+  )
 
   const modelOptions = useQuery({
     queryKey: modelOptionsQueryKey(profile, sessionId, ownerConnectionId),
@@ -464,12 +473,6 @@ export function ModelCatalogMenu({
           {groups.map(group => {
             const slug = group.provider.slug
 
-            // A routing provider serves other labs' models under their own
-            // namespace (`anthropic/claude-opus-5`), which the display name
-            // drops. Qualify those rows with the lab, so an OpenRouter-served
-            // Claude can never be mistaken for the subscription one.
-            const routed = isMultiVendorCatalog(group.provider.models)
-
             // Which credential this row runs on. Two accounts at one provider
             // (a personal key and the company's) otherwise render as one
             // indistinguishable group, and the question gets asked right here,
@@ -515,7 +518,7 @@ export function ModelCatalogMenu({
 
                     const isCurrent = activeId !== null
                     const name = modelDisplayParts(family.id).name
-                    const vendor = routed ? modelVendorLabel(family.id) : ''
+                    const vendor = group.routed ? modelVendorLabel(family.id) : ''
                     const caps = group.provider.capabilities?.[family.id]
 
                     // Managed local model loading into memory right now:
@@ -775,7 +778,7 @@ function groupModels(
     const families = allFamilies.filter(family => shown.has(family.id) || family.id === activeId)
 
     if (families.length > 0) {
-      groups.push({ families, provider })
+      groups.push({ families, provider, routed: providerRoutesModels(provider) })
     }
   }
 

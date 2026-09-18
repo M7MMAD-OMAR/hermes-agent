@@ -1,9 +1,7 @@
 import type { ModelOptionProvider } from '@hermes/shared'
 import { atom } from 'nanostores'
 
-import { modelPrefsScope } from '@/lib/model-scope'
-import { Codecs, persistentAtom } from '@/lib/persisted'
-import { storedString } from '@/lib/storage'
+import { Codecs, legacyStringList, persistentAtom } from '@/lib/persisted'
 
 // Pre-scoping key: ONE curation shared by every profile. Kept as a read-only
 // fallback that never expires: a scope inherits it until that scope is edited
@@ -12,7 +10,7 @@ import { storedString } from '@/lib/storage'
 // starts from the list the user had before scoping existed.
 const LEGACY_STORAGE_KEY = 'hermes.desktop.visible-models'
 
-// Per-scope curation: `{ "<connection>/<profile>": ["provider::model", ...] }`.
+// Per-scope curation: `{ "<backendScopeKey>": ["provider::model", ...] }`.
 const STORAGE_KEY = 'hermes.desktop.visible-models.by-scope'
 
 /** Models shown per provider in the status-bar dropdown before the user has
@@ -78,41 +76,7 @@ export function collapseModelFamilies(models: readonly string[]): ModelFamily[] 
   return families
 }
 
-function parseKeyList(raw: null | string): null | string[] {
-  if (!raw) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(raw)
-
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : null
-  } catch {
-    return null
-  }
-}
-
-// Read once at load: a scope with no bucket of its own inherits this on every
-// render, and localStorage is synchronous.
-const LEGACY_VISIBLE = parseKeyList(storedString(LEGACY_STORAGE_KEY))
-
-// Persisted shapes are untrusted: a hand-edited or half-written record must
-// degrade to "never customized", never to a crash on module load.
-function sanitizeByScope(parsed: unknown): Record<string, string[]> {
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return {}
-  }
-
-  const out: Record<string, string[]> = {}
-
-  for (const [scope, keys] of Object.entries(parsed as Record<string, unknown>)) {
-    if (Array.isArray(keys)) {
-      out[scope] = keys.filter((x): x is string => typeof x === 'string')
-    }
-  }
-
-  return out
-}
+const LEGACY_VISIBLE = legacyStringList(LEGACY_STORAGE_KEY)
 
 /** Curation per (connection, profile) scope. Read through
  *  `visibleModelsForScope` rather than directly: a scope with no entry of its
@@ -120,7 +84,7 @@ function sanitizeByScope(parsed: unknown): Record<string, string[]> {
 export const $visibleModelsByScope = persistentAtom<Record<string, string[]>>(
   STORAGE_KEY,
   {},
-  Codecs.json(sanitizeByScope)
+  Codecs.stringArrayRecord
 )
 
 export const $modelVisibilityOpen = atom(false)
@@ -143,16 +107,30 @@ export function visibleModelsForScope(byScope: Record<string, string[]>, scope: 
   return LEGACY_VISIBLE ? new Set(LEGACY_VISIBLE) : null
 }
 
-/** Reactive read of one scope's curation. */
-export function visibleModelsFor(scope: string): null | Set<string> {
-  return visibleModelsForScope($visibleModelsByScope.get(), scope)
-}
-
 export function setVisibleModels(scope: string, keys: Set<string>): void {
   $visibleModelsByScope.set({ ...$visibleModelsByScope.get(), [scope]: [...keys] })
 }
 
-export { modelPrefsScope }
+/** Toggle one model in a scope, reading the live set so two clicks landing
+ *  before a re-render compose instead of the first being lost. */
+export function toggleModelInScope(
+  scope: string,
+  providers: readonly ModelOptionProvider[],
+  providerSlug: string,
+  model: string
+): void {
+  setVisibleModels(scope, toggleModelVisibility(visibleModelsForScope($visibleModelsByScope.get(), scope), providers, providerSlug, model))
+}
+
+/** Flip a provider's master switch in a scope. Live read, as above. */
+export function setProviderVisibleInScope(
+  scope: string,
+  providers: readonly ModelOptionProvider[],
+  providerSlug: string,
+  visible: boolean
+): void {
+  setVisibleModels(scope, setProviderVisibility(visibleModelsForScope($visibleModelsByScope.get(), scope), providers, providerSlug, visible))
+}
 
 export function setModelVisibilityOpen(
   open: boolean,

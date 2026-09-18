@@ -1,4 +1,5 @@
 import type { ModelOptionProvider } from '@hermes/shared'
+import { backendScopeKey } from '@hermes/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -8,13 +9,13 @@ import {
   effectiveVisibleKeys,
   emptyProviderSentinelKey,
   isProviderSentinel,
-  modelPrefsScope,
   modelVisibilityKey,
   resolveVisibleKeys,
   setProviderVisibility,
   setVisibleModels,
+  toggleModelInScope,
   toggleModelVisibility,
-  visibleModelsFor
+  visibleModelsForScope
 } from './model-visibility'
 
 const provider = (slug: string, models: string[]): ModelOptionProvider => ({
@@ -337,32 +338,37 @@ describe('curation is per bot', () => {
 
     setVisibleModels('dn', new Set(['openrouter::anthropic/claude-opus-5']))
 
-    expect(visibleModelsFor('dn')).toEqual(new Set(['openrouter::anthropic/claude-opus-5']))
-    expect(visibleModelsFor('builder')).toBeNull()
+    const byScope = $visibleModelsByScope.get()
+
+    expect(visibleModelsForScope(byScope, 'dn')).toEqual(new Set(['openrouter::anthropic/claude-opus-5']))
+    expect(visibleModelsForScope(byScope, 'builder')).toBeNull()
   })
 
-  // The dialog reads at click time so two toggles in one frame compose; if it
-  // read a render-time snapshot instead, the first toggle would be lost.
+  // The store mutators read at call time so two toggles in one frame compose;
+  // if the dialog passed a render-time snapshot, the first would be lost.
   it('composes two writes that land before a re-render', () => {
     $visibleModelsByScope.set({})
 
     const provider1 = provider('google', ['a', 'b'])
 
-    setVisibleModels('dn', toggleModelVisibility(visibleModelsFor('dn'), [provider1], 'google', 'a'))
-    setVisibleModels('dn', toggleModelVisibility(visibleModelsFor('dn'), [provider1], 'google', 'b'))
+    toggleModelInScope('dn', [provider1], 'google', 'a')
+    toggleModelInScope('dn', [provider1], 'google', 'b')
 
-    const after = visibleModelsFor('dn')
+    const after = visibleModelsForScope($visibleModelsByScope.get(), 'dn')
 
     expect(after?.has(modelVisibilityKey('google', 'a'))).toBe(false)
     expect(after?.has(modelVisibilityKey('google', 'b'))).toBe(false)
     expect(after?.has(emptyProviderSentinelKey('google'))).toBe(true)
   })
 
-  it('names a remote connection in the scope so two profiles called default stay apart', () => {
-    expect(modelPrefsScope('default')).toBe('default')
-    expect(modelPrefsScope('default', 'conn-a')).toBe('conn-a/default')
-    expect(modelPrefsScope('DN')).toBe('dn')
-    expect(modelPrefsScope('')).toBe('default')
+  // Scoping reuses the app's one profile-identity key, so a bot's shortlist is
+  // the same bucket wherever it is read from. A local surface that names its
+  // connection and one that omits it must not split into two buckets.
+  it('keys a scope with the app-wide backend scope key', () => {
+    expect(backendScopeKey(null, 'default')).toBe('default')
+    expect(backendScopeKey('local', 'default')).toBe(backendScopeKey(null, 'default'))
+    expect(backendScopeKey('conn-a', 'default')).toBe('conn:conn-a::default')
+    expect(backendScopeKey(null, '')).toBe('default')
   })
 
   it('inherits the pre-scoping shortlist until that bot is edited', async () => {

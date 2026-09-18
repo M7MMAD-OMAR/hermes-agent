@@ -102,6 +102,24 @@ export const isHeldAfterDrain = (key: string | null | undefined, id: string): bo
   return !!sid && $holdAfterDrain.get()[sid] === id
 }
 
+/**
+ * Finish a drain: drop the entry, then hold the rest back when this was the
+ * send-this-one-only the user asked for. Both drain paths (the composer's and
+ * the background one) call this, so the remove-before-park ordering lives in
+ * one place. It matters because `parkQueuedPrompts` no-ops on an empty queue,
+ * which is how sending the last entry leaves no stale gate behind.
+ */
+export const completeQueuedDrain = (key: string | null | undefined, id: string, hold: boolean): void => {
+  const held = hold || isHeldAfterDrain(key, id)
+
+  removeQueuedPrompt(key, id)
+
+  if (held) {
+    clearHoldAfterDrain(key)
+    parkQueuedPrompts(key)
+  }
+}
+
 /** Drop a pending hold (it landed, or the user resumed the queue). */
 export const clearHoldAfterDrain = (key: string | null | undefined): void => {
   const sid = sidOf(key)

@@ -8,18 +8,15 @@ import {
   $parkedQueueSessions,
   $queuedPromptsBySession,
   clearDrainFailure,
-  clearHoldAfterDrain,
+  completeQueuedDrain,
   getQueuedPrompts,
   hasExhaustedDrain,
-  isHeldAfterDrain,
   MAX_AUTO_DRAIN_ATTEMPTS,
   noteDrainFailure,
   noteQueueStuck,
-  parkQueuedPrompts,
   type QueuedPromptEntry,
   queueStuckNoticeId,
   recoverQueuedPrompts,
-  removeQueuedPrompt,
   shouldAutoDrain
 } from '@/store/composer-queue'
 import { notify } from '@/store/notifications'
@@ -223,16 +220,11 @@ export function useBackgroundQueueDrain({
           }
 
           clearDrainFailure(liveEntry.id)
-          removeQueuedPrompt(sessionKey, liveEntry.id)
+          // Honours a send-this-one-only: the user picked this entry alone
+          // before switching away, so the rest of their queue must not follow
+          // it out just because the chat went offscreen.
+          completeQueuedDrain(sessionKey, liveEntry.id, false)
           resetBrowseState(runtimeSessionId)
-
-          // The user picked this entry alone before switching away; the rest of
-          // their queue must not follow it out just because the chat went
-          // offscreen. Remove first, so an emptied queue leaves no stale park.
-          if (isHeldAfterDrain(sessionKey, liveEntry.id)) {
-            clearHoldAfterDrain(sessionKey)
-            parkQueuedPrompts(sessionKey)
-          }
 
           return true
         })

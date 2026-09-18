@@ -45,6 +45,26 @@ export const Codecs = {
     },
     encode: value => JSON.stringify(value)
   } as Codec<Record<string, string>>,
+  // Mirrors stringRecord for the per-scope shape: `{ "<scope>": ["...", ...] }`.
+  // Non-array values and non-string members are dropped, so a hand-edited or
+  // half-written record degrades to "never customized" instead of throwing on
+  // module load.
+  stringArrayRecord: {
+    decode: raw => {
+      const parsed = JSON.parse(raw) as unknown
+
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {}
+      }
+
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .filter((entry): entry is [string, unknown[]] => Array.isArray(entry[1]))
+          .map(([scope, values]) => [scope, values.filter((v): v is string => typeof v === 'string')])
+      )
+    },
+    encode: value => JSON.stringify(value)
+  } as Codec<Record<string, string[]>>,
   /** JSON with an optional sanitizer for untrusted persisted shapes. */
   json<T>(sanitize?: (value: unknown) => T): Codec<T> {
     return {
@@ -94,4 +114,28 @@ export function persistentAtom<T>(key: string, fallback: T, codec: Codec<T> = Co
   })
 
   return $value
+}
+
+
+/**
+ * One-shot read of a pre-scoping string-list key, for a store that has moved to
+ * per-scope buckets and lets a scope with no bucket of its own inherit the old
+ * shared list. Returns null for absent or malformed, which callers need to tell
+ * apart from an empty list the user really saved.
+ *
+ * Call at module load: it is a synchronous storage read, and the value it
+ * returns never changes again (nothing writes the legacy key any more).
+ */
+export function legacyStringList(key: string): null | string[] {
+  const raw = readKey(key)
+
+  if (raw === null) {
+    return null
+  }
+
+  try {
+    return Codecs.stringArray.decode(raw)
+  } catch {
+    return null
+  }
 }

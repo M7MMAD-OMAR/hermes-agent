@@ -270,7 +270,7 @@ class ModelOptionProvider(OpenModel):
     free_tier_row: bool | None = None
     unavailable_models: list[str] | None = None
     account: str | None = None
-    account_count: int | None = None
+    routes_models: bool | None = None
 
 
 class ModelOptionsResult(Result):

@@ -145,6 +145,7 @@ def build_models_payload(
         _apply_featured(rows)
     _apply_custom_aliases(rows)
     _apply_account_labels(rows)
+    _apply_routing_flags(rows)
 
     return {"providers": rows, "model": ctx.current_model, "provider": ctx.current_provider}
 
@@ -180,9 +181,16 @@ def _strip_aggregator_overlaps(rows: list[dict]) -> None:
             row["total_models"] = len(filtered)
 
 
-# Credential states that mean "this key is not the one serving you"; a row labelled with a dead
-# key would answer the question wrongly, which is worse than answering nothing.
-_UNUSABLE_CREDENTIAL_STATUS = {"dead", "revoked", "exhausted", "quarantined"}
+def _unusable_credential_statuses() -> frozenset[str]:
+    """Pool statuses that mean "this key is not the one serving you". A row labelled with a dead
+    key answers the question wrongly, which is worse than answering nothing. Read from the pool's
+    own constants so a renamed status cannot silently stop matching here."""
+    try:
+        from agent.credential_pool import STATUS_DEAD, STATUS_EXHAUSTED
+    except Exception:
+        return frozenset({"dead", "exhausted"})
+    return frozenset({STATUS_DEAD, STATUS_EXHAUSTED})
+
 
 # Labels that name HOW you signed in, not WHO you signed in as. They are the same string for
 # everyone, so printing them beside a provider answers nobody's question and adds noise to every
@@ -200,19 +208,16 @@ def _is_identity(value: str) -> bool:
     return bool(normalized) and normalized not in _AUTH_METHOD_LABELS
 
 
-def _usable_credentials(entries: list) -> list:
-    return [e for e in entries if isinstance(e, dict)
-            and str(e.get("last_status") or "").lower() not in _UNUSABLE_CREDENTIAL_STATUS]
-
-
 def _account_label(entries: list) -> str:
     """Which credential a provider row is actually running on, named. '' when the pool cannot say.
 
     Someone with a personal AND a company key at the same provider sees one "OpenRouter" row and
     has no way to tell whose quota a turn spends. The pool already distinguishes them (an env var
     name, an OAuth account, a user-given label), so surface that."""
-    usable = _usable_credentials(entries)
-    pick = usable or [e for e in entries if isinstance(e, dict)]
+    unusable = _unusable_credential_statuses()
+    dicts = [e for e in entries if isinstance(e, dict)]
+    usable = [e for e in dicts if str(e.get("last_status") or "").lower() not in unusable]
+    pick = usable or dicts
     if not pick:
         return ""
     # Lowest priority number wins, matching the pool's own selection order.
@@ -227,6 +232,20 @@ def _account_label(entries: list) -> str:
         if _is_identity(env_name):
             return env_name
     return ""
+
+
+def _apply_routing_flags(rows: list[dict]) -> None:
+    """Mark rows whose catalog is ROUTED (OpenRouter, Hugging Face, a custom proxy) rather than
+    first-party. Pickers qualify a routed row's models with the lab that made them, so an
+    OpenRouter-served Claude never renders identically to the subscription one. Classified here
+    because ``is_routing_aggregator`` is the single definition and it knows carve-outs no client
+    could infer from model ids (a flat-namespace reseller serves shared names first-party)."""
+    try:
+        from hermes_cli.providers import is_routing_aggregator
+    except Exception:
+        return
+    for row in rows:
+        row["routes_models"] = bool(is_routing_aggregator(str(row.get("slug") or "")))
 
 
 def _apply_account_labels(rows: list[dict]) -> None:
@@ -246,8 +265,6 @@ def _apply_account_labels(rows: list[dict]) -> None:
         label = _account_label(entries)
         if label:
             row["account"] = label
-            # Dead and exhausted keys are not accounts you can spend on, so they do not count.
-            row["account_count"] = len(_usable_credentials(entries)) or len(entries)
 
 
 def build_model_options_payload(

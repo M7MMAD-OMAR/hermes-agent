@@ -136,12 +136,14 @@ const VENDOR_LABELS: Readonly<Record<string, string>> = {
   'anthropic': 'Anthropic',
   'cohere': 'Cohere',
   'deepseek': 'DeepSeek',
+  'deepseek-ai': 'DeepSeek',
   'google': 'Google',
   'inflection': 'Inflection',
   'meta': 'Meta',
   'meta-llama': 'Meta',
   'microsoft': 'Microsoft',
   'minimax': 'MiniMax',
+  'minimaxai': 'MiniMax',
   'mistralai': 'Mistral',
   'moonshotai': 'Moonshot',
   'nousresearch': 'Nous Research',
@@ -156,7 +158,9 @@ const VENDOR_LABELS: Readonly<Record<string, string>> = {
   'thinkingmachines': 'Thinking Machines',
   'x-ai': 'xAI',
   'xiaomi': 'Xiaomi',
-  'z-ai': 'Z.AI'
+  'xiaomimimo': 'Xiaomi',
+  'z-ai': 'Z.AI',
+  'zai-org': 'Z.AI'
 }
 
 /** The vendor namespace of a model id (`anthropic/claude-opus-5` → `anthropic`),
@@ -182,15 +186,25 @@ export function modelVendorLabel(model: string): string {
   return VENDOR_LABELS[slug] ?? titleCase(slug.replace(/[-_]/g, ' '))
 }
 
-/** True when a provider's catalog spans more than one vendor namespace, i.e.
- *  it routes other labs' models rather than serving its own. Derived from the
- *  ids themselves, never from a slug allowlist, so every router (OpenRouter,
- *  Vercel AI Gateway, Kilo Code, DeepInfra, a custom proxy) is covered without
- *  anyone maintaining a list. */
-export function isMultiVendorCatalog(models: readonly string[] | undefined): boolean {
+/** True when a provider ROUTES other labs' models rather than serving its own,
+ *  so its rows must name the lab that made each model.
+ *
+ *  The backend owns the definition (`is_routing_aggregator`) and ships it as
+ *  `routes_models`: it knows carve-outs no client can infer from model ids, and
+ *  it stays right for a routed catalog that happens to list one lab. The id
+ *  scan below is only the fallback for a row from a gateway too old to send the
+ *  field, where an unqualified name is the pre-existing behaviour anyway. */
+export function providerRoutesModels(provider: {
+  models?: null | readonly string[]
+  routes_models?: boolean | null
+}): boolean {
+  if (typeof provider.routes_models === 'boolean') {
+    return provider.routes_models
+  }
+
   const vendors = new Set<string>()
 
-  for (const model of models ?? []) {
+  for (const model of provider.models ?? []) {
     const vendor = modelVendorSlug(model)
 
     if (vendor) {

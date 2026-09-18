@@ -16438,17 +16438,17 @@
             "default": null,
             "title": "Account"
           },
-          "account_count": {
+          "routes_models": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "boolean"
               },
               {
                 "type": "null"
               }
             ],
             "default": null,
-            "title": "Account Count"
+            "title": "Routes Models"
           }
         },
         "required": [

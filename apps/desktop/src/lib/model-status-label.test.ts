@@ -4,10 +4,10 @@ import {
   currentPickerSelection,
   displayModelName,
   formatModelPillLabel,
-  isMultiVendorCatalog,
   modelDisplayParts,
   modelVendorLabel,
-  modelVendorSlug
+  modelVendorSlug,
+  providerRoutesModels
 } from './model-status-label'
 import { reasoningEffortLabel } from './reasoning-effort'
 
@@ -81,6 +81,9 @@ describe('vendor namespaces of a routed catalog', () => {
   it('reads the lab out of an aggregator model id', () => {
     expect(modelVendorLabel('anthropic/claude-opus-5')).toBe('Anthropic')
     expect(modelVendorLabel('z-ai/glm-5.3-flash')).toBe('Z.AI')
+    // The Hugging Face catalog spells the same labs differently.
+    expect(modelVendorLabel('zai-org/GLM-5')).toBe('Z.AI')
+    expect(modelVendorLabel('deepseek-ai/DeepSeek-V3.2')).toBe('DeepSeek')
     expect(modelVendorLabel('x-ai/grok-4.6')).toBe('xAI')
     expect(modelVendorLabel('~anthropic/claude-fable-latest')).toBe('Anthropic')
     expect(modelVendorLabel('some-new-lab/model-1')).toBe('Some New Lab')
@@ -89,16 +92,22 @@ describe('vendor namespaces of a routed catalog', () => {
   it('has no lab for a first-party id', () => {
     expect(modelVendorLabel('claude-opus-5')).toBe('')
     expect(modelVendorLabel('gpt-5.5')).toBe('')
-    // A local GGUF path is not a vendor namespace we can name, but it is one
-    // vendor at most, so `isMultiVendorCatalog` keeps it unqualified below.
+    // A local GGUF path is not a vendor namespace we can name; the local
+    // provider is not routed either, so its rows stay unqualified.
     expect(modelVendorSlug('/models/qwen.gguf')).toBe('')
   })
 
-  it('calls a catalog routed only when it spans more than one lab', () => {
-    expect(isMultiVendorCatalog(['anthropic/claude-opus-5', 'deepseek/deepseek-v4.1-flash'])).toBe(true)
-    expect(isMultiVendorCatalog(['anthropic/claude-opus-5', 'anthropic/claude-sonnet-5'])).toBe(false)
-    expect(isMultiVendorCatalog(['claude-opus-5', 'claude-sonnet-5'])).toBe(false)
-    expect(isMultiVendorCatalog([])).toBe(false)
-    expect(isMultiVendorCatalog(undefined)).toBe(false)
+  it('takes the backend routing flag over the model ids', () => {
+    // A routed catalog listing one lab is still routed, which no id scan can see.
+    expect(providerRoutesModels({ models: ['anthropic/claude-opus-5'], routes_models: true })).toBe(true)
+    // And a first-party catalog is not routed even when its ids carry namespaces.
+    expect(providerRoutesModels({ models: ['a/one', 'b/two'], routes_models: false })).toBe(false)
+  })
+
+  it('falls back to the ids for a row from a gateway that sends no flag', () => {
+    expect(providerRoutesModels({ models: ['anthropic/claude-opus-5', 'deepseek/deepseek-v4.1-flash'] })).toBe(true)
+    expect(providerRoutesModels({ models: ['anthropic/claude-opus-5', 'anthropic/claude-sonnet-5'] })).toBe(false)
+    expect(providerRoutesModels({ models: ['claude-opus-5', 'claude-sonnet-5'] })).toBe(false)
+    expect(providerRoutesModels({})).toBe(false)
   })
 })

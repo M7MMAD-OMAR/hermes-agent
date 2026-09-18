@@ -1,14 +1,19 @@
-import { modelPrefsScope } from '@/lib/model-scope'
-import { Codecs, persistentAtom } from '@/lib/persisted'
-import { storedString } from '@/lib/storage'
+import { Codecs, legacyStringList, persistentAtom } from '@/lib/persisted'
 
 // Pre-scoping key: one collapse set shared by every profile. Read-only
 // fallback a scope inherits until it is toggled for the first time, so an
 // existing layout survives the upgrade.
 const LEGACY_STORAGE_KEY = 'hermes.desktop.collapsed-providers'
 
-// Per-scope collapse: `{ "<connection>/<profile>": ["openrouter", ...] }`.
+// Per-scope collapse: `{ "<backendScopeKey>": ["openrouter", ...] }`.
 const STORAGE_KEY = 'hermes.desktop.collapsed-providers.by-scope'
+
+const LEGACY_COLLAPSED = legacyStringList(LEGACY_STORAGE_KEY)
+
+// Returned for a scope with nothing collapsed. A shared frozen array, because
+// a fresh literal per call has a new identity every render and would break the
+// memo chain of every picker that lists it as a dependency.
+const NOTHING_COLLAPSED: readonly string[] = Object.freeze([])
 
 /** Provider slugs whose model groups are collapsed in the model picker, per
  *  (connection, profile) scope. Scoped rather than global because a profile
@@ -24,49 +29,16 @@ const STORAGE_KEY = 'hermes.desktop.collapsed-providers.by-scope'
 export const $collapsedProvidersByScope = persistentAtom<Record<string, string[]>>(
   STORAGE_KEY,
   {},
-  Codecs.json(sanitizeByScope)
+  Codecs.stringArrayRecord
 )
-
-// Read once at load; a scope with no bucket of its own inherits this on every
-// render, and localStorage is synchronous.
-const LEGACY_COLLAPSED = parseSlugList(storedString(LEGACY_STORAGE_KEY))
-
-function parseSlugList(raw: null | string): null | string[] {
-  if (!raw) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(raw)
-
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : null
-  } catch {
-    return null
-  }
-}
-
-// Persisted shapes are untrusted: a malformed record reads as "nothing
-// collapsed" rather than throwing on module load.
-function sanitizeByScope(parsed: unknown): Record<string, string[]> {
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return {}
-  }
-
-  const out: Record<string, string[]> = {}
-
-  for (const [scope, slugs] of Object.entries(parsed as Record<string, unknown>)) {
-    if (Array.isArray(slugs)) {
-      out[scope] = slugs.filter((x): x is string => typeof x === 'string')
-    }
-  }
-
-  return out
-}
 
 /** Collapsed slugs for one scope, inheriting the pre-scoping global set until
  *  that scope is toggled for the first time. */
-export function collapsedProvidersForScope(byScope: Record<string, string[]>, scope: string): string[] {
-  return byScope[scope] ?? LEGACY_COLLAPSED ?? []
+export function collapsedProvidersForScope(
+  byScope: Record<string, string[]>,
+  scope: string
+): readonly string[] {
+  return byScope[scope] ?? LEGACY_COLLAPSED ?? NOTHING_COLLAPSED
 }
 
 /** Toggle a provider slug in/out of one scope's collapsed set. */
@@ -79,5 +51,3 @@ export function toggleCollapsedProvider(scope: string, slug: string): void {
     [scope]: current.includes(slug) ? current.filter(s => s !== slug) : [...current, slug]
   })
 }
-
-export { modelPrefsScope }

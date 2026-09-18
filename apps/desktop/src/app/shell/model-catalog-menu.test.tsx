@@ -246,10 +246,11 @@ describe('models routed through an aggregator name their lab', () => {
   beforeEach(() => {
     getGlobalModelOptions.mockResolvedValue({
       providers: [
-        { models: ['claude-opus-5'], name: 'Anthropic', slug: 'anthropic' },
+        { models: ['claude-opus-5'], name: 'Anthropic', routes_models: false, slug: 'anthropic' },
         {
           models: ['anthropic/claude-opus-5', 'deepseek/deepseek-v4.1-flash'],
           name: 'OpenRouter',
+          routes_models: true,
           slug: 'openrouter'
         }
       ]
@@ -266,9 +267,9 @@ describe('models routed through an aggregator name their lab', () => {
     expect(screen.getByText(/· DeepSeek/)).toBeTruthy()
   })
 
-  it('leaves a single-vendor provider unqualified', async () => {
+  it('leaves a first-party provider unqualified', async () => {
     getGlobalModelOptions.mockResolvedValue({
-      providers: [{ models: ['gemini-3.1-pro'], name: 'Google', slug: 'google' }]
+      providers: [{ models: ['gemini-3.1-pro'], name: 'Google', routes_models: false, slug: 'google' }]
     })
 
     renderMenu()
@@ -288,9 +289,9 @@ describe('a provider row says which account it runs on', () => {
       providers: [
         {
           account: 'COMPANY_OPENROUTER_KEY',
-          account_count: 2,
           models: ['anthropic/claude-opus-5'],
           name: 'OpenRouter',
+          routes_models: true,
           slug: 'openrouter'
         }
       ]

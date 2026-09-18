@@ -11,7 +11,8 @@ import {
   MAX_AUTO_DRAIN_ATTEMPTS,
   parkQueuedPrompts,
   queueStuckNoticeId,
-  resetQueueDrainState
+  resetQueueDrainState,
+  unparkQueuedPrompts
 } from '@/store/composer-queue'
 import { $notifications } from '@/store/notifications'
 import { setSessionsLoading } from '@/store/session'
@@ -463,7 +464,7 @@ describe('useComposerQueue send-this-one-only', () => {
     const { hook, onSubmit } = renderQueueHook()
 
     await act(async () => {
-      await hook.result.current.sendQueuedNow(chosen.id, 'hold')
+      await hook.result.current.sendQueuedNow(chosen.id)
     })
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
@@ -479,7 +480,7 @@ describe('useComposerQueue send-this-one-only', () => {
     const { hook, onCancel, onSubmit } = renderQueueHook({ busy: true })
 
     await act(async () => {
-      await hook.result.current.sendQueuedNow(chosen.id, 'hold')
+      await hook.result.current.sendQueuedNow(chosen.id)
     })
 
     // The interrupt must actually fire, and the queue must be unparked meanwhile
@@ -507,7 +508,7 @@ describe('useComposerQueue send-this-one-only', () => {
     const { hook } = renderQueueHook()
 
     await act(async () => {
-      await hook.result.current.sendQueuedNow(only.id, 'hold')
+      await hook.result.current.sendQueuedNow(only.id)
     })
 
     expect(getQueuedPrompts(SESSION_KEY)).toEqual([])
@@ -515,16 +516,18 @@ describe('useComposerQueue send-this-one-only', () => {
     expect(isQueueParked(SESSION_KEY)).toBe(false)
   })
 
-  it("still flushes the queue for a caller that asks to resume", async () => {
-    const head = enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'head' })!
+  it('still flushes the whole queue when the user resumes it', async () => {
+    enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'head' })
     enqueueQueuedPrompt(SESSION_KEY, { attachments: [], text: 'tail' })
 
     parkQueuedPrompts(SESSION_KEY)
 
     const { hook, onSubmit } = renderQueueHook()
 
+    // Resume is the other gesture: Enter on an empty idle composer.
     await act(async () => {
-      await hook.result.current.sendQueuedNow(head.id, 'resume')
+      unparkQueuedPrompts(SESSION_KEY)
+      await hook.result.current.drainNextQueued()
     })
 
     await waitFor(() => expect(getQueuedPrompts(SESSION_KEY)).toEqual([]))

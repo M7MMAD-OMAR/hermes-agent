@@ -685,3 +685,44 @@ def _apply_featured_with_dates(rows, dates: dict[str, str]):
 
 
 
+
+
+def test_account_label_names_the_credential_a_row_runs_on():
+    """Two keys at one provider must be told apart; the pool is the only place that knows."""
+    from hermes_cli.inventory import _account_label
+
+    assert _account_label([{"label": "company", "priority": 0}]) == "company"
+    # Lowest priority number wins, matching the pool's own selection order.
+    assert _account_label([
+        {"label": "personal", "priority": 3},
+        {"label": "company", "priority": 0},
+    ]) == "company"
+    # A dead key is not the one serving you, so it never names the row.
+    assert _account_label([
+        {"label": "revoked-one", "priority": 0, "last_status": "dead"},
+        {"label": "live-one", "priority": 5},
+    ]) == "live-one"
+    # An env-sourced key has the variable name as its identity.
+    assert _account_label([{"source": "env:COMPANY_OPENROUTER_KEY", "priority": 0}]) == "COMPANY_OPENROUTER_KEY"
+    assert _account_label([]) == ""
+    assert _account_label([{"priority": 0}]) == ""
+
+
+def test_apply_account_labels_counts_credentials_so_the_ui_can_stay_quiet(monkeypatch):
+    """A single-key provider must not be labelled with the name of the way you logged in."""
+    import hermes_cli.auth as auth
+    from hermes_cli.inventory import _apply_account_labels
+
+    monkeypatch.setattr(auth, "read_credential_pool", lambda provider_id=None: {
+        "openrouter": [{"label": "personal", "priority": 0}, {"label": "company", "priority": 1}],
+        "anthropic": [{"label": "claude_code", "priority": 0}],
+    })
+
+    rows = [{"slug": "openrouter"}, {"slug": "anthropic"}, {"slug": "gemini"}]
+    _apply_account_labels(rows)
+
+    assert rows[0]["account"] == "personal"
+    assert rows[0]["account_count"] == 2
+    assert rows[1]["account"] == "claude_code"
+    assert rows[1]["account_count"] == 1
+    assert "account" not in rows[2]

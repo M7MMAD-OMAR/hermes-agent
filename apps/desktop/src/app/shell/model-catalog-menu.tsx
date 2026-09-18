@@ -470,6 +470,15 @@ export function ModelCatalogMenu({
             // Claude can never be mistaken for the subscription one.
             const routed = isMultiVendorCatalog(group.provider.models)
 
+            // Which credential this row runs on. Two accounts at one provider
+            // (a personal key and the company's) otherwise render as one
+            // indistinguishable group. Shown inline only when the provider
+            // really holds more than one, so a single-key provider is not
+            // labelled with the name of the way you logged in; the tooltip
+            // carries it either way.
+            const account = String(group.provider.account ?? '')
+            const showAccount = !!account && (group.provider.account_count ?? 0) > 1
+
             // Collapsed when the user stored it (and not while searching, which
             // spans every model regardless of collapse state).
             const collapsed = collapsedProviders.includes(slug) && !search
@@ -483,9 +492,11 @@ export function ModelCatalogMenu({
                     toggleCollapsedProvider(scope, slug)
                   }}
                   textValue=""
+                  title={account ? `${group.provider.name} (${account})` : group.provider.name}
                 >
                   <span className="truncate">
                     <HighlightMatches foldSeparators query={search} text={group.provider.name} />
+                    {showAccount ? <span className="font-normal normal-case"> ({account})</span> : null}
                   </span>
                   <DisclosureCaret
                     className="shrink-0 text-(--ui-text-tertiary) opacity-0 transition group-hover/label:opacity-100"

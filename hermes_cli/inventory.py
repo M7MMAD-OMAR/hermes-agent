@@ -144,6 +144,7 @@ def build_models_payload(
     if featured:
         _apply_featured(rows)
     _apply_custom_aliases(rows)
+    _apply_account_labels(rows)
 
     return {"providers": rows, "model": ctx.current_model, "provider": ctx.current_provider}
 
@@ -177,6 +178,54 @@ def _strip_aggregator_overlaps(rows: list[dict]) -> None:
         if len(filtered) < len(original):
             row["models"] = filtered
             row["total_models"] = len(filtered)
+
+
+# Credential states that mean "this key is not the one serving you"; a row labelled with a dead
+# key would answer the question wrongly, which is worse than answering nothing.
+_UNUSABLE_CREDENTIAL_STATUS = {"dead", "revoked", "exhausted", "quarantined"}
+
+
+def _account_label(entries: list) -> str:
+    """Which credential a provider row is actually running on, named. '' when the pool cannot say.
+
+    Someone with a personal AND a company key at the same provider sees one "OpenRouter" row and
+    has no way to tell whose quota a turn spends. The pool already distinguishes them (an env var
+    name, an OAuth account, a user-given label), so surface that."""
+    usable = [e for e in entries if isinstance(e, dict)
+              and str(e.get("last_status") or "").lower() not in _UNUSABLE_CREDENTIAL_STATUS]
+    pick = usable or [e for e in entries if isinstance(e, dict)]
+    if not pick:
+        return ""
+    # Lowest priority number wins, matching the pool's own selection order.
+    chosen = min(pick, key=lambda e: (e.get("priority") if isinstance(e.get("priority"), int) else 999))
+    for field in ("account", "account_label", "email", "label"):
+        value = str(chosen.get(field) or "").strip()
+        if value:
+            return value
+    source = str(chosen.get("source") or "").strip()
+    return source.split(":", 1)[1].strip() if source.startswith("env:") else ""
+
+
+def _apply_account_labels(rows: list[dict]) -> None:
+    """Tag each row with the credential serving it, so two accounts at one provider are told apart."""
+    try:
+        from hermes_cli.auth import read_credential_pool
+        pool = read_credential_pool()
+    except Exception:
+        return
+    if not isinstance(pool, dict):
+        return
+    for row in rows:
+        slug = str(row.get("slug") or "")
+        entries = pool.get(slug)
+        if not isinstance(entries, list) or not entries:
+            continue
+        label = _account_label(entries)
+        if label:
+            row["account"] = label
+            # Only a second credential makes the label load-bearing; the UI can keep it quiet
+            # otherwise instead of shouting an env var name at a single-key provider.
+            row["account_count"] = len(entries)
 
 
 def build_model_options_payload(

@@ -145,6 +145,9 @@ export function ModelVisibilityDialog({
 
               const collapsed = collapsedProviders.includes(provider.slug) && !q
               const routed = isMultiVendorCatalog(provider.models)
+              // Always named here, unlike the menu: this is the pane you open
+              // to ask which account a provider is actually running on.
+              const account = String(provider.account ?? '')
 
               return (
                 <div className="py-0.5" key={provider.slug}>
@@ -156,6 +159,7 @@ export function ModelVisibilityDialog({
                     >
                       <span className="min-w-0 truncate">
                         <HighlightMatches foldSeparators query={search} text={provider.name} />
+                        {account ? <span className="font-normal normal-case"> ({account})</span> : null}
                       </span>
                       <DisclosureCaret
                         className="shrink-0 opacity-0 transition group-hover/label:opacity-100"

@@ -277,3 +277,45 @@ describe('models routed through an aggregator name their lab', () => {
     expect(screen.queryByText(/· /)).toBeNull()
   })
 })
+
+
+// Someone with a personal key and the company's at the same provider sees one
+// group and cannot tell whose quota a turn spends. The pool knows; the row says.
+describe('a provider with two accounts says which one it runs on', () => {
+  it('names the credential inline once there is more than one', async () => {
+    getGlobalModelOptions.mockResolvedValue({
+      providers: [
+        {
+          account: 'company',
+          account_count: 2,
+          models: ['anthropic/claude-opus-5'],
+          name: 'OpenRouter',
+          slug: 'openrouter'
+        }
+      ]
+    })
+
+    renderMenu()
+
+    expect(await screen.findByText(/\(company\)/)).toBeTruthy()
+  })
+
+  it('stays quiet for a provider holding a single credential', async () => {
+    getGlobalModelOptions.mockResolvedValue({
+      providers: [
+        {
+          account: 'device_code',
+          account_count: 1,
+          models: ['gpt-5.5'],
+          name: 'ChatGPT or Codex Subscription',
+          slug: 'openai-codex'
+        }
+      ]
+    })
+
+    renderMenu()
+
+    await screen.findByText(/GPT-5\.5/i)
+    expect(screen.queryByText(/\(device_code\)/)).toBeNull()
+  })
+})

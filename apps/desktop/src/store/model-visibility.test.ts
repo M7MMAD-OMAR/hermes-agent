@@ -341,6 +341,23 @@ describe('curation is per bot', () => {
     expect(visibleModelsFor('builder')).toBeNull()
   })
 
+  // The dialog reads at click time so two toggles in one frame compose; if it
+  // read a render-time snapshot instead, the first toggle would be lost.
+  it('composes two writes that land before a re-render', () => {
+    $visibleModelsByScope.set({})
+
+    const provider1 = provider('google', ['a', 'b'])
+
+    setVisibleModels('dn', toggleModelVisibility(visibleModelsFor('dn'), [provider1], 'google', 'a'))
+    setVisibleModels('dn', toggleModelVisibility(visibleModelsFor('dn'), [provider1], 'google', 'b'))
+
+    const after = visibleModelsFor('dn')
+
+    expect(after?.has(modelVisibilityKey('google', 'a'))).toBe(false)
+    expect(after?.has(modelVisibilityKey('google', 'b'))).toBe(false)
+    expect(after?.has(emptyProviderSentinelKey('google'))).toBe(true)
+  })
+
   it('names a remote connection in the scope so two profiles called default stay apart', () => {
     expect(modelPrefsScope('default')).toBe('default')
     expect(modelPrefsScope('default', 'conn-a')).toBe('conn-a/default')

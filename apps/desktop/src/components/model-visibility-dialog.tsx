@@ -25,6 +25,7 @@ import {
   setProviderVisibility,
   setVisibleModels,
   toggleModelVisibility,
+  visibleModelsFor,
   visibleModelsForScope
 } from '@/store/model-visibility'
 import { $profiles, normalizeProfileKey, profileLabel } from '@/store/profile'
@@ -83,12 +84,15 @@ export function ModelVisibilityDialog({
 
   const visible = effectiveVisibleKeys(stored, providers)
 
+  // Read the set at CLICK time, not at render time: two toggles landing in the
+  // same frame would otherwise both start from the render's snapshot and the
+  // first one would be lost.
   const toggle = (provider: ModelOptionProvider, model: string) => {
-    setVisibleModels(scope, toggleModelVisibility(stored, providers, provider.slug, model))
+    setVisibleModels(scope, toggleModelVisibility(visibleModelsFor(scope), providers, provider.slug, model))
   }
 
   const setProviderVisible = (provider: ModelOptionProvider, next: boolean) => {
-    setVisibleModels(scope, setProviderVisibility(stored, providers, provider.slug, next))
+    setVisibleModels(scope, setProviderVisibility(visibleModelsFor(scope), providers, provider.slug, next))
   }
 
   const q = normalize(search)

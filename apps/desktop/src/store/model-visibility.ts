@@ -2,12 +2,14 @@ import type { ModelOptionProvider } from '@hermes/shared'
 import { atom } from 'nanostores'
 
 import { modelPrefsScope } from '@/lib/model-scope'
-import { persistString, storedString } from '@/lib/storage'
+import { Codecs, persistentAtom } from '@/lib/persisted'
+import { storedString } from '@/lib/storage'
 
 // Pre-scoping key: ONE curation shared by every profile. Kept as a read-only
-// fallback so nobody's existing shortlist resets on first launch after the
-// upgrade; the first edit inside a profile writes that profile's own bucket
-// and the profile stops reading this.
+// fallback that never expires: a scope inherits it until that scope is edited
+// for the first time, at which point the scope writes its own bucket and stops
+// reading this. Not a one-time migration, so a profile created later still
+// starts from the list the user had before scoping existed.
 const LEGACY_STORAGE_KEY = 'hermes.desktop.visible-models'
 
 // Per-scope curation: `{ "<connection>/<profile>": ["provider::model", ...] }`.
@@ -94,38 +96,32 @@ function parseKeyList(raw: null | string): null | string[] {
 // render, and localStorage is synchronous.
 const LEGACY_VISIBLE = parseKeyList(storedString(LEGACY_STORAGE_KEY))
 
-function loadByScope(): Record<string, string[]> {
-  const raw = storedString(STORAGE_KEY)
-
-  if (!raw) {
+// Persisted shapes are untrusted: a hand-edited or half-written record must
+// degrade to "never customized", never to a crash on module load.
+function sanitizeByScope(parsed: unknown): Record<string, string[]> {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return {}
   }
 
-  try {
-    const parsed: unknown = JSON.parse(raw)
+  const out: Record<string, string[]> = {}
 
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {}
+  for (const [scope, keys] of Object.entries(parsed as Record<string, unknown>)) {
+    if (Array.isArray(keys)) {
+      out[scope] = keys.filter((x): x is string => typeof x === 'string')
     }
-
-    const out: Record<string, string[]> = {}
-
-    for (const [scope, keys] of Object.entries(parsed as Record<string, unknown>)) {
-      if (Array.isArray(keys)) {
-        out[scope] = keys.filter((x): x is string => typeof x === 'string')
-      }
-    }
-
-    return out
-  } catch {
-    return {}
   }
+
+  return out
 }
 
 /** Curation per (connection, profile) scope. Read through
  *  `visibleModelsForScope` rather than directly: a scope with no entry of its
  *  own still inherits the pre-scoping global list. */
-export const $visibleModelsByScope = atom<Record<string, string[]>>(loadByScope())
+export const $visibleModelsByScope = persistentAtom<Record<string, string[]>>(
+  STORAGE_KEY,
+  {},
+  Codecs.json(sanitizeByScope)
+)
 
 export const $modelVisibilityOpen = atom(false)
 
@@ -153,10 +149,7 @@ export function visibleModelsFor(scope: string): null | Set<string> {
 }
 
 export function setVisibleModels(scope: string, keys: Set<string>): void {
-  const next = { ...$visibleModelsByScope.get(), [scope]: [...keys] }
-
-  $visibleModelsByScope.set(next)
-  persistString(STORAGE_KEY, JSON.stringify(next))
+  $visibleModelsByScope.set({ ...$visibleModelsByScope.get(), [scope]: [...keys] })
 }
 
 export { modelPrefsScope }

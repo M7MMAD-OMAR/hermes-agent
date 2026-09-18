@@ -1,10 +1,10 @@
-import { atom } from 'nanostores'
-
 import { modelPrefsScope } from '@/lib/model-scope'
-import { persistString, storedString } from '@/lib/storage'
+import { Codecs, persistentAtom } from '@/lib/persisted'
+import { storedString } from '@/lib/storage'
 
 // Pre-scoping key: one collapse set shared by every profile. Read-only
-// fallback so an existing layout survives the upgrade.
+// fallback a scope inherits until it is toggled for the first time, so an
+// existing layout survives the upgrade.
 const LEGACY_STORAGE_KEY = 'hermes.desktop.collapsed-providers'
 
 // Per-scope collapse: `{ "<connection>/<profile>": ["openrouter", ...] }`.
@@ -21,7 +21,11 @@ const STORAGE_KEY = 'hermes.desktop.collapsed-providers.by-scope'
  *  dead entry costs a few bytes, and the render loop only visits providers
  *  present in the active groups.
  */
-export const $collapsedProvidersByScope = atom<Record<string, string[]>>(loadByScope())
+export const $collapsedProvidersByScope = persistentAtom<Record<string, string[]>>(
+  STORAGE_KEY,
+  {},
+  Codecs.json(sanitizeByScope)
+)
 
 // Read once at load; a scope with no bucket of its own inherits this on every
 // render, and localStorage is synchronous.
@@ -41,32 +45,22 @@ function parseSlugList(raw: null | string): null | string[] {
   }
 }
 
-function loadByScope(): Record<string, string[]> {
-  const raw = storedString(STORAGE_KEY)
-
-  if (!raw) {
+// Persisted shapes are untrusted: a malformed record reads as "nothing
+// collapsed" rather than throwing on module load.
+function sanitizeByScope(parsed: unknown): Record<string, string[]> {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return {}
   }
 
-  try {
-    const parsed: unknown = JSON.parse(raw)
+  const out: Record<string, string[]> = {}
 
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {}
+  for (const [scope, slugs] of Object.entries(parsed as Record<string, unknown>)) {
+    if (Array.isArray(slugs)) {
+      out[scope] = slugs.filter((x): x is string => typeof x === 'string')
     }
-
-    const out: Record<string, string[]> = {}
-
-    for (const [scope, slugs] of Object.entries(parsed as Record<string, unknown>)) {
-      if (Array.isArray(slugs)) {
-        out[scope] = slugs.filter((x): x is string => typeof x === 'string')
-      }
-    }
-
-    return out
-  } catch {
-    return {}
   }
+
+  return out
 }
 
 /** Collapsed slugs for one scope, inheriting the pre-scoping global set until
@@ -80,13 +74,10 @@ export function toggleCollapsedProvider(scope: string, slug: string): void {
   const byScope = $collapsedProvidersByScope.get()
   const current = collapsedProvidersForScope(byScope, scope)
 
-  const next = {
+  $collapsedProvidersByScope.set({
     ...byScope,
     [scope]: current.includes(slug) ? current.filter(s => s !== slug) : [...current, slug]
-  }
-
-  $collapsedProvidersByScope.set(next)
-  persistString(STORAGE_KEY, JSON.stringify(next))
+  })
 }
 
 export { modelPrefsScope }

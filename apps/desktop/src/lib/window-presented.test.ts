@@ -114,6 +114,24 @@ describe('window presentation detector', () => {
     expect(frames.pending()).toBe(1)
   })
 
+  it('comes back from a platform-reported hide, where frames never stopped', async () => {
+    // A minimise, not a workspace switch: the document says hidden while the
+    // compositor keeps painting. Nothing here can rely on a parked frame,
+    // because the frames keep arriving and being discarded.
+    const seen: boolean[] = []
+    subscribeWindowPresented(presented => seen.push(presented))
+
+    setDocumentHidden(true)
+    await frames.advancePainting(PRESENT_CHECK_MS * 2)
+    expect(isWindowPresented()).toBe(false)
+
+    setDocumentHidden(false)
+    await frames.advancePainting(PRESENT_CHECK_MS * 2)
+
+    expect(isWindowPresented()).toBe(true)
+    expect(seen).toEqual([false, true])
+  })
+
   it('identifies its own probe frame for tests that stub rAF', () => {
     subscribeWindowPresented(() => undefined)
 

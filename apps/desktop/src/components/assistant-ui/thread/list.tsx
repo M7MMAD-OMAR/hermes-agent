@@ -24,12 +24,12 @@ import { messagePaintWeight } from '@/lib/render-weight'
 import { cn } from '@/lib/utils'
 import {
   getThreadScrollPosition,
-  publishThreadAtBottom,
-  resetPublishedThreadScroll,
   onScrollToBottomRequest,
   onThreadEditClose,
   onThreadEditOpen,
   planThreadScrollRestore,
+  publishThreadAtBottom,
+  resetPublishedThreadScroll,
   saveThreadScrollPosition,
   shouldReapplyFrozenThreadScrollOffset,
   THREAD_SCROLL_BOTTOM,
@@ -44,12 +44,13 @@ import { isSecondaryWindow } from '@/store/windows'
 import { MessageRenderBoundary } from '../message-render-boundary'
 import { PendingApprovalStack } from '../tool/approval'
 
-import { responseMessageRole, ResponseMessages } from './response-group'
+import { responseMessageRole } from './response-group'
 import { resolveShowEarlierAction, shouldAutoShowEarlier, useTranscriptWindow } from './transcript-window'
 import { TurnDigest } from './turn-digest'
 import { useMessagesBelow } from './use-messages-below'
 import { useStickyPromptClip } from './use-sticky-prompt-clip'
 import { useTimelineReveal } from './use-timeline-reveal'
+import { useTurnSizeEstimate } from './use-turn-size-estimate'
 
 type ThreadMessageComponents = ComponentProps<typeof ThreadPrimitive.MessageByIndex>['components']
 
@@ -389,8 +390,11 @@ interface TurnRowProps {
 // ~650-730ms per open on a 1300-message session and ~100-200ms with this
 // on. contain-intrinsic-size keeps a placeholder height for never-rendered
 // turns (auto: remembered real size once rendered), so scrollbar/anchoring
-// stay stable. Sticky human bubbles are unaffected — their turn is rendered
-// whenever any part of it intersects the viewport.
+// stay stable. The fallback for turns nobody has seen yet is measured from the
+// turns on screen rather than guessed at (useTurnSizeEstimate): the old 37.5rem
+// constant ran 40% over a real transcript's turns, which is a scrollbar 40%
+// longer than the conversation. Sticky human bubbles are unaffected — their
+// turn is rendered whenever any part of it intersects the viewport.
 //
 // The live tail (newest turns) is exempt: virtualizing a turn whose final
 // size hasn't been remembered yet snaps it to a stale height when it scrolls
@@ -400,9 +404,12 @@ const TurnRow = memo(function TurnRow({ components, group, resetKey, virtualized
     <div
       className={cn(
         'flex min-w-0 flex-col gap-(--conversation-turn-gap) pb-(--conversation-turn-gap)',
-        virtualized && '[contain-intrinsic-size:auto_37.5rem] [content-visibility:auto]'
+        virtualized && '[contain-intrinsic-size:auto_var(--aui-turn-estimate,37.5rem)] [content-visibility:auto]'
       )}
       data-slot="aui_message-group"
+      // Rendered rows are the only ones worth measuring: a virtualized row
+      // reports whatever placeholder it was given. See useTurnSizeEstimate.
+      data-virtualized={virtualized ? 'true' : 'false'}
     >
       <MessageRenderBoundary resetKey={resetKey}>
         {group.kind === 'turn' ? (
@@ -1338,6 +1345,7 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
 
   useMessagesBelow({ contentRef, scrollRef, isAtBottom, paneVisible, rows, sessionKey, sessionId: scrollSessionId })
   useStickyPromptClip({ contentRef, scrollRef, paneVisible, rows })
+  useTurnSizeEstimate({ contentRef, paneVisible, rows })
 
   return (
     <div

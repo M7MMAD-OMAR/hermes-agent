@@ -66,8 +66,12 @@ function now(): number {
  *  document is not presented whatever the frame clock says, which is the
  *  platform telling the truth where it can (minimise on macOS/Windows, and a
  *  window Electron itself hid). */
+function documentHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden'
+}
+
 function evaluate(): boolean {
-  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+  if (documentHidden()) {
     return false
   }
 
@@ -81,11 +85,16 @@ function publish(next: boolean): void {
 
   lastPublished = next
 
-  // While nothing is being painted there is nothing more for the clock to
-  // learn: only a frame can end that state, and the frame publishes for
-  // itself. Stopping it here is what makes an off-screen window cost zero
-  // wakeups instead of 2.5 a second.
-  if (next) {
+  // An off-screen window should cost zero wakeups, and it can: the frame
+  // already requested is parked, it can only fire when the compositor paints
+  // again, and it publishes for itself. So the clock stops.
+  //
+  // Except when the DOCUMENT is the one reporting hidden (a minimise, a window
+  // Electron hid). There frames may keep arriving and being discarded, so the
+  // parked frame fires, finds `visibilityState` still hidden, and publishes
+  // nothing — with the clock stopped, nothing would ever ask again and the
+  // window would come back to clocks that never restarted.
+  if (next || documentHidden()) {
     startClock()
   } else {
     stopClock()

@@ -1,6 +1,7 @@
 import { type ComponentProps, useEffect, useState } from 'react'
 
 import { prefersReducedMotion } from '@/hooks/use-media-query'
+import { createBudgetedLoop } from '@/lib/budgeted-loop'
 import { cn } from '@/lib/utils'
 
 /**
@@ -74,30 +75,42 @@ export function DecodeText({
 
     let resolved = 0
     let hold = 0
+    let settled = false
 
-    const id = window.setInterval(() => {
-      if (resolved >= tailText.length) {
-        hold += 1
+    // rAF, not setInterval: this is decoration, and a timer keeps scrambling a
+    // word nobody can see. A window parked on another workspace still runs its
+    // timers at full rate (Wayland leaves `document.visibilityState` at
+    // 'visible', so every visibility gate in the renderer misses it) while the
+    // compositor stops asking for frames — so riding rAF is the only signal
+    // that actually tracks "is this on screen". Measured on an 8-tile window:
+    // this one placeholder drove ~16 React commits per second forever, on and
+    // off screen alike.
+    const animation = createBudgetedLoop(
+      () => {
+        if (resolved >= tailText.length) {
+          hold += 1
 
-        if (hold > HOLD_TICKS) {
-          if (loop) {
-            resolved = 0
-            hold = 0
-          } else {
-            window.clearInterval(id)
+          if (hold > HOLD_TICKS) {
+            if (loop) {
+              resolved = 0
+              hold = 0
+            } else {
+              settled = true
+            }
           }
+
+          setTail(tailText)
+
+          return
         }
 
-        setTail(tailText)
+        resolved += 0.5
+        setTail(scrambled(tailText, Math.floor(resolved)))
+      },
+      { fps: 1000 / TICK_MS, idleWhen: () => settled }
+    )
 
-        return
-      }
-
-      resolved += 0.5
-      setTail(scrambled(tailText, Math.floor(resolved)))
-    }, TICK_MS)
-
-    return () => window.clearInterval(id)
+    return () => animation.dispose()
   }, [active, loop, tailText])
 
   return (

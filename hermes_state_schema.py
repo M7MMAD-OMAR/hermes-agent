@@ -24,7 +24,8 @@ from hermes_startup_watchdog import report_startup_progress
 from utils import safe_json_loads
 from hermes_state_common import (
     DEFERRED_INDEX_SQL, FTS_CJK_STALE_KEY, FTS_REBUILD_DEFERRAL_KEY, FTS_STALE_KEY, FTS_SQL,
-    FTS_STORAGE_VERSION, FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY, FTS_TRIGRAM_SQL, LEGACY_FTS_SQL,
+    FTS_STORAGE_VERSION, FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY, FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY,
+    FTS_TRIGRAM_SQL, LEGACY_FTS_SQL,
     LEGACY_FTS_TRIGRAM_SQL, SCHEMA_SQL,
     SCHEMA_VERSION, _FTS_CJK_TRIGGERS, _FTS_TRIGGERS, _ephemeral_child_sql, _sql_json_extract, fts_rebuild_admission,
 )
@@ -279,6 +280,47 @@ class SessionSchemaMixin:
         return len(to_drop)
 
     @staticmethod
+    def _stamp_fts_trigram_high_water(cursor: sqlite3.Cursor) -> None:
+        """Grandfather every existing row into the trigram index's full-content era: rows at or below
+        this id keep the exact token stream already stored, so an external-content delete or update
+        passes back the same text it inserted. Only rows written after it take the bounded prefix."""
+        high_water = cursor.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
+        cursor.execute(_STATE_META_UPSERT_SQL, (FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY, str(high_water)))
+
+    @staticmethod
+    def _clear_fts_trigram_high_water(cursor: sqlite3.Cursor) -> None:
+        """Drop the grandfather clause ahead of a full rebuild. A rebuild reads every row through the
+        source view, so once the index is rewritten there is no historical token stream left to match:
+        the bound applies to all of it, which is what actually returns the disk space (measured on a
+        real store: a 640 MB trigram index over 92 MB of text, against ~27 MB of text once bounded)."""
+        cursor.execute("DELETE FROM state_meta WHERE key = ?", (FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY,))
+
+    def _migrate_bounded_trigram_fts(self, cursor: sqlite3.Cursor) -> None:
+        """Stamp the trigram grandfather marker on a store that predates the bound. Independent of
+        the tool-prefix migration next door, which returns early once its own marker exists and would
+        otherwise leave this one unstamped forever on any database upgraded before this change."""
+        if not self._sqlite_table_exists(cursor, "messages_fts_trigram"):
+            return
+        marker = cursor.execute(
+            "SELECT 1 FROM state_meta WHERE key = ? LIMIT 1", (FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY,),
+        ).fetchone()
+        if marker is not None:
+            return
+        # Deliberately no probe of the index itself: reading a vtable that may be
+        # physically corrupt is how a startup migration turns a recoverable index into
+        # a failed open. MAX(id) answers both shapes anyway — a fresh store stamps 0,
+        # which grandfathers nothing and bounds every row it will ever write.
+        #
+        # And it is guarded, because a store whose `messages` btree is damaged must
+        # reach the corruption paths that know what to do with it, not die inside a
+        # bookkeeping migration. Leaving the marker unstamped is safe: a recovery
+        # rebuild rewrites the index from the source view and clears it regardless.
+        try:
+            self._stamp_fts_trigram_high_water(cursor)
+        except sqlite3.DatabaseError as exc:
+            logger.debug("trigram high-water stamp skipped: %s", exc)
+
+    @staticmethod
     def _stamp_fts_tool_high_water(cursor: sqlite3.Cursor) -> None:
         """Record MAX(messages.id) as the bounded-tool-content high-water mark: rows at or below it keep
         their exact stored token stream; newer tool rows index only the prefix (see ``_fts_indexed_content_sql``)."""
@@ -423,6 +465,10 @@ class SessionSchemaMixin:
         ``legacy`` (pre-v23 inline layout) has no external-content 'rebuild' source, so it
         DELETEs + reinserts the concatenated content the legacy triggers produced."""
         SessionSchemaMixin._stamp_fts_tool_high_water(cursor)
+
+        if include_trigram:
+            SessionSchemaMixin._clear_fts_trigram_high_water(cursor)
+
         tables = ("messages_fts", "messages_fts_trigram") if include_trigram else ("messages_fts",)
         for tbl in tables:
             if legacy:
@@ -1172,6 +1218,7 @@ class SessionSchemaMixin:
         )
         if not self._fts_stale:
             self._migrate_bounded_tool_fts_triggers(cursor, legacy=legacy_fts)
+            self._migrate_bounded_trigram_fts(cursor)
         if self._fts_stale:
             if self._recover_stale_fts(cursor, legacy=legacy_fts):
                 # CJK was detached alongside the base indexes; its ensure path decides when it returns.

@@ -14,7 +14,8 @@ from typing import Any, Callable, Collection, Dict, List, Optional, Tuple
 from agent.skill_commands import describe_skill_invocation
 from hermes_state_common import (
     FTS_CJK_STALE_KEY, FTS_SQL, FTS_STALE_KEY, FTS_STORAGE_VERSION, FTS_TOOL_CONTENT_PREFIX_CHARS,
-    FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY, FTS_TRIGRAM_EXCLUDED_SOURCES, FTS_TRIGRAM_SQL,
+    fts_trigram_content_sql, FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY, FTS_TRIGRAM_EXCLUDED_SOURCES,
+    FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY, FTS_TRIGRAM_SQL,
     MAX_FTS5_QUERY_CHARS, SCHEMA_VERSION, _FTS_CJK_TRIGGERS,
     escape_like as _escape_like, fts_rebuild_admission, fts_trigram_session_sql, routed_sessions_setting,
 )
@@ -236,9 +237,12 @@ class SessionSearchMixin:
         "AND NOT EXISTS (SELECT 1 FROM messages_fts_docsize d WHERE d.id = m.id)"
     )
     # Trigram excludes tool rows and FTS_TRIGRAM_EXCLUDED_SOURCES sessions; no tool_calls column.
+    # The backfill writes the SAME bounded text the triggers and the source view write, or a
+    # rebuild would put the full body back and the bound would only ever apply to new rows.
     _TRIGRAM_BOUNDARY_SWEEP_SQL = (
         "INSERT INTO messages_fts_trigram(rowid, content, tool_name) "
-        "SELECT m.id, m.content, m.tool_name FROM messages m JOIN sessions s ON s.id = m.session_id "
+        f"SELECT m.id, {fts_trigram_content_sql('m')}, m.tool_name "
+        "FROM messages m JOIN sessions s ON s.id = m.session_id "
         f"WHERE m.id > ? AND m.id <= ? AND m.role <> 'tool' AND {fts_trigram_session_sql('s')} "
         "AND NOT EXISTS (SELECT 1 FROM messages_fts_trigram_docsize d WHERE d.id = m.id)"
     )
@@ -248,7 +252,8 @@ class SessionSearchMixin:
     )
     _TRIGRAM_CHUNK_INSERT_SQL = (
         "INSERT INTO messages_fts_trigram(rowid, content, tool_name) "
-        "SELECT m.id, m.content, m.tool_name FROM messages m JOIN sessions s ON s.id = m.session_id "
+        f"SELECT m.id, {fts_trigram_content_sql('m')}, m.tool_name "
+        "FROM messages m JOIN sessions s ON s.id = m.session_id "
         f"WHERE m.id > ? AND m.id <= ? AND m.role <> 'tool' AND {fts_trigram_session_sql('s')}"
     )
 
@@ -484,6 +489,10 @@ class SessionSearchMixin:
         self.set_meta("fts_rebuild_high_water", str(hw), cursor=conn)
         self.set_meta("fts_rebuild_progress", "0", cursor=conn)
         self.set_meta(FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY, str(hw), cursor=conn)
+        # The trigram bound goes the other way: a backfill re-reads every row through the source
+        # view, so dropping the grandfather marker here is what applies the prefix to history and
+        # returns the disk space instead of rebuilding the same oversized index again.
+        conn.execute("DELETE FROM state_meta WHERE key = ?", (FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY,))
         return int(hw)
 
     def _repair_optimize_bookkeeping(self) -> None:

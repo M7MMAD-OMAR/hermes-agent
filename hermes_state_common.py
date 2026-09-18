@@ -264,6 +264,49 @@ FTS_STORAGE_VERSION = 2
 FTS_TOOL_CONTENT_PREFIX_CHARS = 8_192
 FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY = "fts_tool_full_content_high_water"
 
+# The same idea on the trigram index, which needs it more than any other index
+# does: a trigram tokenizer emits a token per character position, so the index
+# runs several times the size of the text it covers, and 2% of the rows carry
+# most of that text.
+#
+# Measured by rebuilding a real 1823-session store (19 September 2026, 131k
+# messages, 92 MB of assistant and user text) at each bound, and re-running
+# eight representative Arabic and English infix queries against each result:
+#
+#     bound     index size    infix hits kept
+#     none         216 MB          100%
+#     32 KB        122 MB           95%
+#     16 KB         99 MB           91%
+#      8 KB         80 MB           84%
+#
+# 32 KB is where the curve turns: it takes 44% off the index for 5% of the
+# hits, and the hits it gives up are terms that appear ONLY past the 32 KB mark
+# of a single message. Those messages stay findable — the base word index
+# covers the whole body either way — they just stop being findable by infix.
+#
+# Its own high-water marker, like the tool bound above: rows at or below it
+# keep the exact token stream already stored, so external-content delete and
+# update commands stay valid without an eager rebuild. A full rebuild clears
+# the marker first, which is what applies the bound to history and hands the
+# space back (that store: 1.58 GB to 884 MB, index 643 MB to 122 MB).
+FTS_TRIGRAM_CONTENT_PREFIX_CHARS = 32_768
+FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY = "fts_trigram_full_content_high_water"
+
+
+def fts_trigram_content_sql(alias: str) -> str:
+    """The text the trigram index stores for one message row: the bounded prefix for rows
+    above the high-water marker, the full body for the history that predates it. Shared by the
+    source view and all three sync triggers so they can never disagree about what was indexed
+    (an external-content ``delete`` that passes different text than the ``insert`` did leaves
+    orphan tokens behind, and the index starts answering with rows that no longer match)."""
+    q = f"{alias}." if alias else ""
+
+    return f"""CASE WHEN {q}id > COALESCE((SELECT CAST(value AS INTEGER)
+                                     FROM state_meta
+                                     WHERE key = '{FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY}'), -1)
+         THEN substr(COALESCE({q}content, ''), 1, {FTS_TRIGRAM_CONTENT_PREFIX_CHARS})
+         ELSE {q}content END"""
+
 
 def _fts_indexed_content_sql(alias: str) -> str:
     return f"""CASE WHEN {alias}.role = 'tool'
@@ -276,6 +319,8 @@ def _fts_indexed_content_sql(alias: str) -> str:
 
 _FTS_NEW_INDEXED_CONTENT_SQL = _fts_indexed_content_sql("new")
 _FTS_OLD_INDEXED_CONTENT_SQL = _fts_indexed_content_sql("old")
+_FTS_TRIGRAM_NEW_CONTENT_SQL = fts_trigram_content_sql("new")
+_FTS_TRIGRAM_OLD_CONTENT_SQL = fts_trigram_content_sql("old")
 
 # Cap on user-controlled FTS5 query input before sanitizer processing.
 MAX_FTS5_QUERY_CHARS = 2_048
@@ -812,7 +857,7 @@ FTS_TRIGRAM_SESSION_SQL = fts_trigram_session_sql()
 
 FTS_TRIGRAM_SQL = f"""
 CREATE VIEW IF NOT EXISTS messages_fts_trigram_src AS
-    SELECT m.id, m.role, m.content, m.tool_name
+    SELECT m.id, m.role, {fts_trigram_content_sql('m')} AS content, m.tool_name
     FROM messages AS m
     JOIN sessions AS s ON s.id = m.session_id
     WHERE m.role <> 'tool' AND {fts_trigram_session_sql('s')};
@@ -835,7 +880,7 @@ WHEN new.role <> 'tool'
                             WHERE key = 'fts_rebuild_progress'), -1))
 BEGIN
     INSERT INTO messages_fts_trigram(rowid, content, tool_name)
-    VALUES (new.id, new.content, new.tool_name);
+    VALUES (new.id, {_FTS_TRIGRAM_NEW_CONTENT_SQL}, new.tool_name);
 END;
 
 CREATE TRIGGER IF NOT EXISTS messages_fts_trigram_delete AFTER DELETE ON messages
@@ -848,7 +893,7 @@ WHEN old.role <> 'tool'
                             WHERE key = 'fts_rebuild_progress'), -1))
 BEGIN
     INSERT INTO messages_fts_trigram(messages_fts_trigram, rowid, content, tool_name)
-    VALUES ('delete', old.id, old.content, old.tool_name);
+    VALUES ('delete', old.id, {_FTS_TRIGRAM_OLD_CONTENT_SQL}, old.tool_name);
 END;
 
 CREATE TRIGGER IF NOT EXISTS messages_fts_trigram_update
@@ -862,12 +907,12 @@ WHEN (old.content IS NOT new.content
                             WHERE key = 'fts_rebuild_progress'), -1))
 BEGIN
     INSERT INTO messages_fts_trigram(messages_fts_trigram, rowid, content, tool_name)
-    SELECT 'delete', old.id, old.content, old.tool_name
+    SELECT 'delete', old.id, {_FTS_TRIGRAM_OLD_CONTENT_SQL}, old.tool_name
     WHERE old.role <> 'tool'
       AND EXISTS (SELECT 1 FROM sessions
                   WHERE id = old.session_id AND {FTS_TRIGRAM_SESSION_SQL});
     INSERT INTO messages_fts_trigram(rowid, content, tool_name)
-    SELECT new.id, new.content, new.tool_name
+    SELECT new.id, {_FTS_TRIGRAM_NEW_CONTENT_SQL}, new.tool_name
     WHERE new.role <> 'tool'
       AND EXISTS (SELECT 1 FROM sessions
                   WHERE id = new.session_id AND {FTS_TRIGRAM_SESSION_SQL});

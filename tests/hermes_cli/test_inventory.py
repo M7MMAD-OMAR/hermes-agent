@@ -708,13 +708,29 @@ def test_account_label_names_the_credential_a_row_runs_on():
     assert _account_label([{"priority": 0}]) == ""
 
 
-def test_apply_account_labels_counts_credentials_so_the_ui_can_stay_quiet(monkeypatch):
-    """A single-key provider must not be labelled with the name of the way you logged in."""
+def test_account_label_drops_the_name_of_the_sign_in_method():
+    """"claude_code" and "device_code" are the same string for everyone, so they name nobody."""
+    from hermes_cli.inventory import _account_label
+
+    assert _account_label([{"label": "claude_code", "priority": 0}]) == ""
+    assert _account_label([{"label": "device_code", "priority": 0}]) == ""
+    assert _account_label([{"label": "gh auth token", "priority": 0}]) == ""
+    assert _account_label([{"label": "OAuth", "priority": 0}]) == ""
+    # A real account still wins over the method label sitting next to it.
+    assert _account_label([{"label": "device_code", "email": "me@example.com", "priority": 0}]) == "me@example.com"
+
+
+def test_apply_account_labels_counts_only_credentials_you_can_spend_on(monkeypatch):
+    """A revoked key must not inflate the count, and a provider the pool never saw stays bare."""
     import hermes_cli.auth as auth
     from hermes_cli.inventory import _apply_account_labels
 
     monkeypatch.setattr(auth, "read_credential_pool", lambda provider_id=None: {
-        "openrouter": [{"label": "personal", "priority": 0}, {"label": "company", "priority": 1}],
+        "openrouter": [
+            {"label": "personal", "priority": 0},
+            {"label": "company", "priority": 1},
+            {"label": "old-one", "priority": 2, "last_status": "revoked"},
+        ],
         "anthropic": [{"label": "claude_code", "priority": 0}],
     })
 
@@ -723,6 +739,6 @@ def test_apply_account_labels_counts_credentials_so_the_ui_can_stay_quiet(monkey
 
     assert rows[0]["account"] == "personal"
     assert rows[0]["account_count"] == 2
-    assert rows[1]["account"] == "claude_code"
-    assert rows[1]["account_count"] == 1
+    # A sign-in method is not an account, so the Anthropic row carries nothing.
+    assert "account" not in rows[1]
     assert "account" not in rows[2]

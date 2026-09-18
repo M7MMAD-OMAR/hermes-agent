@@ -280,13 +280,14 @@ describe('models routed through an aggregator name their lab', () => {
 
 
 // Someone with a personal key and the company's at the same provider sees one
-// group and cannot tell whose quota a turn spends. The pool knows; the row says.
-describe('a provider with two accounts says which one it runs on', () => {
-  it('names the credential inline once there is more than one', async () => {
+// group and cannot tell whose quota a turn spends. The pool knows; the row says
+// it here, in the menu, which is where the question gets asked.
+describe('a provider row says which account it runs on', () => {
+  it('names the credential beside the provider', async () => {
     getGlobalModelOptions.mockResolvedValue({
       providers: [
         {
-          account: 'company',
+          account: 'COMPANY_OPENROUTER_KEY',
           account_count: 2,
           models: ['anthropic/claude-opus-5'],
           name: 'OpenRouter',
@@ -297,25 +298,19 @@ describe('a provider with two accounts says which one it runs on', () => {
 
     renderMenu()
 
-    expect(await screen.findByText(/\(company\)/)).toBeTruthy()
+    expect(await screen.findByText(/\(COMPANY_OPENROUTER_KEY\)/)).toBeTruthy()
+    // The header truncates, so the full pair also has to survive as a tooltip.
+    expect(screen.getByTitle('OpenRouter (COMPANY_OPENROUTER_KEY)')).toBeTruthy()
   })
 
-  it('stays quiet for a provider holding a single credential', async () => {
+  it('stays bare when the backend sends no account', async () => {
     getGlobalModelOptions.mockResolvedValue({
-      providers: [
-        {
-          account: 'device_code',
-          account_count: 1,
-          models: ['gpt-5.5'],
-          name: 'ChatGPT or Codex Subscription',
-          slug: 'openai-codex'
-        }
-      ]
+      providers: [{ models: ['gpt-5.5'], name: 'ChatGPT or Codex Subscription', slug: 'openai-codex' }]
     })
 
     renderMenu()
 
     await screen.findByText(/GPT-5\.5/i)
-    expect(screen.queryByText(/\(device_code\)/)).toBeNull()
+    expect(screen.queryByText(/\(/)).toBeNull()
   })
 })

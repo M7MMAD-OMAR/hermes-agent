@@ -472,12 +472,11 @@ export function ModelCatalogMenu({
 
             // Which credential this row runs on. Two accounts at one provider
             // (a personal key and the company's) otherwise render as one
-            // indistinguishable group. Shown inline only when the provider
-            // really holds more than one, so a single-key provider is not
-            // labelled with the name of the way you logged in; the tooltip
-            // carries it either way.
+            // indistinguishable group, and the question gets asked right here,
+            // while picking a model. The backend sends this only when it names
+            // an account rather than a sign-in method, so a row stays bare
+            // unless the name actually tells the two apart.
             const account = String(group.provider.account ?? '')
-            const showAccount = !!account && (group.provider.account_count ?? 0) > 1
 
             // Collapsed when the user stored it (and not while searching, which
             // spans every model regardless of collapse state).
@@ -496,7 +495,7 @@ export function ModelCatalogMenu({
                 >
                   <span className="truncate">
                     <HighlightMatches foldSeparators query={search} text={group.provider.name} />
-                    {showAccount ? <span className="font-normal normal-case"> ({account})</span> : null}
+                    {account ? <span className="font-normal normal-case"> ({account})</span> : null}
                   </span>
                   <DisclosureCaret
                     className="shrink-0 text-(--ui-text-tertiary) opacity-0 transition group-hover/label:opacity-100"

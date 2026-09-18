@@ -184,6 +184,26 @@ def _strip_aggregator_overlaps(rows: list[dict]) -> None:
 # key would answer the question wrongly, which is worse than answering nothing.
 _UNUSABLE_CREDENTIAL_STATUS = {"dead", "revoked", "exhausted", "quarantined"}
 
+# Labels that name HOW you signed in, not WHO you signed in as. They are the same string for
+# everyone, so printing them beside a provider answers nobody's question and adds noise to every
+# row. An env var name or an account is kept; these are dropped.
+_AUTH_METHOD_LABELS = {
+    "api key", "browser", "browser login", "claude code", "cli", "default", "device code",
+    "gh auth token", "github cli", "key", "login", "oauth", "pkce", "session", "subscription",
+    "token", "web", "web login",
+}
+
+
+def _is_identity(value: str) -> bool:
+    """True when a credential label names an account rather than a sign-in method."""
+    normalized = " ".join(value.replace("_", " ").replace("-", " ").lower().split())
+    return bool(normalized) and normalized not in _AUTH_METHOD_LABELS
+
+
+def _usable_credentials(entries: list) -> list:
+    return [e for e in entries if isinstance(e, dict)
+            and str(e.get("last_status") or "").lower() not in _UNUSABLE_CREDENTIAL_STATUS]
+
 
 def _account_label(entries: list) -> str:
     """Which credential a provider row is actually running on, named. '' when the pool cannot say.
@@ -191,8 +211,7 @@ def _account_label(entries: list) -> str:
     Someone with a personal AND a company key at the same provider sees one "OpenRouter" row and
     has no way to tell whose quota a turn spends. The pool already distinguishes them (an env var
     name, an OAuth account, a user-given label), so surface that."""
-    usable = [e for e in entries if isinstance(e, dict)
-              and str(e.get("last_status") or "").lower() not in _UNUSABLE_CREDENTIAL_STATUS]
+    usable = _usable_credentials(entries)
     pick = usable or [e for e in entries if isinstance(e, dict)]
     if not pick:
         return ""
@@ -200,10 +219,14 @@ def _account_label(entries: list) -> str:
     chosen = min(pick, key=lambda e: (e.get("priority") if isinstance(e.get("priority"), int) else 999))
     for field in ("account", "account_label", "email", "label"):
         value = str(chosen.get(field) or "").strip()
-        if value:
+        if value and _is_identity(value):
             return value
     source = str(chosen.get("source") or "").strip()
-    return source.split(":", 1)[1].strip() if source.startswith("env:") else ""
+    if source.startswith("env:"):
+        env_name = source.split(":", 1)[1].strip()
+        if _is_identity(env_name):
+            return env_name
+    return ""
 
 
 def _apply_account_labels(rows: list[dict]) -> None:
@@ -223,9 +246,8 @@ def _apply_account_labels(rows: list[dict]) -> None:
         label = _account_label(entries)
         if label:
             row["account"] = label
-            # Only a second credential makes the label load-bearing; the UI can keep it quiet
-            # otherwise instead of shouting an env var name at a single-key provider.
-            row["account_count"] = len(entries)
+            # Dead and exhausted keys are not accounts you can spend on, so they do not count.
+            row["account_count"] = len(_usable_credentials(entries)) or len(entries)
 
 
 def build_model_options_payload(

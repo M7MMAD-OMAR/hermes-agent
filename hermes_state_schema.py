@@ -306,6 +306,17 @@ class SessionSchemaMixin:
         ).fetchone()
         if marker is not None:
             return
+        # Not while a rebuild is claimed. A backfill rewrites every row from the source
+        # view, so there is no historical token stream left to protect — and stamping
+        # here would re-grandfather the whole store mid-rebuild. That is not theoretical:
+        # `optimize-storage` opens the database again between its demote and its backfill,
+        # and without this guard that second open put the marker straight back, so the
+        # rebuild indexed every message in full and reclaimed 545 MB where 689 MB was
+        # there to take.
+        if cursor.execute(
+            "SELECT 1 FROM state_meta WHERE key = 'fts_rebuild_high_water' LIMIT 1"
+        ).fetchone() is not None:
+            return
         # Deliberately no probe of the index itself: reading a vtable that may be
         # physically corrupt is how a startup migration turns a recoverable index into
         # a failed open. MAX(id) answers both shapes anyway — a fresh store stamps 0,

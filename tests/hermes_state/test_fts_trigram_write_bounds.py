@@ -180,3 +180,26 @@ def test_a_full_rebuild_drops_the_grandfather_clause(db):
     # History carries the bound too now, which is where the disk space comes from.
     assert _trigram_hits(db, "rebuildhead") == [legacy_id]
     assert _trigram_hits(db, "rebuildtail") == []
+
+
+def test_the_marker_is_not_stamped_while_a_rebuild_is_claimed(tmp_path):
+    """A rebuild rewrites every row, so there is no history to grandfather — and
+    optimize-storage reopens the database between its demote and its backfill, so a
+    stamp here would silently put the full body back and give the disk space away."""
+    path = tmp_path / "state.db"
+    first = _open_db(path)
+    first.create_session("session", source="cli")
+    first.append_message("session", role="assistant", content=_past_the_bound("claimhead", "claimtail"))
+
+    first._conn.execute("DELETE FROM state_meta WHERE key = ?", (FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY,))
+    first._conn.execute(
+        "INSERT OR REPLACE INTO state_meta(key, value) VALUES('fts_rebuild_high_water', '1')"
+    )
+    first._conn.commit()
+    first.close()
+
+    reopened = _open_db(path)
+    try:
+        assert _meta(reopened, FTS_TRIGRAM_FULL_CONTENT_HIGH_WATER_KEY) is None
+    finally:
+        reopened.close()

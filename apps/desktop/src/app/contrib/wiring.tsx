@@ -1323,9 +1323,21 @@ export function ContribWiring({ children }: { children: ReactNode }) {
           } as CSSProperties
         }
       >
-        {/* HUD and the popped-out Browser have no titlebar to hang these off —
+        {children}
+        {/* HUD and the popped-out Browser have no titlebar to hang these off:
             the clusters are `fixed`, so without this they'd float over the
-            surface as orphaned buttons. */}
+            surface as orphaned buttons.
+
+            AFTER the children, on purpose. Chromium builds the window's drag
+            region by walking the document in tree order and applying each
+            `-webkit-app-region` box as a union (drag) or a difference
+            (no-drag), so the last box to cover a pixel decides it. The pane
+            tree under `children` lays a full-width drag handle across the
+            control band (tree-group.tsx, #112964); declared before it, these
+            clusters' `no-drag` was unioned straight back into the handle and
+            every titlebar button stopped taking hover or clicks (Linux,
+            19 September 2026). `fixed` keeps their paint position the same
+            wherever they sit in the tree; only the region order changes. */}
         {!isHudWindow() && !isBrowserWindow() && (
           <TitlebarControls
             leftTools={leftTitlebarTools}
@@ -1333,7 +1345,6 @@ export function ContribWiring({ children }: { children: ReactNode }) {
             tools={rightTitlebarTools}
           />
         )}
-        {children}
       </div>
 
       {/* The full real overlay set (mirrors DesktopController's `overlays`). */}

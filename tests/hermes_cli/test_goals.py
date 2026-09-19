@@ -218,6 +218,68 @@ class TestJudgeParseFailureAutoPause:
             assert "goal_judge" in d3["message"]
             assert "config.yaml" in d3["message"]
 
+    def test_a_goal_is_born_sized_for_a_long_run(self, hermes_home):
+        """The point of a goal is being left alone: the budget it gets by default has to match
+        that, or every long run needs a number typed at it."""
+        from hermes_cli.goals import DEFAULT_MAX_HOURS, DEFAULT_MAX_TURNS, GoalManager
+
+        assert DEFAULT_MAX_TURNS >= 100
+        assert DEFAULT_MAX_HOURS >= 4
+
+        state = GoalManager(session_id="long-run-sid").set("work through the night")
+
+        assert state.max_turns == DEFAULT_MAX_TURNS
+        assert state.max_hours == DEFAULT_MAX_HOURS
+
+    def test_hours_bound_the_run_the_way_turns_cannot(self, hermes_home):
+        """Turns say nothing about how long or how expensive a run is. Hours do, and that is the
+        bound that keeps a goal whose judge is unreachable from spending a whole night."""
+        from hermes_cli import goals
+        from hermes_cli.goals import GoalManager
+
+        mgr = GoalManager(session_id="time-budget-sid")
+        mgr.set("work through the night")
+        mgr.state.max_hours = 8.0
+
+        with patch.object(goals, "judge_goal", return_value=("continue", "still going", False, None, False)):
+            decision = mgr.evaluate_after_turn("step 1")
+            assert decision["should_continue"] is True
+
+            # Eight hours and one minute after it was set, with turns to spare.
+            mgr.state.created_at = time.time() - (8 * 3600 + 60)
+            decision = mgr.evaluate_after_turn("step 2")
+
+        assert decision["should_continue"] is False
+        assert decision["status"] == "paused"
+        assert mgr.state.turns_used < mgr.state.max_turns, "paused on time, not on turns"
+        assert "hours" in decision["message"]
+
+        # Resume means keep going, so the window restarts rather than re-pausing at once.
+        mgr.resume()
+        with patch.object(goals, "judge_goal", return_value=("continue", "still going", False, None, False)):
+            assert mgr.evaluate_after_turn("step 3")["should_continue"] is True
+
+    def test_a_goal_from_before_the_time_bound_still_runs(self, hermes_home):
+        """State written by an older build has no max_hours and no reason to behave differently."""
+        from hermes_cli.goals import DEFAULT_MAX_HOURS, GoalState, goal_time_budget_spent
+
+        legacy = GoalState.from_json(json.dumps({
+            "goal": "do a thing", "status": "active", "turns_used": 3, "max_turns": 20,
+            "created_at": time.time() - 60,
+        }))
+
+        assert legacy.max_hours == DEFAULT_MAX_HOURS
+        assert goal_time_budget_spent(legacy) is False
+
+    def test_a_goal_with_no_creation_stamp_is_never_out_of_time(self, hermes_home):
+        """Missing created_at must read as "no time spent", never as "budget exhausted"."""
+        from hermes_cli.goals import GoalState, goal_hours_elapsed, goal_time_budget_spent
+
+        state = GoalState(goal="g", created_at=0.0, max_hours=1.0)
+
+        assert goal_hours_elapsed(state) == 0.0
+        assert goal_time_budget_spent(state) is False
+
     def test_unreachable_judge_warns_but_keeps_working(self, hermes_home):
         """An unreachable judge must not stop the work.
 

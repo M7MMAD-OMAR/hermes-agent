@@ -150,9 +150,14 @@ class SessionPortabilityMixin:
         obey the same contract as ordinary transcript imports.
         """
         session_id = new_session_id(hex_len=12)
-        normalized, errors = self._validate_import_payload([
-            {"id": session_id, "source": origin["tool"], "title": title,
-             "cwd": cwd, "messages": messages}])
+        # Foreign history arrives over the wire from another tool, so it takes the ordinary
+        # import limits, not the larger local-adoption ones (those exist for moving a project
+        # between two of this user's own stores, where the bytes are already on this disk).
+        normalized, errors = self._validate_import_payload(
+            [{"id": session_id, "source": origin["tool"], "title": title,
+              "cwd": cwd, "messages": messages}],
+            self._import_size_limits(local_adoption=False),
+        )
         if errors:
             raise ValueError(errors[0]["error"])
 

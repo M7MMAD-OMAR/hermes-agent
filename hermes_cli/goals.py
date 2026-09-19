@@ -28,7 +28,21 @@ logger = logging.getLogger(__name__)
 
 # ── Constants & defaults ──────────────────────────────────────────────
 
-DEFAULT_MAX_TURNS = 20
+# A goal exists to be left running. The judge is what ENDS one — the moment it rules the work
+# done, the loop stops — so this budget is not the normal stop, it is the backstop for a goal
+# nobody can declare finished (a stuck agent, a judge that cannot be reached). At 20 it was the
+# normal stop instead: a goal set before bed paused a fraction of the way in, having done nothing
+# wrong, and the user had to notice and say "resume". Sized for the way goals are actually used,
+# with the wall-clock bound below as the guard that a number of turns cannot give: turns say
+# nothing about how long or how expensive a run is, and hours do.
+DEFAULT_MAX_TURNS = 120
+
+# Wall clock from the moment the goal was set. This is the bound that matches what "leave it
+# working for hours" means, and it is what keeps a goal whose judge is down (it warns and carries
+# on, see DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES) from spending a night's credit. Both bounds
+# apply; whichever is reached first pauses, and /goal resume restarts from there.
+DEFAULT_MAX_HOURS = 8.0
+
 DEFAULT_JUDGE_TIMEOUT = 30.0
 # Judge output budget. Reasoning models burn hidden-reasoning tokens before the visible one-line
 # JSON verdict; 200 (the original) reliably truncated it and tripped the auto-pause. 4096 covers
@@ -399,6 +413,8 @@ class GoalState:
     status: str = "active"          # active | paused | done | cleared
     turns_used: int = 0
     max_turns: int = DEFAULT_MAX_TURNS
+    # Wall-clock budget in hours, measured from created_at. 0 or below = no time bound.
+    max_hours: float = DEFAULT_MAX_HOURS
     created_at: float = 0.0
     last_turn_at: float = 0.0
     last_verdict: Optional[str] = None        # "done" | "blocked" | "continue" | "wait" | "skipped"
@@ -441,6 +457,9 @@ class GoalState:
             goal=data.get("goal", ""),
             status=data.get("status", "active"),
             max_turns=int(data.get("max_turns") or DEFAULT_MAX_TURNS),
+            # A goal written before the time bound existed has no key: it inherits the default,
+            # measured from the created_at it already carries.
+            max_hours=float(data.get("max_hours", DEFAULT_MAX_HOURS) or 0.0),
             last_verdict=data.get("last_verdict"),
             last_reason=data.get("last_reason"),
             paused_reason=data.get("paused_reason"),
@@ -744,6 +763,20 @@ def _goal_judge_max_tokens() -> int:
     return _goal_judge_setting("max_tokens", DEFAULT_JUDGE_MAX_TOKENS, int)
 
 
+def goal_max_hours_from_config() -> float:
+    """``goals.max_hours``: the wall-clock budget a new goal is born with. Read here rather than
+    threaded through every GoalManager call site, because a goal that has to be told how long it
+    may run is the thing this budget exists to avoid. 0 or below disables the bound."""
+    try:
+        from hermes_cli.config import load_config
+
+        raw = (load_config().get("goals") or {}).get("max_hours", DEFAULT_MAX_HOURS)
+
+        return max(0.0, float(raw))
+    except Exception:
+        return DEFAULT_MAX_HOURS
+
+
 def _goal_judge_timeout() -> float:
     return _goal_judge_setting("timeout", DEFAULT_JUDGE_TIMEOUT, float)
 
@@ -872,6 +905,25 @@ def _call_goal_judge_llm(call_llm, system_prompt: str, user_prompt: str, timeout
 # call no matter how the judge is routed, and the fix is to sign in again. Named separately so
 # the loop's warning can say which of the two it is.
 _AUTH_ERROR_MARKERS = ("401", "authentication", "unauthorized", "revoked", "invalid api key", "invalid_api_key")
+
+
+def goal_hours_elapsed(state: "GoalState", now: Optional[float] = None) -> float:
+    """Wall-clock hours since the goal was set. 0.0 for a state with no creation stamp (a goal
+    written by a build that predates it), which reads as "no time spent" and leaves the turn
+    budget as the only bound — never as "budget exhausted"."""
+    if not state.created_at:
+        return 0.0
+
+    return max(0.0, ((now if now is not None else time.time()) - state.created_at) / 3600.0)
+
+
+def goal_time_budget_spent(state: "GoalState", now: Optional[float] = None) -> bool:
+    """True when the goal has been running longer than its hour budget. A budget of 0 or less
+    turns the bound off, for a run that is meant to go until the judge says otherwise."""
+    if not state.max_hours or state.max_hours <= 0 or not state.created_at:
+        return False
+
+    return goal_hours_elapsed(state, now) >= state.max_hours
 
 
 def judge_transport_failure_is_auth(exc: BaseException) -> bool:
@@ -1163,6 +1215,7 @@ class GoalManager:
         self._state = GoalState(
             goal=goal, status="active", turns_used=0, created_at=time.time(), last_turn_at=0.0,
             max_turns=int(max_turns) if max_turns else self.default_max_turns,
+            max_hours=goal_max_hours_from_config(),
             contract=contract if contract is not None else GoalContract(),
         )
         return self._save()
@@ -1190,6 +1243,9 @@ class GoalManager:
         self._state.clear_wait()   # resuming starts fresh
         if reset_budget:
             self._state.turns_used = 0
+            # The hour budget is a window, not a total: resuming a goal that spent it would
+            # otherwise pause again on its very next turn, which is not what "resume" means.
+            self._state.created_at = time.time()
         return self._save()
 
     def clear(self) -> None:
@@ -1455,10 +1511,19 @@ class GoalManager:
         return _decision("active", False, None, "wait", reason, f"⏳ Goal parked (judge) — waiting on {tgt}: {reason}")
 
     def _budget_pause(self, state: GoalState, verdict: str, reason: str, note: str = "") -> Dict[str, Any]:
+        spent = goal_hours_elapsed(state)
         return self._pause_decision(
             f"turn budget exhausted ({state.turns_used}/{state.max_turns})", verdict, reason,
-            f"⏸ Goal paused — {state.turns_used}/{state.max_turns} turns used{note}. "
+            f"⏸ Goal paused — {state.turns_used}/{state.max_turns} turns used over {spent:.1f}h{note}. "
             "Use /goal resume to keep going, or /goal clear to stop.",
+        )
+
+    def _time_pause(self, state: GoalState, verdict: str, reason: str) -> Dict[str, Any]:
+        spent = goal_hours_elapsed(state)
+        return self._pause_decision(
+            f"time budget exhausted ({spent:.1f}h of {state.max_hours:g}h)", verdict, reason,
+            f"⏸ Goal paused — {spent:.1f} hours of work ({state.turns_used} turns), which is the "
+            f"{state.max_hours:g}h budget for one goal. Use /goal resume to keep going, or /goal clear to stop.",
         )
 
     def evaluate_after_turn(
@@ -1549,6 +1614,9 @@ class GoalManager:
 
         if state.turns_used >= state.max_turns:
             return self._budget_pause(state, "continue", reason)
+
+        if goal_time_budget_spent(state):
+            return self._time_pause(state, "continue", reason)
 
         self._save()
         return _decision(

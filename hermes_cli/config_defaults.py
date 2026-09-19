@@ -1326,9 +1326,14 @@ DEFAULT_CONFIG = {
     # goal is satisfied, else a continuation prompt re-enters the session until done, budget
     # exhausted, or paused. Judge failures fail OPEN; the budget is the backstop.
     "goals": {
-        # Max continuation turns before auto-pause (/goal resume) — guards against judge false
-        # negatives and unbounded spend.
-        "max_turns": 20,
+        # Max continuation turns before auto-pause (/goal resume). NOT the normal stop — the judge
+        # ending the loop is — so this is sized for a goal left running rather than for a short
+        # errand: at 20 a goal set before bed paused a fraction of the way in with nothing wrong.
+        "max_turns": 120,
+        # Wall-clock hours for one goal, from the moment it was set; 0 turns the bound off. This is
+        # the budget that matches "leave it working for hours" and the one that keeps a run whose
+        # judge is unreachable from spending a night. Whichever bound is reached first pauses.
+        "max_hours": 8,
     },
     # Loops — /loop re-runs a prompt or slash command on a cadence in-session. Fixed interval fires
     # on the user's clock; self-paced (no interval) starts at the floor and backs off exponentially

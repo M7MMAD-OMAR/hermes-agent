@@ -66,7 +66,7 @@ export function StickyHumanMessageContainer({
 // so without the carve-out, clicking a stuck bubble drags the window instead of
 // opening the edit composer.
 export const USER_BUBBLE_BASE_CLASS =
-  'composer-human-message standalone-glass relative flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-y-auto rounded-xl border bg-(--dt-user-bubble) px-3 py-2 text-start [-webkit-app-region:no-drag]'
+  'composer-human-message standalone-glass relative flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-y-auto rounded-xl bg-(--dt-user-bubble) px-3 py-2 text-start [-webkit-app-region:no-drag]'
 
 export const USER_ACTION_ICON_BUTTON_CLASS =
   'grid place-items-center rounded-md bg-transparent text-(--ui-text-secondary) transition-colors hover:bg-(--ui-control-active-background) hover:text-foreground disabled:cursor-default disabled:text-(--ui-text-quaternary) disabled:opacity-70'
@@ -228,7 +228,7 @@ const AgentMessageNote: FC<{ text: string }> = ({ text }) => {
           <summary className="cursor-pointer select-none text-center text-muted-foreground/45 hover:text-muted-foreground/70">
             show message
           </summary>
-          <div className="mt-1 max-w-[36rem] rounded-lg border border-(--ui-stroke-tertiary) px-3 py-2 text-start text-[0.75rem] leading-5 text-foreground/85">
+          <div className="mt-1 max-w-[36rem] rounded-lg bg-(--ui-bg-quinary) px-3 py-2 text-start text-[0.75rem] leading-5 text-foreground/85">
             <UserMessageText text={body} />
           </div>
         </details>
@@ -431,8 +431,13 @@ export const UserMessage: FC<{
   // the user wrote.
   const bubbleClassName = cn(
     USER_BUBBLE_BASE_CLASS,
+    // THE BUBBLE IS A FILL. It used to answer hover by brightening a ring
+    // around itself, which put a line around the one thing in the transcript
+    // that is already the reader's own words on their own surface. The fill
+    // lifts on hover instead, so the bubble says "clickable" the way every
+    // other row in the app says it.
     'cursor-pointer pe-9 text-[length:var(--conversation-text-font-size)] leading-(--dt-line-height) text-foreground/95 transition-colors',
-    'border-(--ui-stroke-tertiary) hover:border-(--ui-stroke-secondary)'
+    'hover:bg-(--ui-chat-bubble-opaque-background)'
   )
 
   const bubbleContent = hasBody && (

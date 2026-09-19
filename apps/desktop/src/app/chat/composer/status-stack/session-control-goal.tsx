@@ -155,12 +155,12 @@ export const SessionControlGoalSection = memo(function SessionControlGoalSection
 
   const iconClass =
     goal.last_verdict === 'blocked'
-      ? 'text-red-500'
+      ? 'text-(--ui-danger)'
       : visibleState === 'done'
         ? 'text-muted-foreground/70'
         : visibleState === 'active'
-          ? 'text-emerald-500'
-          : 'text-amber-500'
+          ? 'text-(--ui-success)'
+          : 'text-(--ui-warning)'
 
   const stateLabel =
     goal.last_verdict === 'blocked'
@@ -360,7 +360,7 @@ export const SessionControlGoalSection = memo(function SessionControlGoalSection
                 )}
 
                 {/* Criteria subsection */}
-                <div className="mt-1.5 border-t border-(--ui-stroke-tertiary)/40 pt-1.5">
+                <div className="mt-2.5">
                   <StatusRow
                     className="text-[0.68rem] font-medium text-muted-foreground/75"
                     leading={

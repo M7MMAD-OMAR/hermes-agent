@@ -341,7 +341,7 @@ export function ComposerStatusStack({ busy = false, onSubmit, queue, sessionId }
             composerDockCard('top'),
             // Inset (mx-2) so the stack reads slightly narrower than the composer
             // surface below it — the original look.
-            'mx-2 flex min-h-0 max-h-[inherit] shrink flex-col overflow-hidden rounded-b-none border-b border-b-transparent'
+            'mx-2 flex min-h-0 max-h-[inherit] shrink flex-col overflow-hidden rounded-b-none'
           )}
         >
           <div className="min-h-0 overflow-y-auto overscroll-y-contain" data-slot="status-stack-scroll">

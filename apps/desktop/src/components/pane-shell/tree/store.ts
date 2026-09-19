@@ -993,6 +993,29 @@ export type TreeSide = 'left' | 'right'
 
 export const $collapsedTreeSides = atom<ReadonlySet<TreeSide>>(new Set())
 
+/**
+ * The side being PEEKED: hovering a titlebar sidebar toggle shows that side
+ * without docking it.
+ *
+ * A peek is a rendering mode for the side that is already collapsed, not a
+ * second copy of it. The zone stays exactly where it is in the tree and keeps
+ * the one instance it always had; the split simply takes its wrapper out of
+ * flow and floats it over the layout, so the panes beside it never reflow and
+ * nothing remounts. Mounting a second sessions list instead would put two live
+ * copies of the same pane on screen, each with its own subscriptions and its
+ * own idea of which chats are pinned.
+ *
+ * Clicking the same toggle docks the side for real (the ordinary open/close
+ * path) and clears this.
+ */
+export const $peekedTreeSide = atom<TreeSide | null>(null)
+
+export function setPeekedTreeSide(side: TreeSide | null) {
+  if ($peekedTreeSide.get() !== side) {
+    $peekedTreeSide.set(side)
+  }
+}
+
 // Side visibility is DERIVED from an app store (the binding owns persistence
 // + button state). Reveals un-collapse the column directly instead of writing
 // back through the setter — the right side's store IS the file tree's toggle,

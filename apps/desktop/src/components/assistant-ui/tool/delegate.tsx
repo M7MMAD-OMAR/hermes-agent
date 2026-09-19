@@ -51,7 +51,7 @@ function statusGlyph(status: DelegateRowStatus, label: string): ReactNode {
     return <span aria-hidden className="size-1.5 rounded-full bg-(--ui-text-tertiary)" />
   }
 
-  return <CheckCircle2 aria-label={label} className="size-3.5 text-emerald-600/85 dark:text-emerald-400/85" />
+  return <CheckCircle2 aria-label={label} className="size-3.5 text-(--ui-success)/85" />
 }
 
 /**
@@ -88,7 +88,7 @@ function DelegateRowView({ row }: { row: DelegateRow }) {
 
   return (
     <div
-      className="grid min-w-0 max-w-full gap-0.5 rounded-xl border border-(--ui-stroke-tertiary) px-3 py-2"
+      className="grid min-w-0 max-w-full gap-0.5 rounded-xl bg-(--ui-widget-surface-background) px-3 py-2"
       data-conversation-scaffold=""
     >
       <div className="flex min-w-0 max-w-full items-center gap-1.5">

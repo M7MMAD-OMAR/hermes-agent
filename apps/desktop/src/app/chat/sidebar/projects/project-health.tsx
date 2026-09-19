@@ -27,7 +27,7 @@ export function ProjectHealthIndicator({ id, name }: { id: string; name: string 
         type="button"
         variant="ghost"
       >
-        <Codicon className="text-amber-500" name="warning" size="0.875rem" />
+        <Codicon className="text-(--ui-warning)" name="warning" size="0.875rem" />
       </Button>
     </Tip>
   )
@@ -52,7 +52,7 @@ export function ProjectFolderHealth({
   const labels = { missing: p.folderMissing, unavailable: p.folderUnavailable, not_directory: p.folderNotDirectory }
 
   return (
-    <span className="mt-1 flex flex-col gap-1 whitespace-normal text-xs text-amber-500" role="status">
+    <span className="mt-1 flex flex-col gap-1 whitespace-normal text-xs text-(--ui-warning)" role="status">
       {labels[folder.health]}
       {folder.suggested_paths?.map(path => (
         <Button

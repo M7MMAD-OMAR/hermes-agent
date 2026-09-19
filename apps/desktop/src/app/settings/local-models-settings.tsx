@@ -507,7 +507,7 @@ export function LocalModelsSettings() {
             description={copy.upToDateDetail(status.tag, status.runtime_backend ?? 'cpu')}
             title={
               <span className="inline-flex items-center gap-2">
-                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                <CheckCircle2 className="size-4 text-(--ui-success)" />
                 {copy.upToDateTitle}
               </span>
             }

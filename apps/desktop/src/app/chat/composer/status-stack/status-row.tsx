@@ -18,7 +18,7 @@ const toolLabel = (name: string) => name.split('_').filter(Boolean).map(capitali
 // the in-progress item.
 const TODO_GLYPHS: Record<Exclude<TodoStatus, 'in_progress' | 'pending'>, { icon: string; tone: string }> = {
   cancelled: { icon: 'circle-slash', tone: 'text-muted-foreground/45' },
-  completed: { icon: 'pass-filled', tone: 'text-emerald-500/80' }
+  completed: { icon: 'pass-filled', tone: 'text-(--ui-success)/85' }
 }
 
 // Left slot: braille spinner while running, otherwise a small status dot
@@ -30,13 +30,13 @@ function leadingGlyph(item: ComposerStatusItem, s: Translations['statusStack']):
     }
 
     if (item.goalStatus === 'done') {
-      return <Codicon className="text-emerald-500/80" name="pass-filled" size="0.8rem" />
+      return <Codicon className="text-(--ui-success)/85" name="pass-filled" size="0.8rem" />
     }
 
     return (
       <GlyphSpinner
         ariaLabel={s.running}
-        className="text-[0.85rem] leading-none text-emerald-500/80"
+        className="text-[0.85rem] leading-none text-(--ui-success)/85"
         spinner="braille"
       />
     )
@@ -65,7 +65,7 @@ function leadingGlyph(item: ComposerStatusItem, s: Translations['statusStack']):
   return (
     <span
       aria-hidden
-      className={cn('size-1.5 rounded-full', item.state === 'failed' ? 'bg-destructive/80' : 'bg-emerald-500/70')}
+      className={cn('size-1.5 rounded-full', item.state === 'failed' ? 'bg-destructive/80' : 'bg-(--ui-success)/75')}
     />
   )
 }

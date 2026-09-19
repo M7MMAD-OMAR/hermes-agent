@@ -362,6 +362,69 @@
       var(--ui-accent) var(--theme-stroke-quaternary-accent-mix),
       color-mix(in srgb, var(--ui-base) 3%, transparent)
     );
+    /* ── Semantic tones ───────────────────────────────────────────────────
+       FOUR MEANINGS, ONE SET OF NAMES. Every surface that says "this went
+       well / look at this / this is wrong / this is informational" reads these
+       instead of a raw Tailwind ramp. The app used to spell each one at its
+       call site, which is why a warning was `amber-500/10 text-amber-600
+       dark:text-amber-300` in one panel, `amber-500/15 text-amber-400` in
+       another, and a bare `text-amber-500` in a third: three shades of the
+       same idea, none of them the theme's.
+
+       The INK is per-mode (see the `.dark` block): a light-tuned ochre on a
+       near-black ground is mud, which is exactly what those `dark:` variants
+       at the call sites were compensating for. The BACKGROUND and BORDER
+       derive from the ink by color-mix, so a skin change moves all three
+       together and a tone can never half-update.
+
+       `--ui-success` is set by applyTheme (harmonized toward the accent), so
+       every reference to it carries the literal fallback: the pre-paint script
+       in index.html runs before applyTheme, and a color-mix over an undefined
+       var is invalid at computed-value time, not merely wrong.
+
+       Info borrows `--ui-accent` rather than `--ui-blue`: the accent is
+       already resolved per skin AND per mode, which is what an informational
+       tone wants. */
+    --ui-warning: #b07a1e;
+    --ui-danger: var(--ui-red);
+    --ui-info: var(--ui-accent);
+
+    /* A TONE IS A FILL. The borders are kept for the rare surface that has
+       nothing behind it to sit on (a floating card over arbitrary content),
+       and for nothing else: a tinted fill with a tinted ring around it reads
+       as a warning label rather than as a quiet state, and the ring is the
+       half of it the eye keeps going back to. */
+    --ui-success-background: color-mix(in srgb, var(--ui-success, #10b981) 12%, transparent);
+    --ui-success-border: color-mix(in srgb, var(--ui-success, #10b981) 34%, transparent);
+    --ui-warning-background: color-mix(in srgb, var(--ui-warning) 12%, transparent);
+    --ui-warning-border: color-mix(in srgb, var(--ui-warning) 34%, transparent);
+    --ui-danger-background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+    --ui-danger-border: color-mix(in srgb, var(--ui-danger) 34%, transparent);
+    --ui-info-background: color-mix(in srgb, var(--ui-info) 12%, transparent);
+    --ui-info-border: color-mix(in srgb, var(--ui-info) 34%, transparent);
+
+    /* ── Attention ────────────────────────────────────────────────────────
+       The one state the user is REQUIRED to act on. It is the warning tone by
+       construction rather than a colour of its own, so there is never a second
+       amber in the app arguing with the first. The row tint is a FILL, never
+       an edge: a stripe down one side of a row is a half-border, and this
+       shell does not draw those. */
+    --ui-attention: var(--ui-warning);
+    --ui-attention-background: var(--ui-warning-background);
+    --ui-attention-border: var(--ui-warning-border);
+
+    /* ── Motion ───────────────────────────────────────────────────────────
+       Two durations and one curve for state changes. This is NOT a mandate to
+       normalise every animation in the app: a 500ms opacity reveal is usually
+       a deliberate hint, and flattening it to 140ms would be a behaviour
+       change wearing consistency as a costume. These exist so the ordinary
+       case (a control answering hover) has one answer instead of eight.
+       The blanket prefers-reduced-motion rule at the top of this file already
+       collapses both to nothing. */
+    --ui-motion-fast: 90ms;
+    --ui-motion: 140ms;
+    --ui-ease: cubic-bezier(0.2, 0, 0, 1);
+
     --ui-sash-hover-border: color-mix(in srgb, var(--ui-accent) 18%, var(--ui-stroke-tertiary));
     --ui-sash-hover-background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
     --ui-surface-background: var(--ui-bg-editor);
@@ -464,7 +527,25 @@
        root element at runtime (an ungated leva slider default), so this 0.6
        only ever applied to the windows that don't mount the backdrop. Pinned
        to the value the app actually renders at. */
-    --radius-scalar: 0.2;
+    --radius-scalar: 0.8;
+
+    /* ── Shell geometry ───────────────────────────────────────────────────
+       The shell is a ground with cards on it. One seam, one radius, one row
+       height, declared once here so a zone, a sidebar row and a tab can never
+       disagree about how round or how tall they are.
+
+       `--pane-seam` is spent by the layout tree as a GAP between zones; the
+       ground shows through it, which is what makes a zone read as a card
+       rather than as a region fenced off by a hairline. Nothing in the shell
+       draws a one-sided edge: a surface is either a closed card (all four
+       borders, all four corners) or it is flat on its parent. */
+    --pane-seam: 0.375rem;
+    --pane-radius: var(--radius-xl);
+    --row-radius: var(--radius-md);
+    /* One line, nothing under it. The sidebar's whole density budget. */
+    --sidebar-row-height: 1.75rem;
+    /* The ground every zone card sits on, the app's lowest surface. */
+    --ui-shell-ground: var(--ui-bg-sidebar);
 
     /* Space under last message vs overlay composer — driven by the measured composer DOCK height (see
        composer/index.tsx), which covers the micro-action strip, the status stack, the composer, and the
@@ -564,6 +645,12 @@
     --ui-red: #e75e78;
     --ui-green: #55a583;
     --ui-cyan: #6f9ba6;
+    /* The warning ink lifts in dark for the same reason red and green do: the
+       light-mode ochre sits a few points off a near-black ground and reads as
+       dirt rather than as a warning. This is the value the call sites used to
+       carry as `dark:text-amber-300`, moved to where the light one lives so
+       the pair can be compared. */
+    --ui-warning: #e0a23c;
     --ui-diff-add-foreground: color-mix(in srgb, var(--ui-green) 62%, #fff);
     --ui-diff-remove-foreground: color-mix(in srgb, var(--ui-red) 62%, #fff);
 
@@ -618,6 +705,12 @@
     --ui-chat-surface-background: transparent;
     --ui-sidebar-surface-background: transparent;
     --ui-editor-surface-background: transparent;
+    /* The layout tree's ground is a full-window painter above <body>, so it
+       joins the field tokens here: left opaque it would seal the window and
+       the native material would never reach the user, which is the exact
+       failure the ONE PAINTER rule above exists to prevent. The zone cards
+       then read as bordered outlines over the material. */
+    --ui-shell-ground: transparent;
     --ui-terminal-surface-background: var(--ui-bg-chrome);
   }
 
@@ -761,7 +854,9 @@
 
   body {
     margin: 0;
-    background: var(--ui-chat-surface-background);
+    /* The ground, not a surface: every zone paints its own card above this,
+       and the seams between them are this color showing through. */
+    background: var(--ui-shell-ground);
     color: var(--dt-foreground);
     font-family: var(--dt-font-sans);
     font-size: 0.8125rem;
@@ -793,6 +888,38 @@
   *::selection {
     background: var(--ui-selection-background);
     color: inherit;
+  }
+
+  /* EVERY CONTROL ANSWERS THE SAME WAY. Things you can operate ease their
+     colours; nothing else transitions, so this costs one property on the
+     elements that already repaint on hover and nothing on the rest.
+
+     Colours only, deliberately: transform and opacity belong to whatever
+     component owns the gesture, and a blanket `all` would catch layout
+     properties and animate reflows.
+
+     In `base` so the utilities layer still wins: a call site that says
+     `transition-none` (the sidebar, mid-drag) or picks its own duration keeps
+     exactly what it asked for, and everything else inherits the default
+     instead of being instant on one screen and eased on the next. */
+  :is(
+      a,
+      button,
+      summary,
+      [role='button'],
+      [role='checkbox'],
+      [role='menuitem'],
+      [role='menuitemcheckbox'],
+      [role='menuitemradio'],
+      [role='option'],
+      [role='switch'],
+      [role='tab']
+    ):not(:disabled, [aria-disabled='true'], [data-disabled]) {
+    transition:
+      background-color var(--ui-motion-fast) var(--ui-ease),
+      border-color var(--ui-motion-fast) var(--ui-ease),
+      color var(--ui-motion-fast) var(--ui-ease),
+      outline-color var(--ui-motion-fast) var(--ui-ease);
   }
 }
 
@@ -1273,11 +1400,22 @@
   }
 }
 
-/* No focus rings, anywhere. Kills the native outline plus Tailwind's
+/* NO FOCUS RINGS, ANYWHERE. Kills the native outline plus Tailwind's
    `focus-visible:ring-*` (a box-shadow driven by --tw-ring-*). Unlayered so it
    beats the utilities layer without !important on the outline. The composer /
-   .desktop-input-chrome focus glow is untouched — those set `box-shadow`
-   directly rather than through the ring vars. */
+   .desktop-input-chrome focus glow is untouched: those set `box-shadow`
+   directly rather than through the ring vars.
+
+   This was briefly a single quiet keyboard-only outline, and the experiment is
+   recorded here because the reasoning for it still sounds right and was still
+   wrong. An outline follows the element's own box, and in this app the element
+   that takes focus is routinely not the box a person sees: focus lands on the
+   composer's inner editable, which has no radius, and draws a hard-cornered
+   rectangle inside the composer's rounded one; it lands on a menu item that
+   Radix focuses on hover, and draws a ring around the row under the pointer.
+   Both read as stray frames, which is exactly what this shell is built not to
+   have. Focus is carried by the FILL instead: `focus:bg-*` on menu items, the
+   composer's own glow, the row and control hover surfaces. */
 *:focus,
 *:focus-visible {
   outline: none;
@@ -1379,21 +1517,32 @@ code {
   filter: brightness(1.08) saturate(1.06);
 }
 
-/* Shared input chrome — mirrors composer hover/focus FX. Unlayered to beat Tailwind utilities. */
-/* Border strength is driven by the single --dt-input-border alpha knob (× the
-   theme's tuned ring color); hover doubles it and focus triples it. Only the
-   border-color animates — animating the translucent background over the window's
-   backdrop-blur flickers (badly on textareas), so the bg fill snaps instead.
+/* Shared input chrome. Unlayered to beat Tailwind utilities.
+
+   A FIELD IS A FILL. It used to answer hover and focus by strengthening its
+   border, from a near-invisible resting hairline all the way to the full ring
+   colour on focus, which is a hard frame drawn around the one thing already
+   asking to be typed in. The fill carries all three states instead: a field is
+   visible at rest because it is a shade off its container, and it deepens on
+   hover and again on focus.
+
+   The border stays declared and transparent rather than being removed: the
+   fields keep their box-sizing, and `aria-invalid` still has an edge to paint
+   when a field is genuinely wrong.
+
    (:focus is declared after :hover so a focused+hovered field shows focus.) */
 .desktop-input-chrome {
-  background: color-mix(in srgb, var(--dt-card) var(--dt-input-bg), transparent);
-  border-color: color-mix(in srgb, var(--dt-composer-ring) var(--dt-input-border), transparent);
+  /* The app's own graded fills, not a percentage of the card over whatever
+     happens to be behind it: `--dt-input-bg` rests at 0%, so a field driven by
+     it and stripped of its border would be invisible in every state. */
+  background: var(--ui-bg-quinary);
+  border-color: transparent;
   box-shadow: var(--dt-input-inset);
-  transition: border-color 200ms ease-out;
+  transition: background-color 160ms ease-out;
 }
 
 .desktop-input-chrome:hover {
-  border-color: color-mix(in srgb, var(--dt-composer-ring) calc(var(--dt-input-border) * 2), transparent);
+  background: var(--ui-bg-quaternary);
 }
 
 /* `[data-state='open']` keeps the trigger looking focused while its dropdown is
@@ -1401,7 +1550,8 @@ code {
 .desktop-input-chrome:focus,
 .desktop-input-chrome:focus-within,
 .desktop-input-chrome[data-state='open'] {
-  border-color: var(--dt-composer-ring);
+  background: var(--ui-bg-tertiary);
+  border-color: transparent;
   box-shadow: none;
   outline: none;
 }
@@ -1927,8 +2077,12 @@ body.guest-pointer-lock :is(webview, iframe) {
   ) !important;
 }
 
+/* NO STROKE ON THE COMPOSER. It is the most-looked-at box in the app and a
+   ring around it is a line the eye lands on before the text does. Its fill
+   (--composer-fill) already lifts it off the transcript, and the focus glow
+   further down is what answers focus. */
 [data-slot='composer-surface'] {
-  border-color: var(--ui-stroke-secondary) !important;
+  border-color: transparent !important;
 }
 
 [data-slot='composer-fade'] {

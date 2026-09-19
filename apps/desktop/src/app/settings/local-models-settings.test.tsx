@@ -249,7 +249,9 @@ describe('LocalModelsSettings', () => {
     // The fitting model reads as pills, not prose: green memory pill +
     // green full-context pill (start_window == native, resident on GPU).
     expect(screen.getByText('Fits your GPU')).toBeTruthy()
-    expect(screen.getByText('Full 256K context').className).toContain('emerald')
+    // The success tone is a token now (`--ui-success`), not a Tailwind ramp:
+    // assert the tone the pill wears, not the hex ramp it used to name.
+    expect(screen.getByText('Full 256K context').className).toContain('--ui-success')
 
     // The refused model is NOT hidden (discoverability rule): red memory
     // pill, plus the ceiling it would have had.
@@ -304,7 +306,7 @@ describe('LocalModelsSettings', () => {
 
     expect(screen.queryByRole('button', { name: /set up for me/i })).toBeNull()
     expect(screen.getByRole('button', { name: /browse models/i })).toBeTruthy()
-    expect(screen.getByText('Full 256K context').className).not.toContain('emerald')
+    expect(screen.getByText('Full 256K context').className).not.toContain('--ui-success')
   })
 
   it('explains the Recommended pick on hover', async () => {

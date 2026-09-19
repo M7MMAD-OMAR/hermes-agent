@@ -5,18 +5,11 @@ import { useLocation, useNavigate } from 'react-router'
 
 import { hudTargetSessionId } from '@/app/hud/handoff'
 import { toggleLayoutEditMode } from '@/components/pane-shell/edit-mode'
-import { resetLayoutTree } from '@/components/pane-shell/tree/store'
+import { resetLayoutTree, setPeekedTreeSide } from '@/components/pane-shell/tree/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import {
-  Tip,
-  TipKeybindLabel,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@/components/ui/tooltip'
+import { Tip, TipKeybindLabel, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Slot } from '@/contrib/react/slot'
 import { useContributions } from '@/contrib/react/use-contributions'
 import { useI18n } from '@/i18n'
@@ -62,6 +55,10 @@ export interface TitlebarTool {
   actionId?: string
   /** Overlay count on the glyph (unread sessions). Hidden when 0/undefined. */
   badge?: number
+  /** Pointer entering / leaving the button. The sidebar toggles use it to peek
+   *  their side without docking it; a tool that leaves it unset behaves as it
+   *  always did. */
+  onHover?: (entering: boolean) => void
   /** Renders a popover under the button instead of firing `onSelect`. The fn
    *  receives a `close()` so the content can dismiss itself after acting. */
   menuContent?: ((close: () => void) => ReactNode) | ReactNode
@@ -180,14 +177,25 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
   const leftLabel = leftEdge.open ? t.titlebar.hideSidebar : t.titlebar.showSidebar
   const rightLabel = rightEdge.open ? t.titlebar.hideRightSidebar : t.titlebar.showRightSidebar
 
+  // HOVER PEEKS, CLICK DOCKS. Resting on the toggle floats that side over the
+  // layout so a chat is one glance and one click away; nothing reflows, and
+  // the peek ends when the pointer leaves the floated side. Clicking is the
+  // ordinary open/close, and it clears the peek so the docked side does not
+  // arrive already floating. An OPEN side has nothing to peek.
+  const peekHandler = (side: 'left' | 'right', open: boolean) => (entering: boolean) => {
+    setPeekedTreeSide(entering && !open ? side : null)
+  }
+
   const sidebarTool: TitlebarTool = {
     actionId: 'view.toggleSidebar',
     badge: panesFlipped ? undefined : unreadBadge,
     icon: <TitlebarIcon name="layout-sidebar-left" />,
     id: 'sidebar',
     label: `${leftLabel}${panesFlipped ? '' : unreadHint}`,
+    onHover: peekHandler('left', leftEdge.open),
     onSelect: () => {
       triggerHaptic('tap')
+      setPeekedTreeSide(null)
       leftEdge.toggle()
     }
   }
@@ -209,8 +217,10 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
     icon: <TitlebarIcon name="layout-sidebar-right" />,
     id: 'right-sidebar',
     label: `${rightLabel}${panesFlipped ? unreadHint : ''}`,
+    onHover: peekHandler('right', rightEdge.open),
     onSelect: () => {
       triggerHaptic('tap')
+      setPeekedTreeSide(null)
       rightEdge.toggle()
     },
     tour: 'right-pane-toggle'
@@ -457,6 +467,8 @@ function TitlebarToolButton({ navigate, tool }: { navigate: ReturnType<typeof us
 
           tool.onSelect?.(event)
         }}
+        onMouseEnter={tool.onHover ? () => tool.onHover?.(true) : undefined}
+        onMouseLeave={tool.onHover ? () => tool.onHover?.(false) : undefined}
         onPointerDown={event => event.stopPropagation()}
         size="icon-titlebar"
         type="button"

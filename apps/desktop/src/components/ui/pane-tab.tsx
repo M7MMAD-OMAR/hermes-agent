@@ -14,26 +14,40 @@ export const PANE_TAB_STRIP_LINE_RIGHT = 'shadow-[inset_-1px_0_0_var(--ui-stroke
 
 // Surface tokens become transparent under glass; the body owns the tint.
 // The close-button fade masks the label, so it needs no second surface fill.
+// EVERY TAB IS ITS OWN OPAQUE BOX. The fill is not decoration: it is what
+// stops one tab's label from being read on top of its neighbour's. `--tab-face`
+// is the surface the close-button runway fades into, and it follows the tab's
+// own fill so the runway always masks the text it is there to mask.
 const TAB =
-  'group/tab relative flex shrink-0 items-center border-transparent bg-(--tab-bg) text-[0.6875rem] font-medium [-webkit-app-region:no-drag]'
+  'group/tab relative flex items-center rounded-(--row-radius) border-transparent bg-(--tab-bg) text-[0.6875rem] font-medium [--tab-face:var(--tab-bg)] [-webkit-app-region:no-drag]'
 
-// Full height: with the strip's rule removed there is no last-pixel row to
-// leave uncovered, so tabs fill the bar and no sliver of gutter shows through.
-const TAB_HORIZONTAL = 'h-full min-w-0 max-w-48 not-first:border-s not-first:border-s-(--ui-stroke-quaternary)'
+// EVERY TAB STAYS ON SCREEN. `shrink-0` meant a strip that ran out of room
+// pushed its later tabs into a horizontal scroll, so the chats at the back
+// were simply not there to be clicked. They share the strip instead: an equal
+// slice each, capped at `max-w-48` so two tabs do not stretch across a wide
+// pane, floored low enough that a narrow rail still fits all of its own. Past
+// that floor it scrolls, which is the honest answer for twenty tabs.
+//
+// Inset from the bar so each chip has air above and below it rather than
+// filling the strip edge to edge.
+const TAB_HORIZONTAL = 'h-[calc(100%-0.375rem)] min-w-12 max-w-48 flex-1 basis-0'
 
 // A closeable tab's floor keeps short labels left of the close button.
 // A floor, not padding — a tab already wider than it pays nothing.
 const TAB_CLOSEABLE = 'min-w-13'
 
-const TAB_VERTICAL =
-  'w-full max-h-48 justify-center not-first:border-t not-first:border-t-(--ui-stroke-quaternary) [writing-mode:vertical-rl]'
+const TAB_VERTICAL = 'w-full max-h-48 justify-center [writing-mode:vertical-rl]'
 
-const TAB_ACTIVE = 'h-full text-foreground [--tab-bg:var(--pane-tab-active-bg,var(--ui-editor-surface-background))]'
+const TAB_ACTIVE = 'text-foreground [--tab-bg:var(--pane-tab-active-bg,var(--ui-editor-surface-background))]'
 
-// Horizontal only: the active tab is the sole seam on the strip — a
-// theme-primary underline drawn as an inset shadow in its own last pixel row,
-// so it costs no layout and can't shift the tab.
-const TAB_ACTIVE_UNDERLINE = 'shadow-[inset_0_-2px_0_var(--pane-tab-active-accent,var(--theme-primary))]'
+// Horizontal only: the active tab is marked by a WASH, not by a rule. A
+// 2px accent line under one tab is the brightest thing on a strip of quiet
+// grey labels, so the eye lands on it every time it crosses the top of a
+// pane, and it is a single-sided edge, which this shell does not draw. A
+// faint fill says the same thing and says it as background rather than as a
+// mark. Drawn as an inset shadow like the hover wash, so it costs no layout
+// and stacks over whatever surface the tab already carries.
+const TAB_ACTIVE_WASH = 'shadow-[inset_0_0_0_100vmax_var(--ui-row-active-background)]'
 
 // Inactive = gutter, defaulting to the shared chrome surface so a strip that
 // sets no vars still matches the sidebar/titlebar instead of falling through to
@@ -106,9 +120,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
         vertical ? TAB_VERTICAL : TAB_HORIZONTAL,
         !vertical && onClose && TAB_CLOSEABLE,
         edge,
-        active
-          ? cn(TAB_ACTIVE, !vertical && TAB_ACTIVE_UNDERLINE)
-          : cn(TAB_IDLE, edge && `${edge}-(--ui-stroke-tertiary)`),
+        active ? cn(TAB_ACTIVE, !vertical && TAB_ACTIVE_WASH) : cn(TAB_IDLE, edge && `${edge}-(--ui-stroke-tertiary)`),
         selected && TAB_SELECTED,
         className
       )}
@@ -168,7 +180,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
             vertical ? 'bottom-1.5 left-1/2 -translate-x-1/2' : 'end-1.5 top-1/2 -translate-y-1/2'
           )}
         >
-          <span className="size-2 rounded-full bg-amber-500 shadow-[0_0_0_2px_var(--tab-bg),0_1px_2px_rgba(0,0,0,0.45)] dark:bg-amber-400" />
+          <span className="size-2 rounded-full bg-(--ui-warning) shadow-[0_0_0_2px_var(--tab-bg),0_1px_2px_rgba(0,0,0,0.45)]" />
         </span>
       )}
       {onClose && !vertical && (
@@ -183,13 +195,10 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
           {/* Both pieces re-draw the active underline: they paint over the
               tab's own last-pixel row, so without it the ✕ would bite a
               notch out of the accent line on the active tab. */}
-          <span
-            aria-hidden
-            className="w-4 bg-linear-to-r from-transparent to-(--tab-face) group-data-[active=true]/tab:shadow-[inset_0_-2px_0_var(--pane-tab-active-accent,var(--theme-primary))]"
-          />
+          <span aria-hidden className="w-4 bg-linear-to-r from-transparent to-(--tab-face)" />
           <button
             aria-label={translateNow('common.close')}
-            className="grid cursor-pointer place-items-center bg-(--tab-face) pe-1.5 ps-0.5 text-(--ui-text-tertiary) outline-none hover:text-foreground group-data-[active=true]/tab:shadow-[inset_0_-2px_0_var(--pane-tab-active-accent,var(--theme-primary))]"
+            className="grid cursor-pointer place-items-center bg-(--tab-face) pe-1.5 ps-0.5 text-(--ui-text-tertiary) outline-none hover:text-foreground [&>*]:rounded-full [&>*]:p-0.5 [&>*]:transition-colors [&>*]:hover:bg-(--ui-control-active-background)"
             onClick={event => {
               event.preventDefault()
               event.stopPropagation()
@@ -231,15 +240,23 @@ export const PaneTabLabel = React.forwardRef<HTMLElement, PaneTabLabelProps>(fun
 
   return (
     <Comp
-      className="flex h-full min-w-0 max-w-full items-center overflow-hidden px-2 text-start outline-none group-data-[vertical]/tab:h-auto group-data-[vertical]/tab:w-full group-data-[vertical]/tab:justify-center group-data-[vertical]/tab:py-2"
+      className="flex h-full min-w-0 max-w-full items-center overflow-hidden px-1.5 text-start outline-none group-data-[vertical]/tab:h-auto group-data-[vertical]/tab:w-full group-data-[vertical]/tab:justify-center group-data-[vertical]/tab:py-2"
       ref={ref}
       {...props}
     >
       <span
-        className={cn(
-          'block min-w-0 truncate text-[9px] font-medium tracking-wide uppercase group-data-[closeable]/tab:text-clip',
-          className
-        )}
+        // A TAB CARRIES A NAME, NOT A STAMP. This was 9px, letter-spaced and
+        // upper-cased, which is the app's idiom for a fixed pane label
+        // ("TERMINAL", "FILES") and the wrong treatment for the thing most
+        // tabs actually hold: a session title the user wrote, often an Arabic
+        // sentence, where upper-casing does nothing and 9px is simply small.
+        // It reads at the same size as the rest of the tab now.
+        //
+        // `truncate`, never `text-clip`: a closeable tab used to hard-cut its
+        // label mid-word because the close button sits over the end. The close
+        // runway is a gradient into the tab's own fill, so the ellipsis lands
+        // under the fade instead of being chopped off.
+        className={cn('block min-w-0 truncate text-[0.6875rem] font-medium', className)}
       >
         {children}
       </span>
@@ -273,11 +290,19 @@ export const PaneTabStrip = React.forwardRef<HTMLDivElement, PaneTabStripProps>(
 ) {
   return (
     <div
-      // Strip and active tab both sit on the sidebar surface, so the bar reads
-      // as one piece of chrome with the titlebar above it. No bottom rule — the
-      // active tab's primary underline is the only seam.
+      // NO SURFACE OF ITS OWN, BUT ITS TABS HAVE ONE. The strip used to paint
+      // the sidebar token, which is now the shell GROUND: on a content zone
+      // that painted a band of ground across the top of the card, reading as a
+      // notch cut out of it. So the strip paints nothing and the zone's fill
+      // runs behind it.
+      //
+      // The TABS are a different question. They stay opaque, in the zone's own
+      // fill (the zone publishes it as --pane-tab-strip-bg), because that fill
+      // is what keeps one tab's label from being read through the tab beside
+      // it. Transparent tabs is how the chats ended up stacked on top of each
+      // other. Only the active tab's wash is meant to be visible.
       className={cn(
-        'group/pane-header relative flex min-w-0 shrink-0 select-none bg-(--ui-sidebar-surface-background) [--pane-tab-active-bg:var(--ui-sidebar-surface-background)]',
+        'group/pane-header relative flex min-w-0 shrink-0 select-none',
         titlebar ? 'h-full flex-1 [-webkit-app-region:drag]' : 'h-7 [-webkit-app-region:no-drag]',
         className
       )}
@@ -285,7 +310,11 @@ export const PaneTabStrip = React.forwardRef<HTMLDivElement, PaneTabStripProps>(
       {...props}
     >
       <div
-        className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // A GAP, NOT A RULE. Tabs used to be fenced apart by a hairline on
+        // each one's leading edge; the strip separates them with the same
+        // ground it separates panes with, so a tab is a region with air around
+        // it rather than a cell in a grid of lines.
+        className="flex min-w-0 flex-1 items-center gap-(--pane-seam) overflow-x-auto overflow-y-hidden overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         ref={listRef}
         role="tablist"
       >

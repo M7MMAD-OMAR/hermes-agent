@@ -95,7 +95,7 @@ function ListingCard({ listing }: { listing: Listing }) {
 
         {listing.catches.length > 0 && (
           <span className={cn(META_CLASS, 'mt-2 flex gap-1.5 text-muted-foreground')}>
-            <Codicon className="mt-px shrink-0 text-amber-500" name="warning" size="0.75rem" />
+            <Codicon className="mt-px shrink-0 text-(--ui-warning)" name="warning" size="0.75rem" />
             <span className="min-w-0">{listing.catches.join(' · ')}</span>
           </span>
         )}

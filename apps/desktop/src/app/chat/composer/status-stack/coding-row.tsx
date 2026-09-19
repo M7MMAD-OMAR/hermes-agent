@@ -206,7 +206,7 @@ export const CodingStatusRow = memo(function CodingStatusRow({
         <StatusRow
           // The base "where am I working" strip is part of the composer surface
           // itself, so it inherits the composer's width and clipped top radius.
-          className="coding-status-bar min-h-7 rounded-t-[inherit] rounded-b-none border-b border-(--ui-stroke-tertiary) px-3.5 py-1.5 hover:bg-transparent"
+          className="coding-status-bar min-h-7 rounded-t-[inherit] rounded-b-none px-3.5 py-1.5 hover:bg-transparent"
           // Static branch glyph — never the loading spinner. This row only renders
           // once `status` exists, so a spinner here only ever fired on *refreshes*
           // of an already-loaded repo (window focus, turn settle), reading as an
@@ -215,7 +215,10 @@ export const CodingStatusRow = memo(function CodingStatusRow({
           // while the strip around it stays inert; size-3.5 fills the slot exactly.
           leading={
             <button className="flex size-3.5 items-center justify-center" onClick={onOpen} type="button">
-              <Codicon className="text-(--ui-green)" name="git-branch" size="0.8rem" />
+              {/* The branch glyph is a label, not a state: nothing about being
+                  on a branch is good or bad, so it carries no colour of its
+                  own and sits at the same weight as the branch name. */}
+              <Codicon className="text-(--ui-text-tertiary)" name="git-branch" size="0.8rem" />
             </button>
           }
         >
@@ -318,7 +321,7 @@ export const CodingStatusRow = memo(function CodingStatusRow({
                 />
               ) : untrackedOnly ? (
                 <span
-                  className={`shrink-0 text-[0.72rem] leading-4 text-amber-500/90 ${status.ahead === 0 && status.behind === 0 ? 'ml-auto' : ''}`}
+                  className={`shrink-0 text-[0.72rem] leading-4 text-(--ui-warning) ${status.ahead === 0 && status.behind === 0 ? 'ml-auto' : ''}`}
                 >
                   {s.changed(status.untracked)}
                 </span>

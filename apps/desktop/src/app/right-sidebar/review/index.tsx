@@ -152,7 +152,10 @@ export function ReviewPane() {
 
       {/* Selected file's diff — reuses the shiki-highlighted FileDiffPanel. */}
       {selectedFile && (
-        <div className="flex max-h-[55%] shrink-0 flex-col border-t border-(--ui-stroke-secondary)">
+        // A seam, not a rule: the diff sits on the pane's own ground with one
+        // seam of clearance and its own closed card, the same way two zones
+        // separate. A top-only border here was the last half-edge in the rail.
+        <div className="mt-(--pane-seam) flex max-h-[55%] shrink-0 flex-col rounded-(--pane-radius) bg-(--ui-bg-quinary)">
           <div className="flex items-center gap-1 px-2.5 py-1.5" data-suppress-pane-reveal-side="">
             <span
               className="min-w-0 flex-1 truncate font-mono text-[0.66rem] text-(--ui-text-secondary)"

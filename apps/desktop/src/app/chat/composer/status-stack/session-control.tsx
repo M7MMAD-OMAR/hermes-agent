@@ -56,7 +56,7 @@ export const SessionControlSections = memo(function SessionControlSections({
     <>
       {displayError && (
         <div
-          className="flex items-center justify-between gap-2 border-b border-destructive/20 bg-destructive/10 px-3 py-1.5 text-xs text-destructive"
+          className="flex items-center justify-between gap-2 bg-destructive/10 px-3 py-1.5 text-xs text-destructive"
           role="alert"
         >
           <div className="flex items-center gap-1.5 truncate">

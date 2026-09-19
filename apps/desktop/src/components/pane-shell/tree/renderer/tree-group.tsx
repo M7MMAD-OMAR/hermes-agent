@@ -293,6 +293,23 @@ export function TreeGroup({
   const active = paneFor(activeId)
   const isEmpty = shown.length === 0
 
+  // A SIDE RAIL IS PART OF THE WINDOW, NOT A CARD ON IT. Every pane it hosts
+  // declares an edge placement ('left' / 'right'), which is the app's own
+  // existing signal for "this is chrome, not content" (the same field
+  // grid-to-tree ranks placements by and narrow-overlays picks a side from).
+  // Such a zone paints nothing and rounds nothing: the shell ground runs
+  // straight through it, so the sessions list reads as part of the window the
+  // way a file tree does, and the conversation is the one surface raised off
+  // it. An empty zone is not a rail: with nothing placed there is nothing to
+  // read the placement from, and it keeps the card so the zone stays visible.
+  const isRail =
+    shown.length > 0 &&
+    shown.every(id => {
+      const placement = paneChrome(paneFor(id)).placement
+
+      return placement === 'left' || placement === 'right'
+    })
+
   // What the strip's "+" makes. The pane you are LOOKING AT answers first (a
   // Browser tab makes another Browser, even stacked into the chat strip), then
   // the chat "+" for any zone holding session tabs, then any other tenant that
@@ -429,7 +446,22 @@ export function TreeGroup({
 
   return (
     <div
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--ui-editor-surface-background)"
+      className={cn(
+        // A ZONE IS A CARD, AND A CARD IS A FILL. One surface, one radius, no
+        // stroke at all: a hairline around a pane is a line the eye lands on
+        // every time it crosses the window, and it competes with the content
+        // for exactly nothing in return. The step from the shell ground to the
+        // card fill is what separates them, and the seam of ground between two
+        // zones is what separates those.
+        'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
+        isRail ? 'bg-transparent' : 'rounded-(--pane-radius) bg-(--ui-editor-surface-background)',
+        // The zone publishes its own fill to its tab strip: a tab has to be
+        // opaque to mask its neighbour, and the only fill that can be opaque
+        // without showing as a band is the one already behind it.
+        isRail
+          ? '[--pane-tab-active-bg:var(--ui-shell-ground)] [--pane-tab-strip-bg:var(--ui-shell-ground)]'
+          : '[--pane-tab-active-bg:var(--ui-editor-surface-background)] [--pane-tab-strip-bg:var(--ui-editor-surface-background)]'
+      )}
       data-tree-group={node.id}
       data-window-top={topEdge || undefined}
       // Advertises the visible tab strip so panes can drop their own
@@ -510,7 +542,13 @@ export function TreeGroup({
           bounds, strip refs, focus ownership and split geometry as the body. */}
       {(headerVisible || (topEdge && !verticalCollapse)) && (
         <div
-          className="relative flex min-w-0 shrink-0 bg-(--ui-sidebar-surface-background)"
+          // NO FILL OF ITS OWN. The header used to wear the sidebar surface,
+          // which was a shade off the zone body and read as a band across the
+          // top of the pane. That token is now the shell GROUND, so a filled
+          // header reads as a notch cut out of the card: the same colour as
+          // the seams around it. The card's own fill runs edge to edge behind
+          // the strip, and the active tab's pill is what marks the row.
+          className="relative flex min-w-0 shrink-0"
           data-panel-header=""
           style={topEdge ? { height: TITLEBAR_HEIGHT + (tabsBelowControls && headerVisible ? 28 : 0) } : undefined}
         >

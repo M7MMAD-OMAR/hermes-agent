@@ -143,7 +143,7 @@ export function PanelList({
 
 interface PanelListRowProps {
   active: boolean
-  // Leading status dot color class (e.g. 'bg-emerald-500'); omit for none.
+  // Leading status dot color class (e.g. 'bg-(--ui-success)'); omit for none.
   dotClassName?: string
   // Leading codicon glyph name (used when there's no lead/dot).
   icon?: string
@@ -355,7 +355,7 @@ const PILL_TONE: Record<PanelPillTone, string> = {
   bad: 'bg-destructive/10 text-destructive',
   good: 'bg-primary/10 text-primary',
   muted: 'bg-foreground/10 text-muted-foreground',
-  warn: 'bg-amber-500/10 text-amber-600 dark:text-amber-300'
+  warn: 'bg-(--ui-warning-background) text-(--ui-warning)'
 }
 
 export function PanelPill({ children, tone = 'muted' }: { children: ReactNode; tone?: PanelPillTone }) {

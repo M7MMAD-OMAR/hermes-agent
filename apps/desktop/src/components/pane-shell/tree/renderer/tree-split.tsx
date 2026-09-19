@@ -23,10 +23,12 @@ import {
   $collapsedTreeSides,
   $hiddenTreePanes,
   $narrowViewport,
+  $peekedTreeSide,
   isCollapsePane,
   paneRootSide,
   persistTree,
   presetSplitWeights,
+  setPeekedTreeSide,
   setTreeGroupMinimized,
   setTreeSplitWeights
 } from '../store'
@@ -48,6 +50,9 @@ import {
   type TrackContext
 } from './track-model'
 import { TreeNode } from './tree-node'
+
+/** Width a peeked side falls back to when its zone declares no track. */
+const PEEK_FALLBACK_WIDTH = '18rem'
 
 /** The single group id a subtree resolves to, or null when it holds several
  *  zones — the sash can only collapse a boundary that IS exactly one zone. */
@@ -112,6 +117,7 @@ export function TreeSplit({
   const overrides = useSubtreeOverrides(useMemo(() => allPaneIds(node), [node]))
   const editMode = useStore($layoutEditMode)
   const collapsedSides = useStore($collapsedTreeSides)
+  const peekedSide = useStore($peekedTreeSide)
   const horizontal = node.orientation === 'row'
   const axis = node.orientation
 
@@ -616,15 +622,23 @@ export function TreeSplit({
   // a column root (Terminal deck, Quad) — wherever the side columns live.
   const semanticSides = rootRow && horizontal && collapsedSides.size > 0 && !editMode
 
+  const sideOfChild = (i: number) => paneRootSide(allPaneIds(node.children[i])[0])
+
   const sideGone = (i: number) => {
     if (!semanticSides) {
       return false
     }
 
-    const side = paneRootSide(allPaneIds(node.children[i])[0])
+    const side = sideOfChild(i)
 
     return side !== null && collapsedSides.has(side)
   }
+
+  // A PEEK FLOATS THE SIDE THAT IS ALREADY COLLAPSED. The child keeps its place
+  // in the tree and its single mounted instance; only its wrapper leaves the
+  // flow, so the panes beside it do not move a pixel while the pointer rests on
+  // the toggle. Only ever the collapsed side of the row that owns the sides.
+  const peeking = (i: number) => semanticSides && peekedSide !== null && sideOfChild(i) === peekedSide
 
   // One pass per child: collapse/minimize state, resolved fixed track, clamps,
   // and narrow-unmount flag. fixedTrackSize + subtreeGone each re-walk the
@@ -686,40 +700,64 @@ export function TreeSplit({
 
   return (
     <div
-      className={cn('flex min-h-0 min-w-0 flex-1', horizontal ? 'flex-row' : 'flex-col')}
+      className={cn(
+        // The seam is a GAP, not a hairline: the ground shows through it, so
+        // each zone reads as a card instead of a fenced region. Gaps come out
+        // of the free space before flex distributes it, which costs the sash
+        // drag under 1% of pointer travel on a real row and nothing at all on
+        // a fixed track (those are measured from the live element rect).
+        'flex min-h-0 min-w-0 flex-1 gap-(--pane-seam)',
+        horizontal ? 'flex-row' : 'flex-col'
+      )}
       data-tree-split={node.id}
       ref={containerRef}
     >
       {tracks.map(({ child, collapsed, minimized, narrowCollapsed, sizing, track }, i) => {
         const partner = collapsed ? -1 : seamPartner(i)
         const absorbs = i === absorberIndex
+        const peeked = collapsed && peeking(i)
+        // A collapsed child has no resolved track (it is not being laid out),
+        // so a peek asks for the declared one directly: the side floats at the
+        // width it docks at, which is the width the user already knows it by.
+        const peekWidth = peeked ? (fixedTrackSize(child, axis, trackCtx) ?? PEEK_FALLBACK_WIDTH) : undefined
 
         return (
           <div
-            className="relative flex min-h-0 min-w-0"
+            className={cn(
+              'relative flex min-h-0 min-w-0',
+              // Out of flow, over the layout, on the edge it belongs to.
+              peeked && cn('absolute inset-y-0 z-40 shadow-2xl', sideOfChild(i) === 'right' ? 'right-0' : 'left-0')
+            )}
+            // Leaving the floated side ends the peek. Entering it does not need
+            // a handler: the pointer got here from the toggle, which is what
+            // opened the peek in the first place.
+            data-peeked-side={peeked ? (sideOfChild(i) ?? undefined) : undefined}
             key={child.id}
+            onMouseLeave={peeked ? () => setPeekedTreeSide(null) : undefined}
             style={
-              collapsed
-                ? { display: 'none' }
-                : minimized
-                  ? { flex: `0 0 ${horizontal ? MINIMIZED_TRACK : 'auto'}` }
-                  : {
-                      // One flexbox formula for everything: a sized zone is
-                      // grow-0 shrink-1 from its preferred basis (it yields
-                      // gracefully on tight windows, floored by min-width);
-                      // everything else splits the leftover by weight. In an
-                      // all-fixed run an UNCAPPED last track grows into the
-                      // leftover; capped sidebars stay at their declared size.
-                      flex: track ? `${absorbs ? 1 : 0} 1 ${track}` : `${grow(i)} ${grow(i)} 0px`,
-                      // Pane-declared clamps apply along THIS split's axis only
-                      // (a rail's width clamp shouldn't constrain its height).
-                      // The absorber is uncapped by selection, so dropping its
-                      // max is a no-op; capped tracks always keep theirs.
-                      minWidth: (horizontal && sizing?.minWidth) || 0,
-                      maxWidth: horizontal && !absorbs ? sizing?.maxWidth : undefined,
-                      minHeight: (!horizontal && sizing?.minHeight) || 0,
-                      maxHeight: horizontal || absorbs ? undefined : sizing?.maxHeight
-                    }
+              peeked
+                ? { width: peekWidth }
+                : collapsed
+                  ? { display: 'none' }
+                  : minimized
+                    ? { flex: `0 0 ${horizontal ? MINIMIZED_TRACK : 'auto'}` }
+                    : {
+                        // One flexbox formula for everything: a sized zone is
+                        // grow-0 shrink-1 from its preferred basis (it yields
+                        // gracefully on tight windows, floored by min-width);
+                        // everything else splits the leftover by weight. In an
+                        // all-fixed run an UNCAPPED last track grows into the
+                        // leftover; capped sidebars stay at their declared size.
+                        flex: track ? `${absorbs ? 1 : 0} 1 ${track}` : `${grow(i)} ${grow(i)} 0px`,
+                        // Pane-declared clamps apply along THIS split's axis only
+                        // (a rail's width clamp shouldn't constrain its height).
+                        // The absorber is uncapped by selection, so dropping its
+                        // max is a no-op; capped tracks always keep theirs.
+                        minWidth: (horizontal && sizing?.minWidth) || 0,
+                        maxWidth: horizontal && !absorbs ? sizing?.maxWidth : undefined,
+                        minHeight: (!horizontal && sizing?.minHeight) || 0,
+                        maxHeight: horizontal || absorbs ? undefined : sizing?.maxHeight
+                      }
             }
           >
             {partner >= 0 && (
@@ -768,7 +806,12 @@ function Sash({
         // swallowed it entirely — the pointer got col-resize instead of the
         // thumb). The trailing side keeps a generous 7px reach; total grab
         // width stays ~8px so the sash is no harder to hit.
-        horizontal ? 'inset-y-0 left-0 w-[8px] -translate-x-[1px]' : 'inset-x-0 top-0 h-[8px] -translate-y-[1px]',
+        // Centered in the gap now that the seam has width: the handle is
+        // pulled back by half the gap so the grab band straddles the ground
+        // strip rather than eating the leading pane's edge scrollbar.
+        horizontal
+          ? 'inset-y-0 left-0 w-[8px] -translate-x-[calc(4px+var(--pane-seam)/2)]'
+          : 'inset-x-0 top-0 h-[8px] -translate-y-[calc(4px+var(--pane-seam)/2)]',
         disabled ? 'pointer-events-none' : horizontal ? 'cursor-col-resize' : 'cursor-row-resize'
       )}
       onDoubleClick={disabled ? undefined : onDoubleClick}
@@ -781,8 +824,11 @@ function Sash({
           and comes up to full on hover alongside the thicker grab band. */}
       <span
         className={cn(
-          'absolute bg-(--ui-stroke-secondary) opacity-10 transition-opacity duration-100 group-hover:opacity-100',
-          horizontal ? 'inset-y-0 left-[1px] w-px -translate-x-1/2' : 'inset-x-0 top-[1px] h-px -translate-y-1/2'
+          // Resting opacity 0: the gap already draws the boundary, and a
+          // hairline inside it only reads as a stray line. It comes up on
+          // hover to say the seam is draggable.
+          'absolute bg-(--ui-stroke-secondary) opacity-0 transition-opacity duration-100 group-hover:opacity-100',
+          horizontal ? 'inset-y-0 left-1/2 w-px -translate-x-1/2' : 'inset-x-0 top-1/2 h-px -translate-y-1/2'
         )}
       />
       {!disabled && (
@@ -790,8 +836,8 @@ function Sash({
           className={cn(
             'absolute bg-(--ui-sash-hover-border) opacity-0 transition-opacity duration-100 group-hover:opacity-100',
             horizontal
-              ? 'inset-y-0 left-[1px] w-(--vscode-sash-hover-size,0.25rem) -translate-x-1/2'
-              : 'inset-x-0 top-[1px] h-(--vscode-sash-hover-size,0.25rem) -translate-y-1/2'
+              ? 'inset-y-0 left-1/2 w-(--vscode-sash-hover-size,0.25rem) -translate-x-1/2 rounded-full'
+              : 'inset-x-0 top-1/2 h-(--vscode-sash-hover-size,0.25rem) -translate-y-1/2 rounded-full'
           )}
         />
       )}

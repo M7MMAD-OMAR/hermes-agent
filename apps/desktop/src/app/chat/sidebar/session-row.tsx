@@ -198,7 +198,30 @@ function SidebarSessionRowImpl({
   // switched on, and a PR keeps its place (and its click) unless it IS the last
   // thing. Chips used to render in the body instead, which left them stranded
   // to the left of the kebab's own column: never flush right, never swapping.
+  // The same resolved state the row's dot paints, so the arc and the dot cannot
+  // contradict each other. A selector, not a plain useStore: the map is rebuilt
+  // whenever any session's status changes, but a row only repaints on its own.
+  const dotState = useStoreSelector($sessionDotStateById, states => states[session.id] ?? 'idle')
+  const liveTurn = hasLiveTurn(dotState)
+  const needsInput = dotState === 'needs-input'
+
   const trailing: { key: string; node: React.ReactNode }[] = []
+
+  // The one trailing figure that is not metadata: a request is waiting on the
+  // user in this session. It leads the slot (so the kebab, which covers the
+  // slot's END on hover, can never hide it) and it says a word, because a dot
+  // alone is read as a color by someone who already knows the code and as
+  // nothing at all by someone scanning a list mid-task.
+  if (needsInput) {
+    trailing.push({
+      key: 'needs-input',
+      node: (
+        <span className="pointer-events-none whitespace-nowrap rounded-(--radius-xs) bg-(--ui-attention-background) px-1 py-px text-[0.625rem] font-medium leading-none text-(--ui-attention)">
+          {r.chipNeedsInput}
+        </span>
+      )
+    })
+  }
 
   if ((showProfile || pinnedProfile) && hasProfileTag) {
     trailing.push({ key: 'profile', node: <ProfileTag profile={session.profile} /> })
@@ -252,11 +275,6 @@ function SidebarSessionRowImpl({
   // Telegram thread continued here still reads as Telegram.
   const handoffSource = handoffOriginSource(session.handoff_state, session.handoff_platform)
   const handoffLabel = handoffSource ? (sessionSourceLabel(handoffSource) ?? handoffSource) : null
-  // The same resolved state the row's dot paints, so the arc and the dot cannot
-  // contradict each other. A selector, not a plain useStore: the map is rebuilt
-  // whenever any session's status changes, but a row only repaints on its own.
-  const dotState = useStoreSelector($sessionDotStateById, states => states[session.id] ?? 'idle')
-  const liveTurn = hasLiveTurn(dotState)
 
   // Card header line: the workspace this belongs to — the project when it
   // resolves (same function the session color reads, so name and tint agree;
@@ -358,6 +376,15 @@ function SidebarSessionRowImpl({
           !card && density !== 'compact' && 'min-h-[2.75rem]',
           !card && density === 'detailed' && 'min-h-[3.875rem]',
           isSelected && 'bg-(--ui-row-active-background)',
+          // A PARKED REQUEST OUTRANKS SELECTION. `needsInput` is session state,
+          // not a notification: it is set when the turn parks on a clarify /
+          // approval and cleared only when that request is answered, so the row
+          // wears this tint from the moment the agent asks until the user
+          // actually resolves it: across navigation, across other sessions,
+          // and whether or not any transient banner was ever seen. Painted as a
+          // full fill rather than an edge stripe: this shell draws no
+          // single-sided borders.
+          needsInput && 'bg-(--ui-attention-background)',
           // Open in another pane: the SAME band, just weaker. Its own mixed
           // token rather than row opacity — dimming the whole row would take
           // the title and the status dot down with it.
@@ -539,33 +566,27 @@ function SidebarSessionRowImpl({
               )
             }
 
+            // TITLE FIRST, THEN ONE LINE OF EVERYTHING ELSE.
+            //
+            // The card used to spend three lines and a 3.375rem floor on a
+            // header (project), a title, and a footer (model, size, progress),
+            // which put the one thing being scanned for, the name of the
+            // chat, in the middle of the block. Two rows filled the space
+            // seven could use, and the project label led a row whose project
+            // the user had usually just picked in the filter above it.
+            //
+            // So: the title leads, and the three secondary facts that used to
+            // own two lines share one, in the order they are asked for. The
+            // preview keeps its own line when it is switched on, because it is
+            // a sentence and cannot share.
             return (
               <>
-                {/* Header row — ONE div: dot, context, then the age/kebab
-                    cluster in flow at its right edge. Keeping the cluster
-                    inside this line (instead of the shell's full-height side
-                    column) means title/preview/meta below span the card's
-                    entire width — nothing truncates against the kebab. */}
                 <div className="flex min-w-0 items-center gap-1.5">
                   {leadNode}
-                  <span
-                    className={cn(
-                      'min-w-0 flex-1 truncate text-[0.6875rem] text-(--ui-text-tertiary)',
-                      SIDEBAR_TRUNCATED_LEADING
-                    )}
-                  >
-                    {context}
-                  </span>
-                  {handoffBadge}
-                  {actionsNode}
-                </div>
-                {/* Title + preview: ONE grouped cell with its own tight
-                    internal gap — it does not inherit the card's rhythm. */}
-                <div className="flex min-w-0 flex-col gap-[0.15rem]">
                   <OverflowTip label={title} placement="row">
                     <SidebarRowLabel
                       className={cn(
-                        'hover-marquee text-[0.8125rem] font-medium text-(--ui-text-primary) group-data-[working=true]:text-foreground',
+                        'hover-marquee min-w-0 flex-1 text-[0.8125rem] font-medium text-(--ui-text-primary) group-data-[working=true]:text-foreground',
                         SIDEBAR_TRUNCATED_LEADING
                       )}
                       dir="auto"
@@ -575,31 +596,41 @@ function SidebarSessionRowImpl({
                       <span className="hover-marquee-inner">{title}</span>
                     </SidebarRowLabel>
                   </OverflowTip>
-                  {session.preview && rowMeta.includes('preview') ? (
-                    <span
-                      className={cn(
-                        'min-w-0 truncate text-[0.625rem] text-(--ui-text-quaternary)',
-                        SIDEBAR_TRUNCATED_LEADING
-                      )}
-                    >
-                      {session.preview}
-                    </span>
-                  ) : null}
+                  {handoffBadge}
+                  {actionsNode}
                 </div>
-                {model || size || todoProgress ? (
+                {context || model || size || todoProgress ? (
                   <span
                     className={cn(
                       'flex min-w-0 items-baseline gap-2 text-[0.625rem] text-(--ui-text-tertiary)',
                       SIDEBAR_TRUNCATED_LEADING
                     )}
                   >
-                    {model ? <span className="min-w-0 truncate">{model}</span> : null}
+                    {/* Each truncating cell carries the leading itself: it is
+                        the box that clips, so the room for glyph ink has to be
+                        on it and not only on the line that holds it. */}
+                    {context ? (
+                      <span className={cn('min-w-0 truncate', SIDEBAR_TRUNCATED_LEADING)}>{context}</span>
+                    ) : null}
+                    {model ? (
+                      <span className={cn('min-w-0 shrink truncate', SIDEBAR_TRUNCATED_LEADING)}>{model}</span>
+                    ) : null}
                     {size ? <span className="shrink-0 tabular-nums">{size}</span> : null}
                     {todoProgress ? (
                       <span className="ms-auto shrink-0 tabular-nums" title={r.todoProgress}>
                         {todoProgress}
                       </span>
                     ) : null}
+                  </span>
+                ) : null}
+                {session.preview && rowMeta.includes('preview') ? (
+                  <span
+                    className={cn(
+                      'min-w-0 truncate text-[0.625rem] text-(--ui-text-quaternary)',
+                      SIDEBAR_TRUNCATED_LEADING
+                    )}
+                  >
+                    {session.preview}
                   </span>
                 ) : null}
               </>

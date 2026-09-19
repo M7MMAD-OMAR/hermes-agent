@@ -46,7 +46,7 @@ function statusGlyph(status: SubagentStatus, a: Translations['agents']): ReactNo
   return (
     <CheckCircle2
       aria-label={a.done}
-      className="size-3.5 shrink-0 text-emerald-600/85 dark:text-emerald-400/85"
+      className="size-3.5 shrink-0 text-(--ui-success)/85"
       role="img"
     />
   )
@@ -80,7 +80,7 @@ function streamGlyph(entry: SubagentStreamEntry, a: Translations['agents']): Rea
   }
 
   if (entry.kind === 'summary') {
-    return <CheckCircle2 aria-hidden className="mt-0.5 size-3 shrink-0 text-emerald-600/85 dark:text-emerald-400/85" />
+    return <CheckCircle2 aria-hidden className="mt-0.5 size-3 shrink-0 text-(--ui-success)/85" />
   }
 
   if (entry.kind === 'thinking') {

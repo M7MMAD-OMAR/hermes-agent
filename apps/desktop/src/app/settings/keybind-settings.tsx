@@ -219,7 +219,7 @@ function KeybindRow({ action }: { action: KeybindActionMeta }) {
       <span className="min-w-0 flex-1 truncate text-[0.82rem] text-foreground/90">{label}</span>
 
       {conflict && (
-        <span className="flex size-4 items-center justify-center text-amber-500/90" title={k.conflictWith(conflict)}>
+        <span className="flex size-4 items-center justify-center text-(--ui-warning)" title={k.conflictWith(conflict)}>
           <Codicon name="warning" size="0.8125rem" />
         </span>
       )}

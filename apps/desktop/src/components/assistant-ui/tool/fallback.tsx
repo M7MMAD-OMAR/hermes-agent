@@ -104,7 +104,7 @@ const TOOL_SECTION_LABEL_CLASS = 'mb-1 text-[0.65rem] font-medium uppercase trac
 const TOOL_SECTION_SURFACE_CLASS =
   'max-h-20 max-w-full overflow-auto bg-transparent px-2 py-1.5 text-(--ui-text-secondary)'
 
-const TOOL_EXPANDED_SHELL_CLASS = 'rounded-[0.3125rem] border border-(--ui-stroke-tertiary)'
+const TOOL_EXPANDED_SHELL_CLASS = 'rounded-[0.3125rem] bg-(--ui-widget-surface-background)'
 
 const TOOL_SECTION_PRE_CLASS = cn(TOOL_SECTION_SURFACE_CLASS, 'font-mono text-[0.7rem] leading-relaxed')
 
@@ -205,14 +205,14 @@ function statusGlyph(status: ToolStatus, copy: ToolStatusCopy): ReactNode {
 
   if (status === 'warning') {
     return (
-      <AlertCircle aria-label={copy.statusRecovered} className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+      <AlertCircle aria-label={copy.statusRecovered} className="size-3.5 shrink-0 text-(--ui-warning)" />
     )
   }
 
   return (
     <CheckCircle2
       aria-label={copy.statusDone}
-      className="size-3.5 shrink-0 text-emerald-600/85 dark:text-emerald-400/85"
+      className="size-3.5 shrink-0 text-(--ui-success)/85"
     />
   )
 }
@@ -311,7 +311,7 @@ function ToolTitle({
         SCAFFOLD_LABEL_CLASS,
         isPending && 'text-(--conversation-scaffold-meta)',
         status === 'error' && 'text-destructive',
-        status === 'warning' && 'text-amber-700 dark:text-amber-300',
+        status === 'warning' && 'text-(--ui-warning)',
         legendary && !isPending && 'tool-memory-legendary-title text-transparent'
       )}
     >
@@ -599,10 +599,10 @@ function ToolEntry({ part }: ToolEntryProps) {
             {showDiffStats && diffStats && (
               <span className="flex shrink-0 items-center gap-1 font-mono text-[0.625rem] tabular-nums">
                 {diffStats.added > 0 && (
-                  <span className="text-emerald-600 dark:text-emerald-400">+{diffStats.added}</span>
+                  <span className="text-(--ui-diff-add-foreground)">+{diffStats.added}</span>
                 )}
                 {diffStats.removed > 0 && (
-                  <span className="text-rose-600 dark:text-rose-400">−{diffStats.removed}</span>
+                  <span className="text-(--ui-diff-remove-foreground)">−{diffStats.removed}</span>
                 )}
               </span>
             )}
@@ -630,7 +630,7 @@ function ToolEntry({ part }: ToolEntryProps) {
             <TerminalTranscript command={view.terminalCommand} exitCode={view.terminalExitCode} />
           )}
           {view.imageUrl && (
-            <div className="max-w-72 overflow-hidden rounded-[0.25rem] border border-(--ui-stroke-tertiary)">
+            <div className="max-w-72 overflow-hidden rounded-[0.25rem] bg-(--ui-widget-surface-background)">
               <ZoomableImage alt={copy.outputAlt} className="h-auto w-full object-cover" src={view.imageUrl} />
             </div>
           )}
@@ -751,7 +751,7 @@ function TerminalTranscript({ command, exitCode }: TerminalTranscriptProps) {
         <span
           className={cn(
             'shrink-0 rounded bg-(--ui-bg-tertiary) px-1 py-px text-[0.6rem] tabular-nums',
-            exitCode === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+            exitCode === 0 ? 'text-(--ui-success)' : 'text-(--ui-warning)'
           )}
         >
           exit {exitCode}

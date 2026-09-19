@@ -31,11 +31,11 @@ function PendingCorrectionRowImpl({ pending }: PendingCorrectionRowProps) {
     <StatusRow
       leading={
         blocked ? (
-          <Codicon className="text-amber-500/80" name="watch" size="0.8rem" />
+          <Codicon className="text-(--ui-warning)/85" name="watch" size="0.8rem" />
         ) : (
           <GlyphSpinner
             ariaLabel="delivering"
-            className="text-[0.85rem] leading-none text-emerald-500/80"
+            className="text-[0.85rem] leading-none text-(--ui-success)/85"
             spinner="braille"
           />
         )

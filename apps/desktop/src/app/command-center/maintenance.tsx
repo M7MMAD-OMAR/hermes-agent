@@ -280,8 +280,8 @@ export function MaintenancePanel() {
                     !curator.enabled
                       ? 'bg-(--ui-bg-quinary) text-(--ui-text-tertiary)'
                       : curator.paused
-                        ? 'bg-amber-500/15 text-amber-400'
-                        : 'bg-emerald-500/15 text-emerald-400'
+                        ? 'bg-(--ui-warning)/15 text-(--ui-warning)'
+                        : 'bg-(--ui-success)/15 text-(--ui-success)'
                   )}
                 >
                   {!curator.enabled ? mm.curatorDisabled : curator.paused ? mm.curatorPaused : mm.curatorActive}

@@ -200,7 +200,7 @@ export function ApprovalQueue({
           })
       }}
       surfaceClassName={cn(
-        'rounded-xl border bg-(--ui-chat-surface-background)',
+        'rounded-xl bg-(--ui-widget-surface-background)',
         floating ? 'border-(--stroke-nous) shadow-nous' : 'border-(--ui-stroke-secondary)'
       )}
       swipeDirections={['left']}
@@ -343,7 +343,7 @@ const ApprovalCard: FC<ApprovalCardProps> = ({ request, total, position, stack }
           </DialogHeader>
 
           {request.command.trim() && (
-            <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-(--ui-stroke-tertiary) bg-(--ui-chat-surface-background) px-2.5 py-1.5 font-mono text-xs leading-snug text-foreground">
+            <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md bg-(--ui-bg-quinary) px-2.5 py-1.5 font-mono text-xs leading-snug text-foreground">
               {request.command.trim()}
             </pre>
           )}

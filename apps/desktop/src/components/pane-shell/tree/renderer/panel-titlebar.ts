@@ -45,7 +45,15 @@ export function usePanelTitlebar(ref: RefObject<HTMLElement | null>, enabled: bo
     const right = Math.min(rect.width - left, Math.max(0, rect.right - rightControls.left + 24))
     element.style.setProperty('--panel-titlebar-left', `${left}px`)
     element.style.setProperty('--panel-titlebar-right', `${right}px`)
-    setBelowControls(minimized || rect.width - left - right < 120)
+    // A STRIP TOO NARROW TO NAME ITS TABS DROPS BELOW THE CONTROLS. Sharing
+    // the window-control band costs a zone everything the clusters reserve,
+    // and what is left over in a side rail is not enough for three tabs to say
+    // what they are: at 120 the sessions rail kept its tabs up here and showed
+    // "Ses..." / "Bots" / "Her...". Below the controls the strip gets the
+    // zone's full width, which is where the files rail already renders and
+    // reads cleanly. The floor is the room three readable tabs need, not the
+    // room one tab needs to exist.
+    setBelowControls(minimized || rect.width - left - right < 200)
   }, [enabled, minimized, ref])
 
   useResizeObserver(measure, ref)

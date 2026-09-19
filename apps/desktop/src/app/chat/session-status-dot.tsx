@@ -31,7 +31,7 @@ const DOT_VARIANTS: Record<SessionDotState, DotVariant> = {
   // and the only state the user is required to do something about.
   'needs-input': {
     ariaLabel: r => r.needsInput,
-    className: `${DOT_BASE} bg-amber-500`,
+    className: `${DOT_BASE} bg-(--ui-attention)`,
     role: 'status',
     title: r => r.waitingForAnswer
   },
@@ -99,7 +99,7 @@ export const sessionDotClassName = (state: SessionDotState): string => DOT_VARIA
  *  finished while they were elsewhere. A word answers that; a dot does not.
  *  Idle and draft stay wordless so a quiet strip is quiet. */
 const CHIP_VARIANTS: Partial<Record<SessionDotState, { className: string; label: (r: Translations['sidebar']['row']) => string }>> = {
-  'needs-input': { className: 'bg-amber-500/15 text-amber-500', label: r => r.chipNeedsInput },
+  'needs-input': { className: 'bg-(--ui-attention-background) text-(--ui-attention)', label: r => r.chipNeedsInput },
   working: { className: 'bg-(--ui-accent)/12 text-(--ui-accent)', label: r => r.chipWorking },
   stalled: { className: 'border border-(--ui-accent)/40 text-(--ui-accent)', label: r => r.chipWorking },
   background: { className: 'border border-(--ui-text-tertiary)/40 text-(--ui-text-tertiary)', label: r => r.chipBackground },

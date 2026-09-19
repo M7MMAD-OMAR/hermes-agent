@@ -1187,13 +1187,17 @@ export function ChatBar({
   const input = (
     <div
       className={cn(
-        // The field is its own surface — ring + fill, the reference composer's
-        // bordered input. The toolbar below sits OUTSIDE it, on the composer's
-        // shared fill, so the two decks read as field + tools, not one box.
-        'relative w-full rounded-xl border px-3 py-1.5 transition-colors',
-        'border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))]',
+        // THE FIELD IS A FILL, NOT A RING. It used to be a bordered input with
+        // a ring that strengthened on focus, which put a hard rectangle around
+        // the text inside the composer's own rounded box: two frames around one
+        // place to type. The fill alone says "this is where the text goes", and
+        // it deepens on focus, so the field answers focus the way every other
+        // surface in this shell answers hover. The toolbar below still sits
+        // OUTSIDE it, on the composer's shared fill, so the two decks read as
+        // field + tools rather than one box.
+        'relative w-full rounded-xl px-3 py-1.5 transition-colors',
         'bg-[color-mix(in_srgb,var(--dt-input)_45%,transparent)]',
-        'focus-within:border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(38%*var(--composer-ring-strength)),var(--dt-input))]',
+        'focus-within:bg-[color-mix(in_srgb,var(--dt-input)_72%,transparent)]',
         hudNativeDrag && '[-webkit-app-region:no-drag]'
       )}
       data-slot="composer-field"
@@ -1522,7 +1526,7 @@ export function ChatBar({
                   <VoiceActivity state={voiceActivityState} />
                   <VoicePlaybackActivity />
                   {queueEdit && editingQueuedPrompt && (
-                    <div className="flex items-center justify-between gap-2 rounded-lg border border-[color-mix(in_srgb,var(--dt-composer-ring)_32%,transparent)] bg-accent/18 px-2 py-1">
+                    <div className="flex items-center justify-between gap-2 rounded-lg bg-accent/18 px-2 py-1">
                       <div className="min-w-0 text-[0.7rem] text-muted-foreground/88">
                         {t.composer.editingQueuedInComposer}
                       </div>
@@ -1602,7 +1606,7 @@ export function ChatBarFallback() {
           line below — the placeholder never fights the real composer's shape
           when it mounts. */}
         <div className="flex h-full flex-col justify-center gap-1.5 px-2 py-1.5">
-          <div className="h-6 rounded-xl border border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))] bg-[color-mix(in_srgb,var(--dt-input)_45%,transparent)]" />
+          <div className="h-6 rounded-xl bg-[color-mix(in_srgb,var(--dt-input)_45%,transparent)]" />
           <div className="flex items-center justify-between px-1">
             <span className="size-3 rounded-md bg-(--ui-stroke-tertiary)" />
             <span className="size-3 rounded-md bg-(--ui-stroke-tertiary)" />

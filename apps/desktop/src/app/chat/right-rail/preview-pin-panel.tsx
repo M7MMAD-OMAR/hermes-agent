@@ -736,7 +736,7 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
                 {/* A pin that came back on a weak rung is worth seeing. The
                     comment is still attached to something, but not to the
                     thing the page promised it. */}
-                {pin.orphaned && <span className="ms-1.5 text-amber-500">{copy.detached}</span>}
+                {pin.orphaned && <span className="ms-1.5 text-(--ui-warning)">{copy.detached}</span>}
                 <span className="ms-1.5 text-muted-foreground">{pin.comment || copy.noComment}</span>
               </span>
               <button

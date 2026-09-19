@@ -38,7 +38,15 @@ const TAB_CLOSEABLE = 'min-w-13'
 
 const TAB_VERTICAL = 'w-full max-h-48 justify-center [writing-mode:vertical-rl]'
 
-const TAB_ACTIVE = 'text-foreground [--tab-bg:var(--pane-tab-active-bg,var(--ui-editor-surface-background))]'
+// THE ACTIVE TAB'S MARK IS ITS FILL, AND THE FILL IS OPAQUE. This used to be
+// the base fill plus a translucent wash painted over it as an inset shadow,
+// which meant the tab's real surface and `--tab-bg` were two different colours:
+// anything inside the tab that paints `--tab-face` to mask what is under it
+// (the close button and its runway) painted the UNWASHED fill and read as a
+// hole punched through the chip. Mixing the accent straight into the tab's own
+// surface gives one opaque colour that every part of the tab can name.
+const TAB_ACTIVE =
+  'text-foreground [--tab-bg:color-mix(in_srgb,var(--ui-accent)_8%,var(--pane-tab-active-bg,var(--ui-editor-surface-background)))]'
 
 // Horizontal only: the active tab is marked by a WASH, not by a rule. A
 // 2px accent line under one tab is the brightest thing on a strip of quiet
@@ -47,8 +55,6 @@ const TAB_ACTIVE = 'text-foreground [--tab-bg:var(--pane-tab-active-bg,var(--ui-
 // faint fill says the same thing and says it as background rather than as a
 // mark. Drawn as an inset shadow like the hover wash, so it costs no layout
 // and stacks over whatever surface the tab already carries.
-const TAB_ACTIVE_WASH = 'shadow-[inset_0_0_0_100vmax_var(--ui-row-active-background)]'
-
 // Inactive = gutter, defaulting to the shared chrome surface so a strip that
 // sets no vars still matches the sidebar/titlebar instead of falling through to
 // the raw (unmixed) card seed. Hover DARKENS: surfaces this close in value need
@@ -120,7 +126,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
         vertical ? TAB_VERTICAL : TAB_HORIZONTAL,
         !vertical && onClose && TAB_CLOSEABLE,
         edge,
-        active ? cn(TAB_ACTIVE, !vertical && TAB_ACTIVE_WASH) : cn(TAB_IDLE, edge && `${edge}-(--ui-stroke-tertiary)`),
+        active ? TAB_ACTIVE : cn(TAB_IDLE, edge && `${edge}-(--ui-stroke-tertiary)`),
         selected && TAB_SELECTED,
         className
       )}
@@ -198,7 +204,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
           <span aria-hidden className="w-4 bg-linear-to-r from-transparent to-(--tab-face)" />
           <button
             aria-label={translateNow('common.close')}
-            className="grid cursor-pointer place-items-center bg-(--tab-face) pe-1.5 ps-0.5 text-(--ui-text-tertiary) outline-none hover:text-foreground [&>*]:rounded-full [&>*]:p-0.5 [&>*]:transition-colors [&>*]:hover:bg-(--ui-control-active-background)"
+            className="grid cursor-pointer place-items-center bg-(--tab-face) pe-1.5 ps-0.5 text-(--ui-text-tertiary) outline-none hover:text-foreground"
             onClick={event => {
               event.preventDefault()
               event.stopPropagation()

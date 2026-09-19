@@ -92,18 +92,37 @@ const DOT_VARIANTS: Record<SessionDotState, DotVariant> = {
  *  of its own (it inherits the project's), so callers supply one. */
 export const sessionDotClassName = (state: SessionDotState): string => DOT_VARIANTS[state].className
 
-/** The chip text a state earns on a TAB, none for the quiet states. Color
- *  and fill on a 6 px dot tell states apart to someone who already knows the
- *  code; a strip of eight tabs has to be read cold, mid-task, by someone who
- *  wants to know which chats are running, which are waiting on them, and which
- *  finished while they were elsewhere. A word answers that; a dot does not.
- *  Idle and draft stay wordless so a quiet strip is quiet. */
-const CHIP_VARIANTS: Partial<Record<SessionDotState, { className: string; label: (r: Translations['sidebar']['row']) => string }>> = {
-  'needs-input': { className: 'bg-(--ui-attention-background) text-(--ui-attention)', label: r => r.chipNeedsInput },
-  working: { className: 'bg-(--ui-accent)/12 text-(--ui-accent)', label: r => r.chipWorking },
-  stalled: { className: 'border border-(--ui-accent)/40 text-(--ui-accent)', label: r => r.chipWorking },
-  background: { className: 'border border-(--ui-text-tertiary)/40 text-(--ui-text-tertiary)', label: r => r.chipBackground },
-  unread: { className: 'bg-(--ui-success)/15 text-(--ui-success)', label: r => r.chipDone }
+/** The mark a state earns on a TAB, none for the quiet states. Color and fill
+ *  on a 6 px dot tell states apart to someone who already knows the code; a
+ *  strip of eight tabs has to be read cold, mid-task, by someone who wants to
+ *  know which chats are running, which are waiting on them, and which finished
+ *  while they were elsewhere. So the state gets its own mark beside the dot —
+ *  and Idle and draft stay unmarked, so a quiet strip is quiet.
+ *
+ *  A MARK, not a word. The word was "RUNNING" (Arabic "يعمل"), and a tab is
+ *  mostly title: on a narrow strip the status spent more width than the thing
+ *  it was labelling, and the title it pushed out is what tells two running
+ *  chats apart. One glyph keeps the distinction and gives the width back.
+ *
+ *  The glyphs carry no language — the word they stand for lives in the tooltip,
+ *  translated — which is also why they are not first letters: "بانتظارك" and
+ *  "بالخلفية" share one, and a mark that collides is worse than none. */
+const CHIP_VARIANTS: Partial<
+  Record<SessionDotState, { className: string; glyph: string; label: (r: Translations['sidebar']['row']) => string }>
+> = {
+  'needs-input': {
+    className: 'bg-(--ui-attention-background) text-(--ui-attention)',
+    glyph: '!',
+    label: r => r.chipNeedsInput
+  },
+  working: { className: 'bg-(--ui-accent)/12 text-(--ui-accent)', glyph: '▶', label: r => r.chipWorking },
+  stalled: { className: 'border border-(--ui-accent)/40 text-(--ui-accent)', glyph: '▶', label: r => r.chipWorking },
+  background: {
+    className: 'border border-(--ui-text-tertiary)/40 text-(--ui-text-tertiary)',
+    glyph: '⋯',
+    label: r => r.chipBackground
+  },
+  unread: { className: 'bg-(--ui-success)/15 text-(--ui-success)', glyph: '✓', label: r => r.chipDone }
 }
 
 export interface SessionStatusDotProps {
@@ -180,11 +199,17 @@ export function SessionStatusDot({ storedSessionId, session, branchStem, chip, c
         <span
           aria-hidden="true"
           className={cn(
-            'ms-1 shrink-0 rounded px-1 text-[0.625rem] font-medium uppercase leading-4 tracking-wide',
+            // Fixed width, so a tab's title starts at the same place whatever
+            // the state is and a strip does not shuffle as chats finish.
+            'ms-1 inline-flex w-3.5 shrink-0 justify-center rounded text-[0.625rem] font-medium leading-4',
             CHIP_VARIANTS[dotState]!.className
           )}
+          data-slot="session-status-chip"
+          // The word the mark stands for, in the reader's language, for anyone
+          // who has not yet learned the glyph.
+          title={CHIP_VARIANTS[dotState]!.label(r)}
         >
-          {CHIP_VARIANTS[dotState]!.label(r)}
+          {CHIP_VARIANTS[dotState]!.glyph}
         </span>
       ) : null}
     </span>

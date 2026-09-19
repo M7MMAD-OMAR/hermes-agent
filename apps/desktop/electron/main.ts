@@ -164,6 +164,7 @@ import {
 } from './connection-registry'
 import type { RosterProfileMetadata } from './connection-registry'
 import { describeCrashReason, installCrashForensics } from './crash-forensics'
+import { installMainLoopWatchdog } from './main-loop-watchdog'
 import { adoptServedDashboardToken } from './dashboard-token'
 import { loadOrCreateInstallationId, sshOwnershipId } from './desktop-installation'
 import { formatDesktopLogLine } from './desktop-log-line'
@@ -1924,6 +1925,11 @@ installCrashForensics({ flush: flushDesktopLogBufferSync, log: rememberLog })
 // A rejected loadURL leaves a blank window and, unhandled, no trace anywhere
 // the user can send us. `label` names the surface so the log says which one.
 function loadWindowUrl(win, url, label) {
+// A stall that ends is not a crash, and used to leave no trace at all.
+if (process.env.HERMES_DESKTOP_LOOP_WATCHDOG !== '0') {
+  installMainLoopWatchdog({ log: rememberLog })
+}
+
   win.loadURL(url).catch(error => rememberLog(`${label} failed to load: ${describeCrashReason(error)}`))
 }
 

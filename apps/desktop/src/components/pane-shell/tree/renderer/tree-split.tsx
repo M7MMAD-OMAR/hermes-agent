@@ -716,6 +716,18 @@ export function TreeSplit({
         const partner = collapsed ? -1 : seamPartner(i)
         const absorbs = i === absorberIndex
         const peeked = collapsed && peeking(i)
+        // A SEAM SEPARATES TWO CARDS. A side rail is not a card: it paints
+        // nothing and the shell ground runs straight through it, so the gap
+        // beside it is separating the conversation from the window itself,
+        // which is a channel of dead space rather than a seam. The rail
+        // swallows it with a negative margin on the side facing the content,
+        // and the conversation sits against the rail the way it was asked to.
+        // Logical, so it is still the content-facing side under RTL, and keyed
+        // off which half of the row the rail occupies rather than off the
+        // pane's declared placement, which does not mirror.
+        const railHalf = sideOfChild(i) !== null && !collapsed && !minimized ? railSideFor(i) : null
+        const seamClosed =
+          horizontal && railHalf ? (railHalf === 'left' ? '-me-(--pane-seam)' : '-ms-(--pane-seam)') : undefined
         // A collapsed child has no resolved track (it is not being laid out),
         // so a peek asks for the declared one directly: the side floats at the
         // width it docks at, which is the width the user already knows it by.
@@ -725,6 +737,7 @@ export function TreeSplit({
           <div
             className={cn(
               'relative flex min-h-0 min-w-0',
+              seamClosed,
               // Out of flow, over the layout, on the edge it belongs to.
               peeked && cn('absolute inset-y-0 z-40 shadow-2xl', sideOfChild(i) === 'right' ? 'right-0' : 'left-0')
             )}

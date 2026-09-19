@@ -1,4 +1,4 @@
-import { execFile, execFileSync, spawn } from 'node:child_process'
+import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -218,7 +218,7 @@ import {
 import { startGatewaysAfterUpdateAbort, stopGatewayBeforeUpdate } from './gateway-stop-before-update'
 import { probeGatewayWebSocket } from './gateway-ws-probe'
 import { registerGitIpc } from './git-ipc'
-import { envTokenRejected, githubApiHeaders, githubTokenFromEnv } from './github-api-auth'
+import { envTokenRejected, GH_CLI_TIMEOUT_MS, githubApiHeaders, resolveGitHubToken } from './github-api-auth'
 import { desktopBackendSpawnEnv, guestOnboardingEnabled, skipIntroEnabled } from './guest-onboarding'
 import { readAndConsumeHandoffResult } from './handoff-result'
 import {
@@ -3339,17 +3339,45 @@ async function checkUpdatesViaLsRemote({ updateRoot, branch, currentSha }) {
   return { behind: null, updateAvailable: true, targetSha, commits: [] }
 }
 
-// GITHUB_TOKEN / GH_TOKEN from the environment, when present, moves the call
-// from the anonymous 60/hour-per-IP budget to the token's 5,000/hour one; the
-// header shape is otherwise unchanged. Read per request, never stored.
+// GITHUB_TOKEN / GH_TOKEN from the environment, else the `gh` CLI's own login,
+// moves the call from the anonymous 60/hour-per-IP budget to the token's
+// 5,000/hour one; the header shape is otherwise unchanged. Never stored.
 //
 // A token GitHub rejects (401: expired, revoked, malformed) must not turn a
 // check that worked anonymously into a hard failure, so the call is retried
 // once without it; the rejection is logged once per process.
 let warnedRejectedGitHubToken = false
 
+// `gh auth token` reads a keyring, so it is asked at most once per process and
+// the answer is held only in memory. `undefined` means "not asked yet"; null
+// means asked and there is nothing (gh absent, logged out, or too slow).
+let ghCliToken
+function readGhCliToken() {
+  if (ghCliToken !== undefined) {
+    return ghCliToken
+  }
+
+  ghCliToken = null
+
+  try {
+    const result = spawnSync('gh', ['auth', 'token'], {
+      encoding: 'utf8',
+      timeout: GH_CLI_TIMEOUT_MS,
+      windowsHide: true
+    })
+
+    if (result.status === 0 && typeof result.stdout === 'string') {
+      ghCliToken = result.stdout.trim() || null
+    }
+  } catch {
+    // gh missing or unexecutable: the update check stays anonymous.
+  }
+
+  return ghCliToken
+}
+
 async function fetchGitHubApi(url, accept = 'application/vnd.github+json') {
-  const token = githubTokenFromEnv(process.env)
+  const token = resolveGitHubToken(process.env, readGhCliToken)
 
   try {
     return await fetchGitHubApiOnce(url, accept, token)

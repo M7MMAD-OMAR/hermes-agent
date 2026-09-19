@@ -40,8 +40,14 @@ _JUDGE_RESPONSE_SNIPPET_CHARS = 4000
 # the goal_judge config. API/transport errors do NOT count — those are tracked separately below.
 # Guards against small models that cannot follow the strict JSON contract burning the whole budget.
 DEFAULT_MAX_CONSECUTIVE_PARSE_FAILURES = 3
-# Consecutive transport failures (401, timeout, DNS) before auto-pause: a broken API key returns
-# 401 every call and must not spend every turn on an unreachable judge.
+# Consecutive transport failures (401, timeout, DNS) before the loop says so out loud. It keeps
+# WORKING: the judge is instrumentation, and stopping the work because the instrument broke is the
+# wrong trade when the turn budget already bounds the run. Measured on this user's store
+# (18 September 2026): an Anthropic OAuth token was revoked mid-run, the judge 401'd 68 times, and
+# a 20-turn goal left running overnight stopped at turn 6 with the work unfinished and every turn
+# of its budget unspent. Transport errors are the transient class by nature — a refreshed token, a
+# lifted 429, a DNS blip — and the judge is retried every turn, so the run recovers by itself the
+# moment the API answers again.
 DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES = 5
 
 # Quality gates: deterministic shell commands that must pass before the judge may declare DONE. A
@@ -861,6 +867,27 @@ def _call_goal_judge_llm(call_llm, system_prompt: str, user_prompt: str, timeout
         return ""
 
 
+# An auth failure is the one transport class the goal_judge CONFIG cannot explain, and pointing
+# the user at config.yaml for it wastes their time: a revoked OAuth login 401s every auxiliary
+# call no matter how the judge is routed, and the fix is to sign in again. Named separately so
+# the loop's warning can say which of the two it is.
+_AUTH_ERROR_MARKERS = ("401", "authentication", "unauthorized", "revoked", "invalid api key", "invalid_api_key")
+
+
+def judge_transport_failure_is_auth(exc: BaseException) -> bool:
+    """True when the judge's API call failed on credentials rather than reachability."""
+    text = f"{type(exc).__name__} {exc}".lower()
+
+    return any(marker in text for marker in _AUTH_ERROR_MARKERS)
+
+
+def _judge_transport_reason(exc: BaseException) -> str:
+    if judge_transport_failure_is_auth(exc):
+        return f"judge auth error: {type(exc).__name__} (the provider rejected the credentials)"
+
+    return f"judge error: {type(exc).__name__}"
+
+
 def judge_goal(
     goal: str,
     last_response: str,
@@ -915,7 +942,7 @@ def judge_goal(
         raw = _call_goal_judge_llm(call_llm, JUDGE_SYSTEM_PROMPT, prompt, timeout)
     except Exception as exc:
         logger.info("goal judge: API call failed (%s) — falling through to continue", exc)
-        return "continue", f"judge error: {type(exc).__name__}", False, None, True
+        return "continue", _judge_transport_reason(exc), False, None, True
 
     verdict, reason, parse_failed, wait_directive = _parse_judge_response(raw)
     logger.info("goal judge: verdict=%s reason=%s%s", verdict, _truncate(reason, 120),
@@ -1493,15 +1520,24 @@ class GoalManager:
             self._save()
             return _decision("done", False, None, "done", reason, f"✓ Goal achieved: {reason}")
 
-        # Persistent judge failures (API unreachable / unparseable output) auto-pause and point at the
-        # goal_judge config so a broken judge can't burn the whole turn budget.
+        # An unreachable judge is reported, not obeyed: the work carries on to the turn budget the
+        # user already set, and the judge is asked again every turn, so a revoked token or a lifted
+        # rate limit resumes real verdicts by itself. Unparseable output is the other class — a
+        # model that cannot follow the JSON contract will not start doing so on its own — and that
+        # one still pauses.
         n_tx, n_parse = state.consecutive_transport_failures, state.consecutive_parse_failures
+        judge_warning = ""
         if n_tx >= DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES:
-            return self._pause_decision(
-                f"judge API unreachable {n_tx} turns in a row (check auxiliary.goal_judge provider/key in config.yaml)",
-                "continue", reason,
-                f"⏸ Goal paused — judge API returned errors ({n_tx} turns). Check the goal_judge provider/key in "
-                + _JUDGE_CONFIG_HINT.format(provider="deepseek", model="deepseek-flash"),
+            fix = (
+                "Sign in to that provider again (`hermes auth`); no goal_judge config can route around "
+                "a rejected credential."
+                if "auth error" in (reason or "")
+                else "Check the goal_judge provider/key in "
+                + _JUDGE_CONFIG_HINT.format(provider="deepseek", model="deepseek-flash")
+            )
+            judge_warning = (
+                f"\n⚠ The goal judge has failed for {n_tx} turns ({reason}), so nothing is checking whether "
+                f"this goal is done — the run continues on its turn budget alone. {fix}"
             )
         if n_parse >= DEFAULT_MAX_CONSECUTIVE_PARSE_FAILURES:
             return self._pause_decision(
@@ -1517,7 +1553,7 @@ class GoalManager:
         self._save()
         return _decision(
             "active", True, self.next_continuation_prompt(), "continue", reason,
-            f"↻ Continuing toward goal ({state.turns_used}/{state.max_turns}): {reason}",
+            f"↻ Continuing toward goal ({state.turns_used}/{state.max_turns}): {reason}{judge_warning}",
         )
 
     def next_continuation_prompt(self) -> Optional[str]:

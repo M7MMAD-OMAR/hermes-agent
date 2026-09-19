@@ -218,6 +218,78 @@ class TestJudgeParseFailureAutoPause:
             assert "goal_judge" in d3["message"]
             assert "config.yaml" in d3["message"]
 
+    def test_unreachable_judge_warns_but_keeps_working(self, hermes_home):
+        """An unreachable judge must not stop the work.
+
+        The judge is instrumentation. A revoked OAuth token 401'd a real run's judge on every
+        turn and stopped a 20-turn goal at turn 6 with the work unfinished and the budget
+        unspent. Transport errors are the transient class, the judge is retried every turn, and
+        the turn budget is what bounds the run — so the loop says so and carries on.
+        """
+        from hermes_cli import goals
+        from hermes_cli.goals import DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES, GoalManager
+
+        mgr = GoalManager(session_id="transport-fail-sid-1", default_max_turns=20)
+        mgr.set("do a thing")
+
+        with patch.object(
+            goals, "judge_goal", return_value=("continue", "judge error: APIStatusError", False, None, True)
+        ):
+            for turn in range(1, DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES + 3):
+                decision = mgr.evaluate_after_turn(f"step {turn}")
+
+                assert decision["should_continue"] is True, f"stopped working on turn {turn}"
+                assert decision["status"] == "active"
+                assert mgr.state.consecutive_transport_failures == turn
+
+                # Past the threshold the user is told nothing is checking the goal any more.
+                if turn >= DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES:
+                    assert "goal_judge" in decision["message"]
+                    assert "continues" in decision["message"]
+
+    def test_a_rejected_credential_is_named_as_such(self, hermes_home):
+        """Pointing at goal_judge config for a revoked login wastes the user's time: no routing
+        fixes a credential the provider rejects."""
+        from hermes_cli import goals
+        from hermes_cli.goals import DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES, GoalManager
+
+        assert goals.judge_transport_failure_is_auth(RuntimeError("Error code: 401 - OAuth access token has been revoked"))
+        assert not goals.judge_transport_failure_is_auth(TimeoutError("read timed out"))
+
+        mgr = GoalManager(session_id="transport-auth-sid", default_max_turns=20)
+        mgr.set("do a thing")
+
+        with patch.object(
+            goals, "judge_goal",
+            return_value=("continue", "judge auth error: APIStatusError (the provider rejected the credentials)",
+                          False, None, True),
+        ):
+            for turn in range(DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES):
+                decision = mgr.evaluate_after_turn(f"step {turn}")
+
+        assert decision["should_continue"] is True
+        assert "Sign in" in decision["message"]
+
+    def test_a_judge_that_comes_back_resumes_real_verdicts(self, hermes_home):
+        """The run recovers by itself: a refreshed token ends the warning and a verdict lands."""
+        from hermes_cli import goals
+        from hermes_cli.goals import DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES, GoalManager
+
+        mgr = GoalManager(session_id="transport-fail-sid-2", default_max_turns=20)
+        mgr.set("do a thing")
+
+        with patch.object(
+            goals, "judge_goal", return_value=("continue", "judge error: APIStatusError", False, None, True)
+        ):
+            for turn in range(DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES + 1):
+                mgr.evaluate_after_turn(f"step {turn}")
+
+        with patch.object(goals, "judge_goal", return_value=("done", "the file exists", False, None, False)):
+            decision = mgr.evaluate_after_turn("final step")
+
+        assert decision["status"] == "done"
+        assert mgr.state.consecutive_transport_failures == 0
+
 
 
 

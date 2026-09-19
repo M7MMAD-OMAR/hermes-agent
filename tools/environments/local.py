@@ -880,6 +880,12 @@ class LocalEnvironment(BaseEnvironment):
         args = [bash, *(["-l"] if login else []), "-c", cmd_string]
         from tools.environments.project_readonly import readonly_argv
         args = readonly_argv(args, self.readonly_roots)
+        if not _IS_WINDOWS:
+            # Outermost: the child moves itself into hermes-tools.slice before
+            # exec, so a heavy command (or the VM it starts) can never share the
+            # desktop's cgroup and drag the window into swap with it.
+            from tools.cgroup_placement import tools_argv
+            args = tools_argv(args)
         self._recover_cwd()
         proc = subprocess.Popen(
             args, text=True, env=_make_run_env(self.env), encoding="utf-8", errors="replace",

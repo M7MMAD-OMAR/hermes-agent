@@ -632,8 +632,13 @@ def _spawn(kernel: SessionKernel, *, child_python: str, child_cwd: str,
         child_env["HERMES_KERNEL_PARENT_DEATH_FD"] = str(death_r)
         pass_fds = (death_r,)
     try:
+        runner_argv = [child_python, os.path.join(kernel.tmpdir, "hermes_kernel_runner.py")]
+        if not _IS_WINDOWS:
+            # Cells run arbitrary user code; the kernel belongs in hermes-tools.slice.
+            from tools.cgroup_placement import tools_argv
+            runner_argv = tools_argv(runner_argv)
         kernel.proc = subprocess.Popen(
-            [child_python, os.path.join(kernel.tmpdir, "hermes_kernel_runner.py")],
+            runner_argv,
             # Strict mode passes an empty cwd: the kernel's staging dir plays the per-call tmpdir's role.
             cwd=child_cwd or kernel.tmpdir, env=child_env, start_new_session=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,

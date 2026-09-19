@@ -1636,6 +1636,10 @@ def desktop_activation_url(raw) -> "str | None":
 
 
 HERMES_DESKTOP_SLICE = "hermes.slice"
+# The protected child of hermes.slice (MemorySwapMax=0, MemoryLow, no oomd) for the
+# desktop tree alone; agent work goes to its sibling hermes-tools.slice via
+# tools/cgroup_placement.py. Preferred when configured, else the parent as before.
+HERMES_DESKTOP_UI_SLICE = "hermes-ui.slice"
 
 _USER_UNIT_DIRS = (Path.home() / ".config/systemd/user", Path("/etc/systemd/user"), Path("/usr/lib/systemd/user"))
 
@@ -1663,8 +1667,14 @@ def _desktop_slice_prefix(*, platform: str = sys.platform, which=shutil.which,
     """
     if not platform.startswith("linux") or which("systemd-run") is None or not unit_exists(HERMES_DESKTOP_SLICE):
         return []
+    slice_unit = HERMES_DESKTOP_UI_SLICE if unit_exists(HERMES_DESKTOP_UI_SLICE) else HERMES_DESKTOP_SLICE
     return ["systemd-run", "--user", "--scope", "--quiet", "--collect",
-            f"--slice={HERMES_DESKTOP_SLICE}", f"--unit=hermes-desktop-{os.getpid()}"]
+            f"--slice={slice_unit}", f"--unit={desktop_scope_unit()}"]
+
+
+def desktop_scope_unit() -> str:
+    """The transient scope this launcher puts the desktop tree in."""
+    return f"hermes-desktop-{os.getpid()}"
 
 
 def _desktop_launch_argv(executable: Path, electron_flags: list[str], *, local: bool = False,
@@ -1805,9 +1815,17 @@ def cmd_gui(args: argparse.Namespace):
         env = deferred_entry.child_env(env)
         pass_fds = deferred_entry.pass_fds
     with desktop_console_output(source_mode=source_mode) as streams:
-        launch_result = subprocess.run(
-            launch_command, cwd=desktop_dir, env=env, check=False, pass_fds=pass_fds, **streams
-        )
+        # Popen rather than run(): the scope watcher needs the child's pid while
+        # it runs. Same lifecycle as run(): an interrupt kills the child.
+        with subprocess.Popen(launch_command, cwd=desktop_dir, env=env, pass_fds=pass_fds, **streams) as launch:
+            if launch_command[:1] == ["systemd-run"]:
+                from hermes_cli.desktop_cgroup import watch_desktop_scope
+                watch_desktop_scope(launch.pid, desktop_scope_unit(), log=desktop_launch_notice)
+            try:
+                returncode = launch.wait()
+            except BaseException:
+                launch.kill()
+                raise
     if deferred_entry is not None:
         deferred_entry.finish()
-    sys.exit(launch_result.returncode)
+    sys.exit(returncode)

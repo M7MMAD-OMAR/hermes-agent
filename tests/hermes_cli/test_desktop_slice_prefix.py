@@ -27,4 +27,13 @@ def test_prefix_is_a_transient_scope_inside_the_slice():
     assert "--slice=hermes.slice" in prefix
     # A dead scope must not outlive a failed launch.
     assert "--collect" in prefix
-    assert any(a.startswith("--unit=hermes-desktop-") for a in prefix)
+    assert f"--unit={main_desktop.desktop_scope_unit()}" in prefix
+    assert main_desktop.desktop_scope_unit().startswith("hermes-desktop-")
+
+
+def test_prefix_prefers_the_protected_ui_slice_when_it_exists():
+    # hermes-ui.slice is the child that carries MemorySwapMax=0 and the oomd opt-out;
+    # the parent alone (older setups) keeps working as before.
+    prefix = main_desktop._desktop_slice_prefix(platform="linux", which=lambda _: "/usr/bin/systemd-run",
+                                                unit_exists=lambda unit: unit in ("hermes.slice", "hermes-ui.slice"))
+    assert "--slice=hermes-ui.slice" in prefix

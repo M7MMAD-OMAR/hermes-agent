@@ -283,6 +283,11 @@ class MCPServerTransportMixin:
                 new_pids = _filter_mcp_children(_lifecycle._snapshot_child_pids() - pids_before)
                 if new_pids:
                     self._track_spawned_children(new_pids)
+                    # The SDK owns the spawn, so the server is moved into
+                    # hermes-tools.slice after the fact; children it starts later
+                    # (a browser for chrome-devtools-mcp) inherit the new cgroup.
+                    from tools.cgroup_placement import place_pids
+                    await asyncio.to_thread(place_pids, new_pids)
                 self._stdio_child_pids = set(new_pids)  # so in-flight calls fail fast when the child dies
                 async with _core.ClientSession(read_stream, write_stream, **self._session_kwargs()) as session:
                     # Bound the handshake here (``connect_timeout`` only bounds the caller's ``.result()``):

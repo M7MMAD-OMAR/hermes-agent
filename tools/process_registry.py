@@ -918,7 +918,12 @@ class ProcessRegistry(ProcessCheckpointMixin):
             logger.debug(
                 "%s background executor not isolated in a systemd scope "
                 "(systemd-run --user unavailable); worker shares the gateway cgroup.", label)
-        return argv
+            return argv
+        # Desktop backend or CLI: the worker leaves the UI's cgroup for
+        # hermes-tools.slice (see tools/cgroup_placement.py). No MemoryMax there,
+        # the slice bounds the whole tree instead.
+        from tools.cgroup_placement import tools_argv
+        return tools_argv(argv)
 
     @staticmethod
     def _spawn_env(env_vars: dict) -> dict:

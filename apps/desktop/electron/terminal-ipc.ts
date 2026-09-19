@@ -11,6 +11,7 @@ import { app, ipcMain } from 'electron'
 import nodePty from 'node-pty'
 
 import { resolveTerminalConnectionForSender } from './connection-apply'
+import { createToolsScopePolicy, terminalScopeUnit } from './linux-scope'
 import { ensureSpawnHelperExecutable } from './spawn-helper-perms'
 import { buildInteractiveSshArgs } from './ssh-connection'
 import { createTerminalOutputGate } from './terminal-output-gate'
@@ -55,6 +56,9 @@ export function registerTerminalIpc({
   getSshConnectionState
 }: TerminalIpcDeps): TerminalIpcApi {
   const terminalSessions = new Map()
+  // Local panes leave the desktop's cgroup for hermes-tools.slice, so what a
+  // person or an agent starts in one cannot swap the window out (linux-scope.ts).
+  const toolsScope = createToolsScopePolicy({ findOnPath, log: rememberLog })
 
   function isExecutableFile(filePath) {
     if (!filePath || !path.isAbsolute(filePath)) {
@@ -318,6 +322,8 @@ export function registerTerminalIpc({
         ? buildWindowsInteractiveCommand(String(payload?.cwd || '').trim())
         : undefined
 
+    const local = remote ? null : await toolsScope.wrap(command, args, terminalScopeUnit(id))
+
     const ptyProcess = remote
       ? nodePty.spawn(
           process.platform === 'win32'
@@ -326,7 +332,7 @@ export function registerTerminalIpc({
           buildInteractiveSshArgs(sshTarget.ssh, String(payload?.cwd || '').trim(), undefined, remoteCommand),
           { cols, cwd: app.getPath('home'), env: terminalShellEnv(), name: 'xterm-256color', rows }
         )
-      : nodePty.spawn(command, args, { cols, cwd, env: terminalShellEnv(), name: 'xterm-256color', rows })
+      : nodePty.spawn(local.command, local.args, { cols, cwd, env: terminalShellEnv(), name: 'xterm-256color', rows })
 
     const send = (suffix, payload) => {
       if (event.sender.isDestroyed()) {

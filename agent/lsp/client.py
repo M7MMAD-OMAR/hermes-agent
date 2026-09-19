@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -210,6 +211,13 @@ class LSPClient:
         cmd = self._command
         if sys.platform == "win32" and cmd[0].lower().endswith((".cmd", ".bat")):
             cmd = ["cmd.exe", "/c", *cmd]  # CreateProcess can't run .cmd/.bat shims directly
+        elif sys.platform == "linux" and (shutil.which(cmd[0]) or os.path.exists(cmd[0])):
+            # A language server holds a project's worth of ASTs (tsserver: 500 MB
+            # here); it belongs in hermes-tools.slice, not the desktop's cgroup.
+            # Only when the binary resolves, so a missing server still raises the
+            # FileNotFoundError below with its real name.
+            from tools.cgroup_placement import tools_argv
+            cmd = tools_argv(cmd)
         try:
             # start_new_session=True gives the server its own process group; otherwise it inherits
             # the gateway's pgid and mcp_tool's orphan sweeper can killpg() the TUI parent with it.

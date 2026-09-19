@@ -173,6 +173,11 @@ _EXTRA_KEYS = frozenset({
     # raw status cannot size a cooldown; persisted so a restart doesn't downgrade
     # a billing bench to a 60s transient cooldown.
     "failure_reason",
+    # What a key is called by the person who owns it (``<VAR>_ACCOUNT`` beside the key itself).
+    # Two keys at one provider are otherwise told apart only by the env var they came from, which
+    # is the same name in every profile — so a company key and a personal one read identically
+    # everywhere they are shown. See _env_payload.
+    "account_label",
 })
 
 # Nous singleton metadata mirrored between auth.json state and ``entry.extra``.
@@ -2374,6 +2379,24 @@ def _warn_env_ingestion_once(provider: str, env_var: str) -> None:
     )
 
 
+#: Suffix on the env var that names WHOSE key it is: ``OPENROUTER_API_KEY_ACCOUNT="DN"``.
+ENV_ACCOUNT_SUFFIX = "_ACCOUNT"
+
+
+def env_account_label(env_var: str) -> str:
+    """The name the owner gave this key, from ``<VAR>_ACCOUNT``; '' when unnamed.
+
+    Two keys at one provider (a company account and a personal one, each in its own profile's
+    .env) arrive under the SAME variable name, so every surface that names a credential by its
+    variable shows both of them identically and nobody can tell whose quota a turn is spending.
+    The variable cannot carry that answer — only its owner can.
+    """
+    try:
+        return str(get_env_prefer_dotenv(f"{env_var}{ENV_ACCOUNT_SUFFIX}") or "").strip()
+    except Exception:
+        return ""
+
+
 def _env_payload(*, env_var: str, token: str, base_url: str) -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "auth_type": AUTH_TYPE_API_KEY,
@@ -2381,6 +2404,9 @@ def _env_payload(*, env_var: str, token: str, base_url: str) -> Dict[str, Any]:
         "base_url": base_url,
         "label": env_var,
     }
+    account = env_account_label(env_var)
+    if account:
+        payload["account_label"] = account
     try:
         from hermes_cli.env_loader import get_secret_source
         source_label = get_secret_source(env_var)

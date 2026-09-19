@@ -1,7 +1,7 @@
 /**
  * What a HerWork chat shows before the first message.
  *
- * Core's splash is Hermes' wordmark and belongs to a fresh draft; a HerWork chat
+ * Core's splash is Sbar Rafiq' wordmark and belongs to a fresh draft; a HerWork chat
  * is a desk session. It claims only sessions whose tile carries the HerWork
  * workspace scope and declines everything else, which is also how it stands
  * down while the transcript hydrates (the tile lands before the first turn).

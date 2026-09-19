@@ -7,6 +7,8 @@ import { createNotificationRegistry } from './notification-registry'
 import type { HermesNotification } from './notification-types'
 
 interface NotificationHost {
+  /** The app's display name, used when a caller does not set its own title. */
+  appName: string
   /** The window already showing a popped-out chat, when the notification names
    *  one. Raising the main window and opening a second copy there is not what
    *  "take me to that chat" means. */
@@ -24,6 +26,7 @@ interface NotificationHost {
 }
 
 export function registerNativeNotifications({
+  appName,
   deepLinkTargetWindow,
   focusWindow,
   getMainWindow,
@@ -57,7 +60,7 @@ export function registerNativeNotifications({
     })
 
     const notification = new Notification({
-      title: payload?.title || 'Hermes',
+      title: payload?.title || appName,
       body,
       silent: Boolean(payload?.silent),
       ...(icon ? { icon } : {}),

@@ -100,7 +100,7 @@ describe('room naming', () => {
 })
 
 describe('speaker labels', () => {
-  it('relabels Hermes control-frame openers only in member-authored transcript lines', async () => {
+  it('relabels Sbar Rafiq control-frame openers only in member-authored transcript lines', async () => {
     // #111564: a member reply reproducing the mid-turn steer marker or compaction
     // handoff must not reach a peer's role=user prompt in its exact trusted shape.
     await loadRoom()
@@ -128,7 +128,7 @@ describe('speaker labels', () => {
     ).toContain(text)
   })
 
-  it('the default profile speaks as Hermes in transcripts, not @default', async () => {
+  it('the default profile speaks as Sbar Rafiq in transcripts, not @default', async () => {
     const { rounds } = await loadRoom()
     const { formatGroupChatLine } = await import('./group-round-prompt')
 
@@ -137,25 +137,25 @@ describe('speaker labels', () => {
       'builder'
     )
 
-    expect(line).toBe('Hermes: hello room')
+    expect(line).toBe('Sbar Rafiq: hello room')
 
     // Other members keep their profile name; the (you) suffix survives.
     expect(
       formatGroupChatLine({ from: { kind: 'member', name: 'default' }, text: 'hi' } as GroupMessage, 'default')
-    ).toBe('Hermes (you): hi')
+    ).toBe('Sbar Rafiq (you): hi')
     expect(
       formatGroupChatLine({ from: { kind: 'member', name: 'builder' }, text: 'yo' } as GroupMessage, 'research')
     ).toBe('builder: yo')
   })
 
-  it('honor friendly identity: Bot Mode title, then display_name, never a stale Hermes', async () => {
+  it('honor friendly identity: Bot Mode title, then display_name, never a stale Sbar Rafiq', async () => {
     const { chat, rounds } = await loadRoom()
     const { formatGroupChatLine } = await import('./group-round-prompt')
     const data = await import('./data')
 
     // A renamed default (core display_name via `hermes profile rename`) must
     // read as its new name — the community report was "Lucy" still showing
-    // "Hermes is thinking…" in group rooms.
+    // "Sbar Rafiq is thinking…" in group rooms.
     data.$lastRoster.set([{ display_name: 'Lucy', name: 'default' }])
 
     expect(chat.groupSpeakerLabel('default')).toBe('Lucy')
@@ -175,10 +175,10 @@ describe('speaker labels', () => {
 
     expect(chat.groupSpeakerLabel('research')).toBe('Radar')
 
-    // Untitled rows keep today's behavior: default → Hermes, others verbatim.
+    // Untitled rows keep today's behavior: default → Sbar Rafiq, others verbatim.
     data.$botMeta.set({})
 
-    expect(chat.groupSpeakerLabel('default')).toBe('Hermes')
+    expect(chat.groupSpeakerLabel('default')).toBe('Sbar Rafiq')
     expect(chat.groupSpeakerLabel('builder')).toBe('builder')
   })
 
@@ -232,7 +232,7 @@ describe('speaker labels', () => {
     data.$lastRoster.set([])
 
     expect(chat.groupSpeakerLabel('local::reviewer')).toBe('reviewer')
-    expect(chat.groupSpeakerLabel('spark::default')).toBe('Hermes')
+    expect(chat.groupSpeakerLabel('spark::default')).toBe('Sbar Rafiq')
 
     data.$botMeta.set({ 'spark::reviewer': { title: 'Beta' } })
 
@@ -246,7 +246,7 @@ describe('speaker labels', () => {
     // to that connection, not to the active gateway's default.
     data.$lastRoster.set([{ display_name: 'HomelabBot', name: 'default', remoteSource: true }])
 
-    expect(chat.groupSpeakerLabel('default')).toBe('Hermes')
+    expect(chat.groupSpeakerLabel('default')).toBe('Sbar Rafiq')
   })
 })
 

@@ -35,14 +35,14 @@ export const ar = defineLocale({
     retry: 'حاول مرة أخرى',
     more: 'عرض المزيد',
     pinned: 'التزام تمت مراجعته',
-    snapshotHint: 'من كتالوج Hermes. لا يتصل التصفح بمستودعات المصدر مطلقًا.',
+    snapshotHint: 'من كتالوج Sbar Rafiq. لا يتصل التصفح بمستودعات المصدر مطلقًا.',
     installHint: 'راجع المصدر قبل التثبيت. تسري التغييرات على الجلسات الجديدة.',
     results: (count: number) => `النتائج: ${count.toLocaleString('ar')}`,
     back: 'العودة إلى النتائج'
   },
   sessionImport: {
     title: 'المتابعة من تطبيق آخر',
-    subtitle: 'انقل محادثة إلى Hermes وتابع من حيث توقفت.',
+    subtitle: 'انقل محادثة إلى Sbar Rafiq وتابع من حيث توقفت.',
     action: 'استيراد جلسة',
     readingFrom: 'القراءة من',
     connectedComputer: 'الكمبيوتر المتصل',
@@ -60,17 +60,17 @@ export const ar = defineLocale({
     more: 'تحميل المزيد من الجلسات',
     messages: 'رسائل',
     choose: 'محادثة تستحق المتابعة',
-    chooseHelp: 'اختر جلسة لقراءة سجلها قبل نقلها إلى Hermes.',
+    chooseHelp: 'اختر جلسة لقراءة سجلها قبل نقلها إلى Sbar Rafiq.',
     previewLoading: 'جارٍ فتح المعاينة',
     previewError: 'المعاينة غير متاحة',
     previewHelp: 'ربما تم نقل الملف الأصلي أو تغييره. حدّث القائمة وحاول مرة أخرى.',
     previewLimit: 'تم اختصار المعاينة لتسهيل القراءة. يتم استيراد المحادثة كاملة.',
     you: 'أنت',
-    snapshot: 'هذه المحادثة موجودة بالفعل في Hermes. افتح نسختك الحالية للمتابعة.',
+    snapshot: 'هذه المحادثة موجودة بالفعل في Sbar Rafiq. افتح نسختك الحالية للمتابعة.',
     copyNotice: 'ينسخ نص المحادثة دون تغيير الملفات الأصلية. لا يشمل مخرجات الأدوات أو الاستدلال.',
     importing: 'جارٍ الاستيراد…',
-    open: 'فتح في Hermes',
-    continue: 'المتابعة في Hermes',
+    open: 'فتح في Sbar Rafiq',
+    continue: 'المتابعة في Sbar Rafiq',
     importError: 'تعذر استيراد هذه المحادثة.'
   },
   sendDiagnostics: {
@@ -177,7 +177,7 @@ export const ar = defineLocale({
       ipcBridgeUnavailable: 'جسر IPC لسطح المكتب غير متاح.'
     },
     failure: {
-      title: 'تعذر تشغيل Hermes',
+      title: 'تعذر تشغيل Sbar Rafiq',
       description: 'لم تعمل البوابة الخلفية. جرب إحدى خطوات الاسترداد أدناه. لن يحذف ذلك محادثاتك أو إعداداتك.',
       remoteTitle: 'تسجيل الدخول للبوابة البعيدة مطلوب',
       remoteDescription: 'انتهت جلسة البوابة البعيدة. سجل الدخول مرة أخرى لإعادة الاتصال.',
@@ -243,7 +243,7 @@ export const ar = defineLocale({
       elevenLabsNeedsKey: 'يتطلب ElevenLabs STT المفتاح ELEVENLABS_API_KEY.',
       elevenLabsRejectedKey: 'رفض ElevenLabs مفتاح API (401).',
       diskFull: 'القرص ممتلئ، حرّر مساحة ثم أعد المحاولة.',
-      methodNotAllowed: 'رفضت خلفية سطح المكتب هذا الطلب (405 Method Not Allowed). جرب إعادة تشغيل Hermes Desktop.',
+      methodNotAllowed: 'رفضت خلفية سطح المكتب هذا الطلب (405 Method Not Allowed). جرب إعادة تشغيل Sbar Rafiq Desktop.',
       microphonePermission: 'تم رفض إذن الميكروفون.',
       openaiRejectedApiKey: 'رفض OpenAI مفتاح API.',
       openaiTtsNeedsKey: 'يتطلب OpenAI TTS المفتاح VOICE_TOOLS_OPENAI_KEY أو OPENAI_API_KEY.',
@@ -271,7 +271,7 @@ export const ar = defineLocale({
       unavailable: 'الصوت غير متاح',
       liveEnded: 'انتهت جلسة الصوت المباشر',
       liveError: 'الصوت المباشر',
-      liveDelegationFailed: 'تعذر تسليم الطلب إلى Hermes',
+      liveDelegationFailed: 'تعذر تسليم الطلب إلى Sbar Rafiq',
       liveUnavailable: reason =>
         `المحادثة الصوتية GPT-Live غير متاحة: ${reason}. سيُستخدم تحويل الكلام إلى نص بدلًا منها.`
     },
@@ -280,8 +280,8 @@ export const ar = defineLocale({
       approveAction: 'موافقة',
       rejectAction: 'رفض',
       inputTitle: 'مطلوب إدخال',
-      inputBody: 'ينتظر Hermes ردّك.',
-      turnDoneTitle: 'أنهى Hermes',
+      inputBody: 'ينتظر Sbar Rafiq ردّك.',
+      turnDoneTitle: 'أنهى Sbar Rafiq',
       turnDoneBody: '',
       turnErrorTitle: 'فشلت الجولة',
       backgroundDoneTitle: 'انتهت المهمة في الخلفية',
@@ -447,7 +447,7 @@ export const ar = defineLocale({
     exportConfig: 'تصدير الإعدادات',
     importConfig: 'استيراد الإعدادات',
     resetToDefaults: 'إعادة الافتراضيات',
-    resetConfirm: 'هل تريد إعادة كل الإعدادات إلى افتراضيات Hermes؟',
+    resetConfirm: 'هل تريد إعادة كل الإعدادات إلى افتراضيات Sbar Rafiq؟',
     exportFailed: 'فشل التصدير',
     resetFailed: 'فشلت إعادة الضبط',
     nav: {
@@ -514,7 +514,7 @@ export const ar = defineLocale({
       deleteAction: 'إزالة العنصر المحفوظ',
       otpField: 'مفتاح المصادقة',
       otpPlaceholder: 'سر Base32 أو رابط otpauth://',
-      otpHint: '«مفتاح الإعداد» الذي يعرضه الموقع عند تفعيل المصادقة الثنائية. بحفظه يولّد Hermes الرموز بنفسه.',
+      otpHint: '«مفتاح الإعداد» الذي يعرضه الموقع عند تفعيل المصادقة الثنائية. بحفظه يولّد Sbar Rafiq الرموز بنفسه.',
       twoFactorBadge: '2FA تلقائي',
       deleteTitle: 'حذف هذا العنصر؟',
       deleteDescription: label => `سيُزال "${label}" من الخزنة المشفّرة. لا يمكن التراجع عن هذا.`,
@@ -524,10 +524,10 @@ export const ar = defineLocale({
         blurb:
           'تُكتشف مديري كلمات المرور المثبّتة تلقائيًا. يطلب منك الوكيل فتح أحدها في أول مرة يحتاج فيها إلى بيانات دخول منه (مرة واحدة لكل جلسة)؛ يبقى في الذاكرة رمز الجلسة فقط، ولا يرى الوكيل كلمة المرور الرئيسية أو أي بيانات دخول.',
         toggleFailed: 'تعذر تحديث مدير كلمات المرور',
-        notInstalled: name => `غير مكتشف. ثبّت أداة سطر الأوامر ${name} وسجّل الدخول إليها؛ سيكتشفها Hermes تلقائيًا.`,
-        disabledDesc: 'مكتشف لكنه معطّل لـ Hermes.',
+        notInstalled: name => `غير مكتشف. ثبّت أداة سطر الأوامر ${name} وسجّل الدخول إليها؛ سيكتشفها Sbar Rafiq تلقائيًا.`,
+        disabledDesc: 'مكتشف لكنه معطّل لـ Sbar Rafiq.',
         lockedDesc: 'مكتشف. سيطلب منك الوكيل فتحه عند الحاجة إلى بيانات دخول، أو افتحه الآن.',
-        unlockedDesc: 'مفتوح لهذه الجلسة. يُقفل تلقائيًا بعد 30 دقيقة من الخمول أو عند إغلاق Hermes.',
+        unlockedDesc: 'مفتوح لهذه الجلسة. يُقفل تلقائيًا بعد 30 دقيقة من الخمول أو عند إغلاق Sbar Rafiq.',
         statusLocked: 'مقفل',
         statusNotDetected: 'غير مكتشف',
         statusOff: 'متوقف',
@@ -545,7 +545,7 @@ export const ar = defineLocale({
     plugins: {
       title: 'إضافات سطح المكتب',
       blurb:
-        'امتدادات واجهة تُحمّل داخل هذا التطبيق، إما مضمّنة مع البناء، أو موضوعة في مجلد desktop-plugins (بما فيها التي يكتبها Hermes). تعطيل الإضافة يفرغها مباشرة ويبقى بعد إعادة التشغيل.',
+        'امتدادات واجهة تُحمّل داخل هذا التطبيق، إما مضمّنة مع البناء، أو موضوعة في مجلد desktop-plugins (بما فيها التي يكتبها Sbar Rafiq). تعطيل الإضافة يفرغها مباشرة ويبقى بعد إعادة التشغيل.',
       count: n => `${n} مثبتة`,
       openFolder: 'فتح مجلد الإضافات',
       rescan: 'إعادة الفحص',
@@ -600,7 +600,7 @@ export const ar = defineLocale({
           'كل من يثبّت هذه البصمة يحصل على الشيفرة نفسها، ثم ترفض الإضافة التحديثات حتى تُثبَّت من جديد. اتركه فارغًا لأحدث التزام.',
         pinToCommitInvalid: 'يجب أن تكون بصمة التزام كاملة من 40 محرفًا (الفروع والوسوم غير مقبولة).',
         catalogPinned: (name, sha) =>
-          `مدخل فهرس Hermes «${name}»: يُثبَّت مكوّن الوكيل عند التثبيت المُراجَع${sha ? ` ${sha}` : ''}، لا عند رأس الفرع.`,
+          `مدخل فهرس Sbar Rafiq «${name}»: يُثبَّت مكوّن الوكيل عند التثبيت المُراجَع${sha ? ` ${sha}` : ''}، لا عند رأس الفرع.`,
         alreadyInstalled: (name: string) => `${name} مثبت بالفعل.`
       },
       agentHalfMissing: 'نصف الوكيل غير مثبت هنا',
@@ -613,7 +613,7 @@ export const ar = defineLocale({
         'إشعارات سطح المكتب الأصلية، منفصلة عن التنبيهات داخل التطبيق. هذه محلية على الجهاز، كل حاسوب يحتفظ بإعداداته الخاصة.',
       enableAll: 'تفعيل الإشعارات',
       enableAllDesc: 'إيقافه يصمت كل الإشعارات أدناه.',
-      focusedHint: 'تنبيهات الاكتمال تظهر فقط عندما يكون Hermes في الخلفية.',
+      focusedHint: 'تنبيهات الاكتمال تظهر فقط عندما يكون Sbar Rafiq في الخلفية.',
       kinds: {
         approval: {
           label: 'يلزم الموافقة',
@@ -621,11 +621,11 @@ export const ar = defineLocale({
         },
         input: {
           label: 'يلزم إدخال',
-          description: 'طرح Hermes سؤالا أو يحتاج إلى كلمة مرور أو سر.'
+          description: 'طرح Sbar Rafiq سؤالا أو يحتاج إلى كلمة مرور أو سر.'
         },
         turnDone: {
           label: 'الرد جاهز',
-          description: 'انتهى دور بينما كان Hermes في الخلفية.'
+          description: 'انتهى دور بينما كان Sbar Rafiq في الخلفية.'
         },
         turnError: {
           label: 'فشل الدور',
@@ -640,12 +640,12 @@ export const ar = defineLocale({
           label: 'تنبيهات الرصيد'
         },
         plugin: {
-          description: 'أرسلت إحدى إضافات سطح المكتب إشعارا بينما كان Hermes في الخلفية.',
+          description: 'أرسلت إحدى إضافات سطح المكتب إشعارا بينما كان Sbar Rafiq في الخلفية.',
           label: 'إشعارات الإضافات'
         }
       },
       test: 'إرسال إشعار تجريبي',
-      testTitle: '‏Hermes',
+      testTitle: '‏Sbar Rafiq',
       testBody: 'الإشعارات تعمل.',
       testSent: 'تم إرسال التجربة. إذا لم يظهر شيء، تحقق من أذونات الإشعارات في نظام التشغيل ووضع التركيز/عدم الإزعاج.',
       testUnsupported: 'هذا النظام لا يدعم الإشعارات الأصلية.',
@@ -666,7 +666,7 @@ export const ar = defineLocale({
       advanced: 'متقدم'
     },
     searchPlaceholder: {
-      about: 'حول Hermes Desktop',
+      about: 'حول Sbar Rafiq Desktop',
       config: 'ابحث في الإعدادات...',
       gateway: 'اتصال البوابة...',
       keys: 'ابحث في مفاتيح API...',
@@ -691,7 +691,7 @@ export const ar = defineLocale({
       uiScaleDesc: percent =>
         `يضبط حجم النص وعناصر التحكم في التطبيق كله. تعمل أيضًا Cmd/Ctrl مع + و - و 0. الحالي: ${percent}%.`,
       title: 'المظهر',
-      intro: 'خصص مظهر Hermes Desktop.',
+      intro: 'خصص مظهر Sbar Rafiq Desktop.',
       colorMode: 'نمط الألوان',
       colorModeDesc: 'اختر الوضع الفاتح أو الداكن أو اتبع النظام.',
       toolViewTitle: 'عرض الأدوات',
@@ -718,20 +718,20 @@ export const ar = defineLocale({
         sidebar: 'الشريط الجانبي فقط'
       },
       backdropTitle: 'خلفية النافذة',
-      backdropDesc: 'اختيار مقدار مزج خلفية سطح المكتب مع سطح Hermes.',
+      backdropDesc: 'اختيار مقدار مزج خلفية سطح المكتب مع سطح Sbar Rafiq.',
       userBubbleTitle: 'فقاعة الرسالة',
       userBubbleDesc: 'مدى شفافية رسائلك. معتمة عند 0؛ يبقى الإطار فقط عند 100.',
       introSplashTitle: 'شاشة المقدمة',
       introSplashDesc: 'الشعار النصي والعبارة التمهيدية في محادثة فارغة.',
       reactionsTitle: 'تفاعلات الرسائل',
-      reactionsDesc: 'تفاعلات إيموجي بأسلوب iMessage، تفاعل مع الرسائل، ويمكن لـ Hermes التفاعل مع رسائلك.',
+      reactionsDesc: 'تفاعلات إيموجي بأسلوب iMessage، تفاعل مع الرسائل، ويمكن لـ Sbar Rafiq التفاعل مع رسائلك.',
       tipsTitle: 'نصائح داخل التطبيق',
       tipsDesc:
         'نصائح تظهر أحيانًا من التطبيق وHermes. تظهر كل نصيحة مرة واحدة. تُعطّل تلقائيًا بعد أول 30 يومًا من الاستخدام، ويمكنك تفعيلها مجددًا.',
       tipsReset: count => `إظهار ${count} نصيحة مرة أخرى`,
       toursTitle: 'جولات إرشادية',
       toursDesc:
-        'دع Hermes يرشدك في التطبيق مع إبراز كل خطوة. تُعطّل الجولات تلقائيًا بعد أول 30 يومًا من الاستخدام، ويمكنك تفعيلها مجددًا.',
+        'دع Sbar Rafiq يرشدك في التطبيق مع إبراز كل خطوة. تُعطّل الجولات تلقائيًا بعد أول 30 يومًا من الاستخدام، ويمكنك تفعيلها مجددًا.',
       composerPopoutTitle: 'محرر عائم',
       composerPopoutDesc: 'السماح بسحب محرر الرسائل خارج موضعه. عطّل هذا الخيار لإبقائه مثبتًا في الأسفل.',
       vibeHeartsTitle: 'قلوب المزاج',
@@ -764,9 +764,9 @@ export const ar = defineLocale({
       pet: {
         title: 'حيوان أليف',
         intro:
-          'تبنَّ تعويذة petdex متحركة تطفو فوق التطبيق وتتفاعل مع ما يفعله Hermes، تجري أثناء تنفيذ الأدوات، وتحتفل عند النجاح، وتعبس عند الأخطاء.',
+          'تبنَّ تعويذة petdex متحركة تطفو فوق التطبيق وتتفاعل مع ما يفعله Sbar Rafiq، تجري أثناء تنفيذ الأدوات، وتحتفل عند النجاح، وتعبس عند الأخطاء.',
         restartHint:
-          'تحتاج الحيوانات الأليفة إلى إعادة تشغيل سريعة، بدأ التطبيق العامل قبل إضافة هذه الميزة. أغلق Hermes وأعد فتحه، ثم ارجع إلى هنا.',
+          'تحتاج الحيوانات الأليفة إلى إعادة تشغيل سريعة، بدأ التطبيق العامل قبل إضافة هذه الميزة. أغلق Sbar Rafiq وأعد فتحه، ثم ارجع إلى هنا.',
         on: 'تشغيل',
         off: 'إيقاف',
         scaleTitle: 'الحجم',
@@ -933,9 +933,9 @@ export const ar = defineLocale({
       fallbackProviders: 'إدخالات احتياطية بصيغة provider:model لتجربتها إذا فشل النموذج الافتراضي.',
       'display.personality': 'أسلوب المساعد الافتراضي للجلسات الجديدة.',
       'display.showReasoning': 'يعرض أقسام التفكير عندما توفرها الخلفية.',
-      timezone: 'تستخدم عندما يحتاج Hermes إلى سياق الوقت المحلي. اتركها فارغة لاستخدام منطقة النظام.',
+      timezone: 'تستخدم عندما يحتاج Sbar Rafiq إلى سياق الوقت المحلي. اتركها فارغة لاستخدام منطقة النظام.',
       'agent.imageInputMode': 'يتحكم في طريقة إرسال مرفقات الصور إلى النموذج.',
-      'agent.maxTurns': 'الحد الأعلى لدورات استدعاء الأدوات قبل أن يوقف Hermes التشغيل.',
+      'agent.maxTurns': 'الحد الأعلى لدورات استدعاء الأدوات قبل أن يوقف Sbar Rafiq التشغيل.',
       'terminal.cwd': 'مجلد المشروع الافتراضي لعمل الأدوات والطرفية.',
       'terminal.persistentShell': 'يحافظ على حالة الصدفة بين الأوامر عندما تدعمها الخلفية.',
       'terminal.envPassthrough': 'متغيرات البيئة التي تمرر إلى تنفيذ الأدوات.',
@@ -944,8 +944,8 @@ export const ar = defineLocale({
       'terminal.modalImage': 'الصورة المستخدمة عند اختيار Modal.',
       'terminal.daytonaImage': 'الصورة المستخدمة عند اختيار Daytona.',
       'codeExecution.mode': 'مدى تقييد تنفيذ الكود بالمشروع الحالي.',
-      fileReadMaxChars: 'أقصى عدد أحرف يستطيع Hermes قراءته من ملف واحد في الطلب.',
-      'approvals.mode': 'كيف يتعامل Hermes مع الأوامر التي تحتاج موافقة صريحة.',
+      fileReadMaxChars: 'أقصى عدد أحرف يستطيع Sbar Rafiq قراءته من ملف واحد في الطلب.',
+      'approvals.mode': 'كيف يتعامل Sbar Rafiq مع الأوامر التي تحتاج موافقة صريحة.',
       'approvals.timeout': 'مدة انتظار طلبات الموافقة قبل انتهاء المهلة.',
       'security.redactSecrets': 'يخفي الأسرار المكتشفة من المحتوى المرئي للنموذج قدر الإمكان.',
       'checkpoints.enabled': 'ينشئ لقطات رجوع قبل تعديلات الملفات.',
@@ -961,9 +961,9 @@ export const ar = defineLocale({
       'stt.enabled': 'يفعل التفريغ الصوتي المحلي أو عبر مزود.',
       'stt.elevenlabs.languageCode': 'رمز لغة ISO-639-3 اختياري. اتركه فارغاً للاكتشاف التلقائي.',
       'updates.nonInteractiveLocalChanges':
-        'عندما يحدّث Hermes نفسه من التطبيق دون موجه طرفية، احتفظ بتعديلات المصدر المحلية أو تجاهلها.',
+        'عندما يحدّث Sbar Rafiq نفسه من التطبيق دون موجه طرفية، احتفظ بتعديلات المصدر المحلية أو تجاهلها.',
       'browser.useRealProfile':
-        'يستخدم التصفح المحلي تسجيلات دخولك الحقيقية. ينسخ Hermes الملف الشخصي لمتصفحك الافتراضي (الكوكيز وتسجيلات الدخول والتفضيلات) إلى لقطة مُدارة ويشغّلها عبر Chromium المضمّن معه، فلا يُفتح ملفك الشخصي الحي مباشرة أبدا، وتُحدَّث النسخة منه في كل تشغيل. كما يتيح للوكيل فتح جلسة محلية بالملف الشخصي الحقيقي عند الطلب حتى عندما تكون خلفية متصفح سحابية مضبوطة. المدعوم هو متصفحات Chromium فقط (Chrome وEdge وBrave وBrave Origin وChromium)؛ وأي متصفح افتراضي غير قائم على Chromium يفشل مع رسالة واضحة. معطّل افتراضيا.',
+        'يستخدم التصفح المحلي تسجيلات دخولك الحقيقية. ينسخ Sbar Rafiq الملف الشخصي لمتصفحك الافتراضي (الكوكيز وتسجيلات الدخول والتفضيلات) إلى لقطة مُدارة ويشغّلها عبر Chromium المضمّن معه، فلا يُفتح ملفك الشخصي الحي مباشرة أبدا، وتُحدَّث النسخة منه في كل تشغيل. كما يتيح للوكيل فتح جلسة محلية بالملف الشخصي الحقيقي عند الطلب حتى عندما تكون خلفية متصفح سحابية مضبوطة. المدعوم هو متصفحات Chromium فقط (Chrome وEdge وBrave وBrave Origin وChromium)؛ وأي متصفح افتراضي غير قائم على Chromium يفشل مع رسالة واضحة. معطّل افتراضيا.',
       'desktop.repoScanEnabled': 'فحص المجلدات المحلية بحثا عن مستودعات Git لعرضها في المشاريع.',
       'desktop.repoScanExcludePaths': 'المجلدات وما تحتها التي تُتخطى أثناء اكتشاف المستودعات.',
       'desktop.repoScanRoots': 'المجلدات المراد فحصها. اتركها فارغة لفحص مجلدك الرئيسي.',
@@ -975,23 +975,23 @@ export const ar = defineLocale({
       'tts.xai.sampleRate': 'معدل عينات الصوت بوحدة Hz. الأعلى = جودة أفضل وملفات أكبر.',
       'tts.xai.speed': 'سرعة التشغيل. 0.7 = أبطأ، 1.0 = عادي، 1.5 = أسرع.',
       'voice.voiceChatMode':
-        'chained: تحويل الكلام إلى نص ثم Hermes ثم تحويل النص إلى كلام بالمزودين أدناه. gpt-live: نموذج صوتي واحد كامل الازدواج من OpenAI (gpt-live-1) يستمع ويتكلم، ويسلّم كل طلب حقيقي إلى Hermes، فيجيب أي نموذج اخترته بكامل مجموعة الأدوات. يحتاج مفتاح OpenAI، وتبلغ كلفة الطبقة الصوتية 0.05 دولار للدقيقة.',
+        'chained: تحويل الكلام إلى نص ثم Sbar Rafiq ثم تحويل النص إلى كلام بالمزودين أدناه. gpt-live: نموذج صوتي واحد كامل الازدواج من OpenAI (gpt-live-1) يستمع ويتكلم، ويسلّم كل طلب حقيقي إلى Sbar Rafiq، فيجيب أي نموذج اخترته بكامل مجموعة الأدوات. يحتاج مفتاح OpenAI، وتبلغ كلفة الطبقة الصوتية 0.05 دولار للدقيقة.',
       'voice.gptLive.voice': 'الصوت المستخدم في وضع GPT-Live. معرّفات الأصوات المخصصة مقبولة.',
       'voice.gptLive.instructions':
-        'جمل إضافية لشخصية الصوت المباشر (النبرة، الإيقاع، اللغة). يحتفظ Hermes بموجّهه النظامي الخاص.'
+        'جمل إضافية لشخصية الصوت المباشر (النبرة، الإيقاع، اللغة). يحتفظ Sbar Rafiq بموجّهه النظامي الخاص.'
     },
     about: {
-      heading: 'حول Hermes',
+      heading: 'حول Sbar Rafiq',
       version: value => `الإصدار ${value}`,
       versionUnavailable: 'الإصدار غير متاح',
       bundleOutOfSync: 'إصدار التطبيق قديم',
       bundleOutOfSyncDesc:
-        'تم تحديث وقت تشغيل Hermes، لكن تطبيق سطح المكتب نفسه لا يزال إصدارًا قديمًا، لن تظهر ميزات الواجهة الجديدة (مثل Bot Mode) حتى يتم تحديث التطبيق. شغّل التحديث أدناه لإعادة بناء التطبيق. إذا لم يختفِ هذا التحذير، فأعد التثبيت من أحدث مثبّت لسطح المكتب.',
+        'تم تحديث وقت تشغيل Sbar Rafiq، لكن تطبيق سطح المكتب نفسه لا يزال إصدارًا قديمًا، لن تظهر ميزات الواجهة الجديدة (مثل Bot Mode) حتى يتم تحديث التطبيق. شغّل التحديث أدناه لإعادة بناء التطبيق. إذا لم يختفِ هذا التحذير، فأعد التثبيت من أحدث مثبّت لسطح المكتب.',
       bundleOutOfSyncAction: 'الحصول على المثبّت',
       bundleSwapPending: 'أعد التشغيل لإكمال التحديث',
       bundleSwapPendingDesc:
-        'تم تثبيت التطبيق المحدَّث بالفعل، يكفي إعادة تشغيل Hermes لتحميله. لن تتأثر المحادثات أو الإعدادات.',
-      bundleSwapPendingAction: 'إعادة تشغيل Hermes',
+        'تم تثبيت التطبيق المحدَّث بالفعل، يكفي إعادة تشغيل Sbar Rafiq لتحميله. لن تتأثر المحادثات أو الإعدادات.',
+      bundleSwapPendingAction: 'إعادة تشغيل Sbar Rafiq',
       updates: 'التحديثات',
       checkNow: 'التحقق الآن',
       checking: 'جار التحقق...',
@@ -1008,7 +1008,7 @@ export const ar = defineLocale({
       lastChecked: age => `آخر تحقق ${age}`,
       justNowSuffix: 'الآن',
       automaticUpdates: 'التحديثات التلقائية',
-      automaticUpdatesDesc: 'اسمح لـ Hermes بالتحقق من التحديثات وتثبيتها.',
+      automaticUpdatesDesc: 'اسمح لـ Sbar Rafiq بالتحقق من التحديثات وتثبيتها.',
       branchCommit: (branch, commit) => `${branch} عند ${commit}`,
       never: 'أبدا',
       justNow: 'الآن',
@@ -1024,7 +1024,7 @@ export const ar = defineLocale({
       searchPlaceholder: 'بحث…',
       noResults: 'لا توجد نتائج',
       systemDefault: 'إعداد النظام الافتراضي',
-      loading: 'جار تحميل إعدادات Hermes...',
+      loading: 'جار تحميل إعدادات Sbar Rafiq...',
       emptyTitle: 'لا توجد إعدادات',
       emptyDesc: 'لا يحتوي هذا القسم على إعدادات قابلة للتعديل.',
       failedLoad: 'فشل تحميل الإعدادات',
@@ -1048,16 +1048,16 @@ export const ar = defineLocale({
     screenshot: {
       enabledTitle: 'اختصار لقطة الشاشة',
       enabledDesc:
-        'اضغط مفتاحَي Command معًا من أي تطبيق لالتقاط النافذة الأمامية وإرفاقها بمسودة Hermes الحالية. لا يُرسل أي شيء تلقائيًا. معطّل افتراضيًا ويُطبَّق على جهاز Mac هذا فقط. قد تتضمن النافذة محتوى حساسًا، لذا راجع المرفق قبل الإرسال.',
+        'اضغط مفتاحَي Command معًا من أي تطبيق لالتقاط النافذة الأمامية وإرفاقها بمسودة Sbar Rafiq الحالية. لا يُرسل أي شيء تلقائيًا. معطّل افتراضيًا ويُطبَّق على جهاز Mac هذا فقط. قد تتضمن النافذة محتوى حساسًا، لذا راجع المرفق قبل الإرسال.',
       statusTitle: 'حالة اختصار لقطة الشاشة',
       checking: 'جارٍ التحقق من اختصار لقطة الشاشة…',
       disabled: 'اختصار لقطة الشاشة معطّل.',
       starting: 'جارٍ بدء رصد الاختصار. لم يصبح جاهزًا بعد.',
       ready: 'الاختصار جاهز. تُرفق اللقطات بالمسودة الحالية دون إرسالها.',
       inputPermission:
-        'يتيح إذن مراقبة الإدخال لـ Hermes رصد مفتاحَي Command أثناء استخدام تطبيق آخر. اسمح لـ Hermes في إعدادات النظام ← الخصوصية والأمان ← مراقبة الإدخال، ثم عُد إلى هنا وأعد المحاولة.',
+        'يتيح إذن مراقبة الإدخال لـ Sbar Rafiq رصد مفتاحَي Command أثناء استخدام تطبيق آخر. اسمح لـ Sbar Rafiq في إعدادات النظام ← الخصوصية والأمان ← مراقبة الإدخال، ثم عُد إلى هنا وأعد المحاولة.',
       screenPermission:
-        'يتيح إذن تسجيل الشاشة لـ Hermes التقاط نافذة التطبيق الأمامية عند استخدام هذا الاختصار. اسمح لـ Hermes في إعدادات النظام ← الخصوصية والأمان ← تسجيل الشاشة، ثم عُد إلى هنا وأعد المحاولة. أعد تشغيل Hermes إذا طلب macOS ذلك.',
+        'يتيح إذن تسجيل الشاشة لـ Sbar Rafiq التقاط نافذة التطبيق الأمامية عند استخدام هذا الاختصار. اسمح لـ Sbar Rafiq في إعدادات النظام ← الخصوصية والأمان ← تسجيل الشاشة، ثم عُد إلى هنا وأعد المحاولة. أعد تشغيل Sbar Rafiq إذا طلب macOS ذلك.',
       openSettings: 'فتح إعدادات النظام',
       retry: 'إعادة المحاولة',
       unavailable: 'اختصار لقطة الشاشة غير متاح. أعد المحاولة أو عطّله.',
@@ -1070,7 +1070,7 @@ export const ar = defineLocale({
     },
     quickEntry: {
       enabledTitle: 'الإدخال السريع',
-      enabledDesc: 'استدعِ محرّرا صغيرا من أي مكان باختصار عام وأرسل طلبا دون فتح Hermes.',
+      enabledDesc: 'استدعِ محرّرا صغيرا من أي مكان باختصار عام وأرسل طلبا دون فتح Sbar Rafiq.',
       shortcutTitle: 'اختصار الإدخال السريع',
       shortcutDesc: 'يحتاج إلى مفتاح تعديل واحد على الأقل، مثل CommandOrControl+Shift+Space.',
       active: 'الاختصار مفعّل.',
@@ -1101,21 +1101,21 @@ export const ar = defineLocale({
       cloudStatusLabel: status => `الحالة: ${status}`,
       cloudConnectedTo: name => `متصل بـ ${name}.`,
       cloudOrgRole: role => `الدور: ${role}`,
-      sshReachable: (host, platform) => `متاح: ${host} (${platform})، تم العثور على Hermes`,
+      sshReachable: (host, platform) => `متاح: ${host} (${platform})، تم العثور على Sbar Rafiq`,
       loading: 'جار تحميل إعدادات البوابة...',
       unavailableTitle: 'إعدادات البوابة غير متاحة',
       unavailableDesc: 'جسر IPC في سطح المكتب لا يوفّر إعدادات البوابة.',
       title: 'اتصال البوابة',
       envOverride: 'تجاوز من البيئة',
       intro:
-        'يشغّل Hermes Desktop بوابة محلية خاصة افتراضياً. استخدم بوابة بعيدة عندما تريد أن يتحكم هذا التطبيق بخلفية Hermes تعمل مسبقاً على جهاز آخر أو خلف وكيل موثوق. اتصالات البوابة إعداد على مستوى الجهاز؛ ويتم اكتشاف الملفات الشخصية من البوابات المتصلة.',
+        'يشغّل Sbar Rafiq Desktop بوابة محلية خاصة افتراضياً. استخدم بوابة بعيدة عندما تريد أن يتحكم هذا التطبيق بخلفية Sbar Rafiq تعمل مسبقاً على جهاز آخر أو خلف وكيل موثوق. اتصالات البوابة إعداد على مستوى الجهاز؛ ويتم اكتشاف الملفات الشخصية من البوابات المتصلة.',
       envOverrideTitle: 'متغيرات البيئة تتحكم في جلسة سطح المكتب هذه.',
       envOverrideDesc: 'أزل HERMES_DESKTOP_REMOTE_URL و HERMES_DESKTOP_REMOTE_TOKEN لاستخدام الإعداد المحفوظ أدناه.',
       localTitle: 'بوابة محلية',
-      localDesc: 'تشغيل خلفية Hermes خاصة على localhost. هذا هو الافتراضي ويعمل دون اتصال.',
+      localDesc: 'تشغيل خلفية Sbar Rafiq خاصة على localhost. هذا هو الافتراضي ويعمل دون اتصال.',
       remoteTitle: 'بوابة بعيدة',
       remoteDesc:
-        'صل واجهة سطح المكتب هذه بخلفية Hermes بعيدة. البوابات المستضافة تستخدم OAuth أو اسم مستخدم وكلمة مرور، والبوابات الذاتية قد تستخدم رمز جلسة.',
+        'صل واجهة سطح المكتب هذه بخلفية Sbar Rafiq بعيدة. البوابات المستضافة تستخدم OAuth أو اسم مستخدم وكلمة مرور، والبوابات الذاتية قد تستخدم رمز جلسة.',
       remoteUrlTitle: 'رابط البوابة البعيدة',
       remoteUrlDesc: 'الرابط الأساسي لخلفية لوحة التحكم البعيدة. يمكن استخدام بادئات مسار مثل /hermes.',
       probing: 'جار فحص طريقة مصادقة هذه البوابة...',
@@ -1152,9 +1152,9 @@ export const ar = defineLocale({
       enterUrlFirst: 'أدخل رابط البوابة البعيدة أولاً.',
       restartingTitle: 'جار إعادة تشغيل اتصال البوابة',
       savedTitle: 'تم حفظ إعدادات البوابة',
-      restartingMessage: 'سيعيد Hermes Desktop الاتصال باستخدام الإعدادات المحفوظة.',
+      restartingMessage: 'سيعيد Sbar Rafiq Desktop الاتصال باستخدام الإعدادات المحفوظة.',
       savedMessage: 'تم الحفظ للتشغيل القادم.',
-      connectedTo: (baseUrl, version) => `متصل بـ ${baseUrl}${version ? ` · Hermes ${version}` : ''}`,
+      connectedTo: (baseUrl, version) => `متصل بـ ${baseUrl}${version ? ` · Sbar Rafiq ${version}` : ''}`,
       reachableTitle: 'البوابة البعيدة قابلة للوصول',
       signedOutTitle: 'تم تسجيل الخروج',
       signedOutMessage: 'تم مسح جلسة البوابة البعيدة.',
@@ -1173,10 +1173,10 @@ export const ar = defineLocale({
       cloudConnectedTitle: 'متصل',
       cloudConnecting: 'جار الاتصال…',
       cloudDesc:
-        'سجّل الدخول مرة واحدة إلى Hermes Cloud واختر من الوكلاء الموجودين في حسابك، دون الحاجة إلى لصق أي رابط.',
-      cloudDiscoverFailed: 'تعذر تحميل وكلاء Hermes Cloud الخاصين بك',
+        'سجّل الدخول مرة واحدة إلى Sbar Rafiq Cloud واختر من الوكلاء الموجودين في حسابك، دون الحاجة إلى لصق أي رابط.',
+      cloudDiscoverFailed: 'تعذر تحميل وكلاء Sbar Rafiq Cloud الخاصين بك',
       cloudLoadingAgents: 'جار تحميل وكلائك…',
-      cloudNeedsSignIn: 'سجّل الدخول إلى Hermes Cloud لاكتشاف الوكلاء الموجودين في حسابك.',
+      cloudNeedsSignIn: 'سجّل الدخول إلى Sbar Rafiq Cloud لاكتشاف الوكلاء الموجودين في حسابك.',
       cloudNoAgents: {
         after: '، ثم حدّث القائمة.',
         before: 'لا يوجد وكلاء في هذا الحساب. أنشئ واحدا من ',
@@ -1189,12 +1189,12 @@ export const ar = defineLocale({
       cloudSavedDesc:
         'استخدم بوابة محفوظة دون تغيير الافتراضي لديك. سجّل الدخول أدناه لإضافة مثيلات. أدر الأسماء وتسجيل الدخول من قائمة الاتصالات المحفوظة.',
       cloudSavedTitle: 'البوابات السحابية المحفوظة',
-      cloudSignIn: 'تسجيل الدخول إلى Hermes Cloud',
-      cloudSignInFailed: 'فشل تسجيل الدخول إلى Hermes Cloud',
-      cloudSignedIn: 'تم تسجيل الدخول إلى Hermes Cloud',
+      cloudSignIn: 'تسجيل الدخول إلى Sbar Rafiq Cloud',
+      cloudSignInFailed: 'فشل تسجيل الدخول إلى Sbar Rafiq Cloud',
+      cloudSignedIn: 'تم تسجيل الدخول إلى Sbar Rafiq Cloud',
       cloudSignedInDesc: 'أنت مسجل الدخول. اختر وكيلا أدناه؛ وتتجدد الجلسة تلقائيا.',
-      cloudSignedOutMessage: 'تم مسح جلسة Hermes Cloud.',
-      cloudSignedOutTitle: 'تم تسجيل الخروج من Hermes Cloud',
+      cloudSignedOutMessage: 'تم مسح جلسة Sbar Rafiq Cloud.',
+      cloudSignedOutTitle: 'تم تسجيل الخروج من Sbar Rafiq Cloud',
       cloudUseSaved: 'استخدام البوابة',
       modeTitle: 'نمط الاتصال',
       plainTextConfirmAction: 'الحفظ كنص عادي',
@@ -1241,8 +1241,8 @@ export const ar = defineLocale({
       sshUserDesc: 'فارغ = ~/.ssh/config أو مستخدمك الحالي.',
       sshUserPlaceholder: 'من ~/.ssh/config',
       sshUserTitle: 'المستخدم',
-      cloudTitle: 'سحابة Hermes',
-      cloudSignInTitle: 'سحابة Hermes'
+      cloudTitle: 'سحابة Sbar Rafiq',
+      cloudSignInTitle: 'سحابة Sbar Rafiq'
     },
     keys: {
       loading: 'جار تحميل مفاتيح API وبيانات الاعتماد...',
@@ -1299,7 +1299,7 @@ export const ar = defineLocale({
       saveServer: 'حفظ الخادم',
       deepLinkTitle: 'إضافة خادم MCP؟',
       deepLinkDescription:
-        'طلب رابط إضافة خادم MCP هذا إلى Hermes. راجع الإعدادات الكاملة أدناه، فهي قادمة من الرابط وليست من Hermes.',
+        'طلب رابط إضافة خادم MCP هذا إلى Sbar Rafiq. راجع الإعدادات الكاملة أدناه، فهي قادمة من الرابط وليست من Sbar Rafiq.',
       deepLinkStdioWarning:
         'سيشغّل هذا الخادم عملية محلية على جهازك بالأمر الموضح أدناه. لا تتابع إلا إذا كنت تثق بمصدره.',
       deepLinkConfirm: 'إضافة الخادم',
@@ -1422,7 +1422,7 @@ export const ar = defineLocale({
     providers: {
       connectAccount: 'ربط حساب',
       haveApiKey: 'لديك مفتاح API بدلاً من ذلك؟',
-      intro: 'سجل الدخول باشتراكك دون نسخ مفتاح API. يشغّل Hermes تسجيل الدخول من المتصفح لك داخل التطبيق.',
+      intro: 'سجل الدخول باشتراكك دون نسخ مفتاح API. يشغّل Sbar Rafiq تسجيل الدخول من المتصفح لك داخل التطبيق.',
       connected: 'متصل',
       collapse: 'طي',
       connectAnother: 'ربط مزود آخر',
@@ -1530,7 +1530,7 @@ export const ar = defineLocale({
         failedSave: 'تعذر حفظ إعداد الملف الشخصي الحقيقي',
         label: 'استخدام ملف متصفحي الحقيقي',
         prompt: {
-          body: 'دع Hermes يتصفح بلقطة من ملف متصفحك الافتراضي، لتفتح المواقع وأنت مسجل الدخول بالفعل.',
+          body: 'دع Sbar Rafiq يتصفح بلقطة من ملف متصفحك الافتراضي، لتفتح المواقع وأنت مسجل الدخول بالفعل.',
           bulletLiveProfile: 'لا يُفتح ملف متصفحك الحي بشكل مباشر أبدا.',
           bulletLocal: 'لا يغادر شيء هذا الحاسوب.',
           bulletSnapshot: 'تُنسخ ملفات تعريف الارتباط وتسجيلات الدخول إلى لقطة مُدارة.',
@@ -1585,7 +1585,7 @@ export const ar = defineLocale({
       addConnection: 'إضافة اتصال',
       cancel: 'إلغاء',
       cloudAddHint:
-        'تلميح: تسجيل الدخول في Hermes Cloud أعلاه يكتشف وكلاءك تلقائيا. استخدم هذا النموذج فقط لتسجيل رابط مثيل معروف يدويا.',
+        'تلميح: تسجيل الدخول في Sbar Rafiq Cloud أعلاه يكتشف وكلاءك تلقائيا. استخدم هذا النموذج فقط لتسجيل رابط مثيل معروف يدويا.',
       currentPill: 'الحالي',
       duplicateLocal: 'يدير هذا التطبيق اتصالا محليا بالفعل: لا يمكن أن يوجد سوى واحد.',
       editConnection: 'تحرير',
@@ -1595,15 +1595,15 @@ export const ar = defineLocale({
       headerValuePlaceholder: 'القيمة',
       headerValueSaved: 'محفوظة، اتركها فارغة للإبقاء عليها',
       headersDesc:
-        'تُرسل مع كل طلب HTTP وWebSocket إلى هذه البوابة، وهي مخصصة لوكلاء الوصول مثل Cloudflare Access (CF-Access-Client-Id / CF-Access-Client-Secret). تُخزَّن القيم مشفرة. أما الترويسات التي يديرها Hermes (Authorization، Cookie، Host…) فتُتجاهل.',
+        'تُرسل مع كل طلب HTTP وWebSocket إلى هذه البوابة، وهي مخصصة لوكلاء الوصول مثل Cloudflare Access (CF-Access-Client-Id / CF-Access-Client-Secret). تُخزَّن القيم مشفرة. أما الترويسات التي يديرها Sbar Rafiq (Authorization، Cookie، Host…) فتُتجاهل.',
       headersTitle: 'ترويسات إضافية للبوابة',
-      intro: 'أدر هذا الجهاز وكل بوابة Hermes يمكنه الوصول إليها عبر الاتصالات البعيدة أو SSH أو السحابية.',
-      kindCloudDesc: 'مثيل مستضاف مكتشف عبر حسابك في Hermes Cloud.',
+      intro: 'أدر هذا الجهاز وكل بوابة Sbar Rafiq يمكنه الوصول إليها عبر الاتصالات البعيدة أو SSH أو السحابية.',
+      kindCloudDesc: 'مثيل مستضاف مكتشف عبر حسابك في Sbar Rafiq Cloud.',
       kindLocal: 'محلي',
-      kindLocalDesc: 'وقت تشغيل Hermes الذي يديره هذا التطبيق.',
+      kindLocalDesc: 'وقت تشغيل Sbar Rafiq الذي يديره هذا التطبيق.',
       kindRemote: 'بوابة بعيدة',
-      kindRemoteDesc: 'بوابة Hermes يمكن الوصول إليها عبر HTTP(S): الشبكة المحلية أو Tailscale أو الإنترنت.',
-      kindSshDesc: 'تثبيت Hermes يجري الوصول إليه عبر SSH.',
+      kindRemoteDesc: 'بوابة Sbar Rafiq يمكن الوصول إليها عبر HTTP(S): الشبكة المحلية أو Tailscale أو الإنترنت.',
+      kindSshDesc: 'تثبيت Sbar Rafiq يجري الوصول إليه عبر SSH.',
       labelDesc: 'مطلوب. يظهر في كل مكان يظهر فيه هذا المثيل؛ ويجب أن يكون فريدا (مثل «Homelab» أو «Work laptop»).',
       labelTitle: 'الاسم',
       launchModeDesc: 'عند الإيقاف، تُفتح الجلسات على البوابة الأساسية.',
@@ -1632,10 +1632,10 @@ export const ar = defineLocale({
       updateAllDone: 'تم إرسال التحديثات',
       updateAllFailed: 'فشل توزيع التحديث',
       updateAllRunning: 'جار تحديث كل المثيلات…',
-      updateSkippedCloud: 'يديرها Hermes Cloud',
+      updateSkippedCloud: 'يديرها Sbar Rafiq Cloud',
       urlTitle: 'رابط البوابة',
       kindSsh: '‏SSH',
-      kindCloud: 'سحابة Hermes'
+      kindCloud: 'سحابة Sbar Rafiq'
     },
     localModels: {
       deleteConfirm: model => `حذف ${model} من القرص؟`,
@@ -1649,7 +1649,7 @@ export const ar = defineLocale({
       quickstartDoneToast: model => `تم إعداد ${model}، المحادثات الجديدة تعمل على هذا الجهاز.`,
       downloadProgress: (done, total) => `جارٍ تنزيل ${done} من ${total}`,
       runtimeInstalledDetail: (tag, backend) =>
-        `الإصدار ${tag}، خلفية ${backend}. يتولّى Hermes تشغيل الخادم وإدارته نيابة عنك.`,
+        `الإصدار ${tag}، خلفية ${backend}. يتولّى Sbar Rafiq تشغيل الخادم وإدارته نيابة عنك.`,
       pillFullContext: max => `سياق كامل بحجم ${max}`,
       quickstartDetailReady: model =>
         `نقرة واحدة تجعل ${model} نموذجك الافتراضي للمحادثات الجديدة. كل شيء يعمل على هذا الجهاز.`,
@@ -1657,7 +1657,7 @@ export const ar = defineLocale({
       runtimeReady: backend => `جاهز · ${backend}`,
       deleted: model => `تم حذف ${model}.`,
       downloadFailed: model => `فشل تنزيل ${model}`,
-      upToDateDetail: (tag, backend) => `يعمل llama.cpp ${tag} (${backend})، وهو أحدث إصدار يوفّره Hermes.`,
+      upToDateDetail: (tag, backend) => `يعمل llama.cpp ${tag} (${backend})، وهو أحدث إصدار يوفّره Sbar Rafiq.`,
       quickstartDetail: (model, size) =>
         `نقرة واحدة تهيّئ كل شيء: المحرك المحلي، و${model} (تنزيل بحجم ${size})، ونموذجك الافتراضي للمحادثات الجديدة. لا شيء يغادر هذا الحاسوب.`,
       ram: label => `ذاكرة ${label}`,
@@ -1919,7 +1919,7 @@ export const ar = defineLocale({
       halfDesktop: 'سطح المكتب',
       halfDesktopHint: 'هذا التطبيق، ونفسه لكل ملف شخصي',
       halfAgent: 'الوكيل',
-      defaultProfile: '‏Hermes (الافتراضي)',
+      defaultProfile: '‏Sbar Rafiq (الافتراضي)',
       kindAgent: 'الوكيل',
       kindDesktop: 'سطح المكتب',
       kindBoth: 'الوكيل وسطح المكتب',
@@ -1933,7 +1933,7 @@ export const ar = defineLocale({
       empty: 'لا توجد إضافات وكيل مثبتة لهذا الملف الشخصي.',
       emptyHint: 'تصفح الفهرس أدناه وثبّت إضافة مُراجَعة بنقرة واحدة.',
       loadFailed: 'تعذر تحميل إضافات الوكيل',
-      legacyBackend: 'هذه الخلفية أقدم من مفاتيح الإضافات المعنونة بالمفتاح، فحدّث Hermes لإدارتها هنا.',
+      legacyBackend: 'هذه الخلفية أقدم من مفاتيح الإضافات المعنونة بالمفتاح، فحدّث Sbar Rafiq لإدارتها هنا.',
       portableBadge: 'محمولة',
       catalogTitle: 'فهرس الإضافات',
       catalogBrowse: 'تصفح',
@@ -1947,7 +1947,7 @@ export const ar = defineLocale({
         `نصف سطح المكتب محمّل في هذا التطبيق، لكن نصف الوكيل غير مثبت في ${profile}. ثبّته هناك.`,
       toggleFailed: (name: string) => `تعذّر تبديل ${name}`,
       alreadyInstalled: (name: string) => `${name} مثبت بالفعل في هذا الملف الشخصي.`,
-      catalogProvenance: (sha: string) => `مثبت من فهرس Hermes${sha ? ` عند التثبيت ${sha}` : ''}.`,
+      catalogProvenance: (sha: string) => `مثبت من فهرس Sbar Rafiq${sha ? ` عند التثبيت ${sha}` : ''}.`,
       pinnedProvenance: (sha: string) => `مثبت على الالتزام ${sha}. تُرفض التحديثات حتى يُعاد تثبيته بتثبيت جديد.`,
       pinnedBadge: (sha: string) => `مثبت @ ${sha}`,
       updateToPin: (sha: string) => `حدّث إلى ${sha}`,
@@ -2018,7 +2018,7 @@ export const ar = defineLocale({
       placeholder: 'البحث في الحيوانات الأليفة...',
       loading: 'جار تحميل معرض petdex...',
       error: 'تعذّر الوصول إلى معرض petdex.',
-      staleBackend: 'أعد تشغيل Hermes لاستخدام الحيوانات الأليفة، الخادم الخلفي أقدم من هذه الميزة.',
+      staleBackend: 'أعد تشغيل Sbar Rafiq لاستخدام الحيوانات الأليفة، الخادم الخلفي أقدم من هذه الميزة.',
       empty: 'لا توجد حيوانات أليفة مطابقة.',
       turnOff: 'إيقاف التشغيل',
       turnOn: 'تشغيل',
@@ -2045,8 +2045,8 @@ export const ar = defineLocale({
       hatchComposing: 'جار تجميع الأجزاء...',
       hatchSaving: 'أوشكنا على الانتهاء...',
       namePlaceholder: 'سمِّ حيوانك الأليف',
-      staleBackend: 'حدّث Hermes لتوليد الحيوانات الأليفة.',
-      backgroundHint: 'يمكنك إغلاق هذا، سيُعلِمك Hermes عند الانتهاء.',
+      staleBackend: 'حدّث Sbar Rafiq لتوليد الحيوانات الأليفة.',
+      backgroundHint: 'يمكنك إغلاق هذا، سيُعلِمك Sbar Rafiq عند الانتهاء.',
       slowProviderHint: 'قد يستغرق هذا عدة دقائق',
       remix: 'إعادة مزج',
       remixConfirmTitle: 'إعادة مزج هذا المظهر؟',
@@ -2092,7 +2092,7 @@ export const ar = defineLocale({
       },
       settings: {
         title: 'الإعدادات',
-        detail: 'تكوين Hermes desktop'
+        detail: 'تكوين Sbar Rafiq desktop'
       },
       skills: {
         title: 'المهارات والأدوات',
@@ -2133,7 +2133,7 @@ export const ar = defineLocale({
     noSessions: 'لا توجد جلسات',
     gatewayRunning: 'البوابة تعمل',
     gatewayStopped: 'البوابة متوقفة',
-    hermesActiveSessions: (version, count) => `Hermes ${version} لديه ${count} جلسة نشطة`,
+    hermesActiveSessions: (version, count) => `Sbar Rafiq ${version} لديه ${count} جلسة نشطة`,
     restartGateway: 'إعادة تشغيل البوابة',
     openBrowser: 'فتح المتصفح',
     openDevice: 'فتح الجهاز',
@@ -2255,10 +2255,10 @@ export const ar = defineLocale({
     restartFailedManual: 'فشلت إعادة تشغيل البوابة، أعد تشغيلها يدويًا وتحقق من سجلات البوابة.',
     telegramQr: {
       title: 'اختر طريقة ربط بوت Telegram',
-      subtitle: 'كلا الخيارين يربط بوتًا تتحكم به ويحفظ بياناته في هذا التثبيت من Hermes فقط.',
+      subtitle: 'كلا الخيارين يربط بوتًا تتحكم به ويحفظ بياناته في هذا التثبيت من Sbar Rafiq فقط.',
       quickSetup: 'إعداد سريع',
       recommended: 'موصى به',
-      quickHelp: 'امسح رمز QR وأكّد في Telegram. سينشئ Hermes البوت ويكتشف معرّف مستخدم Telegram الخاص بك تلقائيًا.',
+      quickHelp: 'امسح رمز QR وأكّد في Telegram. سينشئ Sbar Rafiq البوت ويكتشف معرّف مستخدم Telegram الخاص بك تلقائيًا.',
       createWithQr: 'إنشاء عبر QR',
       starting: 'جارٍ البدء…',
       replaceWarning: 'بيانات Telegram مُعدّة بالفعل. سيحل إعداد QR الجديد أو رمز البوت محل البوت الحالي عند الحفظ.',
@@ -2469,7 +2469,7 @@ export const ar = defineLocale({
       menuItem: 'الاتصال بمضيف بعيد…',
       badge: (host: string) => `يعمل على ${host}`,
       title: (profile: string) => `ربط ${profile} بمضيف بعيد`,
-      description: 'ستعمل جلسات هذا الملف الشخصي على خادم Hermes البعيد الذي تحدده، بدلاً من هذا الجهاز.',
+      description: 'ستعمل جلسات هذا الملف الشخصي على خادم Sbar Rafiq البعيد الذي تحدده، بدلاً من هذا الجهاز.',
       urlLabel: 'العنوان البعيد',
       urlPlaceholder: 'https://hermes.example.com',
       urlInvalid: 'أدخل عنواناً كاملاً يبدأ بـ http:// أو https://',
@@ -2504,7 +2504,7 @@ export const ar = defineLocale({
     setAsDefault: 'تعيين كافتراضي',
     defaultProfile: 'الملف الشخصي الافتراضي',
     defaultSet: name => `أصبح ${name} الملف الافتراضي`,
-    defaultDescription: 'يُستخدم عند فتح Hermes وللمحادثات الجديدة. تبقى الجلسات الحالية في ملفاتها الشخصية.',
+    defaultDescription: 'يُستخدم عند فتح Sbar Rafiq وللمحادثات الجديدة. تبقى الجلسات الحالية في ملفاتها الشخصية.',
     failedSetDefault: 'تعذّر تعيين الملف الشخصي الافتراضي',
     setColor: color => `ضبط اللون ${color}`,
     autoColor: 'لون تلقائي',
@@ -2591,7 +2591,7 @@ export const ar = defineLocale({
         `${count} من المهام المجدولة غير المثبتة ستواصل العمل على النموذج الذي أُنشئت به. ثبّتها أو اضبط cron.model لنقلها.`,
       detailMore: (names, remaining) => `${names} و${remaining} أخرى`,
       review: 'مراجعة المهام المجدولة',
-      saveFailed: 'لم يحفظ Hermes تغيير النموذج هذا.',
+      saveFailed: 'لم يحفظ Sbar Rafiq تغيير النموذج هذا.',
       confirmTitle: 'تحذير اختيار النموذج',
       confirmDetail: 'أكّد فقط إذا كنت تقبل هذه المقايضة.',
       confirmAction: 'تأكيد',
@@ -2651,7 +2651,7 @@ export const ar = defineLocale({
     topOfHour: 'في بداية كل ساعة',
     everyHourAt: minute => `كل ساعة عند :${minute}`,
     newCron: 'مهمة مجدولة جديدة',
-    emptyDescNew: 'أنشئ مهمة مجدولة لتشغيل Hermes تلقائيا.',
+    emptyDescNew: 'أنشئ مهمة مجدولة لتشغيل Sbar Rafiq تلقائيا.',
     emptyDescSearch: 'لا توجد مهام تطابق البحث.',
     emptyTitleNew: 'لا توجد مهام مجدولة',
     emptyTitleSearch: 'لا توجد نتائج',
@@ -2688,11 +2688,11 @@ export const ar = defineLocale({
     editTitle: 'تحرير المهمة المجدولة',
     createTitle: 'إنشاء مهمة مجدولة',
     editDesc: 'عدل الجدول والرسالة.',
-    createDesc: 'اضبط مهمة يشغلها Hermes تلقائيا.',
+    createDesc: 'اضبط مهمة يشغلها Sbar Rafiq تلقائيا.',
     nameLabel: 'الاسم',
     namePlaceholder: 'مثال: الملخص الصباحي',
     promptLabel: 'الرسالة',
-    promptPlaceholder: 'ماذا تريد من Hermes أن يفعل؟',
+    promptPlaceholder: 'ماذا تريد من Sbar Rafiq أن يفعل؟',
     frequencyLabel: 'التكرار',
     deliverLabel: 'التسليم',
     customScheduleLabel: 'جدول مخصص',
@@ -2984,14 +2984,14 @@ export const ar = defineLocale({
       copyPath: 'نسخ المسار',
       removeFromSidebar: 'إخفاء من الشريط الجانبي',
       createFailed: 'تعذّر إنشاء المشروع',
-      deleteConfirm: 'هذا يزيل المشروع المحفوظ من Hermes. تبقى الملفات ومستودعات git وأشجار العمل دون تغيير.',
+      deleteConfirm: 'هذا يزيل المشروع المحفوظ من Sbar Rafiq. تبقى الملفات ومستودعات git وأشجار العمل دون تغيير.',
       startWork: 'شجرة عمل جديدة',
       newWorktreeTitle: 'شجرة عمل جديدة',
       newWorktreeDesc: 'سمِّ الفرع لشجرة العمل هذه.',
       branchPlaceholder: 'مثال: my-feature',
       startWorkFailed: 'تعذّر إنشاء شجرة العمل',
       worktreeStaleBackend:
-        'حدِّث خادم Hermes لإنشاء أشجار العمل عبر هذا الاتصال البعيد، فهو أقدم من واجهة git worktree.',
+        'حدِّث خادم Sbar Rafiq لإنشاء أشجار العمل عبر هذا الاتصال البعيد، فهو أقدم من واجهة git worktree.',
       worktreeProjectLabel: 'المشروع',
       worktreeProjectPlaceholder: 'ابحث في المشاريع…',
       worktreeProjectNone: 'لا توجد مشاريع بمجلد',
@@ -3025,7 +3025,7 @@ export const ar = defineLocale({
       moveNoProjects: 'لا توجد مشاريع أخرى',
       moveToProject: 'نقل إلى مشروع',
       staleBackend:
-        'حدِّث خلفية Hermes لإنشاء المشاريع، فالخلفية لديك أقدم من تطبيق سطح المكتب هذا (الإعدادات ← التحديثات ← الخلفية).'
+        'حدِّث خلفية Sbar Rafiq لإنشاء المشاريع، فالخلفية لديك أقدم من تطبيق سطح المكتب هذا (الإعدادات ← التحديثات ← الخلفية).'
     },
     newSessionIn: label => `جلسة جديدة في ${label}`,
     showMoreIn: (count, label) => `إظهار ${count} أخرى في ${label}`,
@@ -3100,10 +3100,10 @@ export const ar = defineLocale({
     wakeWordPausedVoice: phrase => `كلمة التنبيه: "${phrase}"، متوقفة مؤقتًا أثناء المحادثة الصوتية`,
     message: 'الرسالة',
     wakingProfile: profile => `جار إيقاظ ${profile}`,
-    placeholderStarting: 'جار بدء Hermes...',
+    placeholderStarting: 'جار بدء Sbar Rafiq...',
     placeholderReconnecting: 'جار إعادة الاتصال...',
     placeholderFollowUp: 'اكتب متابعة...',
-    newSessionPlaceholders: ['اسأل Hermes عن شيء...', 'اطلب من Hermes تنفيذ مهمة...', 'ابدأ محادثة جديدة...'],
+    newSessionPlaceholders: ['اسأل Sbar Rafiq عن شيء...', 'اطلب من Sbar Rafiq تنفيذ مهمة...', 'ابدأ محادثة جديدة...'],
     followUpPlaceholders: ['اكتب متابعة...', 'أضف توجيها...', 'اسأل سؤالا آخر...'],
     startVoice: 'بدء الصوت',
     openDirective: 'فتح',
@@ -3156,7 +3156,7 @@ export const ar = defineLocale({
     attachUrlTitle: 'إرفاق رابط',
     attachUrlDesc: 'أضف رابطا إلى الرسالة.',
     urlPlaceholder: 'https://example.com',
-    urlHintPre: 'سيقرأ Hermes الرابط ضمن السياق.',
+    urlHintPre: 'سيقرأ Sbar Rafiq الرابط ضمن السياق.',
     attach: 'إرفاق',
     queued: count => `${count} في الطابور`,
     attachmentOnly: 'إرفاق فقط',
@@ -3268,8 +3268,8 @@ export const ar = defineLocale({
     speakReplies: 'قراءة الردود بصوت عال',
     stopSpeakingReplies: 'إيقاف قراءة الردود بصوت عال',
     voiceEngine: 'محرك المحادثة الصوتية',
-    voiceEngineChained: 'تحويل الكلام إلى نص مع صوت Hermes',
-    voiceEngineLive: '‏GPT-Live (كامل الازدواج، يفوّض إلى Hermes)',
+    voiceEngineChained: 'تحويل الكلام إلى نص مع صوت Sbar Rafiq',
+    voiceEngineLive: '‏GPT-Live (كامل الازدواج، يفوّض إلى Sbar Rafiq)',
     voiceEngineLiveNeedsKey: 'يحتاج مفتاح OpenAI',
     voiceEngineChangeFailed: 'تعذر تغيير محرك المحادثة الصوتية',
     voiceEngineChainedShort: 'الكلام إلى نص',
@@ -3414,7 +3414,7 @@ export const ar = defineLocale({
       createPr: 'إنشاء PR',
       openPr: 'فتح PR',
       ghMissing: 'ثبّت GitHub CLI (gh) وسجّل الدخول لفتح طلبات السحب',
-      agentShip: 'اطلب من Hermes فتح PR',
+      agentShip: 'اطلب من Sbar Rafiq فتح PR',
       agentShipUnavailable: 'المحادثة التي تملك هذه التغييرات ليست على الشاشة.',
       agentShipPrompt: 'راجع التغييرات الحالية، وأودعها برسالة إيداع تقليدية واضحة، وادفع الفرع، وافتح طلب سحب.',
       newBranch: 'فرع جديد',
@@ -3431,9 +3431,9 @@ export const ar = defineLocale({
       fetch: 'جار التنزيل...',
       pull: 'أوشكنا على الانتهاء...',
       pydeps: 'جار الإنهاء...',
-      update: 'جار تحديث Hermes...',
+      update: 'جار تحديث Sbar Rafiq...',
       rebuild: 'جار إعادة بناء تطبيق سطح المكتب...',
-      restart: 'جار إعادة تشغيل Hermes...',
+      restart: 'جار إعادة تشغيل Sbar Rafiq...',
       done: 'اكتمل التحديث',
       manual: 'التحديث من الطرفية',
       guiSkew: 'تحديث تطبيق سطح المكتب',
@@ -3443,42 +3443,42 @@ export const ar = defineLocale({
     checkFailedTitle: 'تعذّر التحقق من التحديثات',
     tryAgain: 'إعادة المحاولة',
     notAvailableTitle: 'التحديث غير متاح',
-    unsupportedMessage: 'لا يمكن لهذا الإصدار من Hermes تحديث نفسه من داخل التطبيق.',
+    unsupportedMessage: 'لا يمكن لهذا الإصدار من Sbar Rafiq تحديث نفسه من داخل التطبيق.',
     connectionRetry: 'تحقق من اتصالك وأعد المحاولة.',
     latestBody: 'أنت تستخدم أحدث إصدار.',
     latestBodyBackend: 'الواجهة الخلفية تعمل بأحدث إصدار.',
     allSetTitle: 'كل شيء جاهز',
     availableTitle: 'يتوفر تحديث جديد',
-    availableBody: 'إصدار جديد من Hermes جاهز للتثبيت.',
+    availableBody: 'إصدار جديد من Sbar Rafiq جاهز للتثبيت.',
     availableTitleBackend: 'يتوفر تحديث للواجهة الخلفية',
-    availableBodyBackend: 'إصدار أحدث من واجهة Hermes الخلفية المتصلة جاهز للتثبيت.',
+    availableBodyBackend: 'إصدار أحدث من واجهة Sbar Rafiq الخلفية المتصلة جاهز للتثبيت.',
     availableBodyNoChangelog: 'إصدار أحدث جاهز. ملاحظات الإصدار غير متاحة لنوع التثبيت هذا.',
     updateNow: 'التحديث الآن',
     maybeLater: 'ربما لاحقا',
     moreChanges: count => `+ ${count} تغيير${count === 1 ? '' : 'ات'} إضافي مُضمَّن.`,
     manualTitle: 'التحديث من الطرفية',
-    manualBody: 'لقد ثبّتت Hermes من سطر الأوامر، لذا تُجرى التحديثات من هناك أيضا. الصق هذا في طرفيتك:',
-    manualPickedUp: 'سيلتقط Hermes الإصدار الجديد في المرة التالية التي تشغّله فيها.',
+    manualBody: 'لقد ثبّتت Sbar Rafiq من سطر الأوامر، لذا تُجرى التحديثات من هناك أيضا. الصق هذا في طرفيتك:',
+    manualPickedUp: 'سيلتقط Sbar Rafiq الإصدار الجديد في المرة التالية التي تشغّله فيها.',
     guiSkewTitle: 'تحديث تطبيق سطح المكتب',
     guiSkewBody:
-      'تم تحديث الواجهة الخلفية، لكن حزمة تطبيق سطح المكتب هذه لم تتغير. حدّث أو أعد تثبيت تطبيق Hermes لسطح المكتب (ملف AppImage / ‎.deb / ‎.rpm) لمطابقته.',
+      'تم تحديث الواجهة الخلفية، لكن حزمة تطبيق سطح المكتب هذه لم تتغير. حدّث أو أعد تثبيت تطبيق Sbar Rafiq لسطح المكتب (ملف AppImage / ‎.deb / ‎.rpm) لمطابقته.',
     copy: 'نسخ',
     copied: 'تم النسخ',
     done: 'تم',
     applyingBody:
-      'يتولّى مُحدِّث Hermes المهمة في نافذته الخاصة ويعيد فتح Hermes تلقائيا عند الانتهاء. الرجاء عدم إعادة فتح Hermes بنفسك أثناء التحديث.',
+      'يتولّى مُحدِّث Sbar Rafiq المهمة في نافذته الخاصة ويعيد فتح Sbar Rafiq تلقائيا عند الانتهاء. الرجاء عدم إعادة فتح Sbar Rafiq بنفسك أثناء التحديث.',
     applyingBodyBackend:
-      'تطبّق الواجهة الخلفية البعيدة التحديث وستعيد التشغيل. يعيد Hermes الاتصال تلقائيا عند عودتها.',
-    applyingClose: 'ستُغلق هذه النافذة أثناء تشغيل التحديث، ثم يعيد Hermes فتح نفسه تلقائيا.',
+      'تطبّق الواجهة الخلفية البعيدة التحديث وستعيد التشغيل. يعيد Sbar Rafiq الاتصال تلقائيا عند عودتها.',
+    applyingClose: 'ستُغلق هذه النافذة أثناء تشغيل التحديث، ثم يعيد Sbar Rafiq فتح نفسه تلقائيا.',
     errorTitle: 'لم يكتمل التحديث',
     errorBody: 'لا داعي للقلق، لم يُفقد شيء. يمكنك إعادة المحاولة الآن.',
-    blockerTitle: 'إغلاق المعاينات المحلية لتحديث Hermes؟',
-    blockerBody: 'يحتاج Hermes إلى إيقاف هذه المعاينات المحلية قبل التحديث. لن يؤدي ذلك إلى تعديل ملفاتك أو حذفها.',
-    foreignBlockerTitle: 'أغلق العمليات الأخرى لتحديث Hermes',
+    blockerTitle: 'إغلاق المعاينات المحلية لتحديث Sbar Rafiq؟',
+    blockerBody: 'يحتاج Sbar Rafiq إلى إيقاف هذه المعاينات المحلية قبل التحديث. لن يؤدي ذلك إلى تعديل ملفاتك أو حذفها.',
+    foreignBlockerTitle: 'أغلق العمليات الأخرى لتحديث Sbar Rafiq',
     foreignBlockerBody:
-      'لا يمكن لـ Hermes إغلاق هذه العمليات تلقائيًا بأمان. أغلق التطبيق أو الطرفية أو الخدمة التي تشغّل كل عملية، ثم حاول التحديث مرة أخرى.',
+      'لا يمكن لـ Sbar Rafiq إغلاق هذه العمليات تلقائيًا بأمان. أغلق التطبيق أو الطرفية أو الخدمة التي تشغّل كل عملية، ثم حاول التحديث مرة أخرى.',
     mixedBlockerBody:
-      'يمكن لـ Hermes إغلاق المعاينات المحلية المدرجة أدناه. يجب إغلاق العمليات الأخرى يدويًا قبل متابعة التحديث.',
+      'يمكن لـ Sbar Rafiq إغلاق المعاينات المحلية المدرجة أدناه. يجب إغلاق العمليات الأخرى يدويًا قبل متابعة التحديث.',
     closePreviewsAndUpdate: 'إغلاق المعاينات والتحديث',
     closePreviewsAndCheckAgain: 'إغلاق المعاينات والتحقق مجددًا',
     localPreview: 'معاينة محلية',
@@ -3504,7 +3504,7 @@ export const ar = defineLocale({
     }
   },
   guidedGreeting: {
-    line: 'أهلا، تفضل بالدخول. أنا Hermes. امنحني دقيقتين لأرتب المكان حولك، ثم نبدأ بشيء تريد إنجازه فعلا.\n\nبداية، بماذا أناديك؟',
+    line: 'أهلا، تفضل بالدخول. أنا Sbar Rafiq. امنحني دقيقتين لأرتب المكان حولك، ثم نبدأ بشيء تريد إنجازه فعلا.\n\nبداية، بماذا أناديك؟',
     nameSuggestion: (name: string) => `(يمكنني أن أناديك ${name} إن كنت تفضل ذلك.)`
   },
   install: {
@@ -3518,7 +3518,7 @@ export const ar = defineLocale({
       skipped: 'تم التخطي',
       failed: 'فشل'
     },
-    oneTimeTitle: 'يحتاج Hermes إلى تثبيت لمرة واحدة',
+    oneTimeTitle: 'يحتاج Sbar Rafiq إلى تثبيت لمرة واحدة',
     unsupportedDesc: platform =>
       `التثبيت التلقائي عند أول تشغيل غير متاح على ${platform} بعد. افتح الطرفية وشغّل الأمر أدناه، ثم أعد تشغيل هذا التطبيق. ستتخطى عمليات التشغيل اللاحقة هذه الخطوة.`,
     installCommand: 'أمر التثبيت',
@@ -3527,12 +3527,12 @@ export const ar = defineLocale({
     installTo: 'سيتم التثبيت في',
     retryAfterRun: 'لقد شغّلته -- إعادة المحاولة',
     failedTitle: 'فشل التثبيت',
-    settingUpTitle: 'جار إعداد وكيل Hermes',
+    settingUpTitle: 'جار إعداد وكيل Sbar Rafiq',
     finishingTitle: 'جار الإنهاء',
     failedDesc:
-      'فشلت إحدى خطوات التثبيت. على Windows، قد يحدث هذا إذا كان هناك نسخة أخرى من Hermes CLI أو تطبيق سطح المكتب قيد التشغيل. أوقف أي نسخ Hermes قيد التشغيل، ثم أعد المحاولة. تحقق من التفاصيل أدناه أو من سجل سطح المكتب للحصول على النص الكامل.',
+      'فشلت إحدى خطوات التثبيت. على Windows، قد يحدث هذا إذا كان هناك نسخة أخرى من Sbar Rafiq CLI أو تطبيق سطح المكتب قيد التشغيل. أوقف أي نسخ Sbar Rafiq قيد التشغيل، ثم أعد المحاولة. تحقق من التفاصيل أدناه أو من سجل سطح المكتب للحصول على النص الكامل.',
     activeDesc:
-      'هذا إعداد لمرة واحدة. يقوم مثبّت Hermes بتنزيل التبعيات وتهيئة جهازك. ستتخطى عمليات التشغيل اللاحقة هذه الخطوة.',
+      'هذا إعداد لمرة واحدة. يقوم مثبّت Sbar Rafiq بتنزيل التبعيات وتهيئة جهازك. ستتخطى عمليات التشغيل اللاحقة هذه الخطوة.',
     progress: (completed, total) => `اكتملت ${completed} من ${total} خطوة`,
     currentStage: stage => ` -- الآن: ${stage}`,
     fetchingManifest: 'جار جلب بيان المثبّت...',
@@ -3553,24 +3553,24 @@ export const ar = defineLocale({
     backToSetup: 'رجوع',
     connectExistingDesc: 'استخدم خلفية بعيدة عبر رمز جلسة أو تسجيل دخول من المتصفح. لن يبدأ أي تثبيت محلي.',
     connectExistingShort: 'الاتصال بالموجود',
-    connectExistingTitle: 'الاتصال بنسخة Hermes موجودة',
+    connectExistingTitle: 'الاتصال بنسخة Sbar Rafiq موجودة',
     connected: 'متصل',
     enterUrlFirst: 'أدخل رابط البوابة أولا.',
     identityProvider: 'مزود الهوية لديك',
     incompleteSignInTest: 'سجل الدخول قبل اختبار هذه البوابة المحمية بـ OAuth.',
     incompleteTokenTest: 'أدخل رمز جلسة قبل اختبار هذه البوابة.',
-    installLocalDesc: 'نزّل Hermes، وأنشئ بيئة Python الخاصة به، وشغّل الخلفية على هذا الكمبيوتر.',
-    installLocalTitle: 'تثبيت Hermes محليا',
-    localStartUnavailable: 'تعذر بدء التثبيت المحلي. أعد تشغيل Hermes Desktop وحاول مرة أخرى.',
+    installLocalDesc: 'نزّل Sbar Rafiq، وأنشئ بيئة Python الخاصة به، وشغّل الخلفية على هذا الكمبيوتر.',
+    installLocalTitle: 'تثبيت Sbar Rafiq محليا',
+    localStartUnavailable: 'تعذر بدء التثبيت المحلي. أعد تشغيل Sbar Rafiq Desktop وحاول مرة أخرى.',
     pasteSessionToken: 'ألصق رمز الجلسة',
-    probeError: 'تعذر الوصول إلى بوابة Hermes تلك.',
+    probeError: 'تعذر الوصول إلى بوابة Sbar Rafiq تلك.',
     probing: 'جار اكتشاف مصادقة البوابة...',
-    remoteSetupDesc: 'أدخل رابط البوابة. سيكتشف Hermes Desktop ما إذا كانت تحتاج رمزا أو تسجيل دخول من المتصفح.',
-    remoteSetupTitle: 'الاتصال بنسخة Hermes موجودة',
-    remoteUrlDesc: 'استخدم الرابط الأساسي لبوابة Hermes، مع https:// عندما تكون بعيدة.',
+    remoteSetupDesc: 'أدخل رابط البوابة. سيكتشف Sbar Rafiq Desktop ما إذا كانت تحتاج رمزا أو تسجيل دخول من المتصفح.',
+    remoteSetupTitle: 'الاتصال بنسخة Sbar Rafiq موجودة',
+    remoteUrlDesc: 'استخدم الرابط الأساسي لبوابة Sbar Rafiq، مع https:// عندما تكون بعيدة.',
     remoteUrlTitle: 'رابط البوابة',
-    setupChoiceDesc: 'اربط هذا التطبيق ببوابة Hermes تشغّلها بالفعل، أو ثبّت Hermes محليا على هذا الكمبيوتر.',
-    setupChoiceTitle: 'إعداد Hermes Desktop',
+    setupChoiceDesc: 'اربط هذا التطبيق ببوابة Sbar Rafiq تشغّلها بالفعل، أو ثبّت Sbar Rafiq محليا على هذا الكمبيوتر.',
+    setupChoiceTitle: 'إعداد Sbar Rafiq Desktop',
     signIn: 'تسجيل الدخول',
     signInIncomplete: 'أغلقت نافذة تسجيل الدخول قبل اكتمال المصادقة.',
     testConnection: 'اختبار الاتصال',
@@ -3578,10 +3578,10 @@ export const ar = defineLocale({
     tokenTitle: 'رمز الجلسة'
   },
   onboarding: {
-    headerTitle: 'لنُعِدّ لك Hermes Agent',
+    headerTitle: 'لنُعِدّ لك Sbar Rafiq Agent',
     headerDesc: 'اربط مزوّد نماذج لبدء المحادثة. معظم الخيارات تتطلب نقرة واحدة.',
-    preparingInstall: 'يُكمل Hermes التثبيت. عادة ما يستغرق ذلك أقل من دقيقة في أول تشغيل.',
-    starting: 'جار بدء Hermes...',
+    preparingInstall: 'يُكمل Sbar Rafiq التثبيت. عادة ما يستغرق ذلك أقل من دقيقة في أول تشغيل.',
+    starting: 'جار بدء Sbar Rafiq...',
     lookingUpProviders: 'جار البحث عن المزوّدين...',
     collapse: 'طي',
     otherProviders: 'مزودون آخرون',
@@ -3589,7 +3589,7 @@ export const ar = defineLocale({
     chooseLater: 'سأختار مزوّدا لاحقا',
     recommended: 'موصى به',
     connected: 'متصل',
-    featuredPitch: 'اشتراك واحد، أكثر من 300 نموذج متقدم، الطريقة الموصى بها لتشغيل Hermes',
+    featuredPitch: 'اشتراك واحد، أكثر من 300 نموذج متقدم، الطريقة الموصى بها لتشغيل Sbar Rafiq',
     fireworksPitch: 'نماذج مفتوحة سريعة مع استضافة Fireworks.',
     openRouterPitch: 'مفتاح واحد لمئات النماذج، خيار افتراضي جيد',
     apiKeyOptions: {
@@ -3612,7 +3612,7 @@ export const ar = defineLocale({
       local: {
         short: 'مستضاف ذاتيا',
         description:
-          'وجّه Hermes إلى نقطة نهاية محلية أو مستضافة ذاتيا متوافقة مع OpenAI (vLLM، llama.cpp، Ollama، إلخ).'
+          'وجّه Sbar Rafiq إلى نقطة نهاية محلية أو مستضافة ذاتيا متوافقة مع OpenAI (vLLM، llama.cpp، Ollama، إلخ).'
       },
       fireworks: {
         description: 'وصول مباشر إلى النماذج المستضافة لدى Fireworks AI.',
@@ -3629,8 +3629,8 @@ export const ar = defineLocale({
     update: 'تحديث',
     flowSubtitles: {
       pkce: 'يفتح المتصفح لتسجيل الدخول ثم يتابع هنا',
-      device_code: 'يفتح صفحة تحقق في المتصفح، يتصل Hermes تلقائياً',
-      loopback: 'يفتح المتصفح لتسجيل الدخول، يتصل Hermes تلقائياً',
+      device_code: 'يفتح صفحة تحقق في المتصفح، يتصل Sbar Rafiq تلقائياً',
+      loopback: 'يفتح المتصفح لتسجيل الدخول، يتصل Sbar Rafiq تلقائياً',
       external: 'سجل الدخول مرة واحدة في الطرفية ثم عد إلى المحادثة'
     },
     startingSignIn: provider => `جار بدء تسجيل الدخول لـ ${provider}...`,
@@ -3643,11 +3643,11 @@ export const ar = defineLocale({
     pickDifferentProvider: 'اختر مزوداً آخر',
     signInWith: provider => `تسجيل الدخول عبر ${provider}`,
     openedBrowser: provider => `فتحنا ${provider} في المتصفح.`,
-    authorizeThere: 'صرّح لـ Hermes هناك.',
+    authorizeThere: 'صرّح لـ Sbar Rafiq هناك.',
     copyAuthCode: 'انسخ رمز التفويض وألصقه أدناه.',
     pasteAuthCode: 'ألصق رمز التفويض',
     reopenAuthPage: 'إعادة فتح صفحة التفويض',
-    autoBrowser: provider => `فتحنا ${provider} في المتصفح. صرّح لـ Hermes هناك وسيتم الاتصال تلقائياً دون نسخ أو لصق.`,
+    autoBrowser: provider => `فتحنا ${provider} في المتصفح. صرّح لـ Sbar Rafiq هناك وسيتم الاتصال تلقائياً دون نسخ أو لصق.`,
     reopenSignInPage: 'إعادة فتح صفحة تسجيل الدخول',
     waitingAuthorize: 'بانتظار التفويض...',
     externalPending: provider =>
@@ -3736,7 +3736,7 @@ export const ar = defineLocale({
       messagingPlatforms: 'منصات المراسلة'
     },
     statusbar: {
-      connectionCloudTooltip: host => `Hermes Cloud · ${host}`,
+      connectionCloudTooltip: host => `Sbar Rafiq Cloud · ${host}`,
       connectionCloud: host => `السحابة: ${host}`,
       connectionRemoteTooltip: host => `عن بُعد · ${host}`,
       connectionRemote: host => `عن بُعد: ${host}`,
@@ -3962,7 +3962,7 @@ export const ar = defineLocale({
     binaryTitle: 'يبدو هذا ملفا ثنائيا',
     binaryBody: label => `قد تعرض معاينة ${label} نصا غير قابل للقراءة.`,
     largeTitle: 'هذا الملف كبير',
-    largeBody: (label, size) => `حجم ${label} هو ${size}. سيعرض Hermes أول 512 KB فقط.`,
+    largeBody: (label, size) => `حجم ${label} هو ${size}. سيعرض Sbar Rafiq أول 512 KB فقط.`,
     previewAnyway: 'معاينة على أي حال',
     truncated: 'عرض أول 512 KB.',
     noInlineTitle: 'لا توجد معاينة مضمّنة',
@@ -4002,11 +4002,11 @@ export const ar = defineLocale({
         'يشير هذا العنوان إلى الجهاز الذي يشغّل الوكيل، وليس هذا الجهاز. تحمّل لوحة المتصفح الصفحات محليًا، لذا يحتاج خادم التطوير البعيد إلى إعادة توجيه منفذ أو اسم مضيف يمكن الوصول إليه.',
       failedToLoad: 'فشل تحميل المعاينة',
       tryAgain: 'إعادة المحاولة',
-      restarting: 'جار إعادة تشغيل Hermes...',
-      askRestart: 'اطلب من Hermes إعادة تشغيل الخادم',
-      lookingRestart: taskId => `يبحث Hermes عن خادم معاينة لإعادة تشغيله (${taskId})`,
+      restarting: 'جار إعادة تشغيل Sbar Rafiq...',
+      askRestart: 'اطلب من Sbar Rafiq إعادة تشغيل الخادم',
+      lookingRestart: taskId => `يبحث Sbar Rafiq عن خادم معاينة لإعادة تشغيله (${taskId})`,
       restartingTitle: 'جار إعادة تشغيل خادم المعاينة',
-      restartingMessage: 'يعمل Hermes في الخلفية. راقب كونسول المعاينة لمتابعة التقدم.',
+      restartingMessage: 'يعمل Sbar Rafiq في الخلفية. راقب كونسول المعاينة لمتابعة التقدم.',
       startRestartFailed: message => `تعذّر بدء إعادة تشغيل الخادم: ${message}`,
       restartFailed: 'فشلت إعادة تشغيل الخادم',
       hideConsole: 'إخفاء كونسول المعاينة',
@@ -4022,16 +4022,16 @@ export const ar = defineLocale({
 
       address: 'العنوان',
       addressPlaceholder: 'أدخل العنوان',
-      blankPageBody: 'اكتب عنوانًا في الأعلى للتصفح، أو اطلب من Hermes فتح صفحة.',
-      finishedRestarting: message => `أنهى Hermes إعادة تشغيل خادم المعاينة${message ? `: ${message}` : ''}`,
+      blankPageBody: 'اكتب عنوانًا في الأعلى للتصفح، أو اطلب من Sbar Rafiq فتح صفحة.',
+      finishedRestarting: message => `أنهى Sbar Rafiq إعادة تشغيل خادم المعاينة${message ? `: ${message}` : ''}`,
       failedRestarting: message => `فشلت إعادة تشغيل الخادم: ${message}`,
       unknownError: 'خطأ غير معروف',
       restartedTitle: 'تمت إعادة تشغيل خادم المعاينة',
       reloadingNow: 'جار إعادة تحميل المعاينة الآن.',
       restartFailedTitle: 'فشلت إعادة تشغيل المعاينة',
-      restartFailedMessage: 'تعذّر على Hermes إعادة تشغيل الخادم.',
+      restartFailedMessage: 'تعذّر على Sbar Rafiq إعادة تشغيل الخادم.',
       stillWorking:
-        'لا يزال Hermes يعمل، لكن لم تصل نتيجة إعادة التشغيل بعد. قد يكون أمر الخادم قيد التشغيل في المقدمة.',
+        'لا يزال Sbar Rafiq يعمل، لكن لم تصل نتيجة إعادة التشغيل بعد. قد يكون أمر الخادم قيد التشغيل في المقدمة.',
       workspaceReloading: 'تغيّرت مساحة العمل، جار إعادة تحميل المعاينة',
       fileChanged: url => `تغيّر الملف، جار إعادة تحميل المعاينة: ${url}`,
       filesChanged: (count, url) => `${count} تغييرات ملفات، جار إعادة تحميل المعاينة: ${url}`,
@@ -4242,7 +4242,7 @@ export const ar = defineLocale({
     },
     approval: {
       timedOutSystemLine:
-        'انتهت مهلة الموافقة، فلم يُنفَّذ الأمر. اطلب من Hermes المحاولة مجددا، أو ارفع الحد من الإعدادات ← الأمان ← مهلة الموافقة.',
+        'انتهت مهلة الموافقة، فلم يُنفَّذ الأمر. اطلب من Sbar Rafiq المحاولة مجددا، أو ارفع الحد من الإعدادات ← الأمان ← مهلة الموافقة.',
       gatewayDisconnected: 'البوابة غير متصلة',
       sendFailed: 'فشل الإرسال',
       run: 'تشغيل',
@@ -4493,7 +4493,7 @@ export const ar = defineLocale({
       authorizeAction: 'تفويض',
       enableAction: 'تفعيل',
       envRequired: 'أدخل بيانات الاعتماد المطلوبة أولا',
-      gatewayDisconnected: 'بوابة Hermes غير متصلة',
+      gatewayDisconnected: 'بوابة Sbar Rafiq غير متصلة',
       installAction: 'تثبيت',
       reloadFailed: 'تم حفظ الخادم، لكن فشلت إعادة تحميل أدوات MCP: ستُحمّل في الجلسة القادمة',
       sendFailed: 'تعذر إرسال رد إعداد MCP'
@@ -4520,7 +4520,7 @@ export const ar = defineLocale({
     vaultSaveSendFailed: 'تعذر حفظ بيانات الدخول',
     vaultSaveTitle: site => `حفظ بيانات الدخول إلى ${site}؟`,
     vaultSaveDesc: origin =>
-      `وصل Hermes إلى صفحة تسجيل الدخول في ${origin} ولا توجد بيانات دخول محفوظة لها. أدخلها هنا مرة واحدة؛ تُشفَّر على هذا الجهاز وتُملأ في الصفحة مباشرة، ولا يرى النموذج كلمة المرور أبدًا.`,
+      `وصل Sbar Rafiq إلى صفحة تسجيل الدخول في ${origin} ولا توجد بيانات دخول محفوظة لها. أدخلها هنا مرة واحدة؛ تُشفَّر على هذا الجهاز وتُملأ في الصفحة مباشرة، ولا يرى النموذج كلمة المرور أبدًا.`,
     vaultSaveIdentifierLabel: 'البريد الإلكتروني أو اسم المستخدم',
     vaultSaveIdentifierPlaceholder: 'you@example.com',
     vaultSavePasswordPlaceholder: 'كلمة المرور',
@@ -4530,10 +4530,10 @@ export const ar = defineLocale({
     vaultCodeSendFailed: 'تعذر إرسال الرمز',
     vaultCodeTitle: site => `رمز التحقق لـ ${site}`,
     vaultCodeDesc: site =>
-      `يطلب ${site} رمزًا لمرة واحدة (رسالة نصية أو بريد إلكتروني أو تطبيق مصادقة). أدخله هنا وسيكتبه Hermes في الصفحة؛ لا يراه النموذج أبدًا.`,
+      `يطلب ${site} رمزًا لمرة واحدة (رسالة نصية أو بريد إلكتروني أو تطبيق مصادقة). أدخله هنا وسيكتبه Sbar Rafiq في الصفحة؛ لا يراه النموذج أبدًا.`,
     vaultCodeLabel: 'الرمز',
     vaultCodeFootnote:
-      'تلميح: احفظ مفتاح المصادقة مع بيانات الدخول هذه في الإعدادات ← كلمات المرور وتسجيلات الدخول وسيُدخل Hermes الرموز نيابةً عنك.',
+      'تلميح: احفظ مفتاح المصادقة مع بيانات الدخول هذه في الإعدادات ← كلمات المرور وتسجيلات الدخول وسيُدخل Sbar Rafiq الرموز نيابةً عنك.',
     vaultCodeSkip: 'تخطٍ',
     vaultCodeConfirm: 'إدخال الرمز'
   },
@@ -4640,14 +4640,14 @@ export const ar = defineLocale({
       },
       skills: {
         title: 'علّمه مرة واحدة',
-        text: 'المهارات مجلدات من التعليمات يحمّلها Hermes عندما يقتضي العمل ذلك.'
+        text: 'المهارات مجلدات من التعليمات يحمّلها Sbar Rafiq عندما يقتضي العمل ذلك.'
       },
       messaging: {
-        title: 'Hermes بعيدًا عن مكتبك',
+        title: 'Sbar Rafiq بعيدًا عن مكتبك',
         text: 'اربطه بـ Telegram وDiscord وSlack وغيرها، الوكيل نفسه والذاكرة نفسها.'
       },
       artifacts: {
-        title: 'كل ما صنعه Hermes',
+        title: 'كل ما صنعه Sbar Rafiq',
         text: 'الصور والملفات والروابط من كل الجلسات، مفهرسة في مكان واحد.'
       },
       cron: {
@@ -4660,7 +4660,7 @@ export const ar = defineLocale({
       },
       profiles: {
         title: 'الملفات الشخصية منفصلة',
-        text: 'كل واحد منها Hermes مستقل، مفاتيحه وذاكرته وجلساته الخاصة.'
+        text: 'كل واحد منها Sbar Rafiq مستقل، مفاتيحه وذاكرته وجلساته الخاصة.'
       },
       'composer-mentions': {
         title: 'المرفقات والأوامر',
@@ -4717,7 +4717,7 @@ export const ar = defineLocale({
     close: 'إغلاق خريطة الذاكرة',
     copied: 'تم النسخ!',
     copy: 'نسخ رمز الخريطة',
-    emptyDesc: 'مع بناء Hermes مهارات وذاكرة لعملك، ستظهر هنا.',
+    emptyDesc: 'مع بناء Sbar Rafiq مهارات وذاكرة لعملك، ستظهر هنا.',
     emptyTitle: 'لم يُكتسب شيء بعد',
     filterAll: 'الكل',
     filterLearned: 'مكتسبة',
@@ -4827,7 +4827,7 @@ export const ar = defineLocale({
     ownerMissing: 'أعد فتح هذه المحادثة لإدارة اتصالاتها.',
     search: 'ابحث عن تطبيق',
     empty: 'لا توجد تطبيقات مطابقة',
-    disclaimer: 'الربط اختياري. فوّض فقط التطبيقات التي تريد أن يستخدمها Hermes.',
+    disclaimer: 'الربط اختياري. فوّض فقط التطبيقات التي تريد أن يستخدمها Sbar Rafiq.',
     execution: 'أدوات الموصّلات',
     startWith: count => `ابدأ المهمة و${count} ${count === 1 ? 'تطبيق متصل' : 'تطبيقات متصلة'}`
   },
@@ -4838,12 +4838,12 @@ export const ar = defineLocale({
     sessionsTitle: 'لكل ملف شخصي جلساته',
     sessionsText:
       'هذه القائمة تخص الملف الشخصي الافتراضي. «جلسة جديدة» تبدأ واحدة على الملف المحدد. بدّل الملف من الشريط وتتبدل القائمة معه.',
-    stayTitle: '‏Hermes على بعد نقرة',
-    stayText: 'بدّل إلى ملف الإعداد وافتح «مرحبًا بك في Hermes» متى أردت مساعدة. سيبقى هناك.'
+    stayTitle: '‏Sbar Rafiq على بعد نقرة',
+    stayText: 'بدّل إلى ملف الإعداد وافتح «مرحبًا بك في Sbar Rafiq» متى أردت مساعدة. سيبقى هناك.'
   },
   freeTier: {
     providerRowPitch: 'سجّل الدخول بحساب Nous لفتح المزيد من النماذج والأدوات.',
-    readyTitle: '‏Hermes جاهز.',
+    readyTitle: '‏Sbar Rafiq جاهز.',
     begin: 'ابدأ',
     signInInstead: 'سجّل الدخول بحساب Nous بدلًا من ذلك',
     otherProviders: 'مزودون آخرون',

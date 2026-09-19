@@ -100,7 +100,7 @@ export const MAX_STREAM_FLUSH_GAP_MS = 250
 // Flush floor while the window is NOT focused. While any turn is in flight the
 // main process unthrottles chat windows, which pins `document.visibilityState`
 // to `visible` even for a window parked on another workspace or behind
-// everything else, so a hidden Hermes with several streaming sessions kept
+// everything else, so a hidden Sbar Rafiq with several streaming sessions kept
 // re-rendering markdown 30 times a second for nobody. Focus is the one honest
 // signal left: unfocused text grows at 10 updates a second (still fluid on a
 // second monitor, one third of the commits), and the focus handler flushes

@@ -175,7 +175,7 @@ export interface ErrorRecoveryPlan {
   startNewSession: boolean
   /** Open the preceding user message in the edit composer (safety refusal). */
   editMessage: boolean
-  /** Reveal the Hermes data folder so the user can free space (disk_full). */
+  /** Reveal the Sbar Rafiq data folder so the user can free space (disk_full). */
   openHermesFolder: boolean
   /** Settings → Keys deep link (auth, api_key). */
   updateApiKey: boolean
@@ -244,7 +244,7 @@ export function formatErrorDiagnostics(input: {
   const model = input.surface?.model || input.model
 
   const lines = [
-    '── Hermes error details ──',
+    '── Sbar Rafiq error details ──',
     `time: ${new Date().toISOString()}`,
     input.surface ? `layer: ${input.surface.layer}` : null,
     input.surface ? `code: ${input.surface.code}` : null,

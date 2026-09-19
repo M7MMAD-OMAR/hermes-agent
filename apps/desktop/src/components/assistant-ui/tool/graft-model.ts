@@ -7,7 +7,7 @@ import { compactPreview, isRecord, numberValue, parseMaybeObject } from './fallb
 
 /**
  * Graft (github.com/nanonets/graft) serves a repo's context graph over MCP.
- * Hermes registers its tools as `mcp__graft__graft_<op>`; every retrieval
+ * Sbar Rafiq registers its tools as `mcp__graft__graft_<op>`; every retrieval
  * result opens with a `[graft] tokens saved ≈ N (P%) ...` line that names how
  * much reading the covered files whole would have cost. This module is the
  * pure side of the tool row: it recognises the tools, parses that line plus the
@@ -73,7 +73,7 @@ const parseCount = (raw: string | undefined): number | undefined =>
 
 /**
  * The text of a tool result however the transport shaped it: the joined
- * string Hermes stores, an MCP `content` block list, or a wrapper record.
+ * string Sbar Rafiq stores, an MCP `content` block list, or a wrapper record.
  */
 export function graftResultText(result: unknown): string {
   if (typeof result === 'string') {

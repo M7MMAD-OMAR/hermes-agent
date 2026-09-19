@@ -660,7 +660,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     // After ~45s waitForHermes gives up and getConnection rejects → boot()
     // catch → failDesktopBoot → the BootFailureOverlay recovery surface.
     await act(async () => {
-      rejectConn(new Error('Hermes backend did not become ready: timeout'))
+      rejectConn(new Error('Sbar Rafiq backend did not become ready: timeout'))
       await vi.advanceTimersByTimeAsync(0)
     })
 
@@ -1482,7 +1482,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     // boot()'s getConnection() had no bound of its own — only main's own
     // eventual timeout (e.g. waitForHermes, ~45s) ever settled it. A wedge
     // that main never resolves (not even a rejection) must not hang
-    // "Starting Hermes…" forever; the renderer needs to own its own bound
+    // "Starting Sbar Rafiq…" forever; the renderer needs to own its own bound
     // here too, same as attemptReconnect() and softSwitch().
     const desktop = fakeDesktop()
     desktop.getConnection = vi.fn(() => new Promise(() => undefined))
@@ -1734,7 +1734,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     // That used to promote into BootFailureOverlay and lock reading/drafting.
     act(() => {
       desktop.emitBootProgress({
-        error: 'Could not reach the remote Hermes gateway while refreshing its WebSocket ticket. Try reconnecting.',
+        error: 'Could not reach the remote Sbar Rafiq gateway while refreshing its WebSocket ticket. Try reconnecting.',
         message: 'Desktop boot failed',
         phase: 'backend.error',
         progress: 94,
@@ -1751,7 +1751,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     // The version-skew report: gateway WS connects fine, but refreshSessions()
     // rejects (e.g. older backend 404s an endpoint the fallback didn't cover,
     // or a transient read error). That must NOT reject boot() into
-    // failDesktopBoot's "Hermes couldn't start" overlay — the socket is open
+    // failDesktopBoot's "Sbar Rafiq couldn't start" overlay — the socket is open
     // and the app is fully usable with an empty sidebar.
     const refreshSessions = vi.fn(async () => {
       throw new Error('404: {"detail":"No such API endpoint: /api/profiles/sessions/sidebar"}')
@@ -1778,7 +1778,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
 
   it('a backend exit while the boot overlay is up fails the overlay and does not add a dead-button toast', async () => {
     // reconnectGateway() is a no-op before boot completes, so a "Restart
-    // Hermes" toast here would do nothing when clicked; the overlay's own
+    // Sbar Rafiq" toast here would do nothing when clicked; the overlay's own
     // Retry is the recovery.
     const desktop = fakeDesktop()
     desktop.getConnection = vi.fn(() => new Promise<never>(() => undefined))
@@ -1821,8 +1821,8 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     desktop.settings = {
       getDefaultProjectDir: vi.fn(async () => ({
         defaultLabel: 'C:\\Users\\sonny',
-        dir: 'C:\\Hermes',
-        resolvedCwd: 'C:\\Hermes'
+        dir: 'C:\\Sbar Rafiq',
+        resolvedCwd: 'C:\\Sbar Rafiq'
       })),
       pickDefaultProjectDir: vi.fn(async () => undefined),
       setDefaultProjectDir: vi.fn(async () => undefined)
@@ -1848,8 +1848,8 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     render(<Harness />)
     await flushAsync()
 
-    expect(cwdAtConnect).toBe('C:\\Hermes')
-    expect($currentCwd.get()).toBe('C:\\Hermes')
+    expect(cwdAtConnect).toBe('C:\\Sbar Rafiq')
+    expect($currentCwd.get()).toBe('C:\\Sbar Rafiq')
   })
 
   it('FIX: primary sleep/wake reconnect dials the window backend, not the active secondary profile', async () => {
@@ -1946,7 +1946,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     desktop.getBootProgress = vi.fn(async () => ({
       error: null,
       fakeMode: false,
-      message: 'Hermes is ready',
+      message: 'Sbar Rafiq is ready',
       phase: 'backend.ready',
       progress: 100,
       retryable: false,
@@ -1981,7 +1981,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     desktop.getBootProgress = vi.fn(async () => ({
       error: null,
       fakeMode: false,
-      message: 'Hermes is ready',
+      message: 'Sbar Rafiq is ready',
       phase: 'backend.ready',
       progress: 100,
       retryable: false,
@@ -2006,7 +2006,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     desktop.getBootProgress = vi.fn(async () => ({
       error: null,
       fakeMode: false,
-      message: 'Hermes is ready',
+      message: 'Sbar Rafiq is ready',
       phase: 'backend.ready',
       progress: 100,
       retryable: false,
@@ -2075,10 +2075,10 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     // ~45s readiness wait, indefinitely.
     const desktop = fakeDesktop()
     desktop.getConnection = vi.fn(async () => {
-      throw new Error('Hermes backend did not become ready: getaddrinfo ENOTFOUND gateway.tailnet.example')
+      throw new Error('Sbar Rafiq backend did not become ready: getaddrinfo ENOTFOUND gateway.tailnet.example')
     })
     desktop.getBootProgress = vi.fn(async () => ({
-      error: 'Hermes backend did not become ready: getaddrinfo ENOTFOUND gateway.tailnet.example',
+      error: 'Sbar Rafiq backend did not become ready: getaddrinfo ENOTFOUND gateway.tailnet.example',
       fakeMode: false,
       message: 'Desktop boot failed',
       phase: 'backend.error',
@@ -2100,7 +2100,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
         desktop.emitBootProgress({
           error: null,
           fakeMode: false,
-          message: 'Resolving Hermes backend',
+          message: 'Resolving Sbar Rafiq backend',
           phase: 'backend.resolve',
           progress: 8,
           running: true,
@@ -2109,7 +2109,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
         desktop.emitBootProgress({
           error: null,
           fakeMode: false,
-          message: 'Connecting to remote Hermes backend at https://gateway.tailnet.example:8443',
+          message: 'Connecting to remote Sbar Rafiq backend at https://gateway.tailnet.example:8443',
           phase: 'backend.remote',
           progress: 24,
           running: true,
@@ -2171,7 +2171,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
       desktop.emitBootProgress({
         error: null,
         fakeMode: false,
-        message: 'Resolving Hermes backend',
+        message: 'Resolving Sbar Rafiq backend',
         phase: 'backend.resolve',
         progress: 8,
         running: true,

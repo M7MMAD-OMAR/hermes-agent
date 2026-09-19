@@ -192,7 +192,7 @@ export function zoomFactorToLevel(factor: number): number {
 /**
  * Pin the guest back to 1:1 whatever the app window's zoom is doing.
  *
- * The `<webview>` inherits the host window's zoom, so zooming Hermes to 134%
+ * The `<webview>` inherits the host window's zoom, so zooming Sbar Rafiq to 134%
  * scaled every page's text and broke every layout the page had tuned to its
  * real viewport — the complaint, "عم يخرب التخطيط". The guest paints at
  * hostZoom × guestZoom, so compensating the guest by 1/hostZoom pins the
@@ -251,7 +251,7 @@ export function pinGuestZoom(webview: PreviewWebview | null | undefined, hostFac
  *
  * So the emulated size is honest at exactly ONE guest zoom, and it is 1. Both
  * wrong arms move WITH the app's UI Scale, which is why the symptom was
- * "changing Hermes' text size re-lays-out the page" — the preset was being
+ * "changing Sbar Rafiq' text size re-lays-out the page" — the preset was being
  * multiplied by the app's own scale in one direction or the other.
  *
  * The frame arithmetic in preview-viewport.ts already assumes this: it hands
@@ -746,7 +746,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
 
     // Auto-open the preview console so the user can see progress events
     // streaming back from the background agent. Without this, clicking
-    // "Ask Hermes to restart the server" looked like it did nothing —
+    // "Ask Sbar Rafiq to restart the server" looked like it did nothing —
     // the work was happening, but in a collapsed pane.
     consoleState.setOpen(true)
 
@@ -965,7 +965,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
 
       return (
         (await window.hermesDesktop.attachPreviewFiles?.({ paths, selector, webContentsId })) ?? {
-          error: 'Update Hermes Desktop to upload files from a page.',
+          error: 'Update Sbar Rafiq Desktop to upload files from a page.',
           success: false
         }
       )

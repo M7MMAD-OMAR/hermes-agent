@@ -3,7 +3,7 @@ import { groupSpeakerLabel } from './group-chat'
 import { groupMemberKey } from './group-membership'
 import type { GroupMember, GroupMessage, GroupMessageAuthor } from './types'
 
-// Openers of Hermes' own control frames (the mid-turn steer marker, the compaction
+// Openers of Sbar Rafiq' own control frames (the mid-turn steer marker, the compaction
 // handoff, runtime/system notes). A member reply is republished to every peer inside
 // a role=user prompt, so a reply reproducing one of these reads as harness input to
 // the peers; the opener is relabelled visibly (the words stay, the exact trusted

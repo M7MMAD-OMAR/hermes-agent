@@ -45,7 +45,7 @@ it('returns native clicks and approval actions to the emitting window, not the p
   const source = windowStub()
   host.fromWebContents.mockReturnValue(source)
   const focusWindow = vi.fn()
-  registerNativeNotifications({ getMainWindow: () => primary as unknown as BrowserWindow, focusWindow })
+  registerNativeNotifications({ appName: 'Sbar Rafiq', getMainWindow: () => primary as unknown as BrowserWindow, focusWindow })
   const notify = host.handle.mock.calls[0][1] as (event: IpcMainInvokeEvent, payload: HermesNotification) => boolean
 
   const payload = {
@@ -85,7 +85,7 @@ it('delivers plugin callbacks to their source and falls back only for navigation
   const source = windowStub()
   host.fromWebContents.mockReturnValue(source)
   const focusWindow = vi.fn()
-  registerNativeNotifications({ getMainWindow: () => primary as unknown as BrowserWindow, focusWindow })
+  registerNativeNotifications({ appName: 'Sbar Rafiq', getMainWindow: () => primary as unknown as BrowserWindow, focusWindow })
   const notify = host.handle.mock.calls[0][1] as (event: IpcMainInvokeEvent, payload: HermesNotification) => boolean
   notify({ sender: source.webContents } as unknown as IpcMainInvokeEvent, {
     kind: 'plugin',

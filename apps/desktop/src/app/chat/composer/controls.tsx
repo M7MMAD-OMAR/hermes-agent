@@ -46,7 +46,7 @@ interface ConversationProps {
 
 /**
  * The composer TOOLBAR — the deck below the input field. Left cluster: attach
- * and the voice/browser toggles (every Hermes control, nothing folded away at
+ * and the voice/browser toggles (every Sbar Rafiq control, nothing folded away at
  * roomy widths). Right cluster: the quick conversation controls — context
  * gauge, model, thinking effort — then the queue action. The send/stop button
  * lives INSIDE the input field above (see `ComposerSendControl`); a live voice
@@ -474,7 +474,7 @@ function ConversationIndicator({
   )
 }
 
-// "Hey Hermes" wake-word toggle. ALWAYS rendered — the ear never hides. A
+// "Hey Sbar Rafiq" wake-word toggle. ALWAYS rendered — the ear never hides. A
 // user must always be able to click it to turn passive listening on; if the
 // backend can't start (missing STT/TTS, deps still installing, no mic
 // permission, etc.) the click surfaces the reason in the tooltip and the

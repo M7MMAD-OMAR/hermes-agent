@@ -92,7 +92,7 @@ describe('renamed bots stay taggable', () => {
   })
 
   it('drops reserved tokens so a rename cannot hijack a built-in tag', () => {
-    expect(mentionNameForms('Hermes')).toEqual([])
+    expect(mentionNameForms('Sbar Rafiq')).toEqual([])
     expect(mentionNameForms('@everyone')).toEqual([])
     expect(mentionNameForms('')).toEqual([])
   })

@@ -688,7 +688,7 @@ describe('ModelSettings MoA preset editor', () => {
 
 describe('ModelSettings code-skew 503', () => {
   const skewError = new Error(
-    'Error invoking remote method \'hermes:api\': Error: 503: {"detail":"Restart required: This process is running code from 08b4875f4a but the checkout on disk is now 48d2528066. The model picker would risk a stale-module crash — restart the Desktop-owned backend to load the new code (use Restart backend in Hermes Desktop, or quit and reopen the app)"}'
+    'Error invoking remote method \'hermes:api\': Error: 503: {"detail":"Restart required: This process is running code from 08b4875f4a but the checkout on disk is now 48d2528066. The model picker would risk a stale-module crash — restart the Desktop-owned backend to load the new code (use Restart backend in Sbar Rafiq Desktop, or quit and reopen the app)"}'
   )
 
   afterEach(() => {

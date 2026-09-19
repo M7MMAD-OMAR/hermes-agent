@@ -61,7 +61,7 @@ describe('setupFailureCopy', () => {
     const text = failure ? setupFailureCopy(failure, copy) : ''
 
     expect(text).toBe(expected)
-    // Never "the free service is off" — what is unavailable is using Hermes without signing in —
+    // Never "the free service is off" — what is unavailable is using Sbar Rafiq without signing in —
     // and no jargon a first-time user would not know.
     expect(text.toLowerCase()).not.toMatch(/free (service|model|tier) is (off|switched off|unavailable|down)/)
     expect(text.toLowerCase()).not.toMatch(/anonymous|guest|credential|token|rate limit/)

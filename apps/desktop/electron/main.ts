@@ -956,7 +956,7 @@ const BOOT_FAKE_STEP_MS = (() => {
   return Math.max(120, raw)
 })()
 
-const APP_NAME = process.env.HERMES_DESKTOP_APP_NAME || 'Hermes'
+const APP_NAME = process.env.HERMES_DESKTOP_APP_NAME || 'Sbar Rafiq'
 const HUD_WINDOW_TITLE = `${APP_NAME} HUD`
 const TITLEBAR_HEIGHT = 34
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 14
@@ -1922,14 +1922,14 @@ function rememberLog(chunk) {
 
 installCrashForensics({ flush: flushDesktopLogBufferSync, log: rememberLog })
 
-// A rejected loadURL leaves a blank window and, unhandled, no trace anywhere
-// the user can send us. `label` names the surface so the log says which one.
-function loadWindowUrl(win, url, label) {
 // A stall that ends is not a crash, and used to leave no trace at all.
 if (process.env.HERMES_DESKTOP_LOOP_WATCHDOG !== '0') {
   installMainLoopWatchdog({ log: rememberLog })
 }
 
+// A rejected loadURL leaves a blank window and, unhandled, no trace anywhere
+// the user can send us. `label` names the surface so the log says which one.
+function loadWindowUrl(win, url, label) {
   win.loadURL(url).catch(error => rememberLog(`${label} failed to load: ${describeCrashReason(error)}`))
 }
 

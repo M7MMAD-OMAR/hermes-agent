@@ -10,7 +10,7 @@ import { $sessionStates } from '@/store/session-states'
  * their number: hidden tabs stay mounted on purpose (a page an agent is
  * driving must survive a chat switch), so a day of opening pages across many
  * conversations left N guests alive for N tabs ever opened. Measured on
- * 2026-09-07: Hermes was 39% of a saturated iGPU with no bound on this.
+ * 2026-09-07: Sbar Rafiq was 39% of a saturated iGPU with no bound on this.
  *
  * The rule is ending, not throttling. Over the ceiling, the least recently
  * shown tab is closed through the ONE close path (`closeRightRailTab`), so

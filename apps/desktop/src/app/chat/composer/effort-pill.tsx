@@ -29,7 +29,7 @@ const PILL = cn(
 /**
  * The composer's THINKING control — the quick effort dial the model menu hides
  * behind a hover submenu. A pill showing the live level; the popover is a
- * Faster↔Smarter ladder over Hermes' real reasoning levels, the thinking
+ * Faster↔Smarter ladder over Sbar Rafiq' real reasoning levels, the thinking
  * on/off switch, and the fast-mode toggle when the model takes the speed
  * parameter. Every write goes through `lib/session-model-writes`, the same
  * optimistic+rollback seam the model menu edits use.

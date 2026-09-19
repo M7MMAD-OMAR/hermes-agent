@@ -7,7 +7,7 @@ import { getBaseColors, skinPref, ThemeProvider, useTheme } from './context'
 import { BUILTIN_THEME_LIST, everforestTheme } from './presets'
 import { setWorkspaceAccent } from './workspace-accent'
 
-// The live-authoring loop: Hermes writes/edits one skin file and every surface
+// The live-authoring loop: Sbar Rafiq writes/edits one skin file and every surface
 // repaints. An in-place edit keeps the NAME — only the palette moves.
 const bloomberg = (foreground: string) => ({
   name: 'bloomberg',

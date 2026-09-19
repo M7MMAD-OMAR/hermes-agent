@@ -120,7 +120,7 @@ describe('ConnectionsRegistrySection', () => {
     })
   })
 
-  it('saves a custom remote Hermes path for SSH connections', async () => {
+  it('saves a custom remote Sbar Rafiq path for SSH connections', async () => {
     render(<ConnectionsRegistrySection />)
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
@@ -142,7 +142,7 @@ describe('ConnectionsRegistrySection', () => {
     })
   })
 
-  it('clears a saved remote Hermes path back to auto-detect', async () => {
+  it('clears a saved remote Sbar Rafiq path back to auto-detect', async () => {
     const sshRegistry: DesktopConnectionsRegistry = {
       ...registry,
       connections: [
@@ -182,7 +182,7 @@ describe('ConnectionsRegistrySection', () => {
 
     const localKind = screen.getByRole('button', { name: 'Local' }) as HTMLButtonElement
     expect(localKind.disabled).toBe(true)
-    expect(screen.getByRole('button', { name: 'Hermes Cloud' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sbar Rafiq Cloud' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Remote gateway' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'SSH' })).toBeTruthy()
   })

@@ -416,9 +416,13 @@ def render_desktop_entry(exec_command: str, icon: str) -> str:
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
-        "Name=Hermes\n"
-        "GenericName=Hermes Desktop\n"
-        "Comment=Launch Hermes Desktop\n"
+        # StartupWMClass and the .desktop filename stay "Hermes": they are wired
+        # into the actual running window's WM_CLASS and into window-manager
+        # rules (Hyprland) the user already has, independent of the display
+        # brand below. Only what a person reads changes.
+        "Name=Sbar Rafiq\n"
+        "GenericName=Sbar Rafiq Desktop\n"
+        "Comment=Launch Sbar Rafiq Desktop\n"
         # `%u` is what lets the entry act as the hermes:// url-scheme handler:
         # without it xdg-open drops the URL and the app opens on whatever it was
         # last showing instead of the chat the user clicked.

@@ -12,9 +12,9 @@ This file covers only what is true of **this fork and this working copy**, which
 |---|---|
 | `origin` | `NousResearch/hermes-agent` — upstream, read-only |
 | `fork` | `M7MMAD-OMAR/hermes-agent` — ours, push here |
-| working branch | `sbar-hermes` — **not** `main` |
+| working branch | `sbar-rafiq` — **not** `main` |
 
-`main` is a stale local ref. All work is on `sbar-hermes`, which
+`main` is a stale local ref. All work is on `sbar-rafiq`, which
 carries ~130 commits of local features that are not upstream.
 
 ## Never run `hermes update` here
@@ -23,7 +23,7 @@ It switches the checkout to `main` and force-rebuilds. That is how local
 branches got lost before. Take upstream this way instead:
 
 ```bash
-git worktree add -b merge/upstream-<date> /tmp/merge-wt sbar-hermes
+git worktree add -b merge/upstream-<date> /tmp/merge-wt sbar-rafiq
 cd /tmp/merge-wt && git merge origin/main      # resolve, test here
 ```
 

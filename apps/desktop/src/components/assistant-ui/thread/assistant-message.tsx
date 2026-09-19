@@ -676,7 +676,7 @@ const ErrorRecoveryActions: FC = () => {
   }, [])
 
   // Reveal a local folder through Electron; `logsRoot` is the profile's
-  // HERMES_HOME/logs, and its parent is the Hermes data folder itself (what
+  // HERMES_HOME/logs, and its parent is the Sbar Rafiq data folder itself (what
   // the user needs to see to free space after a disk-full failure).
   const openLocalDir = useCallback(async (resolve: (logsRoot: string) => string, failedMessage: string) => {
     try {

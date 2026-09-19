@@ -24,7 +24,7 @@ describe('SvgRenderer with non-Latin content', () => {
         code={wrap(
           '<text x="4" y="20">تقرير المبيعات ٢٠٢٦</text>' +
             '<text x="4" y="40">接收订单</text>' +
-            '<text x="4" y="55">مشروع Hermes v0.20.6</text>'
+            '<text x="4" y="55">مشروع Sbar Rafiq v0.20.6</text>'
         )}
       />
     )
@@ -34,7 +34,7 @@ describe('SvgRenderer with non-Latin content', () => {
     expect(text).toContain('تقرير المبيعات ٢٠٢٦')
     expect(text).toContain('接收订单')
     // Mixed direction in one string: the Latin run must survive beside Arabic.
-    expect(text).toContain('مشروع Hermes v0.20.6')
+    expect(text).toContain('مشروع Sbar Rafiq v0.20.6')
   })
 
   it('preserves an explicit rtl direction rather than stripping it', () => {

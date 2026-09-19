@@ -62,7 +62,7 @@ function bridge() {
   const desktop = window.hermesDesktop
 
   if (!desktop) {
-    throw new Error('Hermes Desktop bridge is unavailable')
+    throw new Error('Sbar Rafiq Desktop bridge is unavailable')
   }
 
   return desktop
@@ -131,7 +131,7 @@ export async function convertDesktopOffice(path: string, target: 'docx' | 'pdf' 
   const desktop = bridge()
 
   if (!desktop.officeConvert) {
-    throw new Error('Update Hermes Desktop to open Office files')
+    throw new Error('Update Sbar Rafiq Desktop to open Office files')
   }
 
   return desktop.officeConvert(path, target)

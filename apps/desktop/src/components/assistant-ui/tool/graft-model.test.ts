@@ -80,7 +80,7 @@ afterEach(() => {
 })
 
 describe('graftOperation', () => {
-  it('maps the MCP tool names Hermes registers, prefixed or bare', () => {
+  it('maps the MCP tool names Sbar Rafiq registers, prefixed or bare', () => {
     expect(graftOperation('mcp__graft__graft_find_code')).toBe('ask')
     expect(graftOperation('mcp__graft__graft_find_all')).toBe('grep')
     expect(graftOperation('mcp__graft__graft_file_api')).toBe('skeleton')

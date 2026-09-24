@@ -9,6 +9,7 @@
  * sitting in Sbar Rafiq' own DOM, where `activeElement` is authoritative.
  */
 
+import { isElementInHiddenPane } from '@/components/pane-shell/pane-visibility'
 import { $rightRailActiveTabId } from '@/store/layout'
 import { $previewTabs, agentPreviewTabId } from '@/store/preview'
 
@@ -69,7 +70,9 @@ export function focusedPreviewTabId(): null | string {
  *  Gestures only — `navigate` carries an address and has no keystroke. */
 export function commandFocusedPreview(command: 'back' | 'forward' | 'reload'): boolean {
   const host = document.activeElement?.closest(`[${PREVIEW_BROWSER_ATTR}]`)
-  const nav = host ? handles.get(host.getAttribute(PREVIEW_BROWSER_ATTR) || '') : undefined
+
+  const nav =
+    host && !isElementInHiddenPane(host) ? handles.get(host.getAttribute(PREVIEW_BROWSER_ATTR) || '') : undefined
 
   nav?.[command]()
 

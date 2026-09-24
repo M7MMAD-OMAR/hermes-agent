@@ -332,7 +332,7 @@ describe('one comment, one send (Sprint 01)', () => {
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
 
     screen
-      .getAllByTitle('Send this comment to the chat now')
+      .getAllByLabelText('Send this comment to the chat now')
       .find(button => button.closest('li')?.textContent?.includes('hero'))!
       .click()
 
@@ -349,7 +349,7 @@ describe('one comment, one send (Sprint 01)', () => {
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
 
     screen
-      .getAllByTitle("Add this comment to the conversation's queue")
+      .getAllByLabelText("Add this comment to the conversation's queue")
       .find(button => button.closest('li')?.textContent?.includes('hero'))!
       .click()
 
@@ -389,7 +389,7 @@ describe('one comment, one send (Sprint 01)', () => {
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
 
     screen
-      .getAllByTitle('Send this comment to the chat now')
+      .getAllByLabelText('Send this comment to the chat now')
       .find(button => button.closest('li')?.textContent?.includes('hero'))!
       .click()
 
@@ -416,7 +416,7 @@ describe('one comment, one send (Sprint 01)', () => {
     await waitFor(() => expect(screen.getAllByText('hero').length).toBeGreaterThan(0))
 
     screen
-      .getAllByTitle("Add this comment to the conversation's queue")
+      .getAllByLabelText("Add this comment to the conversation's queue")
       .find(button => button.closest('li')?.textContent?.includes('hero'))!
       .click()
 

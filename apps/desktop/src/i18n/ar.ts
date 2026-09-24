@@ -1,45 +1,10 @@
 import { defineLocale } from './define-locale'
 
+/** Arabic counted noun: one, two, 3 to 10 (plural), 11 and up (singular). */
+const plural = (n: number, one: string, two: string, few: string, many: string): string =>
+  n === 1 ? one : n === 2 ? two : n % 100 >= 3 && n % 100 <= 10 ? `${n} ${few}` : `${n} ${many}`
+
 export const ar = defineLocale({
-  catalog: {
-    listView: 'عرض القائمة',
-    cardView: 'عرض البطاقات',
-    installTitle: (name: string) => `تثبيت «${name}»؟`,
-    installDescription: 'ستتوفر هذه المهارة في الجلسات الجديدة. ثبّت من المصادر التي تثق بها فقط.',
-    installTo: 'التثبيت في',
-    thisComputer: 'هذا الكمبيوتر',
-    installing: 'جارٍ التثبيت…',
-    installComplete: (name: string) => `تم تثبيت «${name}»`,
-    destinationChanged: 'تغيرت وجهة التثبيت. أغلق هذا الحوار وافتح رابط التثبيت مجددًا.',
-    browse: 'تصفح',
-    installed: 'المثبتة',
-    searchSkills: 'البحث في المهارات',
-    searchPlugins: 'البحث في الإضافات',
-    allSources: 'كل المصادر',
-    allCategories: 'كل الفئات',
-    about: 'نبذة',
-    author: 'المؤلف',
-    source: 'المصدر',
-    category: 'الفئة',
-    version: 'الإصدار',
-    platforms: 'المنصات',
-    requires: 'المتطلبات',
-    tools: 'الأدوات',
-    hooks: 'الخطافات',
-    repository: 'المستودع',
-    documentation: 'التوثيق',
-    noResults: 'لا توجد نتائج مطابقة',
-    tryAnother: 'جرّب بحثًا آخر أو امسح عوامل التصفية.',
-    clearFilters: 'مسح عوامل التصفية',
-    loadFailed: 'تعذر تحميل الكتالوج',
-    retry: 'حاول مرة أخرى',
-    more: 'عرض المزيد',
-    pinned: 'التزام تمت مراجعته',
-    snapshotHint: 'من كتالوج Sbar Rafiq. لا يتصل التصفح بمستودعات المصدر مطلقًا.',
-    installHint: 'راجع المصدر قبل التثبيت. تسري التغييرات على الجلسات الجديدة.',
-    results: (count: number) => `النتائج: ${count.toLocaleString('ar')}`,
-    back: 'العودة إلى النتائج'
-  },
   sessionImport: {
     title: 'المتابعة من تطبيق آخر',
     subtitle: 'انقل محادثة إلى Sbar Rafiq وتابع من حيث توقفت.',
@@ -90,7 +55,7 @@ export const ar = defineLocale({
       'يمكنك أيضاً تشغيل `hermes debug share --nous` من الطرفية، أو `hermes debug share --local` لعرض التقرير دون رفعه.',
     handoffLead: 'تابع النقاش في:',
     links: {
-      github: 'GitHub Issues',
+      github: 'مشكلات GitHub',
       portal: 'دعم بوابة Nous',
       discord: 'Discord'
     }
@@ -111,6 +76,7 @@ export const ar = defineLocale({
     connect: 'اتصال',
     connecting: 'جار الاتصال',
     continue: 'متابعة',
+    bots: 'الروبوتات',
     copied: 'تم النسخ',
     copy: 'نسخ',
     copyFailed: 'فشل النسخ',
@@ -152,7 +118,9 @@ export const ar = defineLocale({
     renameLabel: 'الاسم الجديد',
     deleteTitle: name => `حذف ${name}؟`,
     deleteBody: 'سيتم نقله إلى سلة المهملات، يمكنك استعادته من هناك.',
-    pathCopied: 'تم نسخ المسار'
+    pathCopied: 'تم نسخ المسار',
+    revealMissing: 'هذا المجلد ليس على هذا الحاسوب',
+    revealUnavailable: 'هذا المسار ليس على هذا الكمبيوتر، بل على جهاز الخلفية. استخدم «إظهار في شجرة الملفات».'
   },
   boot: {
     ready: 'Hermes Desktop جاهز',
@@ -174,7 +142,13 @@ export const ar = defineLocale({
       gatewayConnectionLostDetail:
         'تستمر المحاولة في الخلفية. يمكنك متابعة القراءة والكتابة، وافتح إعدادات البوابة إذا استمر هذا.',
       gatewaySignInRequired: 'تسجيل الدخول للبوابة مطلوب',
-      ipcBridgeUnavailable: 'جسر IPC لسطح المكتب غير متاح.'
+      ipcBridgeUnavailable: 'جسر IPC لسطح المكتب غير متاح.',
+      restartHermes: 'إعادة تشغيل Sbar Rafiq',
+      openLogs: 'فتح السجلات',
+      reconnectNow: 'إعادة الاتصال الآن',
+      connectionSettings: 'إعدادات الاتصال',
+      gatewaySignInRequiredDetail: 'سجّل الدخول مجددًا لإعادة الاتصال. محادثاتك وإعداداتك في أمان.',
+      signInAgain: 'تسجيل الدخول مجددًا'
     },
     failure: {
       title: 'تعذر تشغيل Sbar Rafiq',
@@ -207,7 +181,16 @@ export const ar = defineLocale({
       identityProvider: 'مزود الهوية',
       back: 'رجوع',
       gatewaySettings: 'إعدادات البوابة',
-      remoteFailureHint: 'تحقق من رابط البوابة وتسجيل الدخول في إعدادات البوابة، أو بدّل إلى البوابة المحلية.'
+      remoteFailureHint: 'تحقق من رابط البوابة وتسجيل الدخول في إعدادات البوابة، أو بدّل إلى البوابة المحلية.',
+      details: 'التفاصيل'
+    },
+    causes: {
+      exitedEarly: 'توقفت خدمة Sbar Rafiq الخلفية بعد بدء تشغيلها مباشرة.',
+      timedOut: 'لم تستجب خدمة Sbar Rafiq الخلفية في الوقت المحدد.',
+      permission: 'تعذّر على Sbar Rafiq الكتابة في مجلد بياناته (مشكلة في الأذونات).',
+      diskFull: 'القرص ممتلئ، لذا تعذّر تشغيل Sbar Rafiq.',
+      portInUse: 'برنامج آخر يستخدم منفذ الشبكة الذي يحتاجه Sbar Rafiq.',
+      installMissing: 'جزء من تثبيت Sbar Rafiq مفقود. اختر «إصلاح التثبيت» لاستعادته.'
     }
   },
   notifications: {
@@ -248,7 +231,10 @@ export const ar = defineLocale({
       openaiRejectedApiKey: 'رفض OpenAI مفتاح API.',
       openaiTtsNeedsKey: 'يتطلب OpenAI TTS المفتاح VOICE_TOOLS_OPENAI_KEY أو OPENAI_API_KEY.',
       codeSkewRestartRequired: 'بعد التحديث ما زال هذا الخلفية يشغّل كودا قديما. أعد تشغيله لتحميل الكود الجديد.',
-      gatewayAuthFailed: 'فشلت مصادقة البوابة، تحقق من API_SERVER_KEY.'
+      gatewayAuthFailed: 'فشلت مصادقة البوابة، تحقق من API_SERVER_KEY.',
+      storageFailure: 'تعذّر على Sbar Rafiq الحفظ في مجلد بياناته. افتح «الصيانة» لفحصه وإصلاحه.',
+      rpcOutOfSync: 'التطبيق والخلفية على إصدارين مختلفين. حدّث كليهما.',
+      restartHermesFailed: 'تعذّرت إعادة تشغيل Sbar Rafiq'
     },
     voice: {
       configureSpeechToText: 'اضبط تحويل الكلام إلى نص لاستخدام وضع الصوت.',
@@ -273,13 +259,17 @@ export const ar = defineLocale({
       liveError: 'الصوت المباشر',
       liveDelegationFailed: 'تعذر تسليم الطلب إلى Sbar Rafiq',
       liveUnavailable: reason =>
-        `المحادثة الصوتية GPT-Live غير متاحة: ${reason}. سيُستخدم تحويل الكلام إلى نص بدلًا منها.`
+        `المحادثة الصوتية GPT-Live غير متاحة: ${reason}. سيُستخدم تحويل الكلام إلى نص بدلًا منها.`,
+      liveEndedConnectionLost: 'فقدت جلسة الصوت المباشرة اتصالها.',
+      liveEndedClosed: 'أغلقت الخدمة جلسة الصوت المباشرة.'
     },
     native: {
       approvalTitle: 'مطلوب موافقة',
+      approvalTitleNamed: session => `مطلوب موافقة: ${session}`,
       approveAction: 'موافقة',
       rejectAction: 'رفض',
       inputTitle: 'مطلوب إدخال',
+      inputTitleNamed: session => `مطلوب إدخال: ${session}`,
       inputBody: 'ينتظر Sbar Rafiq ردّك.',
       turnDoneTitle: 'أنهى Sbar Rafiq',
       turnDoneBody: '',
@@ -288,7 +278,13 @@ export const ar = defineLocale({
       backgroundFailedTitle: 'فشلت المهمة في الخلفية',
       creditsTitle: 'الرصيد'
     },
-    installMethodUnsupportedTitle: 'طريقة تثبيت غير مدعومة'
+    installMethodUnsupportedTitle: 'طريقة تثبيت غير مدعومة',
+    actions: {
+      restartHermes: 'إعادة تشغيل Sbar Rafiq',
+      openKeys: 'فتح المفاتيح',
+      openGateways: 'فتح البوابات',
+      openMaintenance: 'فتح الصيانة'
+    }
   },
   remoteDisplayBanner: {
     message: reason => `العرض البرمجي نشط، تم اكتشاف شاشة بعيدة (${reason}). تم تعطيل تسريع GPU لمنع الوميض.`
@@ -344,7 +340,7 @@ export const ar = defineLocale({
       'nav.commandCenter': 'فتح مركز الأوامر',
       'nav.settings': 'فتح الإعدادات',
       'nav.profiles': 'فتح الملفات الشخصية',
-      'nav.skills': 'فتح المهارات',
+      'nav.capabilities': 'فتح المهارات',
       'nav.messaging': 'فتح المراسلة',
       'nav.artifacts': 'فتح العناصر',
       'nav.cron': 'فتح المهام المجدولة',
@@ -430,7 +426,10 @@ export const ar = defineLocale({
       'view.prevTerminal': 'الطرفية السابقة',
       'view.toggleHud': 'تبديل وضع HUD',
       'view.toggleStatusbar': 'تبديل شريط الحالة',
-      'view.toggleTabStrip': 'تبديل علامات التبويب'
+      'view.toggleTabStrip': 'تبديل علامات التبويب',
+      'view.cycleSidebarGrouping': 'التنقل بين طرق تجميع الجلسات',
+      'view.toggleProfileRail': 'تبديل شريط الملفات الشخصية',
+      'view.toggleSimpleMode': 'تبديل الوضع المبسّط'
     }
   },
   language: {
@@ -443,6 +442,57 @@ export const ar = defineLocale({
     noResults: 'لا توجد لغة مطابقة'
   },
   settings: {
+    subpages: {
+      appearanceTheme: 'السمة',
+      appearanceTypography: 'الخطوط والتحجيم',
+      appearanceWindowLayout: 'النافذة والتخطيط',
+      appearanceChatDisplay: 'عرض المحادثة',
+      appearancePet: 'الحيوان الأليف',
+      appearanceGeneral: 'عام',
+      modelMain: 'النموذج الرئيسي',
+      modelAuxiliary: 'النماذج المساعدة',
+      modelMoa: 'مزيج الوكلاء',
+      modelFallbacks: 'النماذج البديلة',
+      chatBehavior: 'السلوك',
+      chatAttachments: 'المرفقات',
+      workspaceProjects: 'المشاريع والاكتشاف',
+      workspaceShell: 'بيئة الصدفة',
+      workspaceFiles: 'الملفات والتنفيذ',
+      safetyApprovals: 'الموافقات',
+      safetyPrivacy: 'الخصوصية والشبكة',
+      safetyCheckpoints: 'نقاط الاستعادة',
+      browserProfile: 'ملف المتصفح',
+      browserNetwork: 'العناوين المحلية والخاصة',
+      memoryPersistent: 'الذاكرة الدائمة',
+      memoryContext: 'السياق والضغط',
+      voiceConversation: 'المحادثة الصوتية',
+      voiceTranscription: 'تحويل الكلام إلى نص',
+      voiceSpeech: 'تحويل النص إلى كلام',
+      advancedRuntime: 'حدود الوكيل',
+      advancedTools: 'الوصول إلى الأدوات',
+      advancedTerminal: 'خلفية الطرفية',
+      advancedOutput: 'حدود المخرجات',
+      advancedDelegation: 'الوكلاء الفرعيون',
+      advancedDesktop: 'سطح المكتب وبدء التشغيل',
+      gatewayConnection: 'هذه النافذة',
+      gatewayDevices: 'الاتصالات المحفوظة',
+      gatewayManagedUpdates: 'التحديثات البعيدة',
+      gatewayManagedUpdatesUnavailable: 'تتطلب التحديثات البعيدة إصدار سطح مكتب يدعم تحديثات SSH المُدارة.',
+      gatewayManagedUpdatesEmpty: 'أضف اتصال SSH في الاتصالات المحفوظة لإدارة تحديثاته هنا.',
+      keyboardShortcuts: 'تعيينات المفاتيح',
+      hudGesture: 'إيماءة HUD',
+      screenCapture: 'التقاط الشاشة',
+      notificationAlerts: 'تنبيهات سطح المكتب',
+      notificationSounds: 'الأصوات',
+      archivedSessions: 'الأرشفة والاحتفاظ',
+      defaultDirectory: 'مجلد المشروع الافتراضي',
+      vaultCredentials: 'بيانات الاعتماد المحفوظة',
+      vaultSources: 'مديرو كلمات المرور',
+      appUpdates: 'الإصدار والتحديثات',
+      uninstall: 'إلغاء التثبيت',
+      billingOverview: 'نظرة عامة',
+      billingPlans: 'الخطط'
+    },
     closeSettings: 'إغلاق الإعدادات',
     exportConfig: 'تصدير الإعدادات',
     importConfig: 'استيراد الإعدادات',
@@ -547,7 +597,7 @@ export const ar = defineLocale({
       blurb:
         'امتدادات واجهة تُحمّل داخل هذا التطبيق، إما مضمّنة مع البناء، أو موضوعة في مجلد desktop-plugins (بما فيها التي يكتبها Sbar Rafiq). تعطيل الإضافة يفرغها مباشرة ويبقى بعد إعادة التشغيل.',
       count: n => `${n} مثبتة`,
-      openFolder: 'فتح مجلد الإضافات',
+      openFolder: 'فتح مجلد إضافات سطح المكتب',
       rescan: 'إعادة الفحص',
       reveal: 'إظهار في مدير الملفات',
       enable: 'تفعيل',
@@ -590,8 +640,6 @@ export const ar = defineLocale({
         viewRepository: 'عرض المستودع',
         reviewedHeading: 'مدخل مُراجَع في الفهرس',
         reviewedIntro: 'رُوجع هذا المدخل عند التزامه المثبّت. لا يزال بإمكانك فحص الشيفرة نفسها أدناه.',
-        restartToApply: 'أعد تشغيل البوابة ليسري مفعول الإضافة.',
-        restartNow: 'أعد تشغيل البوابة',
         missingEnvAction: 'اضبطه',
         desktopTargetFromPackage: 'يُحمَّل في هذا التطبيق من الحزمة أعلاه، ونفسه لكل ملف شخصي',
         pinToCommit: 'التثبيت على التزام (اختياري)',
@@ -601,7 +649,12 @@ export const ar = defineLocale({
         pinToCommitInvalid: 'يجب أن تكون بصمة التزام كاملة من 40 محرفًا (الفروع والوسوم غير مقبولة).',
         catalogPinned: (name, sha) =>
           `مدخل فهرس Sbar Rafiq «${name}»: يُثبَّت مكوّن الوكيل عند التثبيت المُراجَع${sha ? ` ${sha}` : ''}، لا عند رأس الفرع.`,
-        alreadyInstalled: (name: string) => `${name} مثبت بالفعل.`
+        alreadyInstalled: (name: string) => `${name} مثبت بالفعل.`,
+        toolsConnected: n => `تم توصيل ${n} من الأدوات`,
+        skillsReady: names => (names.length === 1 ? `المهارة ${names[0]} جاهزة` : `${names.length} من المهارات جاهزة`),
+        nextChat: 'أدوات أخرى متاحة في دردشتك التالية',
+        serverNotConnected: (server, reason) => `خادم MCP ${server} غير متصل${reason ? `: ${reason}` : '.'}`,
+        profileLabel: 'التثبيت للملف الشخصي'
       },
       agentHalfMissing: 'نصف الوكيل غير مثبت هنا',
       agentHalfMissingTip:
@@ -696,6 +749,10 @@ export const ar = defineLocale({
       colorModeDesc: 'اختر الوضع الفاتح أو الداكن أو اتبع النظام.',
       toolViewTitle: 'عرض الأدوات',
       toolViewDesc: 'تحكم في كيفية عرض نشاط الأدوات داخل المحادثة.',
+      hideCodeDiffsTitle: 'إخفاء فروق الكود',
+      hideCodeDiffsDesc: 'عرض تعديلات الملفات كسطور أدوات مضمّنة مع عدد الأسطر المضافة والمحذوفة، دون عرض الكود.',
+      hideThreadTimelineTitle: 'إخفاء أشرطة المخطط الزمني للمحادثة',
+      hideThreadTimelineDesc: 'إخفاء أشرطة التنقل على الحافة اليمنى لكل محادثة.',
       reasoningCollapsedTitle: 'طي التفكير افتراضيًا',
       reasoningCollapsedDesc: 'أبقِ التفكير المتدفق متاحًا دون توسيعه حتى تفتحه.',
       translucencyTitle: 'شفافية النافذة',
@@ -821,11 +878,18 @@ export const ar = defineLocale({
       appActionsDesc: 'موضع الإعدادات والتخطيط وواجهة HUD في شريط العنوان. اليمين يترك مساحة للتبويبات على اليسار.',
       appActionsLeft: 'يسار',
       appActionsRight: 'يمين',
-      themeSearchPlaceholder: 'ابحث في سماتك أو في سوق VS Code…'
+      themeSearchPlaceholder: 'ابحث في سماتك أو في سوق VS Code…',
+      chatFontTitle: 'خط المحادثة',
+      chatFontDesc: 'اختر خطًا مثبتًا للمحادثة ولبقية التطبيق. مفيد لخطوط تسهيل القراءة مثل OpenDyslexic، واتركه فارغًا لاستخدام خط السمة.',
+      chatFontPlaceholder: 'OpenDyslexic أو مجموعة خطوط CSS',
+      chatFontPreview: 'معاينة',
+      chatFontSample: 'نصٌّ تجريبي لمعاينة الخط: أبجد هوز حطي كلمن. 0123456789',
+      chatFontReset: 'استخدام خط السمة'
     },
     fieldLabels: {
       model: 'النموذج الافتراضي',
-      modelContextLength: 'نافذة السياق',
+      modelContextLength:
+        'يتجاوز نافذة السياق المكتشفة لنموذج المحادثة الرئيسي فقط (بالرموز). اتركه 0 لاستخدام القيمة المكتشفة للنموذج المحدد. لا يؤثر على النماذج المساعدة أو نماذج MoA.',
       fallbackProviders: 'النماذج الاحتياطية',
       toolsets: 'مجموعات الأدوات المفعلة',
       timezone: 'المنطقة الزمنية',
@@ -904,6 +968,7 @@ export const ar = defineLocale({
       'compression.codexGpt55Autoraise': 'الرفع التلقائي لضغط Codex',
       'compression.targetRatio': 'هدف الضغط',
       'compression.protectLastN': 'الرسائل الأخيرة المحمية',
+      'auxiliary.compression.timeout': 'مهلة نموذج الضغط (ثانية)',
       'delegation.model': 'نموذج الوكيل الفرعي',
       'delegation.provider': 'مزود الوكيل الفرعي',
       'delegation.maxIterations': 'حد دورات الوكيل الفرعي',
@@ -954,6 +1019,8 @@ export const ar = defineLocale({
       'context.engine': 'استراتيجية إدارة المحادثات الطويلة قرب حد السياق.',
       'compression.enabled': 'يلخص السياق الأقدم عندما تكبر المحادثات.',
       'compression.codexGpt55Autoraise': 'يرفع عتبة الضغط إلى 85٪ لنماذج ChatGPT Codex OAuth المدعومة.',
+      'auxiliary.compression.timeout':
+        'عدد الثواني لانتظار نموذج الضغط المساعد في كل استدعاء (الافتراضي 120). ارفعه للنماذج المحلية البطيئة.',
       'voice.autoTts': 'ينطق ردود المساعد تلقائياً.',
       'tts.xai.voiceId': 'معرف صوت xAI مثل eve أو معرف صوت مخصص.',
       'tts.xai.language': 'رمز لغة النطق، مثل en.',
@@ -1017,6 +1084,11 @@ export const ar = defineLocale({
       daysAgo: count => `قبل ${count} يوم`
     },
     config: {
+      minimizeToTrayTitle: 'التصغير إلى علبة النظام',
+      minimizeToTrayDesc:
+        'تصغير النوافذ أو إغلاق النافذة الرئيسية يخفيها في علبة النظام (شريط القوائم على macOS) مع استمرار Hermes في العمل. استخدم إنهاء Hermes من قائمة العلبة أو Cmd+Q للخروج. معطّل افتراضيًا ويُطبّق على هذا الجهاز فقط.',
+      minimizeToTrayUnavailable:
+        'علبة النظام غير متاحة. ستُصغّر النوافذ وتُغلق كالمعتاد. أوقف هذا الخيار ثم فعّله لإعادة المحاولة.',
       none: 'لا شيء',
       noneParen: '(لا شيء)',
       notSet: 'غير مضبوط',
@@ -1043,7 +1115,20 @@ export const ar = defineLocale({
       keepAwakeTitle: 'إبقاء الجهاز مستيقظا',
       toolsetsWipeConfirm:
         'إزالة كل مجموعات الأدوات المفعلة؟ هذا يعطل الذاكرة والطرفية والبحث على الويب وتفويض الوكلاء الفرعيين ومعظم الأدوات الأخرى حتى تعيد تفعيلها.',
-      showOptions: 'أظهر الخيارات'
+      showOptions: 'أظهر الخيارات',
+      attachmentSizeUnit: 'ميغابايت'
+    },
+    hudModifier: {
+      title: 'استدعاء HUD بضغطة',
+      description:
+        'اضغط ثم حرّر ⌘ + Option على Mac، أو Ctrl + Alt على Windows/Linux، لإظهار HUD من أي تطبيق. معطّل افتراضيًا ويُطبّق على هذا الجهاز فقط.',
+      permission:
+        'اسمح لـ Hermes في إعدادات النظام ← الخصوصية والأمان ← مراقبة الإدخال، ثم أعد المحاولة. لا تسجّل هذه الإيماءة ضغطات المفاتيح ولا تلتقط الشاشة.',
+      unavailable:
+        'تعذّر تشغيل مساعد إيماءة HUD أو توقف بشكل غير متوقع. أعد المحاولة أو أعد تشغيل Hermes. يظل اختصار HUD الحالي يعمل داخل Hermes.',
+      missingHelper: 'مساعد إيماءة HUD غير موجود في تثبيت Hermes هذا. حدّث Hermes أو أعد تثبيته، ثم أعد المحاولة.',
+      unsupportedSession:
+        'جلسة سطح المكتب هذه لا تدعم ضغطات مفاتيح التعديل على مستوى النظام. يتطلب Linux جلسة X11؛ Wayland غير مدعوم.'
     },
     screenshot: {
       enabledTitle: 'اختصار لقطة الشاشة',
@@ -1254,49 +1339,23 @@ export const ar = defineLocale({
       editsProfile: profile => `تنطبق التغييرات في هذه الصفحة على الملف الشخصي «${profile}».`
     },
     mcp: {
-      disableTool: tool => `تعطيل ${tool}`,
       costTokens: tokens => `~${tokens} رمز/استدعاء`,
-      catalogInstallStarted: name => `جارٍ تثبيت ${name}... يسري على الجلسات الجديدة بعد الانتهاء.`,
-      disableServer: name => `تعطيل ${name}`,
-      enableTool: tool => `تفعيل ${tool}`,
       capabilitySummary: (tools, prompts, resources) =>
         `تم تفعيل ${[`${tools} أداة`, ...(prompts ? [`${prompts} موجّه`] : []), ...(resources ? [`${resources} مورد`] : [])].join('، ')}`,
-      toggleFailed: (name, enabled) => `تعذّر ${enabled ? 'تفعيل' : 'تعطيل'} ${name}`,
-      enableServer: name => `تفعيل ${name}`,
       authenticatedMessage: (server, count) => `${server}: ${count} أداة`,
-      catalogEnvPrompt: name => `يتطلب ${name} بيانات اعتماد`,
-      serverDisabled: name => `تم تعطيل ${name}، ويسري ذلك على الجلسات الجديدة.`,
-      testOk: count => `تم الاتصال، ${count} ${count === 1 ? 'أداة متاحة' : 'أدوات متاحة'}`,
-      importConfirmMany: count => `إضافة ${count} خادمًا إلى mcp.json`,
       usage30d: uses => `${uses} استخدام/30 يومًا`,
       catalogInstallFailed: name => `فشل تثبيت ${name}`,
-      serverEnabled: name => `تم تفعيل ${name}، ويسري ذلك على الجلسات الجديدة.`,
       loading: 'جار تحميل خوادم MCP...',
-      failedLoad: 'فشل تحميل إعدادات MCP',
-      nameRequiredTitle: 'الاسم مطلوب',
-      nameRequiredMessage: 'أعط هذا الخادم مفتاح إعداد.',
-      objectRequired: 'يجب أن تكون إعدادات الخادم كائن JSON',
       invalidJson: 'JSON الخاص بـ MCP غير صالح',
       saveFailed: 'فشل الحفظ',
       removeFailed: 'فشلت الإزالة',
-      gatewayUnavailableTitle: 'البوابة غير متاحة',
-      gatewayUnavailableMessage: 'أعد الاتصال بالبوابة قبل إعادة تحميل MCP.',
-      reloadedTitle: 'تمت إعادة تحميل أدوات MCP',
-      reloadedMessage: 'مخططات الأدوات الجديدة تطبق على الأدوار الجديدة.',
       reloadFailed: 'فشلت إعادة تحميل MCP',
       savedTitle: 'تم حفظ خادم MCP',
       savedMessage: name => `سيطبق ${name} بعد إعادة تحميل MCP.`,
-      newServer: 'خادم جديد',
-      reload: 'إعادة تحميل MCP',
-      reloading: 'جار إعادة التحميل...',
-      emptyTitle: 'لا توجد خوادم MCP',
-      emptyDesc: 'أضف خادم stdio أو HTTP لإتاحة أدوات MCP.',
       disabled: 'معطل',
-      editServer: 'تحرير الخادم',
       name: 'الاسم',
       serverJson: 'JSON الخادم',
       remove: 'إزالة',
-      saveServer: 'حفظ الخادم',
       deepLinkTitle: 'إضافة خادم MCP؟',
       deepLinkDescription:
         'طلب رابط إضافة خادم MCP هذا إلى Sbar Rafiq. راجع الإعدادات الكاملة أدناه، فهي قادمة من الرابط وليست من Sbar Rafiq.',
@@ -1314,36 +1373,36 @@ export const ar = defineLocale({
       allServers: 'كل الخوادم',
       authenticate: 'مصادقة',
       authenticatedTitle: 'تمت المصادقة',
-      catalogEmpty: 'لا توجد مدخلات متاحة في الفهرس.',
-      catalogEnabled: 'مفعّل',
       catalogEnvRequired: 'املأ القيم المطلوبة قبل التثبيت.',
-      catalogInstall: 'تثبيت',
-      catalogInstalled: 'مثبّت',
-      catalogInstalling: 'جار التثبيت...',
-      catalogLoadFailed: 'فشل تحميل فهرس MCP',
       catalogLoading: 'جار تحميل فهرس MCP...',
-      catalogNeedsInstall: 'يحتاج بناء',
-      importButton: 'استيراد',
-      importConfirm: 'إضافة إلى mcp.json',
-      importNoMatch: 'لم يتم التعرف على إعداد خادم في النص الملصق.',
-      importPlaceholder: 'ألصق مقتطف mcp.json أو أمر npx/docker أو سطر claude mcp add أو رابطا أو رابط Cursor…',
       noOutput: 'لا توجد مخرجات بعد.',
       statusConnecting: 'جار الاتصال…',
       statusError: 'خطأ',
       statusNeedsAuth: 'يحتاج مصادقة',
       statusOff: 'إيقاف',
-      tabCatalog: 'الفهرس',
-      tabServers: 'الخوادم',
-      test: 'اختبار الاتصال',
-      testFailed: 'فشل الاتصال',
-      testing: 'جار الاختبار...',
-      unsavedConnect: 'غير محفوظ، احفظ mcp.json للاتصال.',
-      unusedPill: 'غير مستخدم',
-      waitingForBrowser: 'بانتظار المتصفح…'
+      test: 'اختبار الاتصال'
     },
     model: {
       moaDescription:
         'اضبط إعدادات مسماة تظهر كنماذج ضمن مزوّد Mixture of Agents. المُجمِّع هو النموذج العامل: هو من ينفّذ كل خطوة في حلقة الأدوات، وتقريبا كل تكلفة التشغيل تُحتسب على مزوّده. أما المراجع فتُبدي رأيها مرة واحدة لكل دور مستخدم افتراضيا.',
+      moaAggregatorBilled: 'النموذج المنفّذ · تُحتسب عليه تكلفة التشغيل',
+      moaReferenceHint: 'يقدّم المشورة مرة واحدة لكل رسالة افتراضياً',
+      setupProviderFallback: 'الموفّر',
+      setUpProvider: name => `إعداد ${name}`,
+      staleAuxBefore: (count, names) => `المهام المساعدة (${count}: ${names}) ما زالت تعمل لدى `,
+      staleAuxAfter: '، وليس على النموذج الرئيسي.',
+      staleAuxOtherProviders: 'موفّرين آخرين',
+      moaEnabled: 'مُفعّل',
+      moaSetDefault: 'تعيين الافتراضي',
+      moaNewPresetPlaceholder: 'إعداد جديد',
+      moaAddPreset: 'إضافة إعداد',
+      customModel: 'نموذج مخصص…',
+      customModelPlaceholder: 'معرّف النموذج',
+      chooseFromList: 'اختر من القائمة',
+      moaDefault: 'الافتراضي:',
+      moaReferenceToggle: (enabled, index) => `${enabled ? 'تعطيل' : 'تفعيل'} المرجع ${index}`,
+      moaReferenceTitle: index => `المرجع ${index}`,
+      moaAddReference: 'إضافة نموذج مرجعي',
       loading: 'جار تحميل إعدادات النموذج...',
       appliesDesc: 'ينطبق على الجلسات الجديدة. استخدم منتقي النموذج في صندوق الإنشاء لتبديل المحادثة النشطة فورا.',
       provider: 'المزوّد',
@@ -1451,7 +1510,7 @@ export const ar = defineLocale({
       loading: 'جار تحميل الجلسات المؤرشفة...',
       archivedTitle: 'الجلسات المؤرشفة',
       archivedIntro:
-        'تُخفى المحادثات المؤرشفة من الشريط الجانبي مع الاحتفاظ بكل رسائلها. اضغط Ctrl/⌘ مع النقر على محادثة في الشريط الجانبي لأرشفتها.',
+        'تُخفى المحادثات المؤرشفة من الشريط الجانبي مع الاحتفاظ بكل رسائلها. اضغط Alt/⌥+Shift مع النقر على محادثة في الشريط الجانبي لأرشفتها.',
       emptyArchivedTitle: 'لا توجد محادثات مؤرشفة',
       emptyArchivedDesc: 'أرشف محادثة لإخفائها هنا.',
       unarchive: 'إلغاء الأرشفة',
@@ -1567,14 +1626,29 @@ export const ar = defineLocale({
         ready: 'جاهز',
         sectionTitle: 'خلفية التنفيذ',
         selectedTitle: 'تم اختيار الخلفية',
-        unavailable: 'غير متاحة'
+        unavailable: 'غير متاحة',
+        needsSetupConfirmDescriptionGeneric: 'لم تُجهَّز هذه الخلفية بعد. الجلسات التي تبدأ بعد هذا التغيير لن تتوفر فيها أدوات الطرفية أو الملفات حتى يكتمل الإعداد.',
+        needsSetupConfirmAction: 'اختيارها على أي حال',
+        unavailableTitle: 'أوامر الطرفية غير متاحة',
+        openBackendSettings: 'فتح إعدادات الطرفية',
+        useLocal: 'استخدام المحلية',
+        switchedToLocal: 'صارت أوامر الطرفية تُنفَّذ محليًا. يسري ذلك على الجلسات الجديدة.',
+        needsSetupConfirmTitle: backend => `اختيار ${backend} على أي حال؟`,
+        needsSetupConfirmDescription: detail =>
+          `${detail} الجلسات التي تبدأ بعد هذا التغيير لن تتوفر فيها أدوات الطرفية أو الملفات حتى يكتمل الإعداد.`,
+        unavailableMessage: backend =>
+          `لا يستطيع Sbar Rafiq تشغيل أوامر الطرفية الآن: ${backend} غير جاهزة. بدّل إلى المحلية، أو أكمل إعداد ${backend} ثم أعد المحاولة.`
       },
       useBackend: 'استخدام هذه الخلفية',
       webCapabilityUnset: 'غير مضبوط',
       webUseForExtract: 'استخدام للاستخراج',
       webUseForSearch: 'استخدام للبحث',
       webUsedForExtract: 'خلفية الاستخراج',
-      webUsedForSearch: 'خلفية البحث'
+      webUsedForSearch: 'خلفية البحث',
+      nousAuthFailedMessage: 'أعد المحاولة.',
+      nousAuthTryAgain: 'أعد المحاولة',
+      postSetupOpenLogs: 'فتح السجلات',
+      postSetupRunAgain: 'التشغيل مجددًا'
     },
     connections: {
       duplicateSsh: label => `يوجد بالفعل اتصال بمضيف SSH هذا (“${label}”).`,
@@ -1635,7 +1709,8 @@ export const ar = defineLocale({
       updateSkippedCloud: 'يديرها Sbar Rafiq Cloud',
       urlTitle: 'رابط البوابة',
       kindSsh: '‏SSH',
-      kindCloud: 'سحابة Sbar Rafiq'
+      kindCloud: 'سحابة Sbar Rafiq',
+      labelPlaceholder: 'خادم المنزل'
     },
     localModels: {
       deleteConfirm: model => `حذف ${model} من القرص؟`,
@@ -1780,7 +1855,31 @@ export const ar = defineLocale({
     uninstallSection: {
       dangerZone: 'منطقة الخطر',
       confirmUninstall: 'تأكيد إلغاء التثبيت',
-      uninstallHermes: 'إلغاء تثبيت Hermes'
+      uninstallHermes: 'إلغاء تثبيت Hermes',
+      checkingInstalled: 'جارٍ التحقق مما هو مثبت…',
+      chooseHowMuch: 'اختر مقدار ما تريد إزالته. سيُغلق التطبيق لإتمام العملية، ويمكنك فتح المثبّت في أي وقت للعودة.',
+      appLabel: 'التطبيق:',
+      couldNotStart: 'تعذّر بدء إلغاء التثبيت.',
+      uninstalling: 'جارٍ إلغاء التثبيت…',
+      yesUninstall: 'نعم، ألغِ التثبيت',
+      options: {
+        gui: {
+          title: 'إلغاء تثبيت واجهة المحادثة فقط',
+          description: 'إزالة تطبيق سطح المكتب هذا. يبقى وكيل Hermes وإعداداتك ومحادثاتك كما هي.',
+          consequence: 'واجهة المحادثة على سطح المكتب (هذا التطبيق وبياناته)'
+        },
+        lite: {
+          title: 'إلغاء تثبيت الواجهة والوكيل مع الاحتفاظ ببياناتي',
+          description: 'إزالة التطبيق ووكيل Hermes، مع الاحتفاظ بالإعدادات والمحادثات والأسرار لإعادة تثبيت لاحقة.',
+          consequence: 'واجهة المحادثة ووكيل Hermes (مع الاحتفاظ بالإعدادات والمحادثات والأسرار)'
+        },
+        full: {
+          title: 'إلغاء تثبيت كل شيء',
+          description: 'إزالة التطبيق والوكيل وكل بيانات المستخدم: الإعدادات والمحادثات والمهام المجدولة والأسرار والسجلات.',
+          consequence: 'كل شيء: واجهة المحادثة ووكيل Hermes وكل إعداداتك ومحادثاتك وأسرارك وسجلاتك'
+        }
+      },
+      confirmBody: what => `سيؤدي هذا إلى إزالة ${what}. لا يمكن التراجع عن ذلك.`
     },
     poolLimits: {
       warmBotBackendsAria: 'خلفيات البوتات الدافئة',
@@ -1793,12 +1892,311 @@ export const ar = defineLocale({
       deleteEndpoint: 'احذف نقطة النهاية',
       emptyDescription: 'أضف نقطة نهاية متوافقة مع OpenAI أدناه.',
       emptyTitle: 'لا توجد نقاط نهاية مخصصة',
-      contextPlaceholder: 'تلقائي'
+      contextPlaceholder: 'تلقائي',
+      active: 'نشطة',
+      apiKeySet: 'مفتاح API مضبوط',
+      use: 'استخدام',
+      editTitle: 'تحرير نقطة النهاية',
+      addTitle: 'إضافة نقطة نهاية',
+      fields: {
+        name: 'الاسم',
+        providerId: 'معرّف المزوّد',
+        endpointUrl: 'رابط نقطة النهاية',
+        defaultModel: 'النموذج الافتراضي',
+        context: 'السياق',
+        apiKey: 'مفتاح API',
+        apiKeyNewPlaceholder: 'اتركه فارغًا للإبقاء على المفتاح الحالي',
+        apiKeyPlaceholder: 'اختياري',
+        useNewChats: 'استخدامها للمحادثات الجديدة',
+        discoverModels: 'اكتشاف النماذج'
+      },
+      test: 'اختبار',
+      save: 'حفظ',
+      newEndpoint: 'نقطة نهاية جديدة',
+      apiMode: 'وضع API',
+      autoDetect: 'اكتشاف تلقائي',
+      couldNotLoad: 'تعذّر تحميل نقاط النهاية المخصصة',
+      endpointSaved: 'حُفظت نقطة النهاية المخصصة.',
+      saveFailed: 'فشل الحفظ',
+      endpointReachable: 'يمكن الوصول إلى نقطة النهاية.',
+      endpointValidationFailed: 'فشل التحقق من نقطة النهاية.',
+      validationFailed: 'فشل التحقق',
+      activationFailed: 'فشل التفعيل',
+      deleteFailed: 'فشل الحذف',
+      endpointReachableTransport: transport => `يمكن الوصول إلى نقطة النهاية (استجاب مسار ${transport}).`,
+      endpointReachableModels: (reachable, count) => `${reachable} عُثر على ${plural(count, 'نموذج واحد', 'نموذجين', 'نماذج', 'نموذجًا')}.`,
+      deleteConfirm: name => `حذف ${name}؟`
     },
     computerUse: {
       accessibility: 'إمكانية الوصول',
       screenRecording: 'تسجيل الشاشة',
       driverHealth: 'حالة المشغّل'
+    },
+    billing: {
+      freeTier: {
+        signIn: 'تسجيل الدخول',
+        title: 'أنت على الطبقة المجانية من Nous',
+        message: 'سجّل الدخول بحساب Nous لفتح مزيد من النماذج والأدوات.',
+        caption: 'يعمل على nous/welcome مع الموصّلات المضمّنة. يحتفظ تسجيل الدخول بموصّلاتك ويضيف الأدوات التي تتطلب حسابًا وكل النماذج الأخرى.',
+        name: 'Nous · الطبقة المجانية',
+        footnote: 'لا رصيد في الطبقة المجانية ولا شيء للدفع. يظهر الدفع والاستخدام عند تسجيل الدخول بحساب Nous.',
+        plan: 'الطبقة المجانية',
+        model: 'النموذج',
+        connectors: 'الموصّلات',
+        included: 'مضمّنة'
+      },
+      amountValidation: {
+        reloadTo: 'مبلغ التعبئة',
+        greaterThanThreshold: 'يجب أن يكون مبلغ التعبئة أكبر من الحد الأدنى.',
+        decimal: label => `${label}: أدخل مبلغًا بالدولار بخانتين عشريتين على الأكثر.`,
+        positive: label => `${label}: يجب أن يكون المبلغ أكبر من 0$.`,
+        minimum: (label, amount) => `${label}: الحد الأدنى ${amount}.`,
+        maximum: (label, amount) => `${label}: الحد الأقصى ${amount}.`
+      },
+      stepUp: {
+        openVerification: 'فتح صفحة التحقق',
+        dismiss: 'إغلاق',
+        waiting: 'في انتظار رابط التحقق…',
+        verify: 'تحقّق للمتابعة',
+        deniedTitle: 'لم تتم الموافقة على التحقق',
+        deniedBody: 'انتهى التحقق دون السماح بالإنفاق عن بُعد لهذه الطرفية.',
+        successTitle: 'اكتمل التحقق',
+        successBody: 'الإنفاق عن بُعد مسموح لهذه الطرفية.'
+      },
+      charge: {
+        failedTitle: 'فشلت عملية الدفع',
+        unconfirmedTitle: 'نتيجة الدفع غير مؤكدة',
+        checkTitle: 'تعذّر التحقق من عملية الدفع',
+        checkBody: 'تعذّر التحقق من عملية الدفع.',
+        untrackedTitle: 'تعذّر تتبع عملية الدفع',
+        untrackedBody: 'قبلت خدمة الفوترة الطلب لكنها لم تُرجع معرّف عملية الدفع.',
+        timeoutTitle: 'ما زالت قيد المعالجة بعد 5 دقائق',
+        timeoutBody: 'قد تكتمل عملية الدفع لاحقًا. راجع بوابة Nous قبل إعادة المحاولة.',
+        authenticationRequired: 'يطلب مصرفك التحقق (3DS). أكمله في بوابة Nous لإتمام هذا الشراء.',
+        expired: 'انتهت صلاحية بطاقتك. حدّثها في بوابة Nous.',
+        declined: 'رُفضت بطاقتك. جرّب بطاقة أخرى في بوابة Nous.',
+        added: amount => (amount ? `أُضيف ${amount}$.` : 'أُضيف الرصيد.'),
+        unconfirmedBody: message =>
+          `${message} نتيجة آخر عملية دفع غير مؤكدة، راجع رصيدك وسجلّك قبل إعادة المحاولة.`,
+        failedBody: reason => `لم تتم عملية الدفع (${reason}).`
+      },
+      title: 'الفوترة',
+      preview: 'معاينة',
+      summary: {
+        balance: 'الرصيد',
+        plan: 'الخطة',
+        autoRefill: 'التعبئة التلقائية'
+      },
+      sections: {
+        invoices: 'الفواتير',
+        plan: 'الخطة',
+        paymentAndCredits: 'الدفع والرصيد',
+        usage: 'الاستخدام'
+      },
+      usage: {
+        title: 'الاستخدام'
+      },
+      buyCredits: {
+        customAmount: 'مبلغ رصيد مخصص',
+        title: 'شراء رصيد الآن',
+        buyButton: 'شراء',
+        processing: 'جارٍ المعالجة… التحقق من إتمام الدفع',
+        retry: 'إعادة المحاولة',
+        openPortal: 'فتح بوابة Nous',
+        added: amount => `أُضيف ${amount}. جارٍ تحديث الرصيد.`
+      },
+      plan: {
+        title: 'الخطط',
+        changePlan: 'تغيير الخطة',
+        viewPlans: 'عرض الخطط',
+        backAria: 'العودة إلى الفوترة',
+        current: 'الخطة الحالية',
+        scheduled: 'مجدولة',
+        empty: 'لا توجد خطط متاحة للتغيير إليها الآن.',
+        undo: 'تراجع',
+        undoing: 'جارٍ التراجع…',
+        downgrade: 'الانتقال إلى خطة أدنى',
+        confirmDowngrade: 'تأكيد الانتقال إلى خطة أدنى',
+        tryAgain: 'أعد المحاولة',
+        checkingChange: 'جارٍ التحقق من هذا التغيير…',
+        cannotChange: 'لا يمكن إجراء هذا التغيير هنا.',
+        notScheduleable: 'لا يمكن جدولة هذا التغيير هنا.',
+        scheduling: 'جارٍ الجدولة…',
+        cancel: 'إلغاء',
+        alreadyOn: name => `أنت بالفعل على ${name}، لا شيء لتغييره.`,
+        effectScheduled: (targetName, effectiveAt, creditsDelta) =>
+          `التغيير إلى ${targetName} يسري ${effectiveAt}. لا دفع الآن، وتبقى على خطتك الحالية حتى ذلك الحين.${creditsDelta ? ` تغيّر الرصيد الشهري: ${creditsDelta}.` : ''}`
+      },
+      autoReload: {
+        threshold: 'الحد الأدنى',
+        thresholdAria: 'الحد الأدنى للتعبئة التلقائية',
+        reloadTo: 'التعبئة حتى',
+        reloadToAria: 'المبلغ الذي تُعبّأ حتى بلوغه تلقائيًا',
+        turnOffConfirm: 'إيقاف التعبئة التلقائية؟',
+        turnOff: 'إيقاف',
+        disable: 'تعطيل',
+        updated: 'حُدّثت التعبئة التلقائية.',
+        turnedOff: 'أُوقفت التعبئة التلقائية.',
+        manage: 'إدارة',
+        save: 'حفظ',
+        saving: 'جارٍ الحفظ…',
+        cancel: 'إلغاء'
+      },
+      state: {
+        notice: {
+          loggedOut: {
+            title: 'اربط حساب Nous الخاص بك',
+            message: 'شغّل /portal في واجهة الطرفية أو افتح بوابة Nous لربط حسابك.',
+            action: 'فتح بوابة Nous ↗'
+          },
+          noCard: {
+            title: 'لا توجد وسيلة دفع مسجّلة',
+            message: 'يبقى شراء رصيد الشحن والتعبئة التلقائية معطّلين حتى تُسجَّل بطاقة. أضف واحدة في بوابة Nous.',
+            action: 'إضافة بطاقة ↗'
+          }
+        },
+        paymentMethod: {
+          title: 'وسيلة الدفع',
+          description: 'أدِر البطاقة المستخدمة لشحن الرصيد وتجديد الاشتراك.',
+          addAction: 'إضافة وسيلة دفع',
+          updateAction: 'تحديث',
+          provenance: {
+            autoRefill: 'بطاقة التعبئة التلقائية',
+            customerDefault: 'البطاقة الافتراضية للعميل',
+            subPin: 'بطاقة الاشتراك',
+            suffix: label => `، ${label}`
+          }
+        },
+        buyCredits: {
+          description: 'عملية دفع واحدة على بطاقتك، تُضاف إلى رصيدك اليوم.'
+        },
+        autoRefill: {
+          title: 'التعبئة عند انخفاض الرصيد',
+          genericDescription: 'حافظ على رصيدك مشحونًا عندما ينخفض عن الحد الأدنى الذي حددته.',
+          offPill: 'متوقفة',
+          enabledPill: 'مفعّلة',
+          notAvailablePill: 'غير متاحة',
+          manageCaption: 'أدِر التعبئة التلقائية من بوابة Nous.',
+          turnOnCaption: 'فعّل التعبئة التلقائية من بوابة Nous',
+          distinctCardFallback: 'بطاقة مختلفة',
+          reconcileAction: 'مطابقة ↗',
+          chargesDescription: (reloadTo, threshold) =>
+            `يدفع ${reloadTo} تلقائيًا عندما ينخفض رصيدك عن ${threshold}.`,
+          distinctCardCaption: cardLabel => `تُحسب التعبئة التلقائية على ${cardLabel}، طابِقها في بوابة Nous`
+        },
+        usage: {
+          subscriptionCredits: {
+            title: 'رصيد الاشتراك',
+            barLabel: 'رصيد الاشتراك المتبقي',
+            captionResets: date => `يُعاد التعيين ${date}`,
+            valueOf: (remaining, monthly) => `بقي ${remaining} من ${monthly}`,
+            valueOver: (remaining, monthly, over) => `بقي ${remaining} من ${monthly} · تجاوز بمقدار ${over}`
+          },
+          topupCredits: {
+            title: 'رصيد الشحن',
+            caption: 'لا تنتهي صلاحيته'
+          },
+          monthlyCap: {
+            title: 'سقف الإنفاق الشهري',
+            barLabel: 'المستخدم من سقف الإنفاق الشهري',
+            captionDefault: 'السقف الافتراضي',
+            captionSpending: 'الإنفاق الشهري عن بُعد',
+            valueUsed: (spent, limit) => `استُخدم ${spent} من ${limit}`
+          }
+        },
+        planCard: {
+          freeTier: 'مجانية',
+          chooseAction: 'اختيار ↗',
+          adjustPlanAction: 'تعديل الخطة ↗',
+          unavailableCaption: 'تفاصيل الاشتراك غير متاحة، لكن ما زال بإمكانك فتح بوابة Nous.',
+          noSubscriptionCaption: 'لا يوجد اشتراك فعّال، لذا تُخصم النماذج المدفوعة من رصيد الشحن.',
+          downgradeCaption: (tierName, when) => `ينتقل إلى ${tierName} في ${when}.`,
+          cancellationCaption: when => `يُلغى في ${when}.`,
+          renewsCaption: date => `يتجدد ${date}`
+        }
+      },
+      errors: {
+        consentRequired: {
+          title: 'يلزم تأكيد البطاقة',
+          message: 'أكّد هذه البطاقة لعمليات الدفع من الطرفية في بوابة Nous'
+        },
+        insufficientScope: {
+          title: 'يحتاج الإنفاق عن بُعد إلى موافقة',
+          message: 'يتطلب هذا السماح بالإنفاق عن بُعد. ابدأ عملية شحن للسماح به، ثم أعد المحاولة.'
+        },
+        remoteSpendingRevoked: {
+          title: 'أُوقف الإنفاق عن بُعد',
+          messageByAdmin: 'أوقف أحد المسؤولين الإنفاق عن بُعد لهذه الطرفية.',
+          messageBySelf: 'أوقفت الإنفاق عن بُعد لهذه الطرفية.'
+        },
+        sessionRevoked: {
+          title: 'سُجّل الخروج من الجلسة',
+          message: 'سُجّل خروجك من الجلسة. سجّل الدخول مجددًا من الإعدادات ← البوابة.'
+        },
+        cliBillingDisabled: {
+          title: 'الإنفاق عن بُعد متوقف',
+          message: 'الإنفاق عن بُعد متوقف لهذا الحساب. يمكن لمسؤول الفوترة تفعيله من صفحة Hermes Agent في بوابة Nous.'
+        },
+        roleRequired: {
+          title: 'يلزم دور المسؤول',
+          message: 'إضافة الأموال تتطلب مسؤولًا أو مالكًا للمؤسسة. اطلب ذلك من مسؤول، أو أدِرها من بوابة Nous.'
+        },
+        idempotencyConflict: {
+          title: 'ابدأ عملية شحن جديدة',
+          message: '🔴 استُخدم مفتاح الدفع هذا من قبل لمبلغ مختلف. ابدأ عملية شحن جديدة.'
+        },
+        noPaymentMethod: {
+          title: 'لا توجد بطاقة محفوظة',
+          message: '💳 لا توجد بطاقة محفوظة لعمليات الدفع من الطرفية بعد. أضف واحدة في بوابة Nous (شراء الرصيد لمرة واحدة لا يحفظ بطاقة قابلة لإعادة الاستخدام).'
+        },
+        orgAccessDenied: {
+          title: 'رُفض الوصول إلى المؤسسة',
+          message: 'هذا الرمز غير مرتبط بمؤسسة يمكنك إدارتها'
+        },
+        monthlyCapExceeded: {
+          title: 'بلغت سقف الإنفاق الشهري',
+          messageReached: '🔴 بلغت سقف الإنفاق الشهري.',
+          messageHeadroom: remaining => `🔴 بلغت سقف الإنفاق الشهري، والمتبقي ${remaining}$.`
+        },
+        rateLimited: {
+          title: 'عمليات دفع كثيرة جدًا الآن',
+          message: mins =>
+            mins > 0
+              ? `🟡 عمليات دفع كثيرة جدًا الآن (أعد المحاولة بعد ${mins} دقيقة تقريبًا). هذا ليس فشلًا في الدفع.`
+              : '🟡 عمليات دفع كثيرة جدًا الآن. هذا ليس فشلًا في الدفع.'
+        },
+        stripeUnavailable: {
+          title: 'تواجه Stripe مشكلة',
+          message: mins =>
+            mins > 0
+              ? `تواجه Stripe مشكلة، أعد المحاولة بعد ${mins} دقيقة تقريبًا`
+              : 'تواجه Stripe مشكلة، أعد المحاولة بعد قليل'
+        },
+        upgradeCapExceeded: {
+          title: 'بلغت الحد اليومي لتغيير الخطة',
+          message: 'بلغت الحد اليومي لتغيير الخطة، أعد المحاولة غدًا'
+        },
+        endpointUnavailable: {
+          title: 'نقطة الفوترة غير متاحة',
+          message: 'أرجعت نقطة الفوترة استجابة ليست JSON (قد لا تكون متاحة في هذا النشر).'
+        },
+        timeout: {
+          title: 'انتهت مهلة طلب الفوترة',
+          message: 'انتهت مهلة طلب الفوترة.'
+        },
+        transport: {
+          title: 'فشل الاتصال بالفوترة',
+          message: 'فشل طلب الفوترة قبل الوصول إلى البوابة.'
+        },
+        default: {
+          title: 'فشل طلب الفوترة',
+          message: 'فشل طلب الفوترة.'
+        },
+        remoteSpendingReconnect: who => `${who} أعد الاتصال من الإعدادات ← البوابة لإعادة تفويض هذا الجهاز.`
+      },
+      perMonth: amount => `${amount} شهريًا`,
+      creditsPerMonth: amount => `${amount} رصيد شهريًا`,
+      usageLabel: label => `استخدام ${label}`
     }
   },
   skills: {
@@ -1892,7 +2290,12 @@ export const ar = defineLocale({
       updating: 'جار التحديث...',
       verdictCaution: 'تحذير',
       verdictDangerous: 'خطرة',
-      verdictSafe: 'آمنة'
+      verdictSafe: 'آمنة',
+      viewScan: 'عرض الفحص',
+      openLog: 'فتح السجل',
+      installBlockedTitle: name => `تعذّر تثبيت ${name}`,
+      installBlockedMessage: (findings, unverified) =>
+        `رصد الفحص الأمني ${findings > 0 ? plural(findings, 'عنصرًا واحدًا', 'عنصرين', 'عناصر', 'عنصرًا') : 'أنماطًا خطرة'} تستحق المراجعة${unverified ? '، والمهارة من مصدر غير موثّق' : ''}. اقرأ نتيجة الفحص قبل أن تقرر الوثوق بالمؤلف.`
     },
     officialCatalog: 'متاحة للتثبيت',
     officialPill: 'رسمية',
@@ -1952,7 +2355,48 @@ export const ar = defineLocale({
       pinnedBadge: (sha: string) => `مثبت @ ${sha}`,
       updateToPin: (sha: string) => `حدّث إلى ${sha}`,
       updateFailed: (name: string) => `تعذّر تحديث ${name}`,
-      updated: (name: string) => `حُدّث ${name} إلى تثبيت الفهرس الحالي. أعد تشغيل البوابة ليسري المفعول.`
+      updated: (name: string) => `حُدّث ${name} إلى تثبيت الفهرس الحالي. أعد تشغيل البوابة ليسري المفعول.`,
+      desktopHalfRemote: 'غير متاح (خلفية بعيدة)',
+      desktopHalfRemoteTip: 'نصف سطح المكتب من هذه الحزمة موجود على قرص الخلفية البعيدة، ولا يستطيع هذا التطبيق قراءته. لاستخدامه هنا، شغّل «التثبيت من Git» برابط مستودع الحزمة مع تحديد هدف سطح المكتب، فيُنسخ نصف سطح المكتب إلى هذا الجهاز.',
+      serverStates: {
+        connected: 'متصل',
+        app_not_running: 'التطبيق لا يعمل',
+        endpoint_unavailable: 'نقطة النهاية غير متاحة',
+        no_interactive_session: 'لا توجد جلسة تفاعلية',
+        version_too_old: 'الإصدار قديم جدًا',
+        missing_app: 'التطبيق مفقود',
+        unknown: 'الحالة غير معروفة'
+      },
+      updateConsentConfirm: 'تطبيق التحديث',
+      uninstall: 'إلغاء التثبيت',
+      deepLinkErrorTitle: 'رُفض رابط تثبيت الإضافة',
+      deepLinkCatalogInvalidName: 'اسم الكتالوج في الرابط مفقود أو غير صالح.',
+      deepLinkCatalogUnavailable: 'تعذّر تحميل كتالوج إضافات Sbar Rafiq. تحقق من اتصالك وافتح الرابط مجددًا.',
+      settingsForm: {
+        save: 'حفظ الإعدادات',
+        optional: '(اختياري)',
+        secretSet: '•••••••• (مضبوط)',
+        saved: name => `حُفظت إعدادات ${name}.`,
+        saveFailed: name => `تعذّر حفظ إعدادات ${name}`,
+        secretStoredAs: env =>
+          `يُخزَّن في ملف .env الخاص بالملف الشخصي باسم ${env}، ولا يُخزَّن أبدًا في config.yaml. اتركه فارغًا للإبقاء على القيمة الحالية.`
+      },
+      updateConsentTitle: name => `${name} يطلب صلاحيات أكثر`,
+      updateConsentBody: (name, sha) =>
+        `يضيف الإصدار المثبّت الجديد من ${name} في الكتالوج (${sha}) واجهات لا يملكها الإصدار المثبّت حاليًا. طبّقه فقط إن كنت تثق بها:`,
+      uninstallTip: (name, profile) => `إلغاء تثبيت ${name} من ${profile}`,
+      uninstallConfirmTitle: name => `إلغاء تثبيت ${name}؟`,
+      uninstallConfirmBody: (name, profile) =>
+        `سيحذف هذا ملفات الإضافة من الملف الشخصي ${profile}، وسيُزال معها أي نصف لسطح المكتب جاءت به. يمكنك إعادة تثبيتها من الكتالوج أو من Git في أي وقت.`,
+      uninstallFailed: name => `تعذّر إلغاء تثبيت ${name}`,
+      uninstalled: name => `أُلغي تثبيت ${name}. أعد تشغيل البوابة لإلغاء تحميله.`,
+      uninstallDesktopTip: name => `إلغاء تثبيت ${name} من هذا التطبيق`,
+      uninstallDesktopConfirmBody: name =>
+        `سيحذف هذا ${name} من مجلد desktop-plugins على هذا الكمبيوتر ويلغي تحميله الآن. يمكنك إعادة تثبيته من Git أو إعادة المجلد في أي وقت.`,
+      uninstalledDesktop: name => `أُلغي تثبيت ${name}.`,
+      deepLinkCatalogUnknown: name =>
+        `«${name}» ليس ضمن كتالوج إضافات Sbar Rafiq. لم يُثبَّت أي شيء.`,
+      settingsToggle: name => `الإعدادات: ${name}`
     }
   },
   agents: {
@@ -2094,7 +2538,7 @@ export const ar = defineLocale({
         title: 'الإعدادات',
         detail: 'تكوين Sbar Rafiq desktop'
       },
-      skills: {
+      capabilities: {
         title: 'المهارات والأدوات',
         detail: 'تفعيل المهارات ومجموعات الأدوات والمزوّدين'
       },
@@ -2443,7 +2887,10 @@ export const ar = defineLocale({
     pairingLockedOut: 'محاولات موافقة فاشلة كثيرة، فقد أُقفلت هذه المنصة. حاول مرة أخرى لاحقا.',
     revoke: 'إلغاء الإذن',
     revokeTitle: 'إلغاء الوصول',
-    revoking: 'جار إلغاء الوصول...'
+    revoking: 'جار إلغاء الوصول...',
+    restartFailedManualDetail: 'جرّب «إعادة التشغيل» مجددًا، وإن استمر الفشل فافتح السجلات وأرسل التشخيصات.',
+    restartAgain: 'إعادة التشغيل مجددًا',
+    openLogs: 'فتح السجلات'
   },
   profiles: {
     close: 'إغلاق',
@@ -2582,21 +3029,17 @@ export const ar = defineLocale({
     renameMenu: 'إعادة تسمية…',
     search: 'ابحث في الملفات الشخصية...'
   },
+  modelAssignment: {
+    saveFailed: 'لم يحفظ Sbar Rafiq تغيير النموذج هذا.',
+    confirmTitle: 'تحذير اختيار النموذج',
+    confirmDetail: 'أكّد فقط إذا كنت تقبل هذه المقايضة.',
+    confirmAction: 'تأكيد',
+    declined: 'أُلغي تغيير النموذج، رفضت تحذير طبقة تدريب البيانات.'
+  },
+
   cron: {
     count: count => `${count} ${count === 1 ? 'مهمة' : 'مهام'}`,
     close: 'إغلاق',
-    modelImpact: {
-      title: 'تبقى المهام المجدولة على نموذجها الأصلي',
-      message: count =>
-        `${count} من المهام المجدولة غير المثبتة ستواصل العمل على النموذج الذي أُنشئت به. ثبّتها أو اضبط cron.model لنقلها.`,
-      detailMore: (names, remaining) => `${names} و${remaining} أخرى`,
-      review: 'مراجعة المهام المجدولة',
-      saveFailed: 'لم يحفظ Sbar Rafiq تغيير النموذج هذا.',
-      confirmTitle: 'تحذير اختيار النموذج',
-      confirmDetail: 'أكّد فقط إذا كنت تقبل هذه المقايضة.',
-      confirmAction: 'تأكيد',
-      declined: 'أُلغي تغيير النموذج، رفضت تحذير طبقة تدريب البيانات.'
-    },
     search: 'بحث',
     loading: 'جار التحميل...',
     states: {
@@ -2726,7 +3169,11 @@ export const ar = defineLocale({
       blueprints: 'القوالب',
       jobs: 'المهام'
     },
-    title: 'المهام المجدولة'
+    title: 'المهام المجدولة',
+    lastRunFailed: 'فشل آخر تشغيل:',
+    editJob: 'تحرير المهمة',
+    runAgain: 'التشغيل مجددًا',
+    overdueSince: 'متأخرة منذ:'
   },
   projectWorkflows: {
     title: 'قوالب عمل المشروع',
@@ -2877,6 +3324,38 @@ export const ar = defineLocale({
   sidebar: {
     messageCount: count => `${count} ${count === 1 ? 'رسالة' : 'رسائل'}`,
     toolCallCount: count => `${count} ${count === 1 ? 'استدعاء أداة' : 'استدعاءات أدوات'}`,
+    profileRail: 'شريط الملفات الشخصية',
+    filter: {
+      grouping: 'تجميع',
+      ordering: 'ترتيب',
+      show: 'إظهار',
+      filters: 'تصفية',
+      status: 'الحالة',
+      pullRequest: 'طلب سحب',
+      profile: 'الملف الشخصي',
+      project: 'المشروع',
+      archived: 'مؤرشف',
+      resetToDefaults: 'إعادة تعيين إلى الافتراضي',
+      expandAll: 'توسيع الكل',
+      collapseAll: 'طي الكل',
+      inboxStyle: 'نمط البريد الوارد',
+      updated: 'محدّث',
+      created: 'أُنشئ',
+      tokens: 'الرموز',
+      cost: 'التكلفة',
+      manual: 'يدوي',
+      preview: 'معاينة',
+      pr: 'طلبات الدمج',
+      needsInput: 'يحتاج إدخالاً',
+      working: 'يعمل',
+      unread: 'غير مقروء',
+      draft: 'مسودة',
+      idle: 'خامل',
+      open: 'مفتوح',
+      merged: 'مدمج',
+      closed: 'مغلق',
+      noPR: 'لا يوجد PR'
+    },
     gatewayGroups: {
       grouping: 'البوابة والملف الشخصي',
       rename: 'إعادة تسمية المجموعة',
@@ -2890,7 +3369,7 @@ export const ar = defineLocale({
     },
     nav: {
       'new-session': 'جلسة جديدة',
-      skills: 'المهارات',
+      capabilities: 'المهارات',
       messaging: 'المراسلة',
       artifacts: 'العناصر',
       chat: 'المحادثة',
@@ -2905,6 +3384,10 @@ export const ar = defineLocale({
     results: 'النتائج',
     pinned: 'المثبتة',
     sessions: 'الجلسات',
+    terminal: 'الطرفية',
+    files: 'الملفات',
+    review: 'المراجعة',
+    logs: 'السجلات',
     cronJobs: 'المهام المجدولة',
     groupAriaGrouped: 'الجلسات مجمعة حسب مساحة العمل',
     groupAriaUngrouped: 'الجلسات غير مجمعة',
@@ -3091,6 +3574,13 @@ export const ar = defineLocale({
     statusDivider: {
       done: 'منتهية',
       working: 'قيد العمل'
+    },
+    storageCorrupt: {
+      title: 'قاعدة بيانات الجلسات تالفة',
+      action: 'أغلق Sbar Rafiq على هذا الملف الشخصي، ثم افحص الملف دون تغييره، أو استعد لقطة محفوظة:',
+      guide: 'دليل الاسترداد',
+      body: profiles =>
+        `لا يستطيع Sbar Rafiq قراءة كامل سجل الجلسات لـ ${profiles}. المحادثات الغائبة عن هذه القائمة لم تُحذف، لكن الملف المخزنة فيه تالف.`
     }
   },
   composer: {
@@ -3136,12 +3626,77 @@ export const ar = defineLocale({
     hotkeys: 'الاختصارات',
     helpFooter: 'استخدم الأسهم للتنقل و Enter للاختيار.',
     commandDescs: {
-      '/help': 'قائمة كاملة بالأوامر + اختصارات لوحة المفاتيح',
+      '/help': 'عرض أوامر الشرطة المائلة لسطح المكتب',
       '/clear': 'بدء جلسة جديدة',
-      '/resume': 'استئناف جلسة سابقة',
+      '/resume': 'استئناف جلسة محفوظة',
       '/details': 'التحكم في مستوى تفاصيل النص',
       '/copy': 'نسخ التحديد أو آخر رسالة من المساعد',
-      '/quit': 'الخروج من hermes'
+      '/quit': 'الخروج من hermes',
+      '/start': 'تأكيد طلب بدء المنصة دون إرسال رد',
+      '/new': 'بدء محادثة جديدة في تطبيق سطح المكتب',
+      '/topic': 'تفعيل مواضيع الرسائل الخاصة في Telegram أو عرضها',
+      '/save': 'حفظ المحادثة الحالية بصيغة JSON',
+      '/retry': 'إعادة إرسال آخر رسالة إلى الوكيل',
+      '/prompt': 'كتابة الطلب التالي بتنسيق Markdown في $EDITOR ثم إرساله',
+      '/undo': 'الرجوع بعدد محدد من أدوار المستخدم وإعادة الطلب (الافتراضي 1)',
+      '/title': 'إعادة تسمية الجلسة الحالية',
+      '/handoff': 'نقل هذه الجلسة إلى منصة مراسلة',
+      '/branch': 'إنشاء فرع من آخر رسالة في محادثة جديدة',
+      '/worktree': 'عرض أشجار عمل Git المعزولة أو سردها أو إنشاؤها أو تنظيفها',
+      '/compress': 'ضغط سياق المحادثة الحالية',
+      '/rollback': 'عرض نقاط استعادة الملفات أو استعادتها مع الحفاظ على تعديلاتك اليدوية',
+      '/export': 'تصدير الملف الشخصي بإعداداته ومهاراته وسمته إلى أرشيف قابل للمشاركة',
+      '/import': 'استيراد أرشيف مشترك كملف شخصي جديد',
+      '/stop': 'إيقاف الدور الجاري والعمليات الخلفية',
+      '/pause': 'إيقاف العمل الجديد مؤقتًا للجميع؛ الاستئناف باستخدام /pause off',
+      '/bg': 'تشغيل طلب في جلسة خلفية منفصلة',
+      '/btw': 'طرح سؤال جانبي عن المحادثة دون مقاطعتها',
+      '/agents': 'عرض الوكلاء النشطين والمهام الجارية',
+      '/journey': 'فتح رسم الذاكرة لعرض المهارات والذكريات عبر الزمن',
+      '/queue': 'إضافة طلبات للدور التالي أو عرضها أو تعديلها أو حذفها أو نقلها أو مسحها',
+      '/steer': 'إدراج رسالة بعد استدعاء الأداة التالي دون مقاطعة العمل',
+      '/goal': 'تحديد هدف مستمر يعمل عليه Hermes حتى إنجازه',
+      '/heartbeat': 'تحديد طلب متكرر يعود إلى هذه الجلسة عندما تكون خاملة',
+      '/refine': 'مراجعة هذه المحادثة وحفظ الدروس في الذاكرة أو المهارات',
+      '/review': 'تشغيل وكيل فرعي مستقل لمراجعة العمل الذي نوقش',
+      '/loop': 'تكرار طلب على فترات منتظمة في هذه الجلسة',
+      '/plan': 'كتابة خطة تنفيذ بتنسيق Markdown في .hermes/plans/ دون تنفيذها',
+      '/moa': 'تشغيل طلب باستخدام Mixture of Agents ثم استعادة النموذج',
+      '/subgoal': 'إضافة معايير للهدف النشط أو إدارتها',
+      '/status': 'عرض حالة الجلسة الحالية',
+      '/egress': 'عرض حالة وكيل الاتصالات الصادرة في Docker',
+      '/context': 'عرض استخدام السياق وتفاصيله وإحصاءات الضغط ومعدل المعالجة',
+      '/whoami': 'عرض صلاحية الوصول إلى أوامر الشرطة المائلة',
+      '/profile': 'تبديل ملف Hermes الشخصي النشط',
+      '/codex-runtime': 'تبديل بيئة Codex app-server لنماذج OpenAI/Codex',
+      '/personality': 'اختيار شخصية محددة مسبقًا',
+      '/battery': 'تبديل عرض مؤشر البطارية الملون في شريط الحالة',
+      '/timestamps': 'تبديل الطوابع الزمنية في الرسائل و /history',
+      '/diff': 'عرض تغييرات Git في مجلد العمل',
+      '/focus': 'تبديل عرض التركيز الذي يعرض الطلب والرد النهائي فقط',
+      '/yolo': 'تبديل YOLO: الموافقة التلقائية على الأوامر الخطرة',
+      '/approvals': 'عرض وضع الموافقة على الأوامر الخطرة أو ضبطه',
+      '/reasoning': 'إدارة مستوى الاستدلال وطريقة عرضه',
+      '/skin': 'تبديل سمة سطح المكتب أو الانتقال إلى التالية',
+      '/wake': 'التحكم في مستمع كلمة التنبيه [on|off|status]',
+      '/tools': 'إدارة الأدوات المتاحة للوكيل',
+      '/memory': 'مراجعة عمليات كتابة الذاكرة المعلقة أو تبديل طلب الموافقة',
+      '/bundles': 'عرض حزم المهارات',
+      '/pet': 'تبديل تميمة petdex أو تبني واحدة',
+      '/hatch': 'إنشاء حيوان أليف جديد',
+      '/learn': 'تعلم مهارة قابلة لإعادة الاستخدام من المجلدات أو الروابط أو المحادثة أو الملاحظات',
+      '/init': 'فحص المستودع لإنشاء تعليمات AGENTS.md أو تحديثها',
+      '/suggestions': 'مراجعة عمليات الأتمتة المقترحة وقبولها أو رفضها',
+      '/blueprint': 'إعداد أتمتة من قالب مخطط',
+      '/browser': 'إدارة اتصال المتصفح عبر CDP [connect|disconnect|status] (بوابة محلية فقط)',
+      '/palette': 'فتح لوحة الأوامر',
+      '/usage': 'عرض استخدام الرموز وحدود الطلبات؛ reset يسترد إعادة ضبط محفوظة لحدود Codex',
+      '/subscription': 'عرض خطة Nous وتغييرها في المتصفح',
+      '/topup': 'عرض رصيد Nous وإدارة الفواتير',
+      '/platform': 'إيقاف منصة بوابة متعثرة مؤقتًا أو استئنافها أو عرضها',
+      '/version': 'عرض إصدار Hermes Agent',
+      '/debug': 'رفع تقرير تصحيح يتضمن معلومات النظام والسجلات للحصول على رابط قابل للمشاركة',
+      '/model': 'تبديل نموذج هذه الجلسة'
     },
     hotkeyDescs: {
       'composer.mention': 'الإشارة إلى الملفات والمجلدات والروابط وgit',
@@ -3166,6 +3721,8 @@ export const ar = defineLocale({
     attachmentsShowFewer: 'إظهار أقل',
     editingInComposer: 'جار التحرير في صندوق الكتابة',
     editingQueuedInComposer: 'جار تحرير رسالة في الطابور',
+    restoredDraftNotice: 'تمت استعادة رسالتك غير المُرسلة',
+    restoredDraftUndo: 'تراجع',
     queueEdit: 'تحرير الرسالة المجدولة',
     queueSendNext: 'إرسالها تاليا',
     queueSteer: 'توجيه، تصحيح الدور الجاري فورا',
@@ -3273,9 +3830,12 @@ export const ar = defineLocale({
     voiceEngineLiveNeedsKey: 'يحتاج مفتاح OpenAI',
     voiceEngineChangeFailed: 'تعذر تغيير محرك المحادثة الصوتية',
     voiceEngineChainedShort: 'الكلام إلى نص',
-    hiddenQueued: 'ملاحظة إعداد'
+    hiddenQueued: 'ملاحظة إعداد',
+    wakeWord: phrase => `كلمة التنبيه «${phrase}»`
   },
   statusStack: {
+    hideStack: 'إخفاء لوحة الحالة',
+    showStack: 'إظهار لوحة الحالة',
     agents: 'الوكلاء',
     background: count => `${count} في الخلفية`,
     goalActive: 'الهدف نشط',
@@ -3445,6 +4005,7 @@ export const ar = defineLocale({
     notAvailableTitle: 'التحديث غير متاح',
     unsupportedMessage: 'لا يمكن لهذا الإصدار من Sbar Rafiq تحديث نفسه من داخل التطبيق.',
     connectionRetry: 'تحقق من اتصالك وأعد المحاولة.',
+    gitUnusable: 'لم يتمكن Hermes من تشغيل Git على هذا الجهاز، لذا لم يتمكن من التحقق من التحديثات.',
     latestBody: 'أنت تستخدم أحدث إصدار.',
     latestBodyBackend: 'الواجهة الخلفية تعمل بأحدث إصدار.',
     allSetTitle: 'كل شيء جاهز',
@@ -3494,6 +4055,13 @@ export const ar = defineLocale({
     everythingSkipped: 'تم التخطي',
     everythingRowFailed: 'فشل التحديث',
     everythingFanoutFailedTitle: 'تعذر تحديث المثيلات الأخرى',
+    changeLogNew: 'جديد',
+    changeLogFixed: 'إصلاحات',
+    changeLogFaster: 'أسرع',
+    changeLogImproved: 'تحسينات',
+    changeLogOther: 'تحسينات أخرى',
+    changeLogFallbackLabel: 'في هذا التحديث',
+    changeLogFallbackItem: 'تحسينات وإصلاحات',
     applyStatus: {
       preparing: 'جار تحديث الواجهة الخلفية...',
       pulling: 'جار تحديث الواجهة الخلفية...',
@@ -3501,7 +4069,9 @@ export const ar = defineLocale({
       notAvailable: 'التحديث غير متاح لهذه الواجهة الخلفية.',
       failed: 'فشل تحديث الواجهة الخلفية.',
       noReturn: 'لم تعد الواجهة الخلفية إلى الاتصال. قد لا يكون التحديث قد اكتمل، تحقق من مضيف الواجهة الخلفية.'
-    }
+    },
+    connectionSettings: 'إعدادات الاتصال',
+    openDownloadPage: 'فتح صفحة التنزيل'
   },
   guidedGreeting: {
     line: 'أهلا، تفضل بالدخول. أنا Sbar Rafiq. امنحني دقيقتين لأرتب المكان حولك، ثم نبدأ بشيء تريد إنجازه فعلا.\n\nبداية، بماذا أناديك؟',
@@ -3575,7 +4145,9 @@ export const ar = defineLocale({
     signInIncomplete: 'أغلقت نافذة تسجيل الدخول قبل اكتمال المصادقة.',
     testConnection: 'اختبار الاتصال',
     tokenDesc: 'ألصق رمز الجلسة من ملف .env الخاص بالبوابة البعيدة.',
-    tokenTitle: 'رمز الجلسة'
+    tokenTitle: 'رمز الجلسة',
+    probeErrorDetails: 'التفاصيل',
+    openLogs: 'فتح السجلات'
   },
   onboarding: {
     headerTitle: 'لنُعِدّ لك Sbar Rafiq Agent',
@@ -3665,7 +4237,12 @@ export const ar = defineLocale({
     startChatting: 'ابدأ',
     docs: provider => `وثائق ${provider}`,
     localModelsPitch: 'لا حاجة إلى حساب، نزّل نموذجا وشغّله على هذا الجهاز',
-    localModelsTitle: 'تشغيل النماذج محليا'
+    localModelsTitle: 'تشغيل النماذج محليا',
+    tryAgain: 'أعد المحاولة',
+    useApiKeyInstead: 'استخدام مفتاح API',
+    errorDetails: 'التفاصيل',
+    signInDidNotFinish: provider =>
+      `لم يكتمل تسجيل الدخول عبر ${provider}. تحقق من اتصالك بالإنترنت وأعد المحاولة، أو اختر مزوّدًا آخر.`
   },
   modelPicker: {
     title: 'اختيار النموذج',
@@ -3676,7 +4253,7 @@ export const ar = defineLocale({
     addProvider: 'إضافة مزود',
     loadFailed: 'فشل تحميل النماذج',
     noAuthenticatedProviders: 'لا توجد مزودات مصادق عليها',
-    pro: 'Pro',
+    pro: 'احترافي',
     proNeedsSubscription: 'يتطلب اشتراكا',
     free: 'مجاني',
     freeTier: 'طبقة مجانية',
@@ -3684,13 +4261,18 @@ export const ar = defineLocale({
     downloading: 'جار التنزيل',
     loadingIntoMemory: 'جار التحميل إلى الذاكرة',
     localDownloadsHeading: 'محلي',
-    wasPrice: 'سابقا'
+    wasPrice: 'سابقا',
+    customModel: 'نموذج مخصص',
+    addCustomModelAction: 'إضافة نموذج مخصص…',
+    customModelPlaceholder: 'اكتب معرّف النموذج، مثل openai/gpt-5'
   },
   modelVisibility: {
     title: 'النماذج',
     search: 'بحث في النماذج',
     noAuthenticatedProviders: 'لا يوجد مزوّدون مصادق عليهم.',
-    addProvider: 'إضافة مزوّد…'
+    addProvider: 'إضافة مزوّد…',
+    addCustomModel: 'إضافة نموذج مخصص',
+    removeCustomModel: 'إزالة النموذج المخصص'
   },
   shell: {
     windowControls: 'تحكم النافذة',
@@ -3714,6 +4296,7 @@ export const ar = defineLocale({
       medium: 'متوسط',
       high: 'عالٍ',
       max: 'أقصى',
+      sendsOnRoute: (level: string) => `يُرسل ${level} على هذا المسار`,
       updateFailed: 'فشل تحديث خيار النموذج',
       fastFailed: 'فشل تحديث الوضع السريع',
       ultra: 'فائق',
@@ -3850,7 +4433,8 @@ export const ar = defineLocale({
         loading: 'جار تحميل الموارد…',
         title: 'موارد النظام',
         toggle: 'موارد النظام',
-        unifiedNote: 'ذاكرة موحدة: يتشارك GPU والنظام هذا المخزون.'
+        unifiedNote: 'ذاكرة موحدة: يتشارك GPU والنظام هذا المخزون.',
+        ram: 'الذاكرة'
       },
       toggleApprovalMode: 'الموافقات',
       toggleBackendVersion: 'إصدار الخلفية',
@@ -3892,6 +4476,8 @@ export const ar = defineLocale({
     openFolder: 'فتح مجلد',
     refreshTree: 'تحديث الشجرة',
     collapseAll: 'طي الكل',
+    showIgnored: 'إظهار الملفات المتجاهلة في git',
+    hideIgnored: 'إخفاء الملفات المتجاهلة في git',
     previewUnavailable: 'المعاينة غير متاحة',
     couldNotPreview: path => `تعذرت معاينة ${path}`,
     noProjectTitle: 'لا يوجد مشروع',
@@ -4091,6 +4677,19 @@ export const ar = defineLocale({
       addFailedMessage: 'لا توجد نافذة كتابة مفتوحة لاستقبالها.'
     }
   },
+  interfaceMode: {
+    title: 'وضع الواجهة',
+    hint: 'يغيّر ما يظهر، وليس ما يستطيع Hermes فعله.',
+    sessionNote: 'يحدده الوضع البسيط. التغيير هنا يستمر لهذه الجلسة فقط؛ بدّل إلى المتقدم لجعله خيارك.',
+    simple: {
+      label: 'بسيط',
+      description: 'للتحدث مع Hermes. الشريط الجانبي والدردشة؛ بلا طرفية أو لوحات ملفات أو فروقات.'
+    },
+    advanced: {
+      label: 'متقدم',
+      description: 'للمطورين. الطرفية والملفات والفروقات وشريط الحالة والتخطيطات، كما أعددتها.'
+    }
+  },
   zones: {
     showTabStrip: 'إظهار علامات التبويب',
     hideTabStrip: 'إخفاء علامات التبويب',
@@ -4164,6 +4763,29 @@ export const ar = defineLocale({
     }
   },
   assistant: {
+    catalogInstall: {
+      preparing: 'جارٍ تجهيز التثبيت…',
+      install: 'تثبيت',
+      advanced: 'خيارات متقدمة',
+      skip: 'تخطٍّ',
+      installing: 'جارٍ التثبيت…',
+      installed: 'مثبّت',
+      notInstalled: 'غير مثبّت',
+      failed: 'فشل',
+      showNames: 'إظهار الأسماء',
+      hideNames: 'إخفاء الأسماء',
+      skill: name => `المهارة ${name}`,
+      kind: { plugin: 'إضافة', skill: 'مهارة' },
+      tier: { official: 'رسمي', community: 'مجتمعي' },
+      targetProfile: profile => `يُثبَّت في ملفك الشخصي ${profile}`,
+      sendFailed: 'تعذّر إرسال ردك. حاول مرة أخرى.',
+      commitLabel: 'الإيداع',
+      subdirLabel: 'المجلد',
+      securityHeading: 'الأمان',
+      scan: { passed: 'نجح الفحص', warnings: 'وجد الفحص تحذيرات', failed: 'فشل الفحص' },
+      requirementsLabel: 'المتطلبات',
+      credentialsHeading: 'بيانات الاعتماد'
+    },
     thread: {
       loadingLocalModel: model => `جارٍ تحميل ${model} إلى الذاكرة`,
       loadingSession: 'جار تحميل الجلسة...',
@@ -4208,6 +4830,10 @@ export const ar = defineLocale({
         streaming: 'خطأ في اتصال البث'
       },
       errorRetry: 'إعادة المحاولة',
+      errorLimitResets: time => `يُعاد ضبط الحد عند ${time}`,
+      errorRetryAtReset: time => `إعادة المحاولة عند إعادة ضبط الحد (${time})`,
+      errorRetryScheduled: (time, wait) => `ستتم إعادة المحاولة عند ${time}، بعد ${wait}`,
+      errorRetryScheduledCancel: 'إلغاء',
       errorStartNewSession: 'بدء جلسة جديدة',
       errorSwitchProvider: 'تبديل المزوّد',
       errorSignInAgain: provider => `تسجيل الدخول إلى ${provider} مجدداً`,
@@ -4238,7 +4864,166 @@ export const ar = defineLocale({
       sendEdited: 'إرسال التعديل',
       attachingFile: 'جار إرفاق الملف',
       expandMessage: 'توسيع الرسالة',
-      processingPrompt: 'جار معالجة الموجّه'
+      processingPrompt: 'جار معالجة الموجّه',
+      errorLayerBodies: {
+        auth: 'رفضت خدمة الذكاء الاصطناعي تسجيل دخولك. تحقق من بيانات الاعتماد لهذا المزوّد، ثم أرسل رسالتك مجددًا.',
+        billing: 'نفد رصيد حسابك لدى هذا المزوّد. اشحن الرصيد أو بدّل المزوّد، ثم أرسل مجددًا.',
+        disk: 'القرص ممتلئ، لذا تعذّر على Sbar Rafiq حفظ هذه المحادثة. حرّر بعض المساحة ثم أعد المحاولة.',
+        endpoint: 'لا يستطيع Sbar Rafiq الوصول إلى خادم النموذج المخصص لديك. تأكد من أنه يعمل، ثم أرسل رسالتك مجددًا.',
+        gateway: 'واجه Sbar Rafiq مشكلة داخلية عند بدء هذا الرد. أرسل رسالتك مجددًا، وإن تكرر ذلك فأرسل التشخيصات.',
+        generic: 'حدث خطأ أثناء رد Sbar Rafiq. أعد المحاولة، أو انسخ التفاصيل إن تكرر ذلك.',
+        provider: 'تعذّر على خدمة الذكاء الاصطناعي إكمال هذا الطلب. أعد المحاولة بعد لحظات أو بدّل المزوّد.',
+        runtime: 'واجه Sbar Rafiq مشكلة داخلية عند بدء هذا الرد. أرسل رسالتك مجددًا، وإن تكرر ذلك فأرسل التشخيصات.',
+        streaming: 'انقطع الاتصال قبل اكتمال الرد. أعد المحاولة لإرساله مجددًا.'
+      },
+      errorCodes: {
+        billing: {
+          title: 'نفد الرصيد',
+          body: provider => `نفد الرصيد في حسابك لدى ${provider}. اشحن الرصيد أو بدّل المزوّد، ثم أرسل مجددًا.`
+        },
+        rate_limit: {
+          title: 'خدمة الذكاء الاصطناعي مشغولة',
+          body: provider => `يقيّد ${provider} الطلبات الآن. انتظر دقيقة ثم أعد المحاولة.`
+        },
+        upstream_rate_limit: {
+          title: 'خدمة الذكاء الاصطناعي مشغولة',
+          body: provider => `يقيّد ${provider} الطلبات الآن. انتظر دقيقة ثم أعد المحاولة.`
+        },
+        overloaded: {
+          title: 'خدمة الذكاء الاصطناعي تحت ضغط كبير',
+          body: provider => `يواجه ${provider} مشكلات الآن. أعد المحاولة بعد لحظات أو بدّل المزوّد.`
+        },
+        server_error: {
+          title: 'واجهت خدمة الذكاء الاصطناعي مشكلة',
+          body: provider => `أرجع ${provider} خطأ خادم. أعد المحاولة بعد لحظات أو بدّل المزوّد.`
+        },
+        timeout: {
+          title: 'انتهت مهلة الرد',
+          body: provider => `لم يستجب ${provider} في الوقت المحدد. أعد المحاولة لإرسالها مجددًا.`
+        },
+        stream_drop: {
+          title: 'انقطع الرد',
+          body: 'انقطع الاتصال قبل اكتمال الرد. أعد المحاولة لإرساله مجددًا.'
+        },
+        upstream_blocked: {
+          title: 'حظر جدار حماية الطلب',
+          body: provider =>
+            `حظر جدار حماية أو شبكة CDN أمام ${provider} الطلب قبل وصوله إلى النموذج، ومفتاحك سليم على الأرجح. اضبط ترويسة User-Agent عبر extra_headers للمزوّد في الإعدادات، أو بدّل المزوّد، ثم أرسل رسالتك مجددًا.`
+        },
+        ssl_cert_verification: {
+          title: 'فشل الاتصال الآمن',
+          body: provider =>
+            `تعذّر على Sbar Rafiq التحقق من الاتصال الآمن بـ ${provider}. تحقق من إعدادات الشبكة أو الوكيل، أو بدّل المزوّد، ثم أرسل رسالتك مجددًا.`
+        },
+        context_overflow: {
+          title: 'هذه المحادثة طويلة جدًا',
+          body: 'لم تعد المحادثة تتسع في النموذج. اضغطها أو ابدأ محادثة جديدة، ثم أرسل مجددًا.'
+        },
+        payload_too_large: {
+          title: 'هذه الرسالة كبيرة جدًا',
+          body: 'كان الطلب أكبر من أن يستوعبه النموذج. اضغط المحادثة أو ابدأ محادثة جديدة، ثم أرسل مجددًا.'
+        },
+        model_not_found: {
+          title: 'هذا النموذج غير متاح',
+          body: provider =>
+            `لا يوفّر ${provider} هذا النموذج لحسابك. اختر نموذجًا آخر، ثم أرسل رسالتك مجددًا.`
+        },
+        provider_policy_blocked: {
+          title: 'إعدادات حسابك تحظر هذا النموذج',
+          body: provider =>
+            `لم يوجّه ${provider} هذا الطلب بسبب إعدادات البيانات أو الخصوصية في حسابك. اختر نموذجًا آخر أو بدّل المزوّد.`
+        },
+        content_policy_blocked: {
+          title: 'رفضت خدمة الذكاء الاصطناعي هذا الطلب',
+          body: provider => `رفض ${provider} الرد على هذه الرسالة. عدّلها وأرسلها مجددًا.`
+        },
+        format_error: {
+          title: 'رفضت خدمة الذكاء الاصطناعي الطلب',
+          body: provider =>
+            `لم يقبل ${provider} طريقة بناء هذا الطلب. بدّل المزوّد أو أرسل التشخيصات لنتمكن من فحص المشكلة.`
+        },
+        truncated: {
+          title: 'توقف الرد قبل اكتماله',
+          body: 'توقف النموذج قبل أن ينتهي. أعد المحاولة للحصول على رد كامل.'
+        },
+        invalid_response: {
+          title: 'أرسلت خدمة الذكاء الاصطناعي ردًا غير مقروء',
+          body: provider => `أرجع ${provider} ردًا لم يتمكن Sbar Rafiq من قراءته. أعد المحاولة بعد لحظات.`
+        },
+        empty_response: {
+          title: 'أرسلت خدمة الذكاء الاصطناعي ردًا فارغًا',
+          body: provider => `لم يُرجع ${provider} شيئًا لهذه الرسالة. أعد المحاولة بعد لحظات.`
+        },
+        loop_error: {
+          title: 'علق Sbar Rafiq في حلقة متكررة',
+          body: 'ظل الرد يكرر الخطوات نفسها، فأوقفه Sbar Rafiq. أعد المحاولة، أو ابدأ محادثة جديدة إن تكرر ذلك.'
+        },
+        SESSION_NOT_OWNED: {
+          title: 'هذه المحادثة مفتوحة في مكان آخر',
+          body: 'هذه المحادثة مفتوحة حاليًا في نافذة أو طرفية أخرى من Sbar Rafiq. أغلقها هناك وأرسل رسالتك مجددًا، أو ابدأ محادثة جديدة هنا.'
+        },
+        disk_full: {
+          title: 'القرص ممتلئ',
+          body: 'القرص ممتلئ، لذا تعذّر على Sbar Rafiq حفظ هذه المحادثة. حرّر بعض المساحة ثم أعد المحاولة.'
+        },
+        free_tier_disabled: {
+          title: 'استخدام Sbar Rafiq دون تسجيل الدخول متوقف حاليًا',
+          body: 'سجّل الدخول بحساب Nous لمواصلة المحادثة، فهو مجاني.'
+        },
+        free_tier_rate_limited: {
+          title: 'استنفدت الحصة المتاحة للمحادثة دون تسجيل الدخول',
+          body: 'تتجدد الحصة قريبًا. سجّل الدخول بحساب Nous للحصول على حصة أكبر، فهو مجاني.'
+        },
+        free_tier_at_capacity: {
+          title: 'المحادثة دون تسجيل الدخول مزدحمة جدًا الآن',
+          body: 'سجّل الدخول لتتجاوز الانتظار، فهو مجاني، أو أعد المحاولة بعد قليل.'
+        },
+        free_tier_model_not_free: {
+          title: 'هذا النموذج غير متاح دون تسجيل الدخول',
+          body: 'يستخدم Sbar Rafiq النموذج المجاني حاليًا. سجّل الدخول بحساب Nous لمزيد من النماذج، فهو مجاني.'
+        },
+        free_tier_route: {
+          title: 'تعذّر على Sbar Rafiq الوصول إلى النموذج المجاني عبر هذا المسار',
+          body: 'سجّل الدخول بحساب Nous، فهو مجاني، أو تحقق من إعداد NOUS_INFERENCE_BASE_URL.'
+        },
+        free_tier_outage: {
+          title: 'يواجه النموذج المجاني صعوبة في الاستجابة الآن',
+          body: 'حاول إرسال رسالتك مجددًا بعد دقيقة.'
+        },
+        free_tier_refused: {
+          title: 'تعذّر على Sbar Rafiq إرسال ذلك دون تسجيل الدخول',
+          body: 'تسجيل الدخول بحساب Nous مجاني.'
+        },
+        auth: {
+          title: provider => `رفض ${provider} تسجيل دخولك`,
+          body: provider =>
+            `لم تُقبل بيانات الاعتماد المحفوظة لـ ${provider}. أصلحها في الإعدادات أو بدّل المزوّد، ثم أرسل رسالتك مجددًا.`
+        },
+        auth_permanent: {
+          title: provider => `رفض ${provider} تسجيل دخولك`,
+          body: provider =>
+            `بيانات الاعتماد المحفوظة لـ ${provider} غير صالحة أو أُلغيت. حدّثها أو بدّل المزوّد، ثم أرسل رسالتك مجددًا.`
+        }
+      },
+      errorDetails: 'التفاصيل',
+      errorGenericProvider: 'خدمة الذكاء الاصطناعي',
+      errorToastTitle: 'تعذّر على Sbar Rafiq إكمال الرد',
+      errorChooseModel: 'اختيار نموذج',
+      errorCompressConversation: 'ضغط المحادثة',
+      errorCompressFailed: 'تعذّر ضغط المحادثة',
+      errorOpenHermesFolder: 'فتح مجلد Hermes',
+      errorOpenHermesFolderFailed: 'تعذّر فتح مجلد Hermes',
+      errorUpdateApiKey: 'تحديث مفتاح API',
+      errorSignInFreeTier: 'تسجيل الدخول بحساب Nous',
+      errorAuthKinds: {
+        api_key: {
+          title: provider => `رفض ${provider} مفتاح API الخاص بك`,
+          body: provider => `المفتاح المحفوظ لـ ${provider} غير صالح أو أُلغي. حدّثه ثم أعد المحاولة.`
+        },
+        oauth: {
+          title: provider => `انتهت صلاحية تسجيل دخولك إلى ${provider}`
+        }
+      }
     },
     approval: {
       timedOutSystemLine:
@@ -4254,7 +5039,9 @@ export const ar = defineLocale({
       reject: 'رفض',
       alwaysTitle: 'السماح دائما',
       alwaysDescription: pattern => `السماح دائما بالأوامر المطابقة لـ ${pattern}`,
-      alwaysAllow: 'السماح دائما'
+      alwaysAllow: 'السماح دائما',
+      reconnect: 'إعادة الاتصال',
+      openSafetySettings: 'فتح إعدادات الأمان'
     },
     clarify: {
       lateAnswer: (question, choice) => `بخصوص "${question}"، إجابتي: ${choice}`,
@@ -4309,6 +5096,7 @@ export const ar = defineLocale({
       statusRecovered: 'تم الاسترداد',
       statusDone: 'تم',
       resultUnavailable: 'النتيجة غير متاحة',
+      resultInterrupted: 'تمت المقاطعة',
       memoryWriteNoted: 'تم تسجيل كتابة الذاكرة',
       actions: {
         read: 'قراءة',
@@ -4487,7 +5275,6 @@ export const ar = defineLocale({
       authorizeTitle: 'هل تريد تفويض خوادم MCP؟',
       authorized: server => `تم تفويض ${server}`,
       enableTitle: 'هل تريد تفعيل خوادم MCP؟',
-      notInCatalog: server => `“${server}” غير موجود في كتالوج MCP`,
       enabled: server => `تم تفعيل ${server}`,
       installTitle: 'هل تريد إضافة خوادم MCP؟',
       authorizeAction: 'تفويض',
@@ -4504,8 +5291,11 @@ export const ar = defineLocale({
     sudoSendFailed: 'فشل إرسال كلمة مرور sudo',
     secretSendFailed: 'فشل إرسال السر',
     sudoTitle: 'مطلوب sudo',
-    sudoDesc: 'راجع الأمر قبل إدخال كلمة مرور sudo. تُرسل كلمة المرور إلى الوكيل الذي ينفّذه وتُحفظ مؤقتًا لهذه الجلسة.',
+    sudoDesc:
+      'راجع الأمر قبل إدخال كلمة مرور sudo. تُرسل كلمة المرور إلى الوكيل الذي ينفّذه وتُحفظ مؤقتًا لهذه الجلسة.',
     sudoCommandUnavailable: 'لم يقدّم هذا الوكيل الأمر. ألغِ الطلب إذا لم تتمكن من التحقق منه في المحادثة.',
+    sudoInstallDesc:
+      'يحتاج Hermes إلى كلمة مرور sudo لتثبيت حزم Bot Screen (TigerVNC + Xfce) على مضيف البوابة. تُرسل إلى ذلك المضيف فقط.',
     sudoPlaceholder: 'كلمة المرور',
     secretTitle: 'مطلوب سر',
     secretDesc: 'أدخل القيمة المطلوبة لمتابعة المهمة.',
@@ -4535,7 +5325,8 @@ export const ar = defineLocale({
     vaultCodeFootnote:
       'تلميح: احفظ مفتاح المصادقة مع بيانات الدخول هذه في الإعدادات ← كلمات المرور وتسجيلات الدخول وسيُدخل Sbar Rafiq الرموز نيابةً عنك.',
     vaultCodeSkip: 'تخطٍ',
-    vaultCodeConfirm: 'إدخال الرمز'
+    vaultCodeConfirm: 'إدخال الرمز',
+    reconnect: 'إعادة الاتصال'
   },
   desktop: {
     audioReadFailed: 'فشلت قراءة الصوت',
@@ -4621,7 +5412,8 @@ export const ar = defineLocale({
       success: platform => `تم التسليم إلى ${platform}. استأنف هنا في أي وقت.`,
       systemNote: platform => `↻ تم التسليم إلى ${platform}، استأنف هنا في أي وقت.`,
       failed: error => `فشل التسليم: ${error}`,
-      timedOut: 'انتهت المهلة في انتظار البوابة. هل `hermes gateway` قيد التشغيل؟'
+      timedOut: 'انتهت المهلة في انتظار البوابة. هل `hermes gateway` قيد التشغيل؟',
+      startMessaging: 'بدء المراسلة'
     }
   },
   errors: {
@@ -4629,7 +5421,9 @@ export const ar = defineLocale({
     boundaryTitle: 'تعطل جزء من الواجهة',
     boundaryDesc: 'يمكنك إعادة تحميل النافذة أو فتح السجلات لمعرفة التفاصيل.',
     reloadWindow: 'إعادة تحميل النافذة',
-    openLogs: 'فتح السجلات'
+    openLogs: 'فتح السجلات',
+    boundaryDetails: 'التفاصيل',
+    sendDiagnostics: 'إرسال التشخيصات'
   },
   tips: {
     close: 'لا تعرض هذه النصيحة مرة أخرى',
@@ -4809,10 +5603,7 @@ export const ar = defineLocale({
     grant: 'أعد الربط',
     connected: 'متصل',
     checking: 'جارٍ فحص تطبيقاتك…',
-    waitingSignIn: 'بانتظار إتمامك تسجيل الدخول…',
     notConnected: 'لم يتم الاتصال',
-    notAvailable: 'غير متاح',
-    startWithout: 'ابدأ بدون اتصالات',
     skipped: 'تم التخطي',
     disabled: 'غير متاح',
     failed: 'تعذر الاتصال',
@@ -4821,7 +5612,6 @@ export const ar = defineLocale({
     waiting: 'أكمل الربط في المتصفح…',
     timeout: 'ما زال بانتظار التفويض.',
     refresh: 'حدّث الحالة',
-    statusError: 'تعذر فحص الاتصالات. جرّب التحديث.',
     connectError: 'تعذر بدء التفويض. أعد المحاولة.',
     unavailable: 'الموصّلات غير متاحة لهذه الجلسة.',
     ownerMissing: 'أعد فتح هذه المحادثة لإدارة اتصالاتها.',
@@ -4829,7 +5619,12 @@ export const ar = defineLocale({
     empty: 'لا توجد تطبيقات مطابقة',
     disclaimer: 'الربط اختياري. فوّض فقط التطبيقات التي تريد أن يستخدمها Sbar Rafiq.',
     execution: 'أدوات الموصّلات',
-    startWith: count => `ابدأ المهمة و${count} ${count === 1 ? 'تطبيق متصل' : 'تطبيقات متصلة'}`
+    openInBrowser: 'فتح في المتصفح',
+    setupCancel: 'إلغاء',
+    authorizedToolsUnavailable: 'تم التفويض، لكن الأدوات غير متاحة.',
+    required: 'مطلوب',
+    connectErrorFor: app => `تعذّر بدء التفويض لـ ${app}.`,
+    setup: server => `إعداد ${server}`
   },
   handoffTour: {
     profileTitle: 'مهمتك الأولى تعمل على الملف الشخصي الافتراضي',
@@ -4880,6 +5675,282 @@ export const ar = defineLocale({
     providerRowTitle: '‏Nous · الطبقة المجانية',
     readyCaption: 'مجاني · الموصّلات مضمّنة',
     statusLabel: model => `Nous · ${model}`,
-    signedInAs: email => `مسجّل الدخول باسم ${email}`
+    signedInAs: email => `مسجّل الدخول باسم ${email}`,
+    busyHeading: 'أوشكنا على الانتهاء',
+    unreachableBody: 'تعذّر على Sbar Rafiq الوصول إلى خدمة Nous لإكمال تسجيل دخولك. تحقق من اتصالك بالإنترنت وأعد المحاولة. جلستك ما زالت هنا.',
+    setupFailed: {
+      gateClosed: 'لا يمكن لهذا الإصدار من Sbar Rafiq أن يعمل دون حساب Nous. سجّل الدخول أو أنشئ حسابًا، فهو مجاني ولا يستغرق سوى دقيقة.',
+      paused: 'استخدام Sbar Rafiq دون تسجيل الدخول متوقف مؤقتًا، وسيواصل Sbar Rafiq التحقق. تسجيل الدخول مجاني ويتيح لك البدء فورًا.',
+      unreachable: 'تعذّر على Sbar Rafiq الوصول إلى خدمة Nous. تحقق من اتصالك بالإنترنت، ثم اضغط «أعد المحاولة». أو اربط مزوّدًا آخر مؤقتًا.',
+      serverError: 'واجهت خدمة Nous عطلًا عابرًا. اضغط «أعد المحاولة» بعد لحظات، أو اربط مزوّدًا آخر مؤقتًا.',
+      powRequired: 'طلب خادم Nous إثبات عمل، وهذا غير مدعوم في الوكيل لديك بعد. سجّل الدخول أو أنشئ حساب Nous مجانيًا للمتابعة.',
+      locked: 'لا يمكن متابعة هذه الجلسة دون تسجيل الدخول. سجّل الدخول أو أنشئ حساب Nous مجانيًا للمتابعة.',
+      generic: 'تعذّر على Sbar Rafiq تجهيز الوصول المجاني دون تسجيل الدخول. تسجيل الدخول مجاني، أو يمكنك ربط مزوّد آخر.',
+      signInBelow: 'تسجيل الدخول مجاني. اختر Nous أدناه.',
+      tryAgain: 'أعد المحاولة',
+      retrying: 'جارٍ إعادة المحاولة…',
+      rateLimited: wait =>
+        `كثيرون يبدؤون الآن، لذا سيعيد Sbar Rafiq المحاولة بعد ${wait}. تسجيل الدخول مجاني ويختصر الانتظار.`
+    },
+    busyBody: wait =>
+      `تعذّر على Sbar Rafiq إكمال تسجيل دخولك لأن خدمة Nous مشغولة. أعد المحاولة بعد ${wait}. جلستك باقية هنا في الأثناء.`
+  },
+  connectorsPage: {
+    title: 'الموصّلات',
+    filterCategory: 'الفئة',
+    categoryAll: 'كل الفئات',
+    uncategorised: 'بلا فئة',
+    residencyLocal: 'على هذا الجهاز',
+    segment: {
+      all: 'الكل',
+      available: 'المتاحة',
+      connected: 'المتصلة',
+      off: 'المتوقفة'
+    },
+    group: {
+      connected: 'المتصلة',
+      connectedNote: 'الاتصالات المعطلة أولًا.',
+      available: 'المتاحة',
+      off: 'المتوقفة',
+      offNote: 'تسجيلات الدخول محفوظة.'
+    },
+    card: {
+      kindManaged: 'مُدار',
+      kindCatalog: 'MCP · من الكتالوج',
+      kindCustom: 'MCP · مخصص',
+      inCatalog: 'ضمن كتالوج Sbar Rafiq',
+      hostedTwin: 'تتوفر نسخة مُدارة',
+      alsoLocal: 'يعمل أيضًا على هذا الجهاز',
+      state: {
+        accessExpired: 'انتهت صلاحية الوصول',
+        available: 'متاح',
+        connected: 'متصل',
+        connecting: 'جارٍ الاتصال',
+        connectionUnknown: 'الحالة غير معروفة',
+        couldNotConnect: 'تعذّر الاتصال',
+        offByYourOrganisation: 'أوقفته مؤسستك',
+        offForYou: 'متوقف لديك',
+        serverConnecting: 'جارٍ الاتصال…',
+        serverError: 'خطأ',
+        serverNeedsAuth: 'يحتاج إلى مصادقة',
+        serverOff: 'متوقف',
+        serverOn: 'يعمل',
+        serverOnUnused: 'يعمل، غير مستخدم'
+      },
+      verb: {
+        authenticate: 'مصادقة',
+        connect: 'اتصال',
+        install: 'تثبيت',
+        openLogs: 'فتح السجلات',
+        reconnect: 'إعادة الاتصال',
+        stopWaiting: 'إيقاف الانتظار',
+        tryAgain: 'أعد المحاولة',
+        turnBackOn: 'إعادة التشغيل'
+      },
+      reason: {
+        finishSignIn: 'أكمل تسجيل الدخول في متصفحك.',
+        reconnect: 'أعد الاتصال ليبقى هذا التطبيق عاملًا.',
+        serverError: 'رفض الخادم الاتصال.',
+        serverNeedsAuth: 'سجّل الدخول ليتمكن هذا الخادم من الرد.'
+      },
+      kindPlugin: plugin => `MCP · الإضافة ${plugin}`,
+      open: name => `فتح ${name}`,
+      turnServerOn: name => `تشغيل ${name}`,
+      turnServerOff: name => `إيقاف ${name}`,
+      fact: {
+        tools: count => plural(count, 'أداة واحدة', 'أداتان', 'أدوات', 'أداة'),
+        toolsOff: count => `${plural(count, 'أداة واحدة', 'أداتان', 'أدوات', 'أداة')} متوقفة`,
+        toolsOn: count => `${plural(count, 'أداة واحدة', 'أداتان', 'أدوات', 'أداة')} تعمل`,
+        toolsSomeOn: (total, on) => `${plural(total, 'أداة واحدة', 'أداتان', 'أدوات', 'أداة')}، ${on} منها تعمل`
+      }
+    },
+    page: {
+      loading: 'جارٍ قراءة الكتالوج والخوادم الموجودة على هذا الكمبيوتر',
+      emptyTitle: 'لا توجد تطبيقات هنا بعد. أضف خادمًا على هذا الكمبيوتر للبدء.',
+      noMatchTitle: 'لا توجد تطبيقات مطابقة',
+      noMatchBody: 'لا شيء هنا يطابق بحثك. وجّه Sbar Rafiq إلى خادم MCP الخاص بك لإضافته.',
+      clearSearch: 'مسح البحث',
+      hostedFailedTitle: 'تعذّر الوصول إلى التطبيقات المستضافة.',
+      hostedFailedBody: 'لم تتأثر الخوادم الموجودة على هذا الكمبيوتر وما زالت تعمل. لم يُوقَف أي شيء.',
+      retry: 'إعادة المحاولة',
+      showAllMatches: 'عرض كل النتائج المطابقة',
+      freeTierNote: 'تبقى الاتصالات على هذا الكمبيوتر حتى تسجّل الدخول.',
+      signInLine: 'سجّل الدخول إلى Nous لاستخدام التطبيقات المُدارة.',
+      signIn: 'تسجيل الدخول',
+      managedUnavailable: 'التطبيقات المُدارة غير متاحة لهذا الحساب بعد.',
+      writeFailed: 'لم يُحفظ هذا التغيير.',
+      refreshFailed: 'لم تُحدَّث قائمة الأدوات.',
+      disconnectNoAccount: 'لا يوجد حساب لدى Sbar Rafiq لقطع اتصاله هنا. حدّث الصفحة وأعد المحاولة.',
+      disconnectRefused: 'تعذّر على Nous إزالة تسجيل الدخول هذا الآن. أوقف التطبيق بالمفتاح بدلًا من ذلك، أو أعد المحاولة لاحقًا.',
+      matchesElsewhere: count => `${plural(count, 'نتيجة مطابقة أخرى', 'نتيجتان مطابقتان أخريان', 'نتائج مطابقة أخرى', 'نتيجة مطابقة أخرى')} في مجموعات أخرى.`,
+      segmentNoMatch: segment => `لا نتائج في ${segment}، لذا تُعرض كل النتائج المطابقة.`
+    },
+    add: {
+      action: 'إضافة موصّل خاص بك',
+      title: 'الاتصال بخادم MCP مخصص',
+      hint: 'إدخال واحد جديد في mcp.json على هذا الجهاز',
+      pasteLabel: 'الصق أمرًا أو مقتطفًا',
+      pasteNoMatch: 'لا يبدو أن ما لصقته يصف خادمًا. املأ الحقول أدناه بدلًا من ذلك.',
+      name: 'الاسم',
+      nameTaken: 'هذا الاسم مستخدم بالفعل.',
+      type: 'النوع',
+      command: 'أمر التشغيل',
+      args: 'الوسائط',
+      addArg: '+ إضافة وسيط',
+      envVars: 'متغيرات البيئة',
+      addEnvVar: '+ إضافة متغير بيئة',
+      passthrough: 'تمرير متغيرات البيئة',
+      addPassthrough: '+ إضافة متغير',
+      cwd: 'مجلد العمل',
+      url: 'الرابط',
+      headers: 'الترويسات',
+      addHeader: '+ إضافة ترويسة',
+      auth: 'المصادقة',
+      authNone: 'بلا مصادقة',
+      authBearer: 'رمز Bearer',
+      keyPlaceholder: 'المفتاح',
+      valuePlaceholder: 'القيمة',
+      removeRow: 'إزالة هذا الصف',
+      editJson: 'تحرير mcp.json',
+      saveFailed: 'لم يُحفظ هذا الخادم.',
+      typeHttp: 'HTTP قابل للبث'
+    },
+    dialog: {
+      disconnect: 'قطع الاتصال',
+      disconnectBody: 'سيتوقف Sbar Rafiq عن العمل باسم هذا الحساب. يمكنك الاتصال مجددًا في أي وقت.',
+      menuRefreshTools: 'تحديث الأدوات',
+      moreActions: 'إجراءات أخرى',
+      removeServerBody: 'سيُزال الإدخال من mcp.json على هذا الكمبيوتر. لن يُحذف أي شيء آخر.',
+      wayHosted: 'مُدار',
+      turnOffLocal: 'إيقاف الخادم المحلي',
+      openPlugins: 'فتح تبويب الإضافات',
+      nousLine: 'تتبع تطبيقات Nous حسابك، لا الملف الشخصي.',
+      rulesReadOnly: 'لا يمكن تغيير القواعد الآن.',
+      rulesSignIn: 'سجّل الدخول لتغيير ما يُسمح لـ Sbar Rafiq بفعله هنا.',
+      orgLink: 'فتح إدارة الموصّلات',
+      connectEnded: 'لم يكتمل تسجيل الدخول.',
+      connectOpenAgain: 'افتح الرابط مجددًا',
+      tokensPerCall: 'رمز لكل استدعاء',
+      usesPerMonth: 'استخدام خلال 30 يومًا',
+      advanced: 'متقدم',
+      advancedHint: 'إدخال mcp.json والسجلات',
+      disconnectTitle: name => `قطع الاتصال بـ ${name}؟`,
+      removeServerTitle: name => `إزالة ${name}؟`,
+      appSwitch: name => `يمكن لـ Sbar Rafiq استخدام ${name}`,
+      waysTitle: name => `أين يعمل ${name}`,
+      wayNotConnected: name => `لم يتصل بعد. سجّل الدخول إلى ${name} في متصفحك.`,
+      bothOn: name => `النسختان تعملان، لذا يرى Sbar Rafiq كل أداة من ${name} مرتين.`,
+      providedByPlugin: plugin => `مقدَّم من الإضافة ${plugin}`,
+      rulesAppOff: name => `شغّل ${name} لتغيير أدواته.`,
+      orgNote: count => `أوقفت مؤسستك ${plural(count, 'أداة واحدة', 'أداتين', 'أدوات', 'أداة')}.`
+    },
+    tools: {
+      title: 'الأدوات',
+      notInstalledBody: 'ثبّته على هذا الجهاز لترى الأدوات التي يوفرها.',
+      summaryAllTools: 'كل الأدوات',
+      summaryOther: 'أخرى',
+      allToolsSwitch: 'تشغيل كل الأدوات أو إيقافها',
+      summaryAllOn: 'كلها تعمل',
+      summaryOff: 'متوقفة',
+      showSummary: 'عرض الملخص',
+      staleSignIn: 'سجّل الدخول لقراءة أحدث قائمة للأدوات.',
+      quickReadOnly: 'للقراءة فقط',
+      quickNoDestructive: 'إيقاف الأدوات المدمّرة',
+      quickEverythingOn: 'تشغيل الكل',
+      lockedHint: 'أوقفته مؤسستك',
+      noMatch: 'لا توجد أداة تطابق عوامل التصفية هذه.',
+      loading: 'جارٍ قراءة قائمة الأدوات',
+      unavailableLine: 'قائمة الأدوات غير متاحة.',
+      needsAuthBody: 'يبقى تسجيل الدخول على هذا الكمبيوتر ولا يغادره أي شيء.',
+      retry: 'إعادة المحاولة',
+      goneBody: 'لم يعد بإمكان Sbar Rafiq استدعاؤه. يبقى الصف ظاهرًا حتى تزيله، فلا يختفي شيء فجأة.',
+      remove: 'إزالة',
+      offBody: 'شغّله بالمفتاح أعلاه لقراءة الأدوات التي يوفرها.',
+      signedOutTitle: 'سجّل الدخول إلى Nous لقراءة قائمة الأدوات.',
+      signedOutBody: 'لم تتأثر خوادمك الموجودة على هذا الكمبيوتر.',
+      conflictTitle: 'غيّر شخص آخر هذه القاعدة أثناء تحريرك لها.',
+      conflictReload: 'تحميل نسخته',
+      conflictSave: 'الحفظ فوق نسخته',
+      saveFailed: 'لم تُحفظ قواعد الأدوات هذه.',
+      discard: 'تجاهل',
+      save: 'حفظ التغييرات',
+      saving: 'جارٍ الحفظ...',
+      summaryTitle: name => `ما يُسمح لـ Sbar Rafiq بفعله في ${name}`,
+      summaryPreviewTitle: name => `ما يمكن لـ Sbar Rafiq فعله في ${name} بعد الاتصال`,
+      summaryCount: count => plural(count, 'أداة واحدة', 'أداتان', 'أدوات', 'أداة'),
+      summarySomeOn: (on, total) => `${on} من ${total} تعمل`,
+      showAllTools: count => (count === 1 ? 'عرض الأداة' : `عرض كل الأدوات (${count})`),
+      facetSwitch: facet => `تشغيل أدوات ${facet} أو إيقافها`,
+      searchCountPlaceholder: count => `ابحث في ${plural(count, 'أداة واحدة', 'أداتين', 'أدوات', 'أداة')}`,
+      toolList: name => `أدوات ${name}`,
+      categorySelect: count => plural(count, 'فئة واحدة', 'فئتان', 'فئات', 'فئة'),
+      showDeprecated: count => `عرض المهملة (${count})`,
+      hideDeprecated: count => `إخفاء المهملة (${count})`,
+      turnToolOn: tool => `تشغيل ${tool}`,
+      turnToolOff: tool => `إيقاف ${tool}`,
+      showDetails: tool => `عرض ما تفعله ${tool}`,
+      hideDetails: tool => `إخفاء ما تفعله ${tool}`,
+      needsAuthTitle: name => `سجّل الدخول إلى ${name} لقراءة أدواته.`,
+      goneTitle: name => `غادر ${name} الكتالوج.`,
+      offTitle: name => `${name} متوقف.`,
+      conflictBody: (theyOff, theyOn) => {
+        const they = [
+          theyOff > 0 ? `أوقف ${plural(theyOff, 'أداة واحدة', 'أداتين', 'أدوات', 'أداة')} كانت تعمل لديك` : '',
+          theyOn > 0 ? `أبقى ${plural(theyOn, 'أداة واحدة', 'أداتين', 'أدوات', 'أداة')} تعمل بعد أن أوقفتها` : ''
+        ].filter(Boolean)
+
+        return `${they.length > 0 ? `${they.join('، و')}. ` : ''}تبقى تعديلاتك على الشاشة، ولم يُكتب أي شيء.`
+      },
+      footerDirty: (off, backOn) =>
+        `${plural(off, 'أداة واحدة', 'أداتان', 'أدوات', 'أداة')} متوقفة، ${backOn === 0 ? 'ولا شيء أُعيد تشغيله' : `و${backOn} أُعيد تشغيلها`}`,
+      moreHints: count => `+${count}`
+    },
+    vocabulary: {
+      facetRead: {
+        label: 'قراءة',
+        long: 'تقرأ بيانات من هذا التطبيق دون أن تغيّر شيئًا.'
+      },
+      facetWrite: {
+        label: 'كتابة',
+        long: 'تُنشئ شيئًا في هذا التطبيق أو تغيّره.'
+      },
+      facetDestructive: {
+        label: 'مدمّرة',
+        long: 'قد تزيل شيئًا من هذا التطبيق نهائيًا.'
+      },
+      facetUnclassified: {
+        label: 'أثر غير معروف',
+        long: 'لم يوضّح التطبيق ما تفعله هذه الأداة.'
+      },
+      hintReadOnly: {
+        label: 'للقراءة فقط',
+        long: 'تعلن الأداة أنها تقرأ فقط.'
+      },
+      hintCreate: {
+        label: 'تُنشئ',
+        long: 'تُنشئ شيئًا جديدًا.'
+      },
+      hintUpdate: {
+        label: 'تُحدّث',
+        long: 'تغيّر شيئًا موجودًا بالفعل.'
+      },
+      hintDelete: {
+        label: 'تحذف',
+        long: 'تزيل شيئًا.'
+      },
+      hintDestructive: {
+        label: 'مدمّرة',
+        long: 'لا يمكن التراجع هنا عن التغيير الذي تُجريه.'
+      },
+      hintIdempotent: {
+        label: 'قابلة للتكرار',
+        long: 'تشغيلها مرتين يعطي نتيجة تشغيلها مرة واحدة.'
+      },
+      hintOpenWorld: {
+        label: 'خارجية',
+        long: 'تصل إلى شيء خارج هذا التطبيق.'
+      }
+    },
+    searchPlaceholder: count => `ابحث في ${plural(count, 'تطبيق واحد', 'تطبيقين', 'تطبيقات', 'تطبيقًا')}`
   }
 })

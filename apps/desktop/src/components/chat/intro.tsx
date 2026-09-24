@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { useI18n } from '@/i18n'
 import { capitalize, normalize } from '@/lib/text'
 
 import introCopyJsonl from './intro-copy.jsonl?raw'
@@ -159,7 +160,15 @@ function resolveCopy(personality?: string, seed?: number): IntroCopy {
 
 export function Intro({ personality, seed }: IntroProps) {
   const [mountSeed] = useState(() => Math.floor(Math.random() * 100000))
-  const copy = resolveCopy(personality, mountSeed + (seed ?? 0))
+  const { t } = useI18n()
+  const rotationSeed = mountSeed + (seed ?? 0)
+  const copy = resolveCopy(personality, rotationSeed)
+  const key = normalizeKey(personality)
+
+  const bodies =
+    t.intro.stock[key] ?? (NEUTRAL_PERSONALITIES.has(key) ? t.intro.stock.none : t.intro.custom(personality || ''))
+
+  const body = bodies?.[Math.abs(rotationSeed) % bodies.length] ?? copy.body
 
   return (
     <div
@@ -169,11 +178,11 @@ export function Intro({ personality, seed }: IntroProps) {
       <div className="w-full min-w-0">
         <Wordmark className="mb-1" text={WORDMARK} />
 
-        {/* The intro copy is authored English, not a translated string, so the
-            paragraph decides its own direction. Without this it inherits the
-            Arabic chrome and the sentence ends with its full stop on the left. */}
+        {/* The paragraph decides its own direction: the stock copy may be English
+            under Arabic chrome, and without this it inherits the chrome direction
+            and the sentence ends with its full stop on the left. */}
         <p className="m-0 text-center leading-normal tracking-tight" dir="auto">
-          {copy.body}
+          {body}
         </p>
       </div>
     </div>

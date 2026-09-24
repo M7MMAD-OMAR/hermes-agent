@@ -98,15 +98,18 @@ def look_result(payload: Dict[str, Any], question: str = "") -> Any:
     try:
         from tools.vision_tools import (
             _EMBED_MAX_DIMENSION,
-            _EMBED_TARGET_BYTES,
             _build_native_vision_tool_result,
             _resize_image_for_vision,
+            _resolve_embed_target_bytes,
             _should_use_native_vision_fast_path,
         )
 
         if _should_use_native_vision_fast_path():
+            # The same history-embed budget vision_analyze uses (the
+            # ``vision.embed_target_bytes`` config): this picture is re-sent on
+            # every later turn too.
             data_url = _resize_image_for_vision(
-                path, mime_type=media_type, max_base64_bytes=_EMBED_TARGET_BYTES,
+                path, mime_type=media_type, max_base64_bytes=_resolve_embed_target_bytes(),
                 max_dimension=_EMBED_MAX_DIMENSION, force_jpeg=True)
             native = _build_native_vision_tool_result(
                 image_url=str(path), question=asked, image_data_url=data_url,

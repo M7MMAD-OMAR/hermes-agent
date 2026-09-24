@@ -1,47 +1,10 @@
 import { defineFieldCopy } from '@/app/settings/field-copy'
 
 import { defineLocale } from './define-locale'
+import { introJa } from './intro-ja'
 
 export const ja = defineLocale({
-  catalog: {
-    listView: 'リスト表示',
-    cardView: 'カード表示',
-    installTitle: (name: string) => `「${name}」をインストールしますか？`,
-    installDescription: 'このスキルは新しいセッションで利用できます。信頼できる提供元からのみインストールしてください。',
-    installTo: 'インストール先',
-    thisComputer: 'このコンピューター',
-    installing: 'インストール中…',
-    installComplete: (name: string) => `「${name}」をインストールしました`,
-    destinationChanged: 'インストール先が変更されました。このダイアログを閉じ、インストールリンクを開き直してください。',
-    browse: '閲覧',
-    installed: 'インストール済み',
-    searchSkills: 'スキルを検索',
-    searchPlugins: 'プラグインを検索',
-    allSources: 'すべての提供元',
-    allCategories: 'すべてのカテゴリ',
-    about: '概要',
-    author: '作者',
-    source: '提供元',
-    category: 'カテゴリ',
-    version: 'バージョン',
-    platforms: '対応プラットフォーム',
-    requires: '必要なもの',
-    tools: 'ツール',
-    hooks: 'フック',
-    repository: 'リポジトリ',
-    documentation: 'ドキュメント',
-    noResults: '一致する項目がありません',
-    tryAnother: '別の検索を試すか、フィルターをクリアしてください。',
-    clearFilters: 'フィルターをクリア',
-    loadFailed: 'カタログを読み込めませんでした',
-    retry: '再試行',
-    more: 'さらに表示',
-    pinned: 'レビュー済みコミット',
-    snapshotHint: 'Hermesカタログの情報です。閲覧時に提供元のリポジトリへ接続することはありません。',
-    installHint: 'インストール前にソースを確認してください。変更は新しいセッションに適用されます。',
-    results: (count: number) => `${count.toLocaleString('ja')}件の結果`,
-    back: '結果に戻る'
-  },
+  intro: introJa,
   sessionImport: {
     title: '別のアプリから続ける',
     subtitle: '会話をHermesに取り込み、続きを始めましょう。',
@@ -90,6 +53,7 @@ export const ja = defineLocale({
     connect: '接続',
     connecting: '接続中',
     continue: '続ける',
+    bots: 'ボット',
     copied: 'コピーしました',
     copy: 'コピー',
     copyFailed: 'コピーに失敗しました',
@@ -133,7 +97,9 @@ export const ja = defineLocale({
     renameLabel: '新しい名前',
     deleteTitle: name => `${name} を削除しますか？`,
     deleteBody: 'ゴミ箱に移動します。そこから復元できます。',
-    pathCopied: 'パスをコピーしました'
+    pathCopied: 'パスをコピーしました',
+    revealMissing: 'そのフォルダーはこのコンピューターにありません',
+    revealUnavailable: 'このパスはこのコンピューター上ではなく、バックエンドのマシン上にあります。「ファイルツリーで表示」を使ってください。'
   },
 
   boot: {
@@ -156,7 +122,13 @@ export const ja = defineLocale({
       gatewayConnectionLostDetail:
         'Still retrying in the background. You can keep reading and drafting — open Gateway settings if this persists.',
       gatewaySignInRequired: 'ゲートウェイへのサインインが必要です',
-      ipcBridgeUnavailable: 'デスクトップ IPC ブリッジが利用できません。'
+      ipcBridgeUnavailable: 'デスクトップ IPC ブリッジが利用できません。',
+      restartHermes: 'Hermes を再起動',
+      openLogs: 'ログを開く',
+      reconnectNow: '今すぐ再接続',
+      connectionSettings: '接続設定',
+      gatewaySignInRequiredDetail: '再接続するにはもう一度サインインしてください。チャットや設定は失われません。',
+      signInAgain: '再度サインイン'
     },
     failure: {
       title: 'Sbar Rafiq を起動できませんでした',
@@ -193,7 +165,16 @@ export const ja = defineLocale({
       signInFailed: 'サインインに失敗しました',
       signInToRemoteGateway: 'リモートゲートウェイにサインイン',
       signInWithProvider: provider => `${provider} でサインイン`,
-      identityProvider: 'ID プロバイダー'
+      identityProvider: 'ID プロバイダー',
+      details: '詳細'
+    },
+    causes: {
+      exitedEarly: 'Hermes のバックグラウンドサービスが起動直後に停止しました。',
+      timedOut: 'Hermes のバックグラウンドサービスが時間内に応答しませんでした。',
+      permission: 'Hermes はデータフォルダーに書き込めませんでした (権限の問題)。',
+      diskFull: 'ディスクがいっぱいのため、Hermes を起動できませんでした。',
+      portInUse: 'Hermes が必要とするネットワークポートを別のプログラムが使用しています。',
+      installMissing: 'Hermes のインストールの一部が見つかりません。「インストールを修復」を選んで復元してください。'
     }
   },
 
@@ -239,7 +220,10 @@ export const ja = defineLocale({
       openaiRejectedApiKey: 'OpenAI が API キーを拒否しました。',
       openaiTtsNeedsKey: 'OpenAI TTS には VOICE_TOOLS_OPENAI_KEY または OPENAI_API_KEY が必要です。',
       codeSkewRestartRequired:
-        'アップデート後、このバックエンドは古いコードのままです。再起動して新しいコードを読み込んでください。'
+        'アップデート後、このバックエンドは古いコードのままです。再起動して新しいコードを読み込んでください。',
+      storageFailure: 'Hermes はデータフォルダーに保存できませんでした。メンテナンスを開いて確認と修復を行ってください。',
+      rpcOutOfSync: 'アプリとバックエンドのバージョンが異なります。両方を更新してください。',
+      restartHermesFailed: 'Hermes を再起動できませんでした'
     },
     voice: {
       configureSpeechToText: '音声モードを使用するには音声認識を設定してください。',
@@ -259,13 +243,21 @@ export const ja = defineLocale({
       transcriptionFailed: '音声文字起こしに失敗しました',
       transcriptionUnavailable: '音声文字起こしはまだ利用できません。',
       tryRecordingAgain: 'もう一度録音してください。',
-      unavailable: '音声は利用できません'
+      unavailable: '音声は利用できません',
+      liveEnded: 'ライブ音声セッションが終了しました',
+      liveEndedConnectionLost: 'ライブ音声セッションの接続が切断されました。',
+      liveEndedClosed: 'ライブ音声セッションはサービス側で終了されました。',
+      liveError: 'ライブ音声',
+      liveDelegationFailed: 'リクエストを Sbar Rafiq に引き継げませんでした',
+      liveUnavailable: reason => `GPT-Live 音声チャットは利用できません: ${reason}。代わりに音声認識を使用します。`
     },
     native: {
       approvalTitle: '承認が必要です',
+      approvalTitleNamed: session => `承認が必要です — ${session}`,
       approveAction: '承認',
       rejectAction: '拒否',
       inputTitle: '入力が必要です',
+      inputTitleNamed: session => `入力が必要です — ${session}`,
       inputBody: 'Sbar Rafiq が応答を待っています。',
       turnDoneTitle: 'Sbar Rafiq が完了しました',
       turnDoneBody: '',
@@ -273,6 +265,12 @@ export const ja = defineLocale({
       backgroundDoneTitle: 'バックグラウンドタスクが完了しました',
       backgroundFailedTitle: 'バックグラウンドタスクが失敗しました',
       creditsTitle: 'クレジット'
+    },
+    actions: {
+      restartHermes: 'Hermes を再起動',
+      openKeys: 'キーを開く',
+      openGateways: 'ゲートウェイを開く',
+      openMaintenance: 'メンテナンスを開く'
     }
   },
 
@@ -350,11 +348,101 @@ export const ja = defineLocale({
   },
 
   settings: {
+    uninstallSection: {
+      dangerZone: '危険ゾーン',
+      checkingInstalled: 'インストール内容を確認中…',
+      uninstallHermes: 'Hermes をアンインストール',
+      chooseHowMuch:
+        '削除する範囲を選択してください。完了するためにアプリが閉じます。インストーラーを開き直せばいつでも戻れます。',
+      confirmUninstall: 'アンインストールの確認',
+      confirmBody: what => `${what} が削除されます。この操作は取り消せません。`,
+      appLabel: 'アプリ：',
+      couldNotStart: 'アンインストールを開始できませんでした。',
+      uninstalling: 'アンインストール中…',
+      yesUninstall: 'はい、アンインストール',
+      options: {
+        gui: {
+          title: 'Chat GUI のみアンインストール',
+          description: 'このデスクトップアプリを削除します。Hermes エージェント、設定、チャットはすべて残ります。',
+          consequence: 'デスクトップ Chat GUI（このアプリとそのデータ）'
+        },
+        lite: {
+          title: 'GUI とエージェントをアンインストール、データは保持',
+          description:
+            'アプリと Hermes エージェントを削除しますが、将来の再インストールに備えて設定・チャット・シークレットは保持します。',
+          consequence: 'Chat GUI と Hermes エージェント（設定・チャット・シークレットは保持）'
+        },
+        full: {
+          title: 'すべてアンインストール',
+          description:
+            'アプリ、エージェント、すべてのユーザーデータ（設定、チャット、定期ジョブ、シークレット、ログ）を削除します。',
+          consequence: 'すべて——Chat GUI、Hermes エージェント、およびすべての設定・チャット・シークレット・ログ'
+        }
+      }
+    },
+    subpages: {
+      appearanceTheme: 'テーマ',
+      appearanceTypography: 'フォントと表示倍率',
+      appearanceWindowLayout: 'ウィンドウとレイアウト',
+      appearanceChatDisplay: 'チャット表示',
+      appearancePet: 'ペット',
+      appearanceGeneral: '一般',
+      modelMain: 'メインモデル',
+      modelAuxiliary: '補助モデル',
+      modelMoa: 'エージェントの協調',
+      modelFallbacks: '代替モデル',
+      chatBehavior: '動作',
+      chatAttachments: '添付ファイル',
+      workspaceProjects: 'プロジェクトと検出',
+      workspaceShell: 'シェル環境',
+      workspaceFiles: 'ファイルと実行',
+      safetyApprovals: '承認',
+      safetyPrivacy: 'プライバシーとネットワーク',
+      safetyCheckpoints: 'チェックポイント',
+      browserProfile: 'ブラウザープロファイル',
+      browserNetwork: 'ローカル・プライベート URL',
+      memoryPersistent: '永続メモリ',
+      memoryContext: 'コンテキストと圧縮',
+      voiceConversation: '音声会話',
+      voiceTranscription: '音声認識',
+      voiceSpeech: '音声合成',
+      advancedRuntime: 'エージェントの制限',
+      advancedTools: 'ツールへのアクセス',
+      advancedTerminal: 'ターミナルのバックエンド',
+      advancedOutput: '出力の制限',
+      advancedDelegation: 'サブエージェント',
+      advancedDesktop: 'デスクトップと起動',
+      gatewayConnection: 'このウィンドウ',
+      gatewayDevices: '保存済みの接続',
+      gatewayManagedUpdates: 'リモート更新',
+      gatewayManagedUpdatesUnavailable: 'リモート更新には、管理対象 SSH の更新に対応したデスクトップ版が必要です。',
+      gatewayManagedUpdatesEmpty: '保存済みの接続に SSH 接続を追加すると、ここで更新を管理できます。',
+      keyboardShortcuts: 'キー割り当て',
+      hudGesture: 'HUDジェスチャー',
+      screenCapture: '画面キャプチャ',
+      notificationAlerts: 'デスクトップ通知',
+      notificationSounds: 'サウンド',
+      archivedSessions: 'アーカイブと保持',
+      defaultDirectory: '既定のプロジェクトフォルダー',
+      vaultCredentials: '保存済みの認証情報',
+      vaultSources: 'パスワードマネージャー',
+      appUpdates: 'バージョンと更新',
+      uninstall: 'アンインストール',
+      billingOverview: '概要',
+      billingPlans: 'プラン'
+    },
     plugins: {
+      openFolder: 'デスクトッププラグインフォルダーを開く',
       installModal: {
         installFromGit: 'Git からインストール',
         reviewRepository: 'リポジトリを確認',
-        repoPlaceholder: 'https://github.com/owner/repo'
+        repoPlaceholder: 'https://github.com/owner/repo',
+        toolsConnected: n => `${n} 個のツールを接続しました`,
+        skillsReady: names =>
+          names.length === 1 ? `スキル ${names[0]} の準備ができました` : `${names.length} 個のスキルの準備ができました`,
+        nextChat: 'ほかのツールは次のチャットで使えます',
+        serverNotConnected: (server, reason) =>
+          `MCP サーバー ${server} は接続されていません${reason ? `: ${reason}` : '。'}`
       }
     },
     closeSettings: '設定を閉じる',
@@ -537,6 +625,10 @@ export const ja = defineLocale({
       colorModeDesc: '固定モードを選ぶか、Sbar Rafiq をシステム設定に合わせます。',
       toolViewTitle: 'ツール呼び出しの表示',
       toolViewDesc: 'プロダクト表示は生のツールペイロードを隠し、テクニカル表示は入出力をすべて表示します。',
+      hideCodeDiffsTitle: 'コードの差分を非表示',
+      hideCodeDiffsDesc: 'ファイル編集は追加・削除行数付きのインラインツール行で表示し、コードは表示しません。',
+      hideThreadTimelineTitle: 'スレッドのタイムラインバーを非表示',
+      hideThreadTimelineDesc: '各会話の右端にあるナビゲーションバーを非表示にします。',
       reasoningCollapsedTitle: '思考ブロックをデフォルトで折りたたむ',
       reasoningCollapsedDesc: 'ストリーミング中の推論を、開くまで折りたたんだまま利用できるようにします。',
       uiScaleTitle: 'UI スケール',
@@ -548,7 +640,8 @@ export const ja = defineLocale({
       sessionDensityComfortable: '標準',
       sessionDensityDetailed: '詳細',
       tabStripTitle: 'タブバー',
-      tabStripDesc: 'ゾーンの上にタブを表示します。自動では、他にチャットやタイルのゾーンがない限り、ペインが1つのときに隠します。',
+      tabStripDesc:
+        'ゾーンの上にタブを表示します。自動では、他にチャットやタイルのゾーンがない限り、ペインが1つのときに隠します。',
       tabStripAuto: '自動',
       tabStripAlways: '常に表示',
       tabStripNever: '表示しない',
@@ -680,7 +773,8 @@ export const ja = defineLocale({
     },
     fieldLabels: defineFieldCopy({
       model: 'デフォルトモデル',
-      modelContextLength: 'コンテキストウィンドウ',
+      modelContextLength:
+        'メインのチャットモデルのみ、検出されたコンテキストウィンドウを上書きします（トークン数）。0 のままにすると、選択したモデルから検出された値を使用します。補助モデル/MoA モデルには影響しません。',
       fallbackProviders: 'フォールバックモデル',
       toolsets: '有効なツールセット',
       timezone: 'タイムゾーン',
@@ -829,6 +923,11 @@ export const ja = defineLocale({
         targetRatio: '圧縮目標',
         protectLastN: '保護する直近メッセージ'
       },
+      auxiliary: {
+        compression: {
+          timeout: '圧縮モデルのタイムアウト（秒）'
+        }
+      },
       delegation: {
         model: 'サブエージェントモデル',
         provider: 'サブエージェントプロバイダー',
@@ -890,6 +989,11 @@ export const ja = defineLocale({
         enabled: '会話が大きくなったとき、古いコンテキストを要約します。',
         codexGpt55Autoraise: '対応する ChatGPT Codex OAuth モデルの圧縮しきい値を 85% に引き上げます。'
       },
+      auxiliary: {
+        compression: {
+          timeout: '補助圧縮モデルの呼び出しごとに待機する秒数（既定 120）。遅いローカルモデルでは値を上げてください。'
+        }
+      },
       voice: {
         autoTts: 'アシスタントの応答を自動で読み上げます。'
       },
@@ -941,6 +1045,11 @@ export const ja = defineLocale({
       daysAgo: count => `${count} 日前`
     },
     config: {
+      minimizeToTrayTitle: 'トレイに最小化',
+      minimizeToTrayDesc:
+        'ウィンドウの最小化やメインウィンドウを閉じる操作でシステムトレイ（macOS ではメニューバー）に隠し、Hermes を実行し続けます。終了するにはトレイメニューの「Hermes を終了」または Cmd+Q を使います。初期設定はオフで、このデバイスにのみ適用されます。',
+      minimizeToTrayUnavailable:
+        'システムトレイを利用できないため、通常どおり最小化・終了します。再試行するには一度オフにしてからオンにしてください。',
       none: 'なし',
       noneParen: '(なし)',
       builtinOnly: '内蔵のみ',
@@ -958,6 +1067,19 @@ export const ja = defineLocale({
       invalidJson: '設定 JSON が無効です',
       keepAwakeTitle: 'コンピューターをスリープさせない',
       keepAwakeDesc: '本体のスリープを防ぎ、長時間や夜通しの実行を継続します。画面は暗転できます。'
+    },
+    hudModifier: {
+      title: 'キーをタップして HUD を呼び出す',
+      description:
+        'Mac では ⌘ + Option、Windows/Linux では Ctrl + Alt を押して離すと、どのアプリからでも HUD を前面に表示できます。初期設定はオフで、このデバイスにのみ適用されます。',
+      permission:
+        'システム設定 → プライバシーとセキュリティ → 入力監視で Hermes を許可し、再試行してください。このジェスチャーはキー入力の記録や画面の撮影を行いません。',
+      unavailable:
+        'HUD ジェスチャーヘルパーを起動できなかったか、予期せず停止しました。再試行するか Hermes を再起動してください。Hermes 内の既存の HUD ショートカットは引き続き使用できます。',
+      missingHelper:
+        'この Hermes には HUD ジェスチャーヘルパーが含まれていません。Hermes を更新または再インストールしてから再試行してください。',
+      unsupportedSession:
+        'このデスクトップセッションはグローバルな修飾キータップに対応していません。Linux では X11 が必要です。Wayland には対応していません。'
     },
     screenshot: {
       enabledTitle: 'スクリーンショットのショートカット',
@@ -1056,11 +1178,11 @@ export const ja = defineLocale({
       pasteSessionToken: 'セッショントークンを貼り付け',
       plainTextConfirmTitle: 'ゲートウェイトークンを平文で保存しますか？',
       plainTextConfirmDesc:
-        'このマシンで OS のキーリングサービスが見つからなかったため、トークンはアプリの接続設定ファイルに暗号化されずに保存され、このユーザーとして実行される任意のプロセスから読み取れる状態になります。暗号化して保存するには、GNOME Keyring または KWallet をインストールまたは有効化してください。',
+        'このマシンで OS のキーリングサービスが見つからなかったため、トークンはアプリの接続設定ファイルに暗号化されずに保存され、このユーザーとして実行される任意のプロセスから読み取れる状態になります。暗号化して保存するには、システムのキーチェーン（Linux では GNOME Keyring または KWallet）をインストールまたは有効化してください。',
       plainTextConfirmAction: '平文で保存',
       plainTextStoredTitle: 'トークンは平文で保存されています',
       plainTextStoredDesc:
-        'セキュアストレージが利用できないため、保存済みのトークンはこのマシンのアプリの接続設定ファイルに暗号化されずに保存されています。暗号化するには GNOME Keyring または KWallet をインストールまたは有効化してください。',
+        'セキュアストレージが利用できないため、保存済みのトークンはこのマシンのアプリの接続設定ファイルに暗号化されずに保存されています。暗号化するには、システムのキーチェーン（Linux では GNOME Keyring または KWallet）をインストールまたは有効化してください。',
       keychainEncryptionTitle: 'OS キーチェーンで保存済みのシークレットを暗号化',
       keychainEncryptionDesc:
         'デフォルトはオフです。オンにすると、ゲートウェイのトークンとサインイン資格情報がシステムのキーチェーン（Keychain Access、GNOME Keyring、Windows DPAPI）で暗号化されます。システムから許可やパスワードを求められる場合があります。オフの場合は、現在のユーザーのみが読める通常ファイルとして保存されます。',
@@ -1144,36 +1266,20 @@ export const ja = defineLocale({
     },
     mcp: {
       loading: 'MCP サーバーを読み込み中...',
-      failedLoad: 'MCP 設定の読み込みに失敗しました',
-      nameRequiredTitle: '名前が必要です',
-      nameRequiredMessage: 'この MCP サーバーに設定キーを付けてください。',
-      objectRequired: 'サーバー設定は JSON オブジェクトである必要があります',
       invalidJson: '無効な MCP JSON',
       saveFailed: '保存に失敗しました',
       removeFailed: '削除に失敗しました',
-      gatewayUnavailableTitle: 'ゲートウェイが利用できません',
-      gatewayUnavailableMessage: 'MCP を再読み込みする前にゲートウェイを再接続してください。',
-      reloadedTitle: 'MCP ツールを再読み込みしました',
-      reloadedMessage: '新しいツールスキーマは新しいターンに適用されます。',
       reloadFailed: 'MCP の再読み込みに失敗しました',
       savedTitle: 'MCP サーバーを保存しました',
       savedMessage: name => `${name} は MCP の再読み込み後に適用されます。`,
-      newServer: '新しいサーバー',
-      reload: 'MCP を再読み込み',
-      reloading: '再読み込み中...',
-      emptyTitle: 'MCP サーバーがありません',
-      emptyDesc: 'MCP ツールを公開するには stdio または HTTP サーバーを追加してください。',
       disabled: '無効',
-      editServer: 'サーバーを編集',
       name: '名前',
       serverJson: 'サーバー JSON',
       remove: '削除',
-      saveServer: 'サーバーを保存',
       capabilitySummary: (tools, prompts, resources) =>
         `${[`ツール ${tools} 個`, ...(prompts ? [`プロンプト ${prompts} 個`] : []), ...(resources ? [`リソース ${resources} 個`] : [])].join('、')} を有効化`,
       costTokens: tokens => `1 呼び出しあたり約 ${tokens} トークン`,
       usage30d: uses => `過去 30 日で ${uses} 回使用`,
-      unusedPill: '未使用',
       statusConnecting: '接続中…',
       statusNeedsAuth: '認証が必要です',
       statusError: 'エラー',
@@ -1181,11 +1287,7 @@ export const ja = defineLocale({
       allServers: 'すべてのサーバー',
       authenticatedTitle: '認証済み',
       authenticatedMessage: (server, count) => `${server}: ツール ${count} 個`,
-      waitingForBrowser: 'ブラウザを待機中…',
       authenticate: '認証',
-      unsavedConnect: '未保存 — 接続するには mcp.json を保存してください。',
-      enableTool: tool => `${tool} を有効化`,
-      disableTool: tool => `${tool} を無効化`,
       noOutput: 'まだ出力がありません。',
       deepLinkTitle: 'MCP サーバーを追加しますか？',
       deepLinkDescription:
@@ -1202,14 +1304,32 @@ export const ja = defineLocale({
       deepLinkErrorShape:
         '設定は文字列の `url` または `command` フィールドを持つ JSON オブジェクトである必要があります。',
       deepLinkErrorUrl: 'サーバー URL は http:// と https:// のみ許可されます。',
-      deepLinkErrorTooLarge: '設定ペイロードが 32KB の上限を超えています。',
-      importButton: 'インポート',
-      importPlaceholder: 'mcp.json スニペット、npx/docker コマンド、claude mcp add 行、URL、Cursor リンクを貼り付け…',
-      importNoMatch: '貼り付けたテキストからサーバー設定を認識できませんでした。',
-      importConfirm: 'mcp.json に追加',
-      importConfirmMany: count => `${count} 件のサーバーを mcp.json に追加`
+      deepLinkErrorTooLarge: '設定ペイロードが 32KB の上限を超えています。'
     },
     model: {
+      moaTitle: 'エージェント混合（Mixture of Agents）',
+      moaPreset: 'プリセット',
+      moaDescription:
+        '「Mixture of Agents」プロバイダーのモデルとして表示される名前付きプリセットを設定します。集約モデルが実行を担当し、ツールループのすべての処理を行うため、実行費用のほぼ全額がそのプロバイダーに請求されます。参照モデルは既定でユーザーの各ターンに一度だけ助言します。',
+      moaAggregator: '集約モデル',
+      moaAggregatorBilled: '実行モデル · 実行費用の請求先',
+      moaReferenceHint: '既定では各ターンに一度だけ助言',
+      setupProviderFallback: 'プロバイダー',
+      setUpProvider: name => `${name} を設定`,
+      staleAuxBefore: (count, names) => `${count} 件の補助タスク（${names}）は引き続き `,
+      staleAuxAfter: ' で実行され、メインモデルは使用されません。',
+      staleAuxOtherProviders: '別のプロバイダー',
+      moaEnabled: '有効',
+      moaSetDefault: 'デフォルトに設定',
+      moaNewPresetPlaceholder: '新しいプリセット',
+      moaAddPreset: 'プリセットを追加',
+      customModel: 'カスタムモデル…',
+      customModelPlaceholder: 'モデル ID',
+      chooseFromList: 'リストから選択',
+      moaDefault: 'デフォルト:',
+      moaReferenceToggle: (enabled, index) => `参照 ${index} を${enabled ? '無効化' : '有効化'}`,
+      moaReferenceTitle: index => `参照 ${index}`,
+      moaAddReference: '参照モデルを追加',
       loading: 'モデル設定を読み込み中...',
       appliesDesc:
         '新しいセッションに適用されます。コンポーザーのモデルピッカーを使ってアクティブなチャットをホットスワップできます。',
@@ -1378,7 +1498,7 @@ export const ja = defineLocale({
       loading: 'アーカイブ済みセッションを読み込み中…',
       archivedTitle: 'アーカイブ済みセッション',
       archivedIntro:
-        'アーカイブ済みチャットはサイドバーでは非表示になりますが、すべてのメッセージは保持されます。サイドバーのチャットを Ctrl/⌘ クリックするとアーカイブできます。',
+        'アーカイブ済みチャットはサイドバーでは非表示になりますが、すべてのメッセージは保持されます。サイドバーのチャットを Alt/⌥+Shift クリックするとアーカイブできます。',
       emptyArchivedTitle: 'アーカイブがありません',
       emptyArchivedDesc: 'チャットをアーカイブするとここに表示されます。',
       unarchive: 'アーカイブを解除',
@@ -1475,7 +1595,13 @@ export const ja = defineLocale({
         selectedTitle: 'バックエンドを選択しました',
         selectedMessage: backend => `ターミナルコマンドは ${backend} で実行されます。新しいセッションに適用されます。`,
         failedSelect: backend => `${backend} の選択に失敗しました`,
-        needsSetupHint: 'このバックエンドは今すぐ選択できますが、セットアップが完了するまでコマンドは失敗します。'
+        needsSetupHint: 'このバックエンドは選択されていますが、セットアップが完了するまでコマンドは失敗します。',
+        needsSetupConfirmTitle: backend => `それでも ${backend} を選択しますか？`,
+        needsSetupConfirmDescription: detail =>
+          `${detail} この変更後に開始されるセッションは、セットアップが完了するまでターミナルとファイルツールを使用できません。`,
+        needsSetupConfirmDescriptionGeneric:
+          'このバックエンドはまだセットアップされていません。この変更後に開始されるセッションは、セットアップが完了するまでターミナルとファイルツールを使用できません。',
+        needsSetupConfirmAction: 'それでも選択する'
       },
       browserRealProfile: {
         label: '実際のブラウザプロファイルを使用',
@@ -1501,9 +1627,147 @@ export const ja = defineLocale({
   },
 
   skills: {
+    plugins: {
+      pageBlurb:
+        'プラグインはこのアプリ、エージェント、または両方を拡張できます。それぞれに独立したスイッチがあります。',
+      agentTitle: 'エージェントプラグイン',
+      agentBlurb: '選択したプロファイルのエージェントを拡張します (ツール、フック、プロバイダー)。ゲートウェイの再起動後に有効になります。',
+      halfDesktop: 'デスクトップ',
+      halfDesktopHint: 'このアプリ、すべてのプロファイルで共通',
+      halfAgent: 'エージェント',
+      defaultProfile: 'Sbar Rafiq (既定)',
+      kindAgent: 'エージェント',
+      kindDesktop: 'デスクトップ',
+      kindBoth: 'エージェント + デスクトップ',
+      installAgentHere: 'ここにインストール',
+      installAgentHereNoOrigin: 'エージェント側はこのプロファイルにインストールされていません。また、このパッケージは手動でコピーされたもの (カタログのエントリーや git リモートがない) のため、ここからはインストールできません。フォルダーをプロファイルにコピーするか、Git から再インストールしてください。',
+      desktopHalfPending: 'コピー中…',
+      desktopHalfPendingTip: 'このパッケージにはまだアプリにコピーされていないデスクトップ側が含まれています。再スキャンするか、アプリを再起動してください。',
+      desktopHalfRemote: '利用不可 (リモートバックエンド)',
+      desktopHalfRemoteTip: 'このパッケージのデスクトップ側はリモートバックエンドのディスク上にあり、このアプリからは読み取れません。ここで使うには、パッケージのリポジトリ URL を指定し、デスクトップのターゲットにチェックを入れて「Git からインストール」を実行してください。デスクトップ側がこのマシンにクローンされます。',
+      emptyAll: 'プラグインはまだありません。',
+      empty: 'このプロファイルにはエージェントプラグインがインストールされていません。',
+      emptyHint: '下のカタログを参照し、レビュー済みのプラグインをワンクリックでインストールできます。',
+      loadFailed: 'エージェントプラグインを読み込めませんでした',
+      legacyBackend: 'このバックエンドはキー指定のプラグイン切り替えに対応していません。ここで管理するには Sbar Rafiq を更新してください。',
+      portableBadge: 'ポータブル',
+      serverStates: {
+        connected: '接続済み',
+        app_not_running: 'アプリが実行されていません',
+        endpoint_unavailable: 'エンドポイントを利用できません',
+        no_interactive_session: '対話型セッションがありません',
+        version_too_old: 'バージョンが古すぎます',
+        missing_app: 'アプリがありません',
+        unknown: '状態不明'
+      },
+      catalogTitle: 'プラグインカタログ',
+      catalogBrowse: '参照',
+      catalogHide: 'カタログブラウザーを隠す',
+      catalogHint: 'プラグインの「+ Add to this Agent」を押してください。レビュー済みのエントリーは固定されたコミットで選択中のプロファイルにインストールされます。エージェントとデスクトップを同梱したプラグインでは両方を利用できます。',
+      tierOfficial: '公式',
+      tierCommunity: 'コミュニティ',
+      updateConsentConfirm: '更新を適用',
+      uninstall: 'アンインストール',
+      deepLinkErrorTitle: 'プラグインのインストールリンクが拒否されました',
+      deepLinkCatalogInvalidName: 'リンクのカタログ名がないか、無効です。',
+      deepLinkCatalogUnavailable: 'Hermes プラグインカタログを読み込めませんでした。接続を確認して、もう一度リンクを開いてください。',
+      settingsForm: {
+        save: '設定を保存',
+        optional: '(任意)',
+        secretSet: '•••••••• (設定済み)',
+        saved: (name: string) => `${name} の設定を保存しました。`,
+        saveFailed: (name: string) => `${name} の設定を保存できませんでした`,
+        secretStoredAs: (env: string) =>
+          `config.yaml ではなく、プロファイルの .env に ${env} として保存されます。現在の値を維持するには空欄のままにしてください。`
+      },
+      halfAgentIn: (profile: string) => `${profile} のエージェント`,
+      installAgentHereTip: (profile: string) =>
+        `デスクトップ側はこのアプリで読み込まれていますが、エージェント側は ${profile} にインストールされていません。そちらにインストールしてください。`,
+      toggleFailed: (name: string) => `${name} を切り替えられませんでした`,
+      alreadyInstalled: (name: string) => `${name} はこのプロファイルにすでにインストールされています。`,
+      catalogProvenance: (sha: string) => `Sbar Rafiq カタログから${sha ? `ピン ${sha} で` : ''}インストールされました。`,
+      pinnedProvenance: (sha: string) =>
+        `コミット ${sha} に固定されています。新しいピンで再インストールするまで更新は拒否されます。`,
+      pinnedBadge: (sha: string) => `固定 @ ${sha}`,
+      updateToPin: (sha: string) => `${sha} に更新`,
+      updateFailed: (name: string) => `${name} を更新できませんでした`,
+      updated: (name: string) => `${name} を現在のカタログのピンに更新しました。適用するにはゲートウェイを再起動してください。`,
+      updateConsentTitle: (name: string) => `${name} が追加の権限を求めています`,
+      updateConsentBody: (name: string, sha: string) =>
+        `${name} の新しいカタログピン (${sha}) では、インストール済みのバージョンにない機能が追加されます。信頼できる場合のみ適用してください:`,
+      uninstallTip: (name: string, profile: string) => `${profile} から ${name} をアンインストール`,
+      uninstallConfirmTitle: (name: string) => `${name} をアンインストールしますか？`,
+      uninstallConfirmBody: (name: string, profile: string) =>
+        `${profile} プロファイルからプラグインのファイルを削除します。同梱されていたデスクトップ側も一緒に削除されます。カタログまたは Git からいつでも再インストールできます。`,
+      uninstallFailed: (name: string) => `${name} をアンインストールできませんでした`,
+      uninstalled: (name: string) => `${name} をアンインストールしました。アンロードするにはゲートウェイを再起動してください。`,
+      uninstallDesktopTip: (name: string) => `このアプリから ${name} をアンインストール`,
+      uninstallDesktopConfirmBody: (name: string) =>
+        `このコンピューターの desktop-plugins フォルダーから ${name} を削除し、すぐにアンロードします。Git から再インストールするか、フォルダーを戻せばいつでも復元できます。`,
+      uninstalledDesktop: (name: string) => `${name} をアンインストールしました。`,
+      deepLinkCatalogUnknown: (name: string) =>
+        `「${name}」は Hermes プラグインカタログにありません。何もインストールされていません。`,
+      settingsToggle: (name: string) => `設定: ${name}`
+    },
+    hub: {
+      search: '検索',
+      searching: '検索中…',
+      noResults: '一致するスキルがハブにありません。',
+      installed: 'インストール済み',
+      installStarted: name => `「${name}」をインストール中…`,
+      pickerBrowse: 'ハブ全体を見る',
+      pickerHide: 'ハブのブラウザーを隠す',
+      pickerHint: 'スキルの「+ Add to this Agent」を押すと、インストールされて上の一覧に表示されます。',
+      searchPlaceholder: 'スキルハブを検索',
+      connectingHubs: 'スキルハブに接続中...',
+      connectedHubs: '接続済みのハブ:',
+      featured: '注目のスキル',
+      landingHint: 'ハブを検索して、公式インデックス、GitHub、コミュニティのソースからインストール可能なスキルを参照できます。',
+      install: 'インストール',
+      installing: 'インストール中...',
+      uninstall: 'アンインストール',
+      uninstalling: 'アンインストール中...',
+      updateAll: 'インストール済みを更新',
+      updating: '更新中...',
+      preview: 'プレビュー',
+      scan: 'スキャン',
+      scanning: 'スキャン中...',
+      close: '閉じる',
+      files: 'ファイル',
+      noReadme: 'このスキルには SKILL.md のプレビューがありません。',
+      trust: {
+        builtin: '組み込み',
+        trusted: '信頼済み',
+        community: 'コミュニティ'
+      },
+      verdictSafe: '安全',
+      verdictCaution: '注意',
+      verdictDangerous: '危険',
+      policyAllow: 'インストール可',
+      policyAsk: 'インストール前に確認',
+      policyBlock: 'ポリシーによりインストール不可',
+      noFindings: 'セキュリティ上の検出事項はありません。',
+      updateStarted: 'インストール済みのスキルを更新中...',
+      actionFailed: 'スキルの操作に失敗しました',
+      viewScan: 'スキャン結果を表示',
+      openLog: 'ログを開く',
+      actionLog: '操作ログ',
+      pickerTitle: 'スキルハブ',
+      loadFailed: 'スキルハブの読み込みに失敗しました',
+      previewFailed: 'スキルのプレビューに失敗しました',
+      scanFailed: 'セキュリティスキャンに失敗しました',
+      searchFailed: 'ハブの検索に失敗しました',
+      resultCount: (count, ms) => `${count} 件の結果${ms !== null ? ` (${ms}ms)` : ''}`,
+      timedOut: sources => `タイムアウト: ${sources}`,
+      findings: count => `検出事項 ${count} 件`,
+      uninstallStarted: name => `${name} をアンインストール中...`,
+      installBlockedTitle: name => `${name} をインストールできませんでした`,
+      installBlockedMessage: (findings, unverified) =>
+        `セキュリティスキャンで確認が必要な${findings > 0 ? `項目が ${findings} 件` : '危険なパターンが'}検出されました${unverified ? '。また、このスキルは未検証のソースから提供されています' : ''}。作成者を信頼するかどうか決める前にスキャン結果を確認してください。`,
+      alreadyInstalled: (name: string) => `「${name}」はすでにインストールされています`
+    },
     tabSkills: 'スキル',
     tabToolsets: 'ツールセット',
-    tabMcp: 'MCP',
     all: 'すべて',
     searchSkills: 'スキルを検索...',
     searchToolsets: 'ツールセットを検索...',
@@ -1532,7 +1796,7 @@ export const ja = defineLocale({
     appliesToNewSessions: name => `${name} は新しいセッションに適用されます。`,
     failedToUpdate: name => `${name} の更新に失敗しました`,
     sortMostUsed: '使用頻度順',
-    sortAlpha: 'A–Z',
+    sortAlpha: '名前順',
     sortMostUsedDesc: '↓ 使用頻度順',
     sortLeastUsedAsc: '↑ 使用頻度が低い順',
     enableAll: 'すべて有効化',
@@ -1556,7 +1820,9 @@ export const ja = defineLocale({
     skillArchivedTitle: 'スキルをアーカイブしました',
     skillArchivedMessage: 'hermes curator restore で復元できます。',
     officialCatalog: 'インストール可能',
-    officialPill: '公式'
+    officialPill: '公式',
+    configuringProfile: '設定中:',
+    tabPlugins: 'プラグイン'
   },
 
   starmap: {
@@ -1699,7 +1965,7 @@ export const ja = defineLocale({
     nav: {
       newChat: { title: '新しいセッション', detail: '新しいセッションを開始' },
       settings: { title: '設定', detail: 'Sbar Rafiq デスクトップを設定' },
-      skills: { title: 'スキルとツール', detail: 'スキル、ツールセット、プロバイダーを有効化' },
+      capabilities: { title: 'スキルとツール', detail: 'スキル、ツールセット、プロバイダーを有効化' },
       messaging: { title: 'メッセージング', detail: 'Telegram、Slack、Discord などを設定' },
       artifacts: { title: 'アーティファクト', detail: '生成された出力を閲覧' }
     },
@@ -1931,7 +2197,27 @@ export const ja = defineLocale({
         help: '推奨。カンマ区切りの電話番号または WhatsApp ID。'
       }
     },
-    platformIntro: {}
+    platformIntro: {},
+    approve: '承認',
+    approving: '承認中...',
+    revoke: '取り消す',
+    revoking: '取り消し中...',
+    revokeTitle: 'アクセスを取り消す',
+    approvedHint: '次のメッセージから自動的に認識されます。',
+    pairingLockedOut: '承認の失敗が多すぎるため、このプラットフォームはロックされています。後でもう一度お試しください。',
+    restartFailedManualDetail: 'もう一度「再起動」をお試しください。それでも失敗する場合は、ログを開いて診断情報を送信してください。',
+    restartAgain: 'もう一度再起動',
+    openLogs: 'ログを開く',
+    pendingRequests: count => `保留中のリクエスト (${count})`,
+    pendingAria: count => `保留中のペアリングリクエスト ${count} 件`,
+    approvedUsers: count => `承認済みユーザー (${count})`,
+    revokeAria: name => `${name} を取り消す`,
+    revokeDesc: (name: string) => `${name} はアクセスを失い、次のメッセージから認識されなくなります。`,
+    approvedUser: name => `${name} を承認しました`,
+    revokedUser: name => `${name} を取り消しました`,
+    failedApprove: name => `${name} を承認できませんでした`,
+    failedRevoke: name => `${name} を取り消せませんでした`,
+    waitingSince: minutes => (minutes < 1 ? 'たった今' : `${minutes} 分前`)
   },
 
   profiles: {
@@ -2004,7 +2290,7 @@ export const ja = defineLocale({
     refreshing: 'プロファイルを更新中',
     default: 'デフォルト',
     skills: count => `${count} スキル`,
-    env: 'env',
+    env: '環境',
     defaultBadge: 'デフォルト',
     rename: '名前を変更',
     renameMenu: '名前を変更…',
@@ -2058,25 +2344,33 @@ export const ja = defineLocale({
     failedLoadSoul: 'SOUL.md の読み込みに失敗しました',
     failedSaveSoul: 'SOUL.md の保存に失敗しました',
     failedCreate: 'プロファイルの作成に失敗しました',
-    failedRename: 'プロファイルの名前変更に失敗しました'
+    failedRename: 'プロファイルの名前変更に失敗しました',
+    connectGateway: 'ゲートウェイを管理…',
+    fleet: {
+      allOnGateway: 'このゲートウェイのすべてのプロファイル',
+      gateway: gateway => `${gateway} のプロファイル`,
+      gatewayUnreachable: gateway => `${gateway} · 接続不可`,
+      onGateway: (name, gateway) => `${name} · ${gateway}`,
+      switchTo: (name, gateway) => `${gateway} の ${name} に切り替え`,
+      deleteOn: gateway => ` (${gateway})`
+    },
+    displayNameTitle: 'このエージェントに名前を付ける',
+    displayNameDesc: 'アプリ全体に表示される表示名を設定します。内部のプロファイル ID は「default」のままです。',
+    displayNameLabel: '表示名'
+  },
+
+  modelAssignment: {
+    saveFailed: 'Sbar Rafiq はモデルの変更を保存しませんでした。',
+    confirmTitle: 'モデル選択の警告',
+    confirmDetail: 'このトレードオフを受け入れる場合のみ確認してください。',
+    confirmAction: '確認',
+    declined: 'モデル変更をキャンセルしました — データ学習ティアの警告を拒否しました。'
   },
 
   cron: {
     close: 'Cron を閉じる',
     title: 'スケジュール済みジョブ',
     count: count => `${count} 件のジョブ`,
-    modelImpact: {
-      title: 'スケジュール済みジョブは元のモデルで実行されます',
-      message: count =>
-        `ピン留めされていない ${count} 件のスケジュール済みジョブは、作成時のモデルで引き続き実行されます。移行するにはピン留めするか cron.model を設定してください。`,
-      detailMore: (names, remaining) => `${names}、ほか ${remaining} 件`,
-      review: 'スケジュール済みジョブを確認',
-      saveFailed: 'Sbar Rafiq はモデルの変更を保存しませんでした。',
-      confirmTitle: 'モデル選択の警告',
-      confirmDetail: 'このトレードオフを受け入れる場合のみ確認してください。',
-      confirmAction: '確認',
-      declined: 'モデル変更をキャンセルしました — データ学習ティアの警告を拒否しました。'
-    },
     search: 'Cron ジョブを検索...',
     loading: 'Cron ジョブを読み込み中...',
     states: {
@@ -2207,7 +2501,11 @@ export const ja = defineLocale({
       failedLoad: 'ブレーンプリントの読み込みに失敗しました',
       emptyTitle: '利用できるブレーンプリントはありません',
       emptyDesc: 'このバックエンドで利用できる自動化ブレーンプリントはありません。'
-    }
+    },
+    lastRunFailed: '前回の実行に失敗しました:',
+    editJob: 'ジョブを編集',
+    runAgain: '再実行',
+    overdueSince: '期限超過の開始:'
   },
 
   projectWorkflows: {
@@ -2359,6 +2657,39 @@ export const ja = defineLocale({
   },
 
   sidebar: {
+    profileRail: 'プロファイルバー',
+    markAllRead: 'すべて既読にする',
+    filter: {
+      grouping: 'グループ化',
+      ordering: '並び替え',
+      show: '表示',
+      filters: 'フィルター',
+      status: 'ステータス',
+      pullRequest: 'プルリクエスト',
+      profile: 'プロファイル',
+      project: 'プロジェクト',
+      archived: 'アーカイブ',
+      resetToDefaults: 'デフォルトに戻す',
+      expandAll: 'すべて展開',
+      collapseAll: 'すべて折りたたむ',
+      inboxStyle: '受信トレイスタイル',
+      updated: '更新',
+      created: '作成',
+      tokens: 'トークン',
+      cost: 'コスト',
+      manual: '手動',
+      preview: 'プレビュー',
+      pr: 'PR',
+      needsInput: '入力待ち',
+      working: '実行中',
+      unread: '未読',
+      draft: '下書き',
+      idle: 'アイドル',
+      open: 'オープン',
+      merged: 'マージ済み',
+      closed: 'クローズ済み',
+      noPR: 'PRなし'
+    },
     gatewayGroups: {
       grouping: 'ゲートウェイとプロファイル',
       rename: 'グループ名を変更',
@@ -2372,7 +2703,7 @@ export const ja = defineLocale({
     },
     nav: {
       'new-session': '新しいセッション',
-      skills: 'スキルとツール',
+      capabilities: 'スキルとツール',
       messaging: 'メッセージング',
       artifacts: 'アーティファクト',
       cron: 'スケジュール済みジョブ'
@@ -2384,6 +2715,10 @@ export const ja = defineLocale({
     results: '結果',
     pinned: 'ピン留め',
     sessions: 'セッション',
+    terminal: 'ターミナル',
+    files: 'ファイル',
+    review: 'レビュー',
+    logs: 'ログ',
     cronJobs: 'Cronジョブ',
     groupAriaGrouped: 'セッションを単一リストとして表示',
     groupAriaUngrouped: 'ワークスペースごとにセッションをグループ化',
@@ -2480,7 +2815,32 @@ export const ja = defineLocale({
       removeWorktreeDirty:
         'このワークツリーにはコミットされていない変更があります。強制削除（変更を破棄）するか、レーンを隠してディスク上に残します。',
       forceRemove: '強制削除',
-      enter: label => `${label} を開く`
+      enter: label => `${label} を開く`,
+      menuTransfer: 'プロファイルへ移動…',
+      transferHint: 'フォルダーはディスク上の元の場所に残ります。移るのはプロジェクトとその会話です。',
+      transferTarget: 'プロファイル',
+      transferNoTargets: '移動先となる他のプロファイルがありません。',
+      transferFoldersStay: 'ディスク上のフォルダーは移動、名前変更、削除されません。',
+      transferMove: 'コピーではなく移動する',
+      transferMoveHint: 'ここにある会話はアーカイブされ、プロジェクトはこのサイドバーから消えます。この操作はアプリでは元に戻せません。',
+      transferConfirmCopy: 'コピー',
+      transferConfirmMove: '移動',
+      moveToProject: 'プロジェクトへ移動',
+      moveFailed: 'セッションを移動できませんでした',
+      moveNoFolder: 'そのプロジェクトには移動先のフォルダーがありません',
+      moveNoProjects: '他のプロジェクトはありません',
+      back: 'すべてのプロジェクト',
+      transferTitle: name => `「${name}」を別のプロファイルへ移動`,
+      transferCarries: (sessions, messages) =>
+        `会話 ${sessions} 件、メッセージ ${messages} 件を移します。`,
+      transferDone: (sessions, profile) =>
+        `会話 ${sessions} 件を ${profile} に移しました。`,
+      transferWorking: sessions => `会話 ${sessions} 件を移しています…`,
+      transferPartial: failed =>
+        `${failed} 件を移せませんでした。もう一度実行すると、不足分だけが移されます。`,
+      movedTo: name => `${name} に移動しました`,
+      reorder: label => `${label} を並べ替え`,
+      toggle: (label, open) => `${label} のセッションを${open ? '表示' : '非表示'}`
     },
     newSessionIn: label => `${label} で新しいセッション`,
     showMoreIn: (count, label) => `${label} でさらに ${count} 件を表示`,
@@ -2530,7 +2890,12 @@ export const ja = defineLocale({
       ageNow: 'たった今',
       ageDay: '日',
       ageHour: '時間',
-      ageMin: '分'
+      ageMin: '分',
+      hideTabBar: 'タブバーを隠す',
+      openInNewTab: '新しいタブで開く',
+      openInSplit: '分割表示で開く',
+      todoProgress: '完了したタスク',
+      messageCount: count => `${count} 件のメッセージ`
     },
     dateDivider: {
       today: '今日の早い時間',
@@ -2542,6 +2907,13 @@ export const ja = defineLocale({
     statusDivider: {
       working: '実行中',
       done: '完了'
+    },
+    storageCorrupt: {
+      title: 'セッションデータベースが破損しています',
+      action: 'このプロファイルの Hermes を終了してから、ファイルを変更せずに調べるか、スナップショットを復元してください:',
+      guide: '復旧ガイド',
+      body: (profiles: string) =>
+        `Hermes は ${profiles} のセッション履歴の一部を読み取れません。この一覧にないチャットは削除されたわけではなく、保存先のファイルが破損しています。`
     }
   },
 
@@ -2605,12 +2977,77 @@ export const ja = defineLocale({
     hotkeys: 'ホットキー',
     helpFooter: 'フルパネルを開く · Backspace で閉じる',
     commandDescs: {
-      '/help': 'コマンドとホットキーの全リスト',
+      '/help': 'デスクトップのスラッシュコマンドを表示',
       '/clear': '新しいセッションを開始',
       '/resume': '以前のセッションを再開',
       '/details': 'トランスクリプトの詳細レベルを制御',
       '/copy': '選択または最後のアシスタントメッセージをコピー',
-      '/quit': 'hermes を終了'
+      '/quit': 'hermes を終了',
+      '/start': '返信せずにプラットフォームの開始要求を確認',
+      '/new': '新しいデスクトップチャットを開始',
+      '/topic': 'Telegram の個人チャットのトピックを有効化または確認',
+      '/save': '現在の会話を JSON に保存',
+      '/retry': '最後のユーザーメッセージを再試行',
+      '/prompt': '$EDITOR で次のプロンプトを Markdown で作成して送信',
+      '/undo': 'ユーザーのターンを指定回数戻して再入力（既定は 1）',
+      '/title': '現在のセッション名を変更',
+      '/handoff': 'このセッションをメッセージプラットフォームへ引き継ぐ',
+      '/branch': '最新メッセージから新しいチャットを分岐',
+      '/worktree': '分離した Git ワークツリーを表示、一覧、作成、整理',
+      '/compress': '会話コンテキストを圧縮',
+      '/rollback': 'チェックポイントを一覧または復元',
+      '/export': 'プロファイルの設定、スキル、テーマを共有用アーカイブに書き出す',
+      '/import': '共有アーカイブを新しいプロファイルとして読み込む',
+      '/stop': '進行中のターンとバックグラウンドプロセスを停止',
+      '/pause': '新しい処理を全体で一時停止（緊急停止）；/pause off で再開',
+      '/bg': '別のバックグラウンドセッションでプロンプトを実行',
+      '/btw': '進行中の会話を中断せずに関連する質問をする',
+      '/agents': 'アクティブなセッションとタスクを表示',
+      '/journey': 'メモリグラフを開く',
+      '/queue': '次のターンのプロンプトを追加、一覧、編集、削除、移動、全消去',
+      '/steer': '現在の実行を誘導',
+      '/goal': 'このセッションの継続目標を管理',
+      '/heartbeat': 'アイドル時にこのセッションで繰り返すプロンプトを設定',
+      '/refine': 'この会話を見直し、学びをメモリやスキルに保存',
+      '/review': '独立したサブエージェントに作業のレビューを依頼',
+      '/loop': 'このセッションで一定間隔でプロンプトを繰り返す',
+      '/plan': '実行せずに .hermes/plans/ に Markdown の実装計画を作成',
+      '/moa': 'Mixture of Agents のプリセットで実行し、元のモデルに戻す',
+      '/subgoal': '進行中の目標の追加条件を管理',
+      '/status': '現在のセッション状態を表示',
+      '/egress': 'Docker の送信プロキシの状態を表示',
+      '/context': 'コンテキスト使用量、内訳、圧縮統計、処理速度を表示',
+      '/whoami': 'スラッシュコマンドのアクセス権を表示',
+      '/profile': 'アクティブな Hermes プロファイルを切り替え',
+      '/codex-runtime': 'OpenAI/Codex モデルの Codex app-server ランタイムを切り替え',
+      '/personality': 'このセッションの人格を切り替え',
+      '/battery': 'ステータスバーのバッテリー表示を切り替え',
+      '/timestamps': 'メッセージと /history の時刻表示を切り替え',
+      '/diff': '作業ディレクトリの Git 変更を表示',
+      '/focus': 'プロンプトと最終回答のみを表示するフォーカス表示を切り替え',
+      '/yolo': 'YOLO を切り替え — 危険なコマンドを自動承認',
+      '/approvals': '危険なコマンドの承認モードを表示または設定',
+      '/reasoning': '推論の強度と表示を管理',
+      '/skin': 'デスクトップテーマを切り替え',
+      '/wake': 'デスクトップのウェイクワード検出を制御 [on|off|status]',
+      '/tools': 'エージェントが使えるツールを切り替え',
+      '/memory': '保留中のメモリ書き込みを確認し、承認を切り替え',
+      '/bundles': 'スキルバンドルを一覧表示',
+      '/pet': 'petdex マスコットを切り替え',
+      '/hatch': '新しいペットを生成',
+      '/learn': 'ディレクトリ、URL、会話、メモから再利用可能なスキルを学ぶ',
+      '/init': 'リポジトリを調べて AGENTS.md の指示を作成または更新',
+      '/suggestions': '提案された自動化を確認し、採用または却下',
+      '/blueprint': 'ブループリントから自動化を設定',
+      '/browser': 'ローカルブラウザー接続を管理',
+      '/palette': 'コマンドパレットを開く',
+      '/usage': 'このセッションのトークン使用量を表示',
+      '/subscription': 'Nous のプランを確認し、ブラウザーで変更',
+      '/topup': 'Nous の残高を表示し、請求を管理',
+      '/platform': '問題のあるゲートウェイプラットフォームを一時停止、再開、一覧表示',
+      '/version': 'Hermes Agent のバージョンを表示',
+      '/debug': 'デバッグレポートを作成',
+      '/model': 'このセッションのモデルを切り替え'
     },
     hotkeyDescs: {
       'composer.mention': 'ファイル、フォルダー、URL、Git を参照',
@@ -2636,6 +3073,8 @@ export const ja = defineLocale({
     attachmentsShowFewer: '表示を減らす',
     editingInComposer: 'コンポーザーで編集中',
     editingQueuedInComposer: 'コンポーザーでキュー済みターンを編集中',
+    restoredDraftNotice: '未送信のメッセージを復元しました',
+    restoredDraftUndo: '元に戻す',
     queueEdit: '編集',
     queueSendNext: '次に送信',
     queueSteer: 'ステア — 現在のターンを今すぐ修正',
@@ -2696,10 +3135,58 @@ export const ja = defineLocale({
         description: '選択したコードがどのように機能するかを説明し、主要なファイルにリンクします。',
         text: 'これがどのように機能するか説明し、主要なファイルを教えてください。'
       }
-    }
+    },
+    steer: '現在の実行を誘導',
+    voiceEngine: '音声チャットエンジン',
+    voiceEngineChained: '音声認識 + Sbar Rafiq の音声',
+    voiceEngineLive: 'GPT-Live (全二重、Sbar Rafiq に委任)',
+    voiceEngineLiveNeedsKey: 'OpenAI API キーが必要です',
+    voiceEngineChangeFailed: '音声チャットエンジンを変更できませんでした',
+    voiceEngineChainedShort: '音声認識',
+    hiddenQueued: 'セットアップメモ',
+    mcpSuggestions: {
+      cancelTip: 'クリックしてキャンセル',
+      addedTip: '接続済み。このチャットでツールを使用できます',
+      label: server => `${server} を追加`,
+      tip: keyword => `「${keyword}」に言及したため提案しています。クリックして接続`,
+      connecting: server => `${server} に接続中…`,
+      added: server => `${server} を追加しました`,
+      connectFailed: server => `${server} に接続できませんでした`
+    },
+    skillSuggestions: {
+      doneTip: '送信時にスキルが読み込まれます',
+      label: skill => `スキルを使用: ${skill}`,
+      tip: skill => `「${skill}」に言及しました。クリックするとそのスキルから始めます`,
+      done: skill => `/${skill} を追加しました`
+    },
+    githubSuggestions: {
+      label: 'GitHub をセットアップ',
+      tip: 'ここでは GitHub は gh CLI スキル経由で動作します。クリックしてアカウントを接続してください',
+      done: '/github-auth を追加しました',
+      doneTip: 'メッセージを送信すると、エージェントが GitHub へのサインインを案内します'
+    },
+    repairSuggestions: {
+      workingTip: 'クリックしてキャンセル',
+      doneTip: 'このチャットで新しい認証情報が有効になりました',
+      label: server => `${server} に再接続`,
+      tip: server => `${server} の呼び出しが接続エラーで失敗しました`,
+      working: server => `${server} に再接続中…`,
+      done: server => `${server} に再接続しました`,
+      failed: server => `${server} に再接続できませんでした`
+    },
+    cronSuggestions: {
+      label: 'スケジュールする',
+      prefix: 'これをスケジュールされたジョブとして設定してください:',
+      done: 'スケジュール対象に設定しました',
+      doneTip: '送信するとエージェントがジョブを作成します',
+      tip: phrase => `「${phrase}」は定期的な作業のようです。代わりにスケジュールで実行しましょう`
+    },
+    voiceEngineLiveShort: 'GPT-Live'
   },
 
   statusStack: {
+    hideStack: 'ステータススタックを隠す',
+    showStack: 'ステータススタックを表示',
     agents: 'エージェント',
     background: count => `バックグラウンド ${count} 件`,
     goalActive: '目標進行中',
@@ -2871,6 +3358,7 @@ export const ja = defineLocale({
     notAvailableTitle: '更新は利用できません',
     unsupportedMessage: 'このバージョンの Sbar Rafiq はアプリ内から自分を更新できません。',
     connectionRetry: '接続を確認してもう一度試してください。',
+    gitUnusable: 'このコンピューターで Git を実行できなかったため、更新を確認できませんでした。',
     latestBody: '最新バージョンを実行しています。',
     latestBodyBackend: 'バックエンドは最新バージョンを実行しています。',
     allSetTitle: '準備完了',
@@ -2922,6 +3410,13 @@ export const ja = defineLocale({
     everythingSkipped: 'スキップ',
     everythingRowFailed: '更新に失敗しました',
     everythingFanoutFailedTitle: '他のインスタンスを更新できませんでした',
+    changeLogNew: '新機能',
+    changeLogFixed: '修正',
+    changeLogFaster: '高速化',
+    changeLogImproved: '改善',
+    changeLogOther: 'その他の改善',
+    changeLogFallbackLabel: '今回の更新',
+    changeLogFallbackItem: '改善と修正',
     applyStatus: {
       preparing: 'バックエンドを更新しています…',
       pulling: 'バックエンドを更新中…',
@@ -2930,7 +3425,9 @@ export const ja = defineLocale({
       failed: 'バックエンドの更新に失敗しました。',
       noReturn:
         'バックエンドがオンラインに戻りませんでした。更新が完了していない可能性があります。バックエンドホストを確認してください。'
-    }
+    },
+    connectionSettings: '接続設定',
+    openDownloadPage: 'ダウンロードページを開く'
   },
 
   guidedGreeting: {
@@ -3010,7 +3507,9 @@ export const ja = defineLocale({
     transcriptSaved: 'フルトランスクリプトを保存しました:',
     copiedOutput: 'コピーしました！',
     copyOutput: '出力をコピー',
-    reloadRetry: '再読み込みして再試行'
+    reloadRetry: '再読み込みして再試行',
+    probeErrorDetails: '詳細',
+    openLogs: 'ログを開く'
   },
 
   onboarding: {
@@ -3091,7 +3590,13 @@ export const ja = defineLocale({
     price: (input, output) => `${input} 入力 / ${output} 出力 per Mtok`,
     change: '変更',
     startChatting: '始める',
-    docs: provider => `${provider} ドキュメント`
+    docs: provider => `${provider} ドキュメント`,
+    localApiKeyPlaceholder: 'API キー (任意、エンドポイントが必要とする場合のみ)',
+    tryAgain: '再試行',
+    useApiKeyInstead: 'API キーを使用',
+    errorDetails: '詳細',
+    signInDidNotFinish: provider =>
+      `${provider} でのサインインが完了しませんでした。インターネット接続を確認して再試行するか、別のプロバイダーを選んでください。`
   },
 
   modelPicker: {
@@ -3110,14 +3615,20 @@ export const ja = defineLocale({
     free: '無料',
     freeTier: '無料プラン',
     priceTitle: '100 万トークンあたりの入力/出力価格',
-    wasPrice: '旧価格'
+    wasPrice: '旧価格',
+    customModel: 'カスタムモデル',
+    addCustomModelAction: 'カスタムモデルを追加…',
+    customModelPlaceholder: 'モデル ID を入力（例: openai/gpt-5）',
+    loadingIntoMemory: 'メモリに読み込み中'
   },
 
   modelVisibility: {
     title: 'モデル',
     search: 'モデルを検索',
     noAuthenticatedProviders: '認証済みプロバイダーがありません。',
-    addProvider: 'プロバイダーを追加…'
+    addProvider: 'プロバイダーを追加…',
+    addCustomModel: 'カスタムモデルを追加',
+    removeCustomModel: 'カスタムモデルを削除'
   },
 
   shell: {
@@ -3144,6 +3655,7 @@ export const ja = defineLocale({
       xhigh: '特高',
       max: '最大',
       ultra: 'ウルトラ',
+      sendsOnRoute: (level: string) => `このルートでは ${level} を送信`,
       updateFailed: 'モデルオプションの更新に失敗しました',
       fastFailed: '高速モードの更新に失敗しました'
     },
@@ -3239,13 +3751,15 @@ export const ja = defineLocale({
           skills: 'スキル',
           subagent_definitions: 'サブエージェント定義',
           system_prompt: 'システムプロンプト',
-          tool_definitions: 'ツール定義'
+          tool_definitions: 'ツール定義',
+          files: 'ファイル'
         },
         empty: 'コンテキストデータはまだありません',
         loading: '内訳を読み込み中…',
         percentFull: percent => `${percent}% 使用中`,
         title: 'コンテキスト使用状況',
-        tokenSummary: (used, max) => `${used} / ${max} Tokens`
+        tokenSummary: (used, max) => `${used} / ${max} Tokens`,
+        categoryCount: count => `${count} 個のファイル`
       },
       session: 'セッション',
       yoloOn: 'YOLO オン — 危険なコマンドを自動承認中。Shift+クリックで全体に切り替え。',
@@ -3256,7 +3770,51 @@ export const ja = defineLocale({
       openModelPicker: 'モデルピッカーを開く',
       modelPinned: '手動で固定中 — 新しいチャットは設定のデフォルトではなくこのモデルを使用します',
       modelTitle: (provider, model) => `モデル · ${provider}: ${model}`,
-      providerModelTitle: (provider, model) => `${provider} · ${model}`
+      providerModelTitle: (provider, model) => `${provider} · ${model}`,
+      customizeTitle: 'ステータスバーに表示',
+      hideStatusbar: 'ステータスバーを隠す',
+      resetStatusbar: 'デフォルトに戻す',
+      toggleApprovalMode: '承認',
+      toggleBackendVersion: 'バックエンドのバージョン',
+      toggleCacheHitRate: 'キャッシュヒット率',
+      toggleCommandCenter: 'コマンドセンター',
+      toggleContextUsage: 'コンテキストメーター',
+      toggleRunningTimer: 'ターンタイマー',
+      toggleSessionTimer: 'セッションタイマー',
+      toggleBrowser: 'ブラウザー',
+      toggleTerminal: 'ターミナル',
+      toggleTokensPerSecond: '毎秒トークン数',
+      toggleVersion: 'バージョンとアップデート',
+      toggleFreeTier: '無料プラン',
+      toggleWorkspace: 'ワークスペース',
+      cacheHitRateTitle: 'このセッションのプロンプトキャッシュヒット率。キャッシュされたトークンは安価なため、高いほどコストが下がります',
+      tokensPerSecondTitle: '毎秒の出力トークン数 (直近 10 回のモデル呼び出しの平均)',
+      webhooks: 'Webhook',
+      openWebhooks: 'Webhook を開く',
+      accountUsagePanel: {
+        empty: '接続済みのサブスクリプションはありません',
+        loading: 'プランを確認中…',
+        refresh: '更新',
+        states: {
+          network_error: 'プロバイダーに接続できませんでした',
+          no_usage_endpoint: 'このプロバイダーのプランデータはありません',
+          not_authenticated: '未サインイン',
+          parse_error: 'プロバイダーから予期しない応答がありました',
+          rate_limited: 'レート制限中です。しばらくしてから再試行してください',
+          unauthorized: 'サインインの有効期限切れ'
+        },
+        title: 'プランの使用量',
+        windows: {
+          '5h': '5 時間枠',
+          '7d': '週間枠',
+          credits: 'クレジット',
+          key_limit: 'API キーの上限',
+          period: '請求期間'
+        },
+        resetsAt: when => `${when} にリセット`
+      },
+      accountUsage: 'プラン',
+      toggleAccountUsage: 'プランの使用量を表示'
     }
   },
 
@@ -3274,6 +3832,8 @@ export const ja = defineLocale({
     openFolder: 'フォルダーを開く',
     refreshTree: 'ツリーを更新',
     collapseAll: 'すべてのフォルダーを折りたたむ',
+    showIgnored: 'gitignore されたファイルを表示',
+    hideIgnored: 'gitignore されたファイルを非表示',
     previewUnavailable: 'プレビューは利用できません',
     couldNotPreview: path => `${path} をプレビューできませんでした`,
     noProjectTitle: 'プロジェクトなし',
@@ -3468,6 +4028,22 @@ export const ja = defineLocale({
     }
   },
 
+  interfaceMode: {
+    title: 'インターフェースモード',
+    hint: '表示される内容が変わるだけで、Hermes にできることは変わりません。',
+    sessionNote:
+      'シンプルモードで設定されています。ここでの変更はこのセッション中のみ有効です。自分の設定にするには詳細モードに切り替えてください。',
+    simple: {
+      label: 'シンプル',
+      description:
+        'Hermes と話すための表示。サイドバーとチャットのみ。ターミナル、ファイル、差分のペインは表示しません。'
+    },
+    advanced: {
+      label: '詳細',
+      description: '開発者向け。ターミナル、ファイル、差分、ステータスバー、レイアウトを設定したとおりに。'
+    }
+  },
+
   zones: {
     showTabStrip: 'タブを表示',
     hideTabStrip: 'タブを隠す',
@@ -3539,6 +4115,29 @@ export const ja = defineLocale({
   },
 
   assistant: {
+    catalogInstall: {
+      preparing: 'インストールを準備中…',
+      install: 'インストール',
+      advanced: '詳細設定',
+      skip: 'スキップ',
+      installing: 'インストール中…',
+      installed: 'インストール済み',
+      notInstalled: '未インストール',
+      failed: '失敗',
+      showNames: '名前を表示',
+      hideNames: '名前を隠す',
+      skill: name => `スキル ${name}`,
+      kind: { plugin: 'プラグイン', skill: 'スキル' },
+      tier: { official: '公式', community: 'コミュニティ' },
+      targetProfile: profile => `${profile} プロファイルにインストールします`,
+      sendFailed: '回答を送信できませんでした。もう一度お試しください。',
+      commitLabel: 'コミット',
+      subdirLabel: 'フォルダー',
+      securityHeading: 'セキュリティ',
+      scan: { passed: 'スキャン合格', warnings: 'スキャンで警告あり', failed: 'スキャン不合格' },
+      requirementsLabel: '必要条件',
+      credentialsHeading: '認証情報'
+    },
     thread: {
       loadingSession: 'セッションを読み込み中',
       showEarlier: '以前のメッセージを表示',
@@ -3572,6 +4171,152 @@ export const ja = defineLocale({
       branchNewChat: '新しいチャットでブランチ',
       react: 'リアクション',
       dismissError: 'エラーを閉じる',
+      errorGenericProvider: 'AI サービス',
+      errorLayerBodies: {
+        generic:
+          'Hermes の返信中に問題が発生しました。再試行してください。問題が続く場合はエラー詳細をコピーしてください。',
+        provider:
+          'AI サービスがリクエストを完了できませんでした。少し待って再試行するか、プロバイダーを切り替えてください。',
+        endpoint:
+          'カスタムモデルサーバーに接続できません。サーバーが起動しているか確認し、メッセージを再送してください。',
+        streaming: '返信が完了する前に接続が切れました。再試行してもう一度送信してください。',
+        auth: 'AI サービスがサインインを拒否しました。このプロバイダーの認証情報を確認してから、メッセージを再送信してください。',
+        billing: 'このプロバイダーのアカウントにクレジットが残っていません。チャージするかプロバイダーを切り替えてから、再送信してください。',
+        disk: 'ディスクがいっぱいのため、Sbar Rafiq はこの会話を保存できませんでした。空き容量を確保してから再試行してください。',
+        gateway: 'この返信の開始中に Sbar Rafiq で内部エラーが発生しました。メッセージを再送信してください。繰り返し発生する場合は診断情報を送信してください。',
+        runtime: 'この返信の開始中に Sbar Rafiq で内部エラーが発生しました。メッセージを再送信してください。繰り返し発生する場合は診断情報を送信してください。'
+      },
+      errorCodes: {
+        provider_policy_blocked: {
+          title: 'アカウント設定によりこのモデルはブロックされています',
+          body: provider =>
+            `${provider} はアカウントのデータまたはプライバシー設定により、このリクエストを処理できません。別のモデルまたはプロバイダーを選んでください。`
+        },
+        content_policy_blocked: {
+          title: 'AI サービスが回答を拒否しました',
+          body: provider => `${provider} はこのメッセージへの回答を拒否しました。編集して再送してください。`
+        },
+        format_error: {
+          title: 'AI サービスがリクエストの形式を拒否しました',
+          body: provider =>
+            `${provider} はこのリクエストの形式を受け付けませんでした。プロバイダーを切り替えるか、調査のため診断情報を送信してください。`
+        },
+        invalid_response: {
+          title: 'AI サービスが読み取れない応答を返しました',
+          body: provider => `${provider} は Hermes が読み取れない内容を返しました。しばらくしてから再試行してください。`
+        },
+        empty_response: {
+          title: 'AI サービスが空の応答を返しました',
+          body: provider => `${provider} はこのメッセージに内容を返しませんでした。しばらくしてから再試行してください。`
+        },
+        rate_limit: {
+          title: 'AI サービスが混み合っています',
+          body: provider => `${provider} は現在リクエスト数を制限しています。少し待ってから再試行してください。`
+        },
+        upstream_rate_limit: {
+          title: 'AI サービスが混み合っています',
+          body: provider => `${provider} は現在リクエスト数を制限しています。少し待ってから再試行してください。`
+        },
+        overloaded: {
+          title: 'AI サービスの負荷が高すぎます',
+          body: provider =>
+            `${provider} で現在問題が発生しています。しばらくしてから再試行するか、プロバイダーを切り替えてください。`
+        },
+        server_error: {
+          title: 'AI サービスでエラーが発生しました',
+          body: provider =>
+            `${provider} がサーバーエラーを返しました。しばらくしてから再試行するか、プロバイダーを切り替えてください。`
+        },
+        timeout: {
+          title: '応答がタイムアウトしました',
+          body: provider => `${provider} から時間内に応答がありませんでした。再試行してもう一度送信してください。`
+        },
+        ssl_cert_verification: {
+          title: '安全な接続に失敗しました',
+          body: provider =>
+            `Hermes は ${provider} との安全な接続を検証できませんでした。ネットワークやプロキシの設定を確認するか、プロバイダーを切り替えて再送してください。`
+        },
+        billing: {
+          title: 'クレジット不足',
+          body: provider => `${provider} アカウントにクレジットが残っていません。チャージするかプロバイダーを切り替えてから、再送信してください。`
+        },
+        stream_drop: {
+          title: '返信が途切れました',
+          body: '返信が完了する前に接続が切れました。再試行して再送信してください。'
+        },
+        upstream_blocked: {
+          title: 'ファイアウォールがリクエストをブロックしました',
+          body: provider =>
+            `${provider} の前段にあるファイアウォールまたは CDN が、モデルに届く前にリクエストをブロックしました。キー自体はおそらく問題ありません。設定でプロバイダーの extra_headers に User-Agent ヘッダーを設定するか、プロバイダーを切り替えてから、メッセージを再送信してください。`
+        },
+        context_overflow: {
+          title: 'この会話は長すぎます',
+          body: '会話がモデルに収まらなくなりました。圧縮するか新しいチャットを開始してから、再送信してください。'
+        },
+        payload_too_large: {
+          title: 'このメッセージは大きすぎます',
+          body: 'リクエストがモデルに対して大きすぎました。会話を圧縮するか新しいチャットを開始してから、再送信してください。'
+        },
+        model_not_found: {
+          title: 'このモデルは利用できません',
+          body: provider =>
+            `${provider} はお使いのアカウントでこのモデルを提供していません。別のモデルを選んでから、メッセージを再送信してください。`
+        },
+        truncated: {
+          title: '返信が途中で終わりました',
+          body: 'モデルが完了前に停止しました。再試行して完全な返信を取得してください。'
+        },
+        loop_error: {
+          title: 'Sbar Rafiq がループに陥りました',
+          body: '返信が同じ手順を繰り返し続けたため、Sbar Rafiq が停止しました。再試行するか、再発する場合は新しいチャットを開始してください。'
+        },
+        SESSION_NOT_OWNED: {
+          title: 'このチャットは別の場所で開かれています',
+          body: 'このチャットは別の Sbar Rafiq ウィンドウまたはターミナルで開かれています。そちらで閉じてからメッセージを再送信するか、ここで新しいチャットを開始してください。'
+        },
+        disk_full: {
+          title: 'ディスクがいっぱいです',
+          body: 'ディスクがいっぱいのため、Sbar Rafiq はこの会話を保存できませんでした。空き容量を確保してから再試行してください。'
+        },
+        free_tier_disabled: {
+          title: 'サインインなしでの Sbar Rafiq の利用は現在オフになっています',
+          body: 'チャットを続けるには Nous アカウントでサインインしてください。無料です。'
+        },
+        free_tier_rate_limited: {
+          title: 'サインインなしで利用できるチャット枠を使い切りました',
+          body: '枠はまもなくリセットされます。Nous アカウントでサインインすると枠が増えます。無料です。'
+        },
+        free_tier_at_capacity: {
+          title: 'サインインなしのチャットは現在非常に混雑しています',
+          body: 'サインインすると待たずに利用できます (無料)。または、しばらくしてから再試行してください。'
+        },
+        free_tier_model_not_free: {
+          title: 'このモデルはサインインなしでは利用できません',
+          body: 'Sbar Rafiq は当面無料モデルを使用します。Nous アカウントでサインインすると、より多くのモデルを利用できます。無料です。'
+        },
+        free_tier_route: {
+          title: 'Sbar Rafiq はこの経路で無料モデルに接続できませんでした',
+          body: 'Nous アカウントでサインインするか (無料)、NOUS_INFERENCE_BASE_URL の設定を確認してください。'
+        },
+        free_tier_outage: {
+          title: '無料モデルは現在応答しにくい状態です',
+          body: '1 分ほどしてからメッセージを再送信してください。'
+        },
+        free_tier_refused: {
+          title: 'Sbar Rafiq はサインインなしでは送信できませんでした',
+          body: 'Nous アカウントでのサインインは無料です。'
+        },
+        auth: {
+          title: provider => `${provider} がサインインを拒否しました`,
+          body: provider =>
+            `${provider} に保存された認証情報が受け入れられませんでした。設定で修正するかプロバイダーを切り替えてから、メッセージを再送信してください。`
+        },
+        auth_permanent: {
+          title: provider => `${provider} がサインインを拒否しました`,
+          body: provider =>
+            `${provider} に保存された認証情報が無効か、取り消されています。更新するかプロバイダーを切り替えてから、メッセージを再送信してください。`
+        }
+      },
       errorLayers: {
         auth: '認証エラー',
         billing: 'クレジット不足',
@@ -3584,6 +4329,10 @@ export const ja = defineLocale({
         streaming: 'ストリーミング接続のエラー'
       },
       errorRetry: '再試行',
+      errorLimitResets: time => `制限は ${time} にリセットされます`,
+      errorRetryAtReset: time => `制限のリセット時に再試行（${time}）`,
+      errorRetryScheduled: (time, wait) => `${time} に再試行 — 残り ${wait}`,
+      errorRetryScheduledCancel: 'キャンセル',
       errorStartNewSession: '新しいセッションを開始',
       errorSwitchProvider: 'プロバイダーを切り替え',
       errorSignInAgain: provider => `${provider} に再度サインイン`,
@@ -3611,7 +4360,29 @@ export const ja = defineLocale({
       restoreNext: '次のチェックポイントに戻す',
       goForward: '進む',
       sendEdited: '編集済みメッセージを送信',
-      attachingFile: '添付中…'
+      attachingFile: '添付中…',
+      processingPrompt: 'プロンプトを処理中',
+      errorDetails: '詳細',
+      errorToastTitle: 'Hermes は返信を完了できませんでした',
+      errorChooseModel: 'モデルを選択',
+      errorCompressConversation: '会話を圧縮',
+      errorCompressFailed: '会話を圧縮できませんでした',
+      errorOpenHermesFolder: 'Hermes フォルダーを開く',
+      errorOpenHermesFolderFailed: 'Hermes フォルダーを開けませんでした',
+      errorUpdateApiKey: 'API キーを更新',
+      errorSignInFreeTier: 'Nous アカウントでサインイン',
+      expandMessage: 'メッセージを展開',
+      scrollToBottom: '一番下までスクロール',
+      loadingLocalModel: model => `${model} をメモリに読み込み中`,
+      errorAuthKinds: {
+        api_key: {
+          title: provider => `${provider} が API キーを拒否しました`,
+          body: provider => `${provider} に保存されたキーが無効か、取り消されています。更新してから再試行してください。`
+        },
+        oauth: {
+          title: provider => `${provider} のサインインの有効期限が切れました`
+        }
+      }
     },
     approval: {
       gatewayDisconnected: 'Sbar Rafiq ゲートウェイが接続されていません',
@@ -3626,7 +4397,10 @@ export const ja = defineLocale({
       alwaysTitle: 'このコマンドを常に許可しますか？',
       alwaysDescription: pattern =>
         `これにより "${pattern}" パターンが永続的な許可リスト (~/.hermes/config.yaml) に追加されます。Sbar Rafiq はこのセッションや将来のセッションで、このようなコマンドについて再度尋ねません。`,
-      alwaysAllow: '常に許可'
+      alwaysAllow: '常に許可',
+      reconnect: '再接続',
+      timedOutSystemLine: '承認がタイムアウトしました。コマンドは実行されていません。Sbar Rafiq に再試行を依頼するか、設定 → 安全性 → 承認のタイムアウトで上限を引き上げてください。',
+      openSafetySettings: '安全性の設定を開く'
     },
     clarify: {
       notReady: '明確化リクエストはまだ準備できていません',
@@ -3681,6 +4455,7 @@ export const ja = defineLocale({
       statusRecovered: '回復しました',
       statusDone: '完了',
       resultUnavailable: '結果を取得できません',
+      resultInterrupted: '中断されました',
       memoryWriteNoted: 'メモリへの書き込みを記録',
       actions: {
         read: '読み取り完了',
@@ -3787,6 +4562,23 @@ export const ja = defineLocale({
         web_search: { done: 'Web を検索しました', pending: 'Web を検索中', pendingAction: '検索中' },
         write_file: { done: 'ファイルを編集しました', pending: 'ファイルを編集中', pendingAction: '編集中' }
       }
+    },
+    mcpSetup: {
+      installTitle: 'MCP サーバーを追加',
+      enableTitle: 'MCP サーバーを有効化',
+      authorizeTitle: 'MCP サーバーを認可',
+      installAction: 'インストール',
+      enableAction: '有効化',
+      authorizeAction: '認可',
+      envRequired: '先に必要な認証情報を入力してください',
+      sendFailed: 'MCP セットアップの応答を送信できませんでした',
+      reloadFailed: 'サーバーは保存されましたが、MCP ツールの再読み込みに失敗しました。次のセッションで読み込まれます',
+      gatewayDisconnected: 'Sbar Rafiq は現在オフラインです。再接続してから再送信してください。',
+      installed: server => `${server} をインストールしました`,
+      enabled: server => `${server} を有効にしました`,
+      authorized: server => `${server} を認可しました`,
+      failed: server => `${server} のセットアップに失敗しました`,
+      toolCount: count => (count === 1 ? 'ツール 1 個' : `ツール ${count} 個`)
     }
   },
 
@@ -3797,7 +4589,10 @@ export const ja = defineLocale({
     sudoTitle: '管理者パスワード',
     sudoDesc:
       'sudo パスワードを入力する前にコマンドを確認してください。パスワードは実行するエージェントに送信され、このセッション中キャッシュされます。',
-    sudoCommandUnavailable: 'エージェントからコマンドが提供されていません。会話で確認できない場合はキャンセルしてください。',
+    sudoCommandUnavailable:
+      'エージェントからコマンドが提供されていません。会話で確認できない場合はキャンセルしてください。',
+    sudoInstallDesc:
+      'Bot Screen のパッケージ（TigerVNC + Xfce）をゲートウェイホストにインストールするため、sudo パスワードが必要です。そのホストにのみ送信されます。',
     sudoPlaceholder: 'sudo パスワード',
     secretTitle: 'シークレットが必要です',
     secretDesc: 'Sbar Rafiq は続行するための認証情報が必要です。',
@@ -3827,7 +4622,8 @@ export const ja = defineLocale({
     vaultCodeFootnote:
       'ヒント：「設定 → パスワードとログイン」でこのログインに認証キーを保存すると、Sbar Rafiq がコードを自動入力します。',
     vaultCodeSkip: 'スキップ',
-    vaultCodeConfirm: 'コードを入力'
+    vaultCodeConfirm: 'コードを入力',
+    reconnect: '再接続'
   },
 
   desktop: {
@@ -3916,7 +4712,8 @@ export const ja = defineLocale({
       success: platform => `${platform} に引き継ぎました。いつでもここで再開できます。`,
       systemNote: platform => `↻ ${platform} に引き継ぎました — いつでもここで再開できます。`,
       failed: error => `引き継ぎに失敗しました: ${error}`,
-      timedOut: 'ゲートウェイの待機がタイムアウトしました。`hermes gateway` は起動していますか？'
+      timedOut: 'ゲートウェイの待機がタイムアウトしました。`hermes gateway` は起動していますか？',
+      startMessaging: 'メッセージを始める'
     }
   },
 
@@ -3977,7 +4774,9 @@ export const ja = defineLocale({
     boundaryTitle: 'インターフェイスで問題が発生しました',
     boundaryDesc: 'ビューで予期しないエラーが発生しました。チャットと設定は安全です。',
     reloadWindow: 'ウィンドウを再読み込み',
-    openLogs: 'ログを開く'
+    openLogs: 'ログを開く',
+    boundaryDetails: '詳細',
+    sendDiagnostics: '診断情報を送信'
   },
 
   ui: {
@@ -3996,5 +4795,358 @@ export const ja = defineLocale({
       description: 'モバイルサイドバーを表示します。',
       toggle: open => `サイドバーを${open ? '表示' : '非表示'}`
     }
+  },
+  connectors: {
+    title: 'アプリを接続',
+    connect: '接続',
+    skip: '後で',
+    cancel: '待機をやめる',
+    retry: '再試行',
+    grant: '再接続',
+    connected: '接続済み',
+    checking: 'アプリを確認中…',
+    notConnected: '未接続',
+    skipped: 'スキップ済み',
+    disabled: '利用不可',
+    failed: '接続できませんでした',
+    needsAuth: 'アクセスの有効期限切れ',
+    opening: 'サインインを開いています…',
+    waiting: 'ブラウザーを待っています…',
+    timeout: 'まだ認可を待っています。',
+    refresh: '状態を更新',
+    connectError: '認可を開始できませんでした。再試行してください。',
+    unavailable: 'このセッションではコネクターを利用できません。',
+    ownerMissing: '接続を管理するには、この会話を開き直してください。',
+    search: 'アプリを検索',
+    empty: '一致するアプリはありません',
+    disclaimer: '接続は任意です。Sbar Rafiq に使わせたいアプリだけを認可してください。',
+    execution: 'コネクターのツール',
+    openInBrowser: 'ブラウザーで開く',
+    setupCancel: 'キャンセル',
+    authorizedToolsUnavailable: '認可済み。ツールは利用できません。',
+    required: '必須',
+    connectErrorFor: (app: string) => `${app} の認可を開始できませんでした。`,
+    setup: server => `${server} をセットアップ`
+  },
+  connectorsPage: {
+    title: 'コネクター',
+    filterCategory: 'カテゴリー',
+    categoryAll: 'すべてのカテゴリー',
+    uncategorised: '未分類',
+    residencyLocal: 'このデバイス上',
+    segment: {
+      all: 'すべて',
+      available: '利用可能',
+      connected: '接続済み',
+      off: 'オフ'
+    },
+    group: {
+      connected: '接続済み',
+      connectedNote: '問題のある接続が先頭に表示されます。',
+      available: '利用可能',
+      off: 'オフ',
+      offNote: 'サインイン情報は保持されます。'
+    },
+    card: {
+      kindManaged: 'マネージド',
+      kindCatalog: 'MCP · カタログ',
+      kindCustom: 'MCP · カスタム',
+      inCatalog: 'Sbar Rafiq カタログに掲載',
+      hostedTwin: 'マネージド版を利用可能',
+      alsoLocal: 'このデバイスでも実行中',
+      state: {
+        accessExpired: 'アクセスの有効期限切れ',
+        available: '利用可能',
+        connected: '接続済み',
+        connecting: '接続中',
+        connectionUnknown: '状態不明',
+        couldNotConnect: '接続できませんでした',
+        offByYourOrganisation: '組織によりオフ',
+        offForYou: 'あなたはオフ',
+        serverConnecting: '接続中…',
+        serverError: 'エラー',
+        serverNeedsAuth: '認証が必要',
+        serverOff: 'オフ',
+        serverOn: 'オン',
+        serverOnUnused: 'オン、未使用'
+      },
+      verb: {
+        authenticate: '認証',
+        connect: '接続',
+        install: 'インストール',
+        openLogs: 'ログを開く',
+        reconnect: '再接続',
+        stopWaiting: '待機をやめる',
+        tryAgain: '再試行',
+        turnBackOn: '再びオンにする'
+      },
+      reason: {
+        finishSignIn: 'ブラウザーでサインインを完了してください。',
+        reconnect: 'このアプリを使い続けるには再接続してください。',
+        serverError: 'サーバーが接続を拒否しました。',
+        serverNeedsAuth: 'このサーバーが応答できるようにサインインしてください。'
+      },
+      kindPlugin: (plugin: string) => `MCP · プラグイン ${plugin}`,
+      open: (name: string) => `${name} を開く`,
+      turnServerOn: (name: string) => `${name} をオンにする`,
+      turnServerOff: (name: string) => `${name} をオフにする`,
+      fact: {
+        tools: (count: number) => `ツール ${count} 個`,
+        toolsOff: (count: number) => `ツール ${count} 個がオフ`,
+        toolsOn: (count: number) => `ツール ${count} 個がオン`,
+        toolsSomeOn: (total: number, on: number) => `ツール ${total} 個、${on} 個がオン`
+      }
+    },
+    page: {
+      loading: 'カタログとこのコンピューター上のサーバーを読み込み中',
+      emptyTitle: 'まだアプリがありません。このコンピューターにサーバーを追加して始めましょう。',
+      noMatchTitle: '一致するアプリはありません',
+      noMatchBody: '一致するものがありません。独自の MCP サーバーを Sbar Rafiq に指定して追加できます。',
+      clearSearch: '検索をクリア',
+      hostedFailedTitle: 'ホスト型アプリに接続できませんでした。',
+      hostedFailedBody: 'このコンピューター上のサーバーは影響を受けず、引き続き動作しています。オフになったものはありません。',
+      retry: '再試行',
+      showAllMatches: '一致するものをすべて表示',
+      freeTierNote: 'サインインするまで、接続はこのコンピューター内に保持されます。',
+      signInLine: 'マネージドアプリを使うには Nous にサインインしてください。',
+      signIn: 'サインイン',
+      managedUnavailable: 'このアカウントではマネージドアプリをまだ利用できません。',
+      writeFailed: '変更は保存されませんでした。',
+      refreshFailed: 'ツール一覧を更新できませんでした。',
+      disconnectNoAccount: 'Sbar Rafiq には切断するアカウントがありません。ページを更新して再試行してください。',
+      disconnectRefused: '現在 Nous はこのサインインを削除できません。代わりにスイッチでアプリをオフにするか、後でもう一度お試しください。',
+      matchesElsewhere: (count: number) => `他のグループにさらに ${count} 件の一致があります。`,
+      segmentNoMatch: (segment: string) => `${segment} に一致するものがないため、すべての一致を表示しています。`
+    },
+    add: {
+      action: '独自に追加',
+      title: 'カスタム MCP に接続',
+      hint: 'このデバイスの mcp.json に新しいエントリーを 1 件追加',
+      pasteLabel: 'コマンドまたはスニペットを貼り付け',
+      pastePlaceholder: 'npx -y @modelcontextprotocol/server-filesystem /path/to/dir',
+      pasteNoMatch: 'サーバーとして読み取れる内容がありません。代わりに下の項目を入力してください。',
+      name: '名前',
+      nameTaken: 'この名前はすでに使われています。',
+      type: '種類',
+      typeStdio: 'STDIO',
+      typeHttp: 'Streamable HTTP',
+      command: '起動コマンド',
+      args: '引数',
+      addArg: '+ 引数を追加',
+      envVars: '環境変数',
+      addEnvVar: '+ 環境変数を追加',
+      passthrough: '環境変数のパススルー',
+      addPassthrough: '+ 変数を追加',
+      cwd: '作業ディレクトリ',
+      url: 'URL',
+      headers: 'ヘッダー',
+      addHeader: '+ ヘッダーを追加',
+      auth: '認証',
+      authNone: 'なし',
+      authOauth: 'OAuth',
+      authBearer: 'Bearer トークン',
+      keyPlaceholder: 'KEY',
+      valuePlaceholder: '値',
+      removeRow: 'この行を削除',
+      editJson: 'mcp.json を編集',
+      saveFailed: 'サーバーは保存されませんでした。'
+    },
+    dialog: {
+      disconnect: '切断',
+      disconnectBody: 'Sbar Rafiq はこのアカウントとしての操作を停止します。いつでも再接続できます。',
+      menuRefreshTools: 'ツールを更新',
+      moreActions: 'その他の操作',
+      removeServerBody: 'このコンピューターの mcp.json からエントリーが削除されます。それ以外は何も削除されません。',
+      wayHosted: 'マネージド',
+      turnOffLocal: 'ローカルサーバーをオフにする',
+      openPlugins: 'プラグインタブを開く',
+      nousLine: 'Nous アプリはプロファイルではなくアカウントに紐づきます。',
+      rulesReadOnly: '現在ルールは変更できません。',
+      rulesSignIn: 'ここで Sbar Rafiq に許可する操作を変更するにはサインインしてください。',
+      orgLink: 'コネクター管理画面を開く',
+      connectEnded: 'サインインが完了しませんでした。',
+      connectOpenAgain: 'もう一度リンクを開く',
+      tokensPerCall: '呼び出しあたりのトークン',
+      usesPerMonth: '30 日間の使用回数',
+      advanced: '詳細',
+      advancedHint: 'mcp.json のエントリーとログ',
+      disconnectTitle: (name: string) => `${name} を切断しますか？`,
+      removeServerTitle: (name: string) => `${name} を削除しますか？`,
+      appSwitch: (name: string) => `Sbar Rafiq が ${name} を使用できる`,
+      waysTitle: (name: string) => `${name} の実行場所`,
+      wayNotConnected: (name: string) => `まだ接続されていません。ブラウザーで ${name} にサインインしてください。`,
+      bothOn: (name: string) => `両方がオンのため、Sbar Rafiq には ${name} のツールがすべて 2 回ずつ表示されます。`,
+      providedByPlugin: (plugin: string) => `プラグイン ${plugin} が提供`,
+      rulesAppOff: (name: string) => `ツールを変更するには ${name} をオンにしてください。`,
+      orgNote: (count: number) => `組織により ${count} 個のツールがオフになっています。`
+    },
+    tools: {
+      title: 'ツール',
+      notInstalledBody: '提供されるツールを確認するには、このデバイスにインストールしてください。',
+      summaryAllTools: 'すべてのツール',
+      summaryOther: 'その他',
+      allToolsSwitch: 'すべてのツールをオン/オフ',
+      summaryAllOn: 'すべてオン',
+      summaryOff: 'オフ',
+      showSummary: '概要を表示',
+      staleSignIn: '最新のツール一覧を読み込むにはサインインしてください。',
+      quickReadOnly: '読み取りのみ',
+      quickNoDestructive: '破壊的な操作をオフ',
+      quickEverythingOn: 'すべてオン',
+      lockedHint: '組織によりオフ',
+      noMatch: 'これらのフィルターに一致するツールはありません。',
+      loading: 'ツール一覧を読み込み中',
+      unavailableLine: 'ツール一覧を利用できません。',
+      needsAuthBody: 'サインイン情報はこのコンピューター内に保持され、外部には送信されません。',
+      retry: '再試行',
+      goneBody: 'Sbar Rafiq はこれを呼び出せなくなりました。削除するまで行は残るため、何も消えることはありません。',
+      remove: '削除',
+      offBody: '提供されるツールを読み込むには、上のスイッチでオンにしてください。',
+      signedOutTitle: 'ツール一覧を読み込むには Nous にサインインしてください。',
+      signedOutBody: 'このコンピューター上のサーバーは影響を受けません。',
+      conflictTitle: '編集中に他の人がこのルールを変更しました。',
+      conflictReload: '相手の版を再読み込み',
+      conflictSave: '相手の版を上書き保存',
+      saveFailed: 'ツールのルールは保存されませんでした。',
+      discard: '破棄',
+      save: '変更を保存',
+      saving: '保存中...',
+      summaryTitle: (name: string) => `Sbar Rafiq が ${name} で行えること`,
+      summaryPreviewTitle: (name: string) => `接続後に Sbar Rafiq が ${name} で行えること`,
+      summaryCount: (count: number) => `ツール ${count} 個`,
+      summarySomeOn: (on: number, total: number) => `${total} 個中 ${on} 個がオン`,
+      showAllTools: (count: number) => `${count} 個のツールをすべて表示`,
+      facetSwitch: (facet: string) => `${facet}ツールをオン/オフ`,
+      moreHints: (count: number) => `+${count}`,
+      searchCountPlaceholder: (count: number) => `${count} 個のツールを検索`,
+      toolList: (name: string) => `${name} のツール`,
+      categorySelect: (count: number) => `${count} 個のカテゴリー`,
+      showDeprecated: (count: number) => `非推奨の ${count} 個を表示`,
+      hideDeprecated: (count: number) => `非推奨の ${count} 個を非表示`,
+      turnToolOn: (tool: string) => `${tool} をオンにする`,
+      turnToolOff: (tool: string) => `${tool} をオフにする`,
+      showDetails: (tool: string) => `${tool} の動作を表示`,
+      hideDetails: (tool: string) => `${tool} の動作を非表示`,
+      needsAuthTitle: (name: string) => `ツールを読み込むには ${name} にサインインしてください。`,
+      goneTitle: (name: string) => `${name} はカタログから削除されました。`,
+      offTitle: (name: string) => `${name} はオフです。`,
+      conflictBody: (theyOff: number, theyOn: number) => {
+        const they = [
+          theyOff > 0 ? `あなたがオンにしているツール ${theyOff} 個をオフにしました` : '',
+          theyOn > 0 ? `あなたがオフにしたツール ${theyOn} 個をオンのままにしました` : ''
+        ].filter(Boolean)
+
+        return `${they.length > 0 ? `相手は${they.join('。また、')}。` : ''}あなたの編集は画面に残っています。何も書き込まれていません。`
+      },
+      footerDirty: (off: number, backOn: number) =>
+        `ツール ${off} 個がオフ、${backOn === 0 ? '再びオンにしたものはなし' : `${backOn} 個が再びオン`}`
+    },
+    vocabulary: {
+      facetRead: {
+        label: '読み取り',
+        long: 'このアプリからデータを読み取ります。何も変更しません。'
+      },
+      facetWrite: {
+        label: '書き込み',
+        long: 'このアプリで何かを作成または変更します。'
+      },
+      facetDestructive: {
+        label: '破壊的',
+        long: 'このアプリの内容を完全に削除する可能性があります。'
+      },
+      facetUnclassified: {
+        label: '効果不明',
+        long: 'このツールの動作をアプリが示していません。'
+      },
+      hintReadOnly: {
+        label: '読み取りのみ',
+        long: 'このツールは読み取りのみを行うと宣言しています。'
+      },
+      hintCreate: {
+        label: '作成',
+        long: '新しいものを作成します。'
+      },
+      hintUpdate: {
+        label: '更新',
+        long: '既存のものを変更します。'
+      },
+      hintDelete: {
+        label: '削除',
+        long: '何かを削除します。'
+      },
+      hintDestructive: {
+        label: '破壊的',
+        long: 'この変更はここでは元に戻せません。'
+      },
+      hintIdempotent: {
+        label: '反復可能',
+        long: '2 回実行しても 1 回実行した場合と同じ結果になります。'
+      },
+      hintOpenWorld: {
+        label: '外部',
+        long: 'このアプリの外部にアクセスします。'
+      }
+    },
+    searchPlaceholder: (count: number) => `${count} 件のアプリを検索`
+  },
+  freeTier: {
+    providerRowTitle: 'Nous · 無料プラン',
+    providerRowPitch: 'Nous アカウントでサインインすると、より多くのモデルとツールを利用できます。',
+    readyTitle: 'Sbar Rafiq の準備ができました。',
+    readyCaption: '無料 · コネクター付き',
+    begin: '始める',
+    signInInstead: '代わりに Nous アカウントでサインイン',
+    otherProviders: 'その他のプロバイダー',
+    stripTitle: '無料の Nous 推論とコネクターが利用可能になりました。',
+    stripBody: 'モデルピッカーを開いて試すか、Nous アカウントでサインインしてください。',
+    openModelPicker: 'モデルピッカーを開く',
+    dismiss: '閉じる',
+    signIn: 'サインイン',
+    signInHeading: 'Nous アカウントでサインインすると、より多くのモデルとツールを利用できます。',
+    settingUp: '無料推論をセットアップ中…',
+    codeBody: 'サインインを完了するには、ブラウザーでこのコードを入力してください。',
+    copyLink: 'リンクをコピー',
+    doNotShare: 'このコードは共有しないでください。',
+    waiting: 'サインインを待っています…',
+    finishingHeading: 'サインインを完了中…',
+    finishingBody: 'ブラウザーで承認されました。アカウントのトークンを取得しています。',
+    signedIn: 'サインインしました。',
+    completedBody: 'アカウントで推論とツールを利用できるようになりました。',
+    defaultModel: '既定のモデル',
+    change: '変更',
+    done: '完了',
+    notNow: '後で',
+    tryAgain: '再試行',
+    startAgain: '最初からやり直す',
+    didNotComplete: 'サインインが完了しませんでした',
+    rejectedBody: '問題ありません。引き続き無料の Nous サービスを利用できます。準備ができたらいつでもサインインしてください。',
+    supersededBody: '新しいサインインコードがこのコードに置き換わりました。最新のコードを使うか、最初からやり直してください。',
+    timedOutHeading: 'サインインリンクの有効期限が切れました',
+    timedOutBody: '準備ができたらいつでもやり直してください。引き続き無料の Nous サービスを利用できます。',
+    retiredBody: 'サインインが完了する前にセッションが終了しました。Sbar Rafiq が新しいセッションを開始するので、準備ができたら再度サインインしてください。',
+    errorBody: 'サインインが完了しませんでした。準備ができたらいつでも再試行してください。',
+    busyHeading: 'あと少しです',
+    unreachableBody: 'Sbar Rafiq は Nous サービスに接続できず、サインインを完了できませんでした。インターネット接続を確認して再試行してください。セッションはそのまま残っています。',
+    alreadySignedInHeading: 'すでにサインインしています。',
+    alreadySignedInBody: 'この Sbar Rafiq はすでに Nous アカウントにサインインしています。',
+    setupFailed: {
+      gateClosed: 'このバージョンの Sbar Rafiq は Nous アカウントなしでは起動できません。サインインまたはアカウントを作成してください。無料で、1 分ほどで完了します。',
+      paused: 'サインインなしでの Sbar Rafiq の利用は一時停止中です。Sbar Rafiq は引き続き確認します。サインインは無料で、すぐに使い始められます。',
+      unreachable: 'Sbar Rafiq は Nous サービスに接続できませんでした。インターネット接続を確認してから「再試行」をタップしてください。または、ひとまず別のプロバイダーを接続してください。',
+      serverError: 'Nous サービスで一時的な問題が発生しました。少し待ってから「再試行」をタップするか、ひとまず別のプロバイダーを接続してください。',
+      powRequired: 'Nous サーバーがプルーフ・オブ・ワークを要求しましたが、お使いのエージェントはまだ対応していません。続行するには、サインインするか無料の Nous アカウントを作成してください。',
+      locked: 'このセッションはサインインしないと続行できません。続けるには、サインインするか無料の Nous アカウントを作成してください。',
+      generic: 'Sbar Rafiq はサインインなしで無料アクセスをセットアップできませんでした。サインインは無料です。または別のプロバイダーを接続してください。',
+      signInBelow: 'サインインは無料です。下で Nous を選んでください。',
+      tryAgain: '再試行',
+      retrying: '再試行中…',
+      rateLimited: wait =>
+        `現在多くの方が利用を開始しているため、Sbar Rafiq は ${wait}後に再試行します。サインインは無料で、待たずに利用できます。`
+    },
+    statusLabel: model => `Nous · ${model}`,
+    signedInAs: email => `${email} としてサインイン中`,
+    busyBody: wait =>
+      `Nous サービスが混雑しているため、Sbar Rafiq はサインインを完了できませんでした。${wait}後に再試行してください。その間もセッションはそのまま残っています。`,
+    providerName: 'Nous'
   }
 })

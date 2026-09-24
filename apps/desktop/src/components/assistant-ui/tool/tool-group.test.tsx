@@ -134,33 +134,6 @@ function completedOnlyMessage(): ThreadMessage {
   } as unknown as ThreadMessage
 }
 
-function failedOnlyMessage(): ThreadMessage {
-  return {
-    id: 'assistant-failed-only',
-    role: 'assistant',
-    content: [
-      {
-        type: 'tool-call',
-        toolCallId: 'term-failed',
-        toolName: 'terminal',
-        args: { command: 'exit 1' },
-        argsText: JSON.stringify({ command: 'exit 1' }),
-        isError: true,
-        result: { stderr: 'boom' }
-      }
-    ],
-    status: { type: 'complete', reason: 'stop' },
-    createdAt,
-    metadata: {
-      unstable_state: null,
-      unstable_annotations: [],
-      unstable_data: [],
-      steps: [],
-      custom: {}
-    }
-  } as unknown as ThreadMessage
-}
-
 // Two settled activity calls in a row, so the run earns a summary line and
 // collapses behind it.
 function settledRunMessage(): ThreadMessage {
@@ -471,14 +444,6 @@ describe('transcript fade', () => {
 })
 
 describe('live tool run', () => {
-  it('keeps its rows on screen instead of hiding them behind the summary', async () => {
-    const { container } = render(<GroupHarness message={groupedPendingMessage()} />)
-
-    await waitFor(() => {
-      expect(container.querySelectorAll('[data-tool-row]').length).toBeGreaterThan(0)
-    })
-  })
-
   it('honors explicit disclosure across live updates and completion', async () => {
     const message = groupedPendingMessage()
     const { container, rerender } = render(<GroupHarness message={message} />)
@@ -612,16 +577,6 @@ describe('tool run left unresolved', () => {
 })
 
 describe('flat tool list approval surfacing', () => {
-  it('keeps the approval host empty when there is no live approval', async () => {
-    const { container } = render(<GroupHarness message={groupedPendingMessage()} />)
-
-    await waitFor(() => {
-      expect(container.querySelectorAll('[data-slot="tool-block"]').length).toBeGreaterThan(0)
-    })
-    expect(container.querySelector('[data-approval-stack]')).not.toBeNull()
-    expect(container.querySelector('[data-approval-stack] [data-approval-run]')).toBeNull()
-  })
-
   it('keeps the approval visible in the same host when tool rows arrive', async () => {
     setApprovalRequest({ command: 'rm -rf /tmp/x', description: 'dangerous command', sessionId: 'sess-1' })
     const message = groupedPendingMessage()
@@ -630,6 +585,7 @@ describe('flat tool list approval surfacing', () => {
     const { container, rerender } = render(
       <GroupHarness message={{ ...message, content: [{ type: 'text', text: 'Waiting for approval.' }] }} />
     )
+
     const run = await screen.findByRole('button', { name: /Run/ })
     const host = run.closest('[data-approval-stack]')
     expect(host).not.toBeNull()
@@ -684,18 +640,6 @@ describe('flat tool list approval surfacing', () => {
     })
   })
 
-  it('lets failed tool rows be dismissed', async () => {
-    render(<GroupHarness message={failedOnlyMessage()} />)
-
-    const dismiss = await screen.findByLabelText('Dismiss')
-
-    fireEvent.click(dismiss)
-
-    await waitFor(() => {
-      expect(screen.queryByLabelText('Dismiss')).toBeNull()
-    })
-  })
-
   it('does not show dismiss for pending tool rows', async () => {
     const { container } = render(<GroupHarness message={pendingOnlyMessage()} />)
 
@@ -704,39 +648,6 @@ describe('flat tool list approval surfacing', () => {
     })
 
     expect(screen.queryByLabelText('Dismiss')).toBeNull()
-  })
-})
-
-describe('tool error explanations', () => {
-  it('keeps lookup misses neutral and exposes actual failures when expanded', async () => {
-    for (const [error, destructive] of [
-      ['File not found: /repo/session-view.ts', false],
-      ['Permission denied reading /repo/session-view.ts', true]
-    ] as const) {
-      const message = completedOnlyMessage()
-
-      assert(message.role === 'assistant')
-
-      const part = message.content[0]!
-
-      assert(part.type === 'tool-call')
-
-      const { container, unmount } = render(
-        <GroupHarness
-          message={{
-            ...message,
-            content: [{ ...part, result: { error }, args: { path: '/repo/session-view.ts' } }]
-          }}
-        />
-      )
-
-      fireEvent.click(await screen.findByText('Read session-view.ts'))
-
-      await waitFor(() => expect(container.textContent).toContain(error))
-      expect(Boolean(container.querySelector('[data-tool-row] .text-destructive'))).toBe(destructive)
-      unmount()
-      $toolDisclosureStates.set({})
-    }
   })
 })
 

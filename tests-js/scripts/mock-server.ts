@@ -360,6 +360,19 @@ const TASK_PANEL_RESUME_SCRIPT: ScriptedTurn[] = [
 export const PROVIDER_FAILURE_TRIGGER = 'E2E_PROVIDER_FAILURE_TRIGGER'
 export const PROVIDER_FAILURE_MESSAGE = 'E2E invalid_api_key: the mock refused this completion on purpose'
 
+/**
+ * The same provider failure one step later: the first completion says
+ * TOOL_THEN_FAILURE_TEXT and calls a tool, the completion after the tool
+ * result is the 401. That pre-tool text is not the member's reply.
+ */
+export const TOOL_THEN_FAILURE_TRIGGER = 'E2E_TOOL_THEN_PROVIDER_401'
+export const TOOL_THEN_FAILURE_TEXT = 'Let me note the plan before answering.'
+
+const TOOL_THEN_FAILURE_TURN: ScriptedTurn = {
+  text: TOOL_THEN_FAILURE_TEXT,
+  toolCalls: [{ name: 'todo', args: { todos: [{ id: '1', content: 'Answer the room', status: 'in_progress' }] } }],
+}
+
 const BLOCKING_CLARIFY_TURN: ScriptedTurn = {
   text: '',
   toolCalls: [{ name: 'clarify', args: { question: BLOCKING_CLARIFY_QUESTION, choices: ['Yes', 'No'] } }],
@@ -457,6 +470,43 @@ export function groupScriptedLine(userText: string, history: string[] = []): str
   // A scripted room turn with nothing for this speaker stays silent, so the
   // room settles instead of every member echoing the canned reply.
   return '(pass)'
+}
+
+/**
+ * One scripted tool call driven by the user's own text, for specs that need the
+ * agent to exercise a REAL tool once (e.g. Bot Mode's `message_agent`):
+ * `E2E_CALL(message_agent)[{"target":"scribe","message":"ping"}]`. The first
+ * completion of that turn emits the call; once its tool result is in the
+ * history the turn ends with `E2E_CALL_RESULT: <tool result>` so the spec can
+ * assert on what the tool actually returned. Later turns (a completion
+ * notification waking the same chat) carry a different last user message and
+ * fall through to the canned reply.
+ */
+export function directToolCallTurn(userText: string, messages: any[]): ScriptedTurn | null {
+  const match = /E2E_CALL\(([a-z_][a-z0-9_]*)\)\[(\{.*\})\]/s.exec(userText)
+
+  if (!match) {
+    return null
+  }
+
+  const toolResults = messages.filter(m => m?.role === 'tool')
+
+  if (toolResults.length === 0) {
+    let args: Record<string, unknown> = {}
+
+    try {
+      args = JSON.parse(match[2]) as Record<string, unknown>
+    } catch {
+      return null
+    }
+
+    return { text: '', toolCalls: [{ name: match[1], args }] }
+  }
+
+  const last = toolResults[toolResults.length - 1]
+  const content = typeof last?.content === 'string' ? last.content : JSON.stringify(last?.content ?? '')
+
+  return { text: `E2E_CALL_RESULT: ${content}` }
 }
 
 function includesBlockingClarifyTrigger(value: unknown): boolean {
@@ -663,7 +713,17 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
             return
           }
 
-          if (userText.includes(PROVIDER_FAILURE_TRIGGER)) {
+          if (userText.includes(TOOL_THEN_FAILURE_TRIGGER) && !messages.some(message => message?.role === 'tool')) {
+            if (stream) {
+              streamScriptedTurn(res, model, TOOL_THEN_FAILURE_TURN)
+            } else {
+              nonStreamingScriptedTurn(res, model, TOOL_THEN_FAILURE_TURN)
+            }
+
+            return
+          }
+
+          if (userText.includes(PROVIDER_FAILURE_TRIGGER) || userText.includes(TOOL_THEN_FAILURE_TRIGGER)) {
             res.writeHead(401, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ error: { code: 'invalid_api_key', message: PROVIDER_FAILURE_MESSAGE, type: 'invalid_request_error' } }))
 
@@ -745,6 +805,18 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
               streamScriptedTurn(res, model, turn)
             } else {
               nonStreamingScriptedTurn(res, model, turn)
+            }
+
+            return
+          }
+
+          const directCall = directToolCallTurn(userText, messages)
+
+          if (directCall !== null) {
+            if (stream) {
+              streamScriptedTurn(res, model, directCall)
+            } else {
+              nonStreamingScriptedTurn(res, model, directCall)
             }
 
             return

@@ -20,7 +20,7 @@
  */
 
 import type { HermesReadDirEntry, SessionInfo, TodoItem } from '@hermes/plugin-sdk'
-import { Codicon, host, relativeTime, useQuery, useValue } from '@hermes/plugin-sdk'
+import { Codicon, host, relativeTime, Tip, useQuery, useValue } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
@@ -223,32 +223,33 @@ function Deliverables({ desk, m }: { desk: string; m: HerworkMessages }) {
 
         return (
           <li key={entry.path}>
-            <button
-              className="flex w-full min-w-0 flex-col items-start gap-0.5 rounded px-2 py-1 text-start transition-colors hover:bg-(--ui-bg-hover)"
-              data-deliverable={previewable ? 'preview' : 'reveal'}
-              onClick={() => {
-                if (!previewable || !host.openPreview(entry.path)) {
-                  void host.revealPath(entry.path)
-                }
-              }}
-              title={previewable ? m.desk.preview : m.desk.openFolder}
-              type="button"
-            >
-              <span className="flex w-full min-w-0 items-center gap-1.5 text-xs text-(--ui-text-secondary)">
-                <Codicon
-                  aria-hidden
-                  className="shrink-0 text-(--ui-text-tertiary)"
-                  name={previewable ? 'file-media' : 'file'}
-                  size="0.8rem"
-                />
-                <span className="truncate">{entry.name}</span>
-              </span>
-              <span className="flex w-full min-w-0 gap-2 ps-5 text-[0.65rem] text-(--ui-text-tertiary)">
-                {job ? <span className="truncate">{job}</span> : null}
-                <span className="shrink-0 tabular-nums">{humanSize(entry.size)}</span>
-                {entry.mtimeMs ? <span className="shrink-0">{relativeTime(entry.mtimeMs)}</span> : null}
-              </span>
-            </button>
+            <Tip label={previewable ? m.desk.preview : m.desk.openFolder}>
+              <button
+                className="flex w-full min-w-0 flex-col items-start gap-0.5 rounded px-2 py-1 text-start transition-colors hover:bg-(--ui-bg-hover)"
+                data-deliverable={previewable ? 'preview' : 'reveal'}
+                onClick={() => {
+                  if (!previewable || !host.openPreview(entry.path)) {
+                    void host.revealPath(entry.path)
+                  }
+                }}
+                type="button"
+              >
+                <span className="flex w-full min-w-0 items-center gap-1.5 text-xs text-(--ui-text-secondary)">
+                  <Codicon
+                    aria-hidden
+                    className="shrink-0 text-(--ui-text-tertiary)"
+                    name={previewable ? 'file-media' : 'file'}
+                    size="0.8rem"
+                  />
+                  <span className="truncate">{entry.name}</span>
+                </span>
+                <span className="flex w-full min-w-0 gap-2 ps-5 text-[0.65rem] text-(--ui-text-tertiary)">
+                  {job ? <span className="truncate">{job}</span> : null}
+                  <span className="shrink-0 tabular-nums">{humanSize(entry.size)}</span>
+                  {entry.mtimeMs ? <span className="shrink-0">{relativeTime(entry.mtimeMs)}</span> : null}
+                </span>
+              </button>
+            </Tip>
           </li>
         )
       })}
@@ -291,16 +292,16 @@ function Folders({ desk, m }: { desk: string; m: HerworkMessages }) {
   return (
     <div className="flex flex-wrap gap-1">
       {(['inbox', 'work', 'output'] as const).map(name => (
-        <button
-          className="flex items-center gap-1 rounded border border-(--ui-border) px-1.5 py-0.5 font-mono text-[0.68rem] text-(--ui-text-secondary) transition-colors hover:bg-(--ui-bg-hover)"
-          key={name}
-          onClick={() => void openDeskFolder(deskPathJoin(desk, name))}
-          title={m.desk.openFolder}
-          type="button"
-        >
-          <Codicon aria-hidden name="folder" size="0.75rem" />
-          {name}
-        </button>
+        <Tip key={name} label={m.desk.openFolder}>
+          <button
+            className="flex items-center gap-1 rounded border border-(--ui-border) px-1.5 py-0.5 font-mono text-[0.68rem] text-(--ui-text-secondary) transition-colors hover:bg-(--ui-bg-hover)"
+            onClick={() => void openDeskFolder(deskPathJoin(desk, name))}
+            type="button"
+          >
+            <Codicon aria-hidden name="folder" size="0.75rem" />
+            {name}
+          </button>
+        </Tip>
       ))}
     </div>
   )

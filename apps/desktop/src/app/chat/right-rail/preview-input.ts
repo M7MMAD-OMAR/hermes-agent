@@ -12,11 +12,17 @@
  * webContents does not reach a guest (electron/electron#20333), which is why
  * this is a per-pane registry rather than something main could do.
  *
- * Coordinates are relative to the webview and are the GUEST's own pixels, so a
- * rect the act engine measured inside the page needs no conversion for app
- * zoom on the way back out. It does need one for device emulation: Chromium
- * divides injected coordinates by the emulation scale, which is what
- * `toWidgetPoint` puts back (see lib/preview-viewport.ts).
+ * Coordinates are relative to the webview element, in the host's
+ * device-independent pixels. The act engine measures inside the guest in CSS
+ * pixels, and Chromium places guest positions at css × zoom (the context-menu
+ * handler in preview-pane.tsx measured it live), so a rect measured in the page
+ * must be scaled by the guest's own zoom factor on the way back out
+ * (`toWebviewInputSpace`): the shipped default zoom is 90 %, and at that zoom
+ * an unscaled click lands 11 % too far from the origin and silently misses its
+ * target (#116281). The app window's zoom needs no conversion. Device
+ * emulation needs one more: Chromium divides injected coordinates by the
+ * emulation scale, which is what `toWidgetPoint` puts back (see
+ * lib/preview-viewport.ts).
  */
 
 import { $rightRailActiveTabId } from '@/store/layout'
@@ -33,6 +39,16 @@ export interface PreviewInputHandle {
   /** Give the guest keyboard focus, so key events reach its active element. */
   focus: () => void
   send: (event: PreviewInputEvent) => void
+}
+
+/** Convert a point the act engine measured in guest CSS pixels into the
+ *  webview's input space. Key events carry no point and pass through. */
+export function toWebviewInputSpace(event: PreviewInputEvent, zoomFactor: number | undefined): PreviewInputEvent {
+  if (!('x' in event) || !zoomFactor || !Number.isFinite(zoomFactor) || zoomFactor <= 0 || zoomFactor === 1) {
+    return event
+  }
+
+  return { ...event, x: Math.round(event.x * zoomFactor), y: Math.round(event.y * zoomFactor) }
 }
 
 const handles = new Map<string, PreviewInputHandle>()

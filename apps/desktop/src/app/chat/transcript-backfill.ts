@@ -5,12 +5,12 @@
  * session. "Show earlier" first pages the DOM budget, then the in-memory store
  * window — and when the whole in-memory transcript is materialized but the
  * REST hydration was truncated (`transcript-tail` bookkeeping), this module
- * fetches the next older page and prepends it to the session store.
+ * fetches the next older page and merges it into the session store.
  *
  * Offsets follow the backend's `order: 'latest'` semantics: measured back
  * from the NEWEST persisted row. Rows persisted after hydration shift that
- * origin, so a fetched page can overlap rows we already hold — the prepend
- * dedupes by durable row id (falling back to the rendered message id) and
+ * origin, so a fetched page can overlap rows we already hold and even extend
+ * past the cached tail. Shared durable rows anchor the merge on either side;
  * the offset still advances by the fetched count, which self-corrects the
  * drift on the next page.
  */
@@ -52,40 +52,47 @@ function logicalMessageKey(message: ChatMessage): null | string {
   return `${message.role}\u0000${message.timestamp}\u0000${chatMessageText(message)}\u0000${toolCallIds}`
 }
 
-/** Index of the rows a store already holds, by every identity a row can carry. */
+/** Index of the rows a store already holds, by every identity a row can carry.
+ *  Each identity maps to the row's position, so a fetched page can be placed
+ *  around the rows it shares with the store. */
 class MessageIdentityIndex {
-  readonly #rowIds = new Set<number>()
-  readonly #ids = new Set<string>()
-  readonly #logicalKeys = new Set<string>()
+  readonly #rowIds = new Map<number, number>()
+  readonly #ids = new Map<string, number>()
+  readonly #logicalKeys = new Map<string, number>()
 
   constructor(messages: readonly ChatMessage[]) {
-    for (const message of messages) {
+    messages.forEach((message, index) => {
       if (message.rowId !== undefined) {
-        this.#rowIds.add(message.rowId)
+        this.#rowIds.set(message.rowId, index)
       }
 
-      this.#ids.add(message.id)
+      this.#ids.set(message.id, index)
 
       const key = logicalMessageKey(message)
 
       if (key !== null) {
-        this.#logicalKeys.add(key)
+        this.#logicalKeys.set(key, index)
       }
-    }
+    })
   }
 
-  has(message: ChatMessage): boolean {
-    if (message.rowId !== undefined && this.#rowIds.has(message.rowId)) {
-      return true
+  /** Position of the held copy of `message`, or undefined when it is new. */
+  indexOf(message: ChatMessage): number | undefined {
+    const byRow = message.rowId !== undefined ? this.#rowIds.get(message.rowId) : undefined
+
+    if (byRow !== undefined) {
+      return byRow
     }
 
-    if (this.#ids.has(message.id)) {
-      return true
+    const byId = this.#ids.get(message.id)
+
+    if (byId !== undefined) {
+      return byId
     }
 
     const key = logicalMessageKey(message)
 
-    return key !== null && this.#logicalKeys.has(key)
+    return key === null ? undefined : this.#logicalKeys.get(key)
   }
 }
 
@@ -105,9 +112,11 @@ function sameMessage(a: ChatMessage, b: ChatMessage): boolean {
 }
 
 /**
- * Prepend an older page onto the in-memory transcript, deduplicating rows the
+ * Merge a fetched page into the in-memory transcript, deduplicating rows the
  * store already holds (offset drift makes overlap normal, and a compaction
- * generation copy carries a new row id for a row already on screen).
+ * generation copy carries a new row id for a row already on screen). A page
+ * with no shared row is presumed older; overlapping pages use their shared
+ * rows to place fresh messages before, within, or after the cached tail.
  * Preserves reference identity when nothing changes: handing React a fresh
  * array of the same messages re-renders the runtime for nothing.
  */
@@ -120,13 +129,56 @@ export function mergeOlderTranscriptPage(existing: ChatMessage[], olderPage: Cha
   }
 
   const held = new MessageIdentityIndex(existing)
-  const fresh = olderPage.filter(message => !held.has(message))
 
-  if (fresh.length === 0) {
+  // The offset counts backwards from the newest durable row. While a long
+  // turn persists, an "older" page can overlap the cached tail AND extend
+  // beyond its end. Position fresh rows by the shared anchors, not by the
+  // page's requested direction.
+  const insertions = new Map<number, ChatMessage[]>()
+  let pending: ChatMessage[] = []
+  let lastAnchor = -1
+
+  for (const message of olderPage) {
+    const anchor = held.indexOf(message)
+
+    if (anchor === undefined) {
+      pending.push(message)
+
+      continue
+    }
+
+    if (pending.length) {
+      insertions.set(anchor, [...(insertions.get(anchor) ?? []), ...pending])
+      pending = []
+    }
+
+    lastAnchor = anchor
+  }
+
+  if (pending.length) {
+    const position = lastAnchor < 0 ? 0 : lastAnchor + 1
+    insertions.set(position, [...(insertions.get(position) ?? []), ...pending])
+  }
+
+  if (insertions.size === 0) {
     return existing
   }
 
-  return [...fresh, ...existing]
+  const merged: ChatMessage[] = []
+
+  for (let index = 0; index <= existing.length; index++) {
+    const additions = insertions.get(index)
+
+    if (additions) {
+      merged.push(...additions)
+    }
+
+    if (index < existing.length) {
+      merged.push(existing[index])
+    }
+  }
+
+  return merged
 }
 
 /**

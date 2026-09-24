@@ -81,17 +81,16 @@ function untranslated(locale: Translations): string[] {
 
 describe('locale coverage', () => {
   it('speaks Arabic almost everywhere', () => {
-    // Raised from 40 to 170 by the September 17 upstream merge, which brought
-    // 1796 commits of new English strings. The long-dash rule below is NOT
-    // relaxed with it, and the two strings that broke it were translated rather
-    // than exempted. Bringing this back down is a translation pass of its own.
-    expect(untranslated(ar).length).toBeLessThanOrEqual(170)
+    // The September 24 upstream merge came with a full translation pass, which
+    // brought this down from 543 to 26. What is left is not language: URLs,
+    // example addresses, a command line, protocol and product names.
+    expect(untranslated(ar).length).toBeLessThanOrEqual(26)
   })
 
   it('says the interpolated messages in Arabic too', () => {
-    // Same merge, same reason: 28 interpolated messages arrived untranslated.
-    // Pinned as a count rather than emptied so a NEW one still fails here.
-    expect(untranslatedFunctions(ar).length).toBeLessThanOrEqual(28)
+    // Pinned as a count rather than emptied so a NEW one still fails here. The
+    // one left is `intro.custom`, which returns an empty list by design.
+    expect(untranslatedFunctions(ar).length).toBeLessThanOrEqual(1)
   })
 
   it.each([

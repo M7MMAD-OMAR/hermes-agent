@@ -37,6 +37,7 @@ const primaryView: SessionView = {
   kind: 'primary',
   $awaitingResponse: atom(false),
   $busy: atom(false),
+  $reasoningEffortWire: atom(''),
   $cwd: atom(''),
   $fast: atom(false),
   $lastVisibleIsUser: atom(false),

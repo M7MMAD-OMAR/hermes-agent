@@ -9,6 +9,7 @@
 
 import type { ReactNode } from 'react'
 
+import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 
 /** The steps the buttons walk. 1 is the middle of the range on purpose: it is
@@ -45,15 +46,16 @@ export function ZoomControl({
       <button aria-label={t.preview.office.zoomOut} className={BUTTON} onClick={() => onZoom(steppedZoom(zoom, -1))} type="button">
         −
       </button>
-      <button
-        aria-label={t.preview.office.resetZoom}
-        className="min-w-10 rounded px-1 text-[0.625rem] tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        onClick={() => onZoom(1)}
-        title={t.preview.office.resetZoom}
-        type="button"
-      >
-        {Math.round(zoom * 100)}%
-      </button>
+      <Tip label={t.preview.office.resetZoom}>
+        <button
+          aria-label={t.preview.office.resetZoom}
+          className="min-w-10 rounded px-1 text-[0.625rem] tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          onClick={() => onZoom(1)}
+          type="button"
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+      </Tip>
       <button aria-label={t.preview.office.zoomIn} className={BUTTON} onClick={() => onZoom(steppedZoom(zoom, 1))} type="button">
         +
       </button>

@@ -16,8 +16,8 @@ import {
   sessionApprovalRequests
 } from './prompts'
 import { isSessionGone, isSessionGoneForBackgroundPolling, markSessionGone } from './runtime-gone'
-import { $activeSessionId } from './session'
-import { requestForOwnedSession, runtimeHasOpenSurface, storedSessionIdForRuntimeId } from './session-states'
+import { $activeSessionId, ownerLookupSessionRows, sessionMatchesStoredId } from './session'
+import { runtimeHasOpenSurface, storedSessionIdForRuntimeId } from './session-states'
 
 export type { HermesOpenTarget }
 
@@ -171,6 +171,29 @@ function shouldFire(kind: NativeNotificationKind, sessionId?: null | string, glo
   return isBackgrounded() && runtimeHasOpenSurface(sessionId ?? null)
 }
 
+/** Last-resort label for a session the renderer has no row for (yet): the id
+ *  tail still tells three parked approvals apart. */
+const shortSessionId = (id: string) => `#${id.slice(-6)}`
+
+/** Blocking prompts name their session in the title ("Approval needed — Fix the
+ *  flaky test") so parallel parked approvals stay tellable apart; the caller's
+ *  `title` stays the bare fallback for a prompt with no session. */
+const NAMED_TITLE_KEYS: Partial<Record<NativeNotificationKind, string>> = {
+  approval: 'notifications.native.approvalTitleNamed',
+  input: 'notifications.native.inputTitleNamed'
+}
+
+/** Sidebar naming order (title → preview → short id) via the locale's
+ *  named-title template; the runtime id the caller already passes is the whole
+ *  hint needed. */
+function withSessionLabel(namedKey: string, runtimeSessionId: string): string {
+  const storedId = storedSessionIdForRuntimeId(runtimeSessionId) ?? runtimeSessionId
+  const row = ownerLookupSessionRows().find(session => sessionMatchesStoredId(session, storedId))
+  const name = row?.title?.trim() || row?.preview?.trim() || shortSessionId(storedId)
+
+  return translateNow(namedKey, name.length > 80 ? `${name.slice(0, 80).trimEnd()}…` : name)
+}
+
 export interface NativeNotificationAction {
   id: string
   text: string
@@ -244,6 +267,8 @@ export function dispatchNativeNotification(input: NativeNotificationInput): bool
   // `hermes://chat/<id>` the notification body links to, and that link has to
   // survive the runtime id being retired and the app being restarted.
   const chatId = input.sessionId ? durableChatId(input.sessionId) : null
+  const namedKey = input.sessionId ? NAMED_TITLE_KEYS[input.kind] : undefined
+  const title = namedKey && input.sessionId ? withSessionLabel(namedKey, input.sessionId) : input.title
 
   void window.hermesDesktop?.notify({
     actions: input.actions,
@@ -258,7 +283,7 @@ export function dispatchNativeNotification(input: NativeNotificationInput): bool
     sessionId: input.sessionId ?? undefined,
     silent: input.silent,
     tag: input.tag,
-    title: input.title
+    title
   })
 
   // Sound rides the same decision as the banner, one window per event. `silent`

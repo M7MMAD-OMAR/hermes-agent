@@ -31,8 +31,10 @@ import {
   openFindBar
 } from '@/store/find-in-page'
 import { toggleHud } from '@/store/hud'
+import { toggleSimpleMode } from '@/store/interface-mode'
 import { $capture, $comboIndex, endCapture, setBinding } from '@/store/keybinds'
 import {
+  cycleSidebarGrouping,
   requestSessionSearchFocus,
   setFileBrowserOpen,
   toggleFileBrowserOpen,
@@ -76,14 +78,14 @@ import {
   $workspaceIsPage,
   AGENTS_ROUTE,
   ARTIFACTS_ROUTE,
+  CAPABILITIES_ROUTE,
   CRON_ROUTE,
   MESSAGING_ROUTE,
   navigateToWorkspacePage,
   NEW_CHAT_ROUTE,
   PROFILES_ROUTE,
   sessionRoute,
-  SETTINGS_ROUTE,
-  SKILLS_ROUTE
+  SETTINGS_ROUTE
 } from '../routes'
 
 export interface KeybindRuntimeDeps {
@@ -211,7 +213,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'nav.commandCenter': deps.toggleCommandCenter,
     'nav.settings': () => navigate(SETTINGS_ROUTE),
     'nav.profiles': () => navigate(PROFILES_ROUTE),
-    'nav.skills': () => navigateToWorkspacePage(navigate, SKILLS_ROUTE),
+    'nav.capabilities': () => navigateToWorkspacePage(navigate, CAPABILITIES_ROUTE),
     'nav.messaging': () => navigateToWorkspacePage(navigate, MESSAGING_ROUTE),
     'nav.artifacts': () => navigateToWorkspacePage(navigate, ARTIFACTS_ROUTE),
     'nav.cron': () => navigate(CRON_ROUTE),
@@ -245,6 +247,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
 
     // Narrow-viewport reveal is handled inside the store toggles now.
     'view.toggleSidebar': toggleSidebarOpen,
+    'view.cycleSidebarGrouping': cycleSidebarGrouping,
     // ⌘J toggles the right sidebar — but a layout with no right side (e.g.
     // terminal-on-bottom) would leave it a dead key, so it falls back to the
     // terminal there. The single "secondary panel" toggle.
@@ -253,6 +256,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'view.toggleReview': toggleReview,
     'view.toggleStatusbar': toggleStatusbarVisible,
     'view.toggleProfileRail': toggleProfileRailVisible,
+    'view.toggleSimpleMode': toggleSimpleMode,
     'view.toggleTabStrip': () => void toggleTargetZoneTabStrip(),
     'view.showFiles': showFiles,
     // The conversation's OWN browser, not a stray tab in the strip. These three

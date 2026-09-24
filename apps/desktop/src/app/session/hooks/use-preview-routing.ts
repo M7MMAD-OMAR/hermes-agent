@@ -12,6 +12,7 @@ import {
   completePreviewServerRestart,
   openPreview,
   progressPreviewServerRestart,
+  renderedHtmlTarget,
   requestPreviewReload
 } from '@/store/preview'
 import { $currentCwd } from '@/store/session'
@@ -92,19 +93,23 @@ export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestG
               const url = resolved.kind === 'url' ? await reachablePreviewUrl(resolved.url) : resolved.url
               const reached = url === resolved.url ? resolved : { ...resolved, label: resolved.label || target, url }
 
-              openPreview(trimmedLabel ? { ...reached, label: trimmedLabel } : reached, 'tool-result', {
-                newTab: newTab === true,
-                // Front the rail only for the conversation you are actually
-                // in. An on-screen tile whose turn opens a page gets its tab
-                // — it does not get to pull the rail off the page you are
-                // reading in the chat you are typing in.
-                // The claim in its restart-durable form. Visibility only —
-                // nothing routes a write through it, which is what made the
-                // old stored-id registry lose races against its own arrival.
-                ownerKey: event.session_id ? storedSessionIdForRuntimeId(event.session_id) : null,
-                reveal: !event.session_id || event.session_id === $focusedRuntimeId.get(),
-                sessionId: event.session_id || null
-              })
+              openPreview(
+                renderedHtmlTarget(trimmedLabel ? { ...reached, label: trimmedLabel } : reached),
+                'tool-result',
+                {
+                  newTab: newTab === true,
+                  // Front the rail only for the conversation you are actually
+                  // in. An on-screen tile whose turn opens a page gets its tab,
+                  // it does not get to pull the rail off the page you are
+                  // reading in the chat you are typing in.
+                  // The claim in its restart-durable form. Visibility only:
+                  // nothing routes a write through it, which is what made the
+                  // old stored-id registry lose races against its own arrival.
+                  ownerKey: event.session_id ? storedSessionIdForRuntimeId(event.session_id) : null,
+                  reveal: !event.session_id || event.session_id === $focusedRuntimeId.get(),
+                  sessionId: event.session_id || null
+                }
+              )
             }
           )
         }

@@ -306,9 +306,13 @@ def _skill_names(agent: Any) -> List[str]:
     re-scan on a multi-session gateway can name another workspace's skills.
     """
     try:
-        from agent.context_breakdown import build_system_prompt_parts
+        from agent.context_breakdown import _prompt_parts_for_breakdown
+        from agent.system_prompt import build_system_prompt_parts
 
-        stable = (build_system_prompt_parts(agent) or {}).get("stable") or ""
+        # Through the breakdown's cache: the parts are keyed on the agent's
+        # cached prompt, so this reads the tiers the turn already rendered
+        # instead of rebuilding the whole system prompt after every turn.
+        stable = (_prompt_parts_for_breakdown(agent, build_system_prompt_parts) or {}).get("stable") or ""
     except Exception:
         logger.debug("Skill index unavailable for next moves", exc_info=True)
 

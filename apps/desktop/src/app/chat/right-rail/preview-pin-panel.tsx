@@ -24,6 +24,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { $annotateToggleRequest, $attachPinsRequest } from '@/app/chat/right-rail/preview-pin-requests'
 import { Codicon } from '@/components/ui/codicon'
+import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n/context'
 import { dataUrlToBlob } from '@/lib/embedded-images'
 import { orderedShots, pinAttachmentLabel } from '@/lib/preview-pins/pin-block'
@@ -685,24 +686,26 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
         </span>
 
         <div className="ms-auto flex shrink-0 items-center gap-1">
-          <button
-            className="rounded px-2 py-1 hover:bg-muted disabled:opacity-40"
-            disabled={!openCount && !elsewhere.count}
-            onClick={() => void attach()}
-            title={copy.sendAllTitle}
-            type="button"
-          >
-            {copy.sendAll}
-          </button>
-          <button
-            className="rounded px-2 py-1 hover:bg-muted disabled:opacity-40"
-            disabled={!pins.length && !elsewhere.count}
-            onClick={() => void clearEverything()}
-            title={copy.clearTitle}
-            type="button"
-          >
-            {copy.clear}
-          </button>
+          <Tip label={copy.sendAllTitle}>
+            <button
+              className="rounded px-2 py-1 hover:bg-muted disabled:opacity-40"
+              disabled={!openCount && !elsewhere.count}
+              onClick={() => void attach()}
+              type="button"
+            >
+              {copy.sendAll}
+            </button>
+          </Tip>
+          <Tip label={copy.clearTitle}>
+            <button
+              className="rounded px-2 py-1 hover:bg-muted disabled:opacity-40"
+              disabled={!pins.length && !elsewhere.count}
+              onClick={() => void clearEverything()}
+              type="button"
+            >
+              {copy.clear}
+            </button>
+          </Tip>
         </div>
       </div>
 
@@ -739,38 +742,46 @@ export function PreviewPinPanel({ open, url }: { open: boolean; url: string }) {
                 {pin.orphaned && <span className="ms-1.5 text-(--ui-warning)">{copy.detached}</span>}
                 <span className="ms-1.5 text-muted-foreground">{pin.comment || copy.noComment}</span>
               </span>
-              <button
-                className="rounded px-1 hover:bg-muted"
-                onClick={() => void sendOne(pin)}
-                title={copy.sendNow}
-                type="button"
-              >
-                <Codicon name="send" size="0.75rem" />
-              </button>
-              <button
-                className="rounded px-1 hover:bg-muted"
-                onClick={() => void queueOne(pin)}
-                title={copy.queue}
-                type="button"
-              >
-                <Codicon name="list-ordered" size="0.75rem" />
-              </button>
-              <button
-                className="rounded px-1 hover:bg-muted"
-                onClick={() => void togglePinResolved(pin.id).then(sync)}
-                title={pin.resolved ? copy.reopen : copy.resolve}
-                type="button"
-              >
-                <Codicon name={pin.resolved ? 'circle-outline' : 'check'} size="0.75rem" />
-              </button>
-              <button
-                className="rounded px-1 hover:bg-muted"
-                onClick={() => void removePin(pin.id).then(sync)}
-                title={copy.delete}
-                type="button"
-              >
-                <Codicon name="trash" size="0.75rem" />
-              </button>
+              <Tip label={copy.sendNow}>
+                <button
+                  aria-label={copy.sendNow}
+                  className="rounded px-1 hover:bg-muted"
+                  onClick={() => void sendOne(pin)}
+                  type="button"
+                >
+                  <Codicon name="send" size="0.75rem" />
+                </button>
+              </Tip>
+              <Tip label={copy.queue}>
+                <button
+                  aria-label={copy.queue}
+                  className="rounded px-1 hover:bg-muted"
+                  onClick={() => void queueOne(pin)}
+                  type="button"
+                >
+                  <Codicon name="list-ordered" size="0.75rem" />
+                </button>
+              </Tip>
+              <Tip label={pin.resolved ? copy.reopen : copy.resolve}>
+                <button
+                  aria-label={pin.resolved ? copy.reopen : copy.resolve}
+                  className="rounded px-1 hover:bg-muted"
+                  onClick={() => void togglePinResolved(pin.id).then(sync)}
+                  type="button"
+                >
+                  <Codicon name={pin.resolved ? 'circle-outline' : 'check'} size="0.75rem" />
+                </button>
+              </Tip>
+              <Tip label={copy.delete}>
+                <button
+                  aria-label={copy.delete}
+                  className="rounded px-1 hover:bg-muted"
+                  onClick={() => void removePin(pin.id).then(sync)}
+                  type="button"
+                >
+                  <Codicon name="trash" size="0.75rem" />
+                </button>
+              </Tip>
             </li>
           ))}
         </ul>

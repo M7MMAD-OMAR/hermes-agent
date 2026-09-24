@@ -20,6 +20,9 @@ import { $projectTree, moveSessionToCwd, projectNameForCwd } from '@/store/proje
 import { workspaceFolderTargets } from './workspace-folder-targets'
 
 interface WorkspaceFolderMenuProps {
+  /** False for a remote workspace, or when this machine cannot open the path in
+   *  its own file manager: the reveal item is hidden rather than failing. */
+  canRevealLocally?: boolean
   /** The focused chat's working directory. Never empty: the chip is hidden without one. */
   cwd: string
   onClose: () => void
@@ -45,7 +48,13 @@ interface WorkspaceFolderMenuProps {
  * in the wrong directory often needs to land in a plain folder that has no
  * projects.db row yet, and the backend takes a cwd, not a project id.
  */
-export function WorkspaceFolderMenu({ cwd, onClose, profile, sessionId }: WorkspaceFolderMenuProps) {
+export function WorkspaceFolderMenu({
+  canRevealLocally = true,
+  cwd,
+  onClose,
+  profile,
+  sessionId
+}: WorkspaceFolderMenuProps) {
   const { t } = useI18n()
   const p = t.sidebar.projects
   const fileMenu = t.fileMenu
@@ -131,13 +140,15 @@ export function WorkspaceFolderMenu({ cwd, onClose, profile, sessionId }: Worksp
       >
         <span className="truncate">{fileMenu.copyPath}</span>
       </DropdownMenuItem>
-      <DropdownMenuItem
-        className="gap-2 text-xs text-foreground focus:bg-accent"
-        onSelect={() => void revealFile(cwd)}
-        title={displayPath(cwd)}
-      >
-        <span className="truncate">{fileMenu.revealFileManager}</span>
-      </DropdownMenuItem>
+      {canRevealLocally && (
+        <DropdownMenuItem
+          className="gap-2 text-xs text-foreground focus:bg-accent"
+          onSelect={() => void revealFile(cwd)}
+          title={displayPath(cwd)}
+        >
+          <span className="truncate">{fileMenu.revealFileManager}</span>
+        </DropdownMenuItem>
+      )}
       <DropdownMenuItem
         className="gap-2 text-xs text-foreground focus:bg-accent"
         onSelect={() => revealFileInTree(cwd)}

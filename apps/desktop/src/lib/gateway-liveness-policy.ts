@@ -45,6 +45,9 @@ import { reconnectBackoffDelayMs } from '@hermes/shared'
  * (mirroring gateway-liveness usage in use-gateway-boot).
  */
 
+/** Ping budget for a liveness probe (primary and secondary sockets share it). */
+export const LIVENESS_PROBE_TIMEOUT_MS = 5_000
+
 /** How long after the FIRST deferred probe we try again (bounded, coalesced). */
 export const LIVENESS_REPROBE_DELAY_MS = 3_000
 

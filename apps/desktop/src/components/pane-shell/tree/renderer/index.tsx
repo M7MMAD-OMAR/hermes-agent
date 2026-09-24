@@ -31,6 +31,7 @@ import { ZoneEditor } from '../zone-editor'
 
 import { TreeEditBar } from './edit-bar'
 import { FloatingPanes } from './floating-panes'
+import { KeepAlivePanes } from './keep-alive-panes'
 import { NarrowOverlays } from './narrow-overlays'
 import { TreeNode } from './tree-node'
 
@@ -46,14 +47,8 @@ export function LayoutTreeRoot({ children, titlebar = false }: { children?: Reac
   // main pane's geometry in plain CSS.
   useEffect(publishWorkspaceGeometry, [])
 
-  if (!tree) {
-    return null
-  }
-
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 bg-(--ui-shell-ground)">
-      {/* ZonesOverlay::GetAnimationAlpha ramp: clamp(t / 200ms, 0.001, 1). */}
-      <style>{`@keyframes hermes-zone-fade { from { opacity: 0.001 } to { opacity: 1 } }`}</style>
       {/* THE SEAM INVARIANT: boundaries are drawn by the tree (one sash
           hairline per seam) — content mounted in a zone must not paint its
           own edge chrome. App components (asides, the shadcn sidebar) carry
@@ -90,21 +85,26 @@ export function LayoutTreeRoot({ children, titlebar = false }: { children?: Reac
           display: none;
         }
       `}</style>
-      {/* THE GROUND FRAME. One seam of ground all the way around the set, so
-          every zone is a card with four corners instead of a region fenced off
-          at three of them. It is a wrapper rather than padding on the root
-          because the narrow-viewport edge overlays position against the root
-          and have to hug the WINDOW edge, not this inset. */}
-      <div className="relative flex min-h-0 min-w-0 flex-1 p-(--pane-seam)">
-        <TreeNode
-          leftEdge={titlebar}
-          node={tree}
-          rightEdge={titlebar}
-          root
-          rootRow={tree.type === 'split' && tree.orientation === 'row'}
-          topEdge={titlebar}
-        />
-      </div>
+      <KeepAlivePanes>
+        {/* THE GROUND FRAME. One seam of ground all the way around the set, so
+            every zone is a card with four corners instead of a region fenced off
+            at three of them. It is a wrapper rather than padding on the root
+            because the narrow-viewport edge overlays position against the root
+            and have to hug the WINDOW edge, not this inset. */}
+        {tree && (
+          <div className="relative flex min-h-0 min-w-0 flex-1 p-(--pane-seam)">
+            <TreeNode
+              leftEdge={titlebar}
+              node={tree}
+              rightEdge={titlebar}
+              root
+              rootRow={tree.type === 'split' && tree.orientation === 'row'}
+              topEdge={titlebar}
+            />
+          </div>
+        )}
+        {tree && <NarrowOverlays />}
+      </KeepAlivePanes>
       {/* The strip of ground above the top row would otherwise be the one band
           of the titlebar you cannot grab. Its own element, not app-region on
           the frame: that property inherits, and a draggable ancestor would
@@ -112,12 +112,15 @@ export function LayoutTreeRoot({ children, titlebar = false }: { children?: Reac
       {titlebar && (
         <div aria-hidden="true" className="absolute inset-x-0 top-0 h-(--pane-seam) [-webkit-app-region:drag]" />
       )}
-      <NarrowOverlays />
-      {/* Non-tiling panes: fixed cards above the tree, outside every zone. */}
-      <FloatingPanes />
-      <TreeEditBar />
-      <ZoneEditor />
-      {children}
+      {tree && (
+        <>
+          {/* Non-tiling panes: fixed cards above the tree, outside every zone. */}
+          <FloatingPanes />
+          <TreeEditBar />
+          <ZoneEditor />
+          {children}
+        </>
+      )}
     </div>
   )
 }

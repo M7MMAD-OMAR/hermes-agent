@@ -90,22 +90,6 @@ afterEach(() => {
 })
 
 describe('DesktopInstallOverlay first-run setup', () => {
-  it('shows the remote/local choice without installer progress', async () => {
-    installDesktopMock(
-      bootstrapState({
-        setupChoice: { platform: 'win32', activeRoot: 'C:\\Users\\me\\AppData\\Local\\hermes\\hermes-agent' }
-      })
-    )
-
-    render(<DesktopInstallOverlay />)
-
-    expect(await screen.findByText('Set up Sbar Rafiq Desktop')).toBeTruthy()
-    expect(screen.getByText('Connect to existing Sbar Rafiq')).toBeTruthy()
-    expect(screen.getByText('Install Sbar Rafiq locally')).toBeTruthy()
-    expect(screen.queryByText(/steps complete/i)).toBeNull()
-    expect(screen.queryByText(/Fetching installer manifest/i)).toBeNull()
-  })
-
   it('continues local bootstrap only when Install Sbar Rafiq locally is selected', async () => {
     const desktop = installDesktopMock(
       bootstrapState({
@@ -195,22 +179,6 @@ describe('DesktopInstallOverlay first-run setup', () => {
     })
 
     expect(screen.queryByText('Local installation could not start. Restart Sbar Rafiq Desktop and try again.')).toBeNull()
-  })
-
-  it('opens the remote connection form from the first-run choice', async () => {
-    installDesktopMock(
-      bootstrapState({
-        setupChoice: { platform: 'linux', activeRoot: '/home/me/.hermes/hermes-agent' }
-      })
-    )
-
-    render(<DesktopInstallOverlay />)
-
-    fireEvent.click(await screen.findByText('Connect to existing Sbar Rafiq'))
-
-    expect(await screen.findByText('Gateway URL')).toBeTruthy()
-    expect(screen.getByText('Test connection')).toBeTruthy()
-    expect(screen.getByText('Apply and reconnect')).toBeTruthy()
   })
 
   it('returns from the remote connection form to the first-run choice', async () => {

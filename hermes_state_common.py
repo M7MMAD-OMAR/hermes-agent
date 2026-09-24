@@ -253,16 +253,23 @@ AUTO_VACUUM_MIN_FREELIST_RATIO = 0.25
 # layout 0 (marker absent) with a working inline index until the user opts in.
 #   1 = v23 external-content layout with a tool-row-excluded trigram
 #   2 = trigram also excludes structured tool_calls JSON
-FTS_STORAGE_VERSION = 2
+#   3 = messages_fts source aligned to a stable projection view
+#       (``messages_fts_src``): always-truncate tool rows to the prefix, no
+#       moving high-water boundary. The external-content source now reads
+#       back EXACTLY what the triggers indexed, so the rank=1
+#       'integrity-check' probe cannot drift from the stored index (the
+#       recurring fts5 "checksum mismatch" / leaked-token failures).
+FTS_STORAGE_VERSION = 3
 
-# Tool results are often multi-megabyte machine payloads. Index a useful
-# prefix for new tool rows instead of tokenizing the entire body while the
-# canonical message write holds SQLite's single writer lock. The high-water
-# marker lets upgraded databases retain the exact token stream already stored
-# for historical rows, so external-content delete/update commands stay valid
-# without an eager full-index rebuild.
+# Tool results are often multi-megabyte machine payloads. The base FTS index
+# stores only a bounded prefix of every tool row; tool rows are skipped by
+# default in search, and explicit tool-only search uses a LIKE fallback over
+# the full stored content, so no search capability is lost. The projection
+# below is STABLE — it depends only on the row being written, never on
+# mutable ``state_meta`` markers — which is what keeps the external-content
+# integrity checker and the trigger 'delete'/'update' commands in agreement
+# with the stored index forever.
 FTS_TOOL_CONTENT_PREFIX_CHARS = 8_192
-FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY = "fts_tool_full_content_high_water"
 
 # The same idea on the trigram index, which needs it more than any other index
 # does: a trigram tokenizer emits a token per character position, so the index
@@ -284,9 +291,13 @@ FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY = "fts_tool_full_content_high_water"
 # of a single message. Those messages stay findable — the base word index
 # covers the whole body either way — they just stop being findable by infix.
 #
-# Its own high-water marker, like the tool bound above: rows at or below it
-# keep the exact token stream already stored, so external-content delete and
-# update commands stay valid without an eager rebuild. A full rebuild clears
+# Unlike the tool bound above, which is unconditional since the base index
+# reads the ``messages_fts_src`` view, this one keeps its own high-water marker:
+# rows at or below it keep the exact token stream already stored, and the source
+# view, the triggers and the backfill all read the same marker, so
+# external-content delete and update commands stay valid without an eager
+# rebuild. The marker is stamped once and only ever cleared by a full rebuild,
+# so the projection never moves under an indexed row. A full rebuild clears
 # the marker first, which is what applies the bound to history and hands the
 # space back (that store: 1.58 GB to 884 MB, index 643 MB to 122 MB).
 FTS_TRIGRAM_CONTENT_PREFIX_CHARS = 32_768
@@ -310,9 +321,6 @@ def fts_trigram_content_sql(alias: str) -> str:
 
 def _fts_indexed_content_sql(alias: str) -> str:
     return f"""CASE WHEN {alias}.role = 'tool'
-              AND {alias}.id > COALESCE((SELECT CAST(value AS INTEGER)
-                                         FROM state_meta
-                                         WHERE key = '{FTS_TOOL_FULL_CONTENT_HIGH_WATER_KEY}'), -1)
          THEN substr(COALESCE({alias}.content, ''), 1, {FTS_TOOL_CONTENT_PREFIX_CHARS})
          ELSE {alias}.content END"""
 
@@ -429,6 +437,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     compression_ineffective_count INTEGER NOT NULL DEFAULT 0,
     compression_recovery_deadline REAL,
     profile_name TEXT,
+    transport_profile TEXT,
     rewind_count INTEGER NOT NULL DEFAULT 0,
     archived INTEGER NOT NULL DEFAULT 0,
     pinned INTEGER NOT NULL DEFAULT 0,
@@ -714,6 +723,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_handoff_state
     ON sessions(handoff_state, started_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_system_prompt_hash
     ON sessions(system_prompt_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_tool_names
+    ON sessions(tool_names);
 -- Recent-session browsing must never derive recency by scanning messages.
 -- This expression is the durable, indexable approximation used to preselect
 -- a small candidate set before compression-chain and preview hydration.
@@ -741,12 +752,32 @@ CREATE INDEX IF NOT EXISTS idx_sessions_effective_activity
 # predicate into a tautology (id > -1 OR id <= -1), i.e. normal operation.
 # The two state_meta PK probes per write are negligible next to the FTS
 # insert itself.
+#
+# messages_fts_src: the base word index no longer reads raw `messages` as its
+# external content. Tool rows are indexed as a bounded prefix, so the index
+# must read that SAME projection back or FTS5's 'integrity-check' / 'delete'
+# commands disagree with the stored tokens and corrupt the index (the
+# recurring fts5 checksum-mismatch drift: the projection used to depend on a
+# moving state_meta high-water key). The view/trigger/backfill all share the
+# one expression in `_fts_indexed_content_sql` — a fixed per-row function
+# with no marker lookups — so the boundary can never move again.
 FTS_SQL = f"""
+-- Stable projection the base word index reads and writes through: the view
+-- computes EXACTLY what the triggers/backfill insert, so 'rebuild' and the
+-- integrity checker always agree with the stored index.
+CREATE VIEW IF NOT EXISTS messages_fts_src AS
+    SELECT id,
+           CASE WHEN role = 'tool'
+                THEN substr(COALESCE(content, ''), 1, {FTS_TOOL_CONTENT_PREFIX_CHARS})
+                ELSE content END AS content,
+           tool_name, tool_calls
+    FROM messages;
+
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
     content,
     tool_name,
     tool_calls,
-    content='messages',
+    content='messages_fts_src',
     content_rowid='id'
 );
 

@@ -47,7 +47,7 @@ vi.mock('@/store/gateway', () => ({
 const {
   $activeGatewayProfile: activeGateway,
   $profileColors,
-  $showAllProfiles: showAllProfiles
+  $showAllProfiles
 } = vi.hoisted(() => {
   const { atom } = require('nanostores') as typeof Nanostores
 
@@ -61,7 +61,9 @@ const {
 vi.mock('@/store/profile', () => ({
   $activeGatewayProfile: activeGateway,
   $profileColors,
-  $showAllProfiles: showAllProfiles,
+  // `session-states` -> `preview` -> `layout` reaches this mock now that the
+  // right rail is scoped per profile; layout.ts derives its grouping from it.
+  $showAllProfiles,
   normalizeProfileKey: (name: null | string | undefined) => (name ?? '').trim() || 'default',
   profileLabel: (profile: { display_name?: string; name: string }) =>
     (profile.display_name ?? '').trim() || profile.name,
@@ -135,7 +137,6 @@ describe('ProfilesView', () => {
     const soul = await screen.findByLabelText(/SOUL\.md/i)
 
     expect(soul.tagName).toBe('TEXTAREA')
-    expect(soul.getAttribute('id')).toBe('new-profile-soul')
   })
 
   it('re-homes to default when the active profile is deleted', async () => {

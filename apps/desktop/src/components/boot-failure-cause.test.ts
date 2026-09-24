@@ -28,7 +28,9 @@ describe('local boot failure classification', () => {
   })
 
   it('keeps the raw output out of the headline and behind details', () => {
-    const raw = 'Sbar Rafiq backend exited before it became ready (1).\nRecent backend output:\nTraceback (most recent call last):'
+    const raw =
+      'Sbar Rafiq backend exited before it became ready (1).\nRecent backend output:\nTraceback (most recent call last):'
+
     const copy = localBootFailureCopy(raw, CAUSES)
 
     expect(copy.headline).toBe(CAUSES.exitedEarly)

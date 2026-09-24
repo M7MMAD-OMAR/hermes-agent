@@ -39,11 +39,12 @@ import { $activeConnectionId } from '@/store/connections'
 import { requestGatewayForAgent } from '@/store/gateway'
 import { notifyError } from '@/store/notifications'
 import { $activeGatewayProfile } from '@/store/profile'
+import { focusedSessionWorkspaceScope } from '@/store/session-states'
 import type { ProjectInfo } from '@/types/hermes'
 
 import { useRefreshHotkey } from '../hooks/use-refresh-hotkey'
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
-import { openSession } from '../open-session'
+import { openSession, openSessionFromPicker } from '../open-session'
 import { PageSearchShell } from '../page-search-shell'
 import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 
@@ -340,12 +341,22 @@ function ScopedArtifactsView({
   // every artifact cell re-render whenever the page did — and a link cell's
   // async title fetch re-rendered the page repeatedly. openArtifact is already
   // a useCallback; navigate is stable, so onOpenChat can be too.
+  // "Open chat" is scoped to the profile and connection this page reads
+  // from. A Bot-scoped focus keeps upstream's picker door so the chat lands in
+  // the Bot tab instead of the Sessions main.
   const openChat = useCallback(
-    (sessionId: string) =>
+    (sessionId: string) => {
+      if (focusedSessionWorkspaceScope().workspaceMode === 'bots') {
+        openSessionFromPicker(sessionId, navigate)
+
+        return
+      }
+
       openSession(sessionId, navigate, 'in-place', {
         workspaceMode: 'sessions',
         ownerRoute: { connectionId: connectionId || 'local', profile }
-      }),
+      })
+    },
     [navigate, connectionId, profile]
   )
 

@@ -9,7 +9,7 @@ import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
 import { normalizeOrLocalPreviewTarget, openPreviewTargetInBrowser } from '@/lib/local-preview'
 import { cn } from '@/lib/utils'
 import { notifyError } from '@/store/notifications'
-import { $previewTabSources, closePreviewForSource, openPreview } from '@/store/preview'
+import { $previewTabSources, closePreviewForSource, openPreview, renderedHtmlTarget } from '@/store/preview'
 import { type PreviewArtifact } from '@/store/preview-status'
 import { $focusedRuntimeId } from '@/store/session-states'
 
@@ -53,7 +53,7 @@ export const PreviewStatusRow = memo(function PreviewStatusRow({ item, onDismiss
       // Your click, but into the agent's tab for THIS chat — the row is the
       // agent's preview, so re-opening it must land where that agent browses,
       // not in whichever conversation's tab happens to be newest.
-      openPreview(await resolveTarget(), 'tool-result', { sessionId: $focusedRuntimeId.get() })
+      openPreview(renderedHtmlTarget(await resolveTarget()), 'tool-result', { sessionId: $focusedRuntimeId.get() })
     } catch (error) {
       notifyError(error, t.preview.unavailable)
     } finally {

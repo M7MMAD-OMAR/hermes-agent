@@ -2,6 +2,7 @@ import type { ModelOptionProvider } from '@hermes/shared'
 import { atom } from 'nanostores'
 
 import { Codecs, legacyStringList, persistentAtom } from '@/lib/persisted'
+import { persistString } from '@/lib/storage'
 
 // Pre-scoping key: ONE curation shared by every profile. Kept as a read-only
 // fallback that never expires: a scope inherits it until that scope is edited
@@ -12,6 +13,12 @@ const LEGACY_STORAGE_KEY = 'hermes.desktop.visible-models'
 
 // Per-scope curation: `{ "<backendScopeKey>": ["provider::model", ...] }`.
 const STORAGE_KEY = 'hermes.desktop.visible-models.by-scope'
+
+/** Every `provider::model` key the user has had a chance to judge — snapshotted
+ *  each time the visible set is persisted. A model absent from here appeared
+ *  AFTER the user last curated (plugin update, catalog refresh, new release), so
+ *  it falls through to the curated default rule instead of defaulting to hidden. */
+const KNOWN_STORAGE_KEY = 'hermes.desktop.known-models'
 
 /** Models shown per provider in the status-bar dropdown before the user has
  *  customized the list. Backend `models` are already relevance-ordered. */
@@ -107,8 +114,68 @@ export function visibleModelsForScope(byScope: Record<string, string[]>, scope: 
   return LEGACY_VISIBLE ? new Set(LEGACY_VISIBLE) : null
 }
 
-export function setVisibleModels(scope: string, keys: Set<string>): void {
+/** Keys the user has seen, or null when nothing has been recorded yet (a fresh
+ *  install, or a store written before the snapshot existed). One snapshot for
+ *  every scope: a key is `provider::model`, and having judged a model under one
+ *  bot means it is no longer news under another. */
+export const $knownModels = atom<Set<string> | null>(
+  (() => {
+    const known = legacyStringList(KNOWN_STORAGE_KEY)
+
+    return known ? new Set(known) : null
+  })()
+)
+
+/** Every collapsed-family key across `providers`. */
+function allFamilyKeys(providers: readonly ModelOptionProvider[]): Set<string> {
+  const keys = new Set<string>()
+
+  for (const provider of providers) {
+    for (const family of collapseModelFamilies(provider.models ?? [])) {
+      keys.add(modelVisibilityKey(provider.slug, family.id))
+    }
+  }
+
+  return keys
+}
+
+function persistKnownModels(known: Set<string>): void {
+  $knownModels.set(known)
+  persistString(KNOWN_STORAGE_KEY, JSON.stringify([...known]))
+}
+
+/** Persist one scope's visible set and, when the current catalog is supplied,
+ *  mark every model in it as judged so only models that appear later count as new. */
+export function setVisibleModels(
+  scope: string,
+  keys: Set<string>,
+  providers: readonly ModelOptionProvider[] = []
+): void {
   $visibleModelsByScope.set({ ...$visibleModelsByScope.get(), [scope]: [...keys] })
+
+  if (providers.length === 0) {
+    return
+  }
+
+  persistKnownModels(new Set([...($knownModels.get() ?? []), ...allFamilyKeys(providers)]))
+}
+
+/** True once any curation exists, scoped or the pre-scoping global list. */
+function hasAnyCuration(): boolean {
+  return LEGACY_VISIBLE !== null || Object.keys($visibleModelsByScope.get()).length > 0
+}
+
+/** One-time adoption for a visible set persisted before the known snapshot
+ *  existed: everything in the catalog at that moment counts as judged (the
+ *  user's hide choices are honoured verbatim); only models that appear later are
+ *  new. Never a running union, since that would mark a newcomer judged on the
+ *  very render that first shows it. Call when the catalog has loaded. */
+export function seedKnownModels(providers: readonly ModelOptionProvider[]): void {
+  if ($knownModels.get() !== null || !hasAnyCuration() || providers.length === 0) {
+    return
+  }
+
+  persistKnownModels(allFamilyKeys(providers))
 }
 
 /** Toggle one model in a scope, reading the live set so two clicks landing
@@ -119,7 +186,11 @@ export function toggleModelInScope(
   providerSlug: string,
   model: string
 ): void {
-  setVisibleModels(scope, toggleModelVisibility(visibleModelsForScope($visibleModelsByScope.get(), scope), providers, providerSlug, model))
+  setVisibleModels(
+    scope,
+    toggleModelVisibility(visibleModelsForScope($visibleModelsByScope.get(), scope), providers, providerSlug, model),
+    providers
+  )
 }
 
 /** Flip a provider's master switch in a scope. Live read, as above. */
@@ -129,7 +200,11 @@ export function setProviderVisibleInScope(
   providerSlug: string,
   visible: boolean
 ): void {
-  setVisibleModels(scope, setProviderVisibility(visibleModelsForScope($visibleModelsByScope.get(), scope), providers, providerSlug, visible))
+  setVisibleModels(
+    scope,
+    setProviderVisibility(visibleModelsForScope($visibleModelsByScope.get(), scope), providers, providerSlug, visible),
+    providers
+  )
 }
 
 export function setModelVisibilityOpen(
@@ -158,7 +233,11 @@ export function defaultVisibleKeys(providers: readonly ModelOptionProvider[]): S
  *  falls back to the top-N collapsed families when a provider ships no featured
  *  list. Shared by `defaultVisibleKeys` and `resolveVisibleKeys` so the
  *  expansion rule lives in exactly one place. */
-function expandProviderDefaults(provider: ModelOptionProvider, target: Set<string>): void {
+function expandProviderDefaults(
+  provider: ModelOptionProvider,
+  target: Set<string>,
+  admit: (key: string) => boolean = () => true
+): void {
   const families = collapseModelFamilies(provider.models ?? [])
 
   const featured = provider.featured_models ?? []
@@ -168,7 +247,11 @@ function expandProviderDefaults(provider: ModelOptionProvider, target: Set<strin
     : families.slice(0, DEFAULT_VISIBLE_PER_PROVIDER)
 
   for (const family of defaults) {
-    target.add(modelVisibilityKey(provider.slug, family.id))
+    const key = modelVisibilityKey(provider.slug, family.id)
+
+    if (admit(key)) {
+      target.add(key)
+    }
   }
 }
 
@@ -176,8 +259,18 @@ function expandProviderDefaults(provider: ModelOptionProvider, target: Set<strin
  *  default expansion for any provider they haven't customized. Hide-all
  *  sentinels are PRESERVED here — this is the set the toggle handler mutates and
  *  persists, so dropping a sentinel would silently re-enable a provider the user
- *  emptied. Use `effectiveVisibleKeys` for display (sentinels stripped). */
-export function resolveVisibleKeys(stored: Set<string> | null, providers: readonly ModelOptionProvider[]): Set<string> {
+ *  emptied. Use `effectiveVisibleKeys` for display (sentinels stripped).
+ *
+ *  A provider the user has curated still admits models absent from `known`
+ *  (they arrived after the last curation) through the same default rule, so a
+ *  plugin or catalog update never lands a model silently switched off. A
+ *  provider the user hid outright (sentinel) stays hidden, new models included.
+ *  With no snapshot yet (`known` null) nothing counts as new. */
+export function resolveVisibleKeys(
+  stored: Set<string> | null,
+  providers: readonly ModelOptionProvider[],
+  known: Set<string> | null = $knownModels.get()
+): Set<string> {
   if (!stored) {
     return defaultVisibleKeys(providers)
   }
@@ -191,15 +284,17 @@ export function resolveVisibleKeys(stored: Set<string> | null, providers: readon
   for (const provider of providers) {
     const providerPrefix = `${provider.slug}::`
 
-    const hasStoredProvider = [...stored].some(key => key.startsWith(providerPrefix) && !isProviderSentinel(key))
-
-    const hasSentinel = stored.has(emptyProviderSentinelKey(provider.slug))
-
-    if (hasStoredProvider || hasSentinel) {
+    if (stored.has(emptyProviderSentinelKey(provider.slug))) {
       continue
     }
 
-    expandProviderDefaults(provider, next)
+    const hasStoredProvider = [...stored].some(key => key.startsWith(providerPrefix) && !isProviderSentinel(key))
+
+    if (!hasStoredProvider) {
+      expandProviderDefaults(provider, next)
+    } else if (known) {
+      expandProviderDefaults(provider, next, key => !known.has(key))
+    }
   }
 
   return next
@@ -209,9 +304,10 @@ export function resolveVisibleKeys(stored: Set<string> | null, providers: readon
  *  set with bookkeeping sentinels stripped (they are not real models). */
 export function effectiveVisibleKeys(
   stored: Set<string> | null,
-  providers: readonly ModelOptionProvider[]
+  providers: readonly ModelOptionProvider[],
+  known: Set<string> | null = $knownModels.get()
 ): Set<string> {
-  const next = resolveVisibleKeys(stored, providers)
+  const next = resolveVisibleKeys(stored, providers, known)
 
   // Strip sentinel keys — they are bookkeeping, not real visibility entries.
   for (const key of [...next]) {
@@ -232,10 +328,11 @@ export function toggleModelVisibility(
   stored: Set<string> | null,
   providers: readonly ModelOptionProvider[],
   providerSlug: string,
-  model: string
+  model: string,
+  known: Set<string> | null = $knownModels.get()
 ): Set<string> {
   // `resolveVisibleKeys` always returns a fresh Set, so we can mutate it directly.
-  const next = resolveVisibleKeys(stored, providers)
+  const next = resolveVisibleKeys(stored, providers, known)
   const key = modelVisibilityKey(providerSlug, model)
   const sentinel = emptyProviderSentinelKey(providerSlug)
 
@@ -270,9 +367,10 @@ export function setProviderVisibility(
   stored: Set<string> | null,
   providers: readonly ModelOptionProvider[],
   providerSlug: string,
-  visible: boolean
+  visible: boolean,
+  known: Set<string> | null = $knownModels.get()
 ): Set<string> {
-  const next = resolveVisibleKeys(stored, providers)
+  const next = resolveVisibleKeys(stored, providers, known)
   const sentinel = emptyProviderSentinelKey(providerSlug)
   const provider = providers.find(p => p.slug === providerSlug)
   const families = collapseModelFamilies(provider?.models ?? [])

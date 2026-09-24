@@ -20,8 +20,11 @@ export const SUBAGENT_SNAPSHOT_POLL_MS = 5_000
  *  pane being the visible tab AND the document being visible: eight open
  *  sessions used to cost eight `subagent.list` round-trips every five seconds
  *  forever, hidden window included. A tab that comes back into view (or the
- *  window that returns) pulls once, immediately. */
-export function useSubagentSnapshot(sessionId: string | null) {
+ *  window that returns) pulls once, immediately.
+ *
+ *  `poll` keeps the safety-net refresh. It is off when nothing on screen shows
+ *  the answer; the one-shot hydrate still lands. */
+export function useSubagentSnapshot(sessionId: string | null, poll = true) {
   const gatewayState = useStore($gatewayState)
   const paneVisible = usePaneVisible()
 
@@ -76,6 +79,13 @@ export function useSubagentSnapshot(sessionId: string | null) {
     }
 
     void refresh()
+
+    if (!poll) {
+      return () => {
+        cancelled = true
+      }
+    }
+
     const timer = window.setInterval(refreshWhileViewed, SUBAGENT_SNAPSHOT_POLL_MS)
 
     const unsubscribeReturn = subscribeWindowReturn(() => {
@@ -88,5 +98,5 @@ export function useSubagentSnapshot(sessionId: string | null) {
       window.clearInterval(timer)
       unsubscribeReturn()
     }
-  }, [sessionId, gatewayState, paneVisible])
+  }, [sessionId, gatewayState, paneVisible, poll])
 }

@@ -1,10 +1,11 @@
 import { isRecord } from '@hermes/shared/i18n'
+import { atom } from 'nanostores'
 
 import { translationsFor } from './catalog'
 import { DEFAULT_LOCALE } from './languages'
 import type { Locale } from './types'
 
-let runtimeLocale: Locale = DEFAULT_LOCALE
+const $runtimeLocale = atom<Locale>(DEFAULT_LOCALE)
 
 /** Walk a dot-path (`a.b.c`) into a nested message tree. */
 function resolvePath(source: unknown, key: string): unknown {
@@ -50,13 +51,16 @@ export function translateFrom(
 }
 
 export function setRuntimeI18nLocale(locale: Locale) {
-  runtimeLocale = locale
+  $runtimeLocale.set(locale)
 }
+
+/** Observe changes to the locale used by non-React plugin contributions. */
+export const subscribeRuntimeI18nLocale = $runtimeLocale.listen
 
 /** The locale module-level translators resolve against (the app's active
  *  `display.language`). Plugin `ctx.i18n.t` reads this too. */
 export function getRuntimeI18nLocale(): Locale {
-  return runtimeLocale
+  return $runtimeLocale.get()
 }
 
 export function translateNow(key: string, ...args: unknown[]): string {
@@ -64,5 +68,5 @@ export function translateNow(key: string, ...args: unknown[]): string {
   // lands (see catalog.ts). `translateFrom`'s active → DEFAULT arm turns that
   // into an English string rather than a missing one, so a translate that
   // races the locale load degrades to English instead of rendering the key.
-  return translateFrom(translationsFor, runtimeLocale, key, args)
+  return translateFrom(translationsFor, $runtimeLocale.get(), key, args)
 }

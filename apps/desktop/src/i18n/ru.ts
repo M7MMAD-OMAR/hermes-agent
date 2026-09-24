@@ -24,46 +24,6 @@ const RU_NOUN = (count: number | string, one: string, few: string, many: string)
 }
 
 export const ru = defineLocale({
-  catalog: {
-    listView: 'Список',
-    cardView: 'Карточки',
-    installTitle: (name: string) => `Установить «${name}»?`,
-    installDescription: 'Навык будет доступен в новых сессиях. Устанавливайте только из источников, которым доверяете.',
-    installTo: 'Установить в',
-    thisComputer: 'Этот компьютер',
-    installing: 'Установка…',
-    installComplete: (name: string) => `«${name}» установлен`,
-    destinationChanged: 'Место установки изменилось. Закройте диалог и снова откройте ссылку установки.',
-    browse: 'Обзор',
-    installed: 'Установленные',
-    searchSkills: 'Поиск навыков',
-    searchPlugins: 'Поиск плагинов',
-    allSources: 'Все источники',
-    allCategories: 'Все категории',
-    about: 'Описание',
-    author: 'Автор',
-    source: 'Источник',
-    category: 'Категория',
-    version: 'Версия',
-    platforms: 'Платформы',
-    requires: 'Требования',
-    tools: 'Инструменты',
-    hooks: 'Хуки',
-    repository: 'Репозиторий',
-    documentation: 'Документация',
-    noResults: 'Совпадений нет',
-    tryAnother: 'Попробуйте другой запрос или сбросьте фильтры.',
-    clearFilters: 'Сбросить фильтры',
-    loadFailed: 'Не удалось загрузить каталог',
-    retry: 'Попробовать снова',
-    more: 'Показать ещё',
-    pinned: 'Проверенный коммит',
-    snapshotHint: 'Из каталога Sbar Rafiq. При просмотре нет обращений к исходным репозиториям.',
-    installHint: 'Проверьте исходный код перед установкой. Изменения применяются к новым сессиям.',
-    results: (count: number) =>
-      `${count.toLocaleString('ru')} ${RU_PLURAL(count, 'результат', 'результата', 'результатов')}`,
-    back: 'Назад к результатам'
-  },
   sessionImport: {
     title: 'Продолжить из другого приложения',
     subtitle: 'Перенесите разговор в Sbar Rafiq и продолжите с того места, где остановились.',
@@ -113,6 +73,7 @@ export const ru = defineLocale({
     connect: 'Подключить',
     connecting: 'Подключение',
     continue: 'Продолжить',
+    bots: 'Боты',
     copied: 'Скопировано',
     copy: 'Копировать',
     copyFailed: 'Не удалось скопировать',
@@ -155,7 +116,9 @@ export const ru = defineLocale({
     renameLabel: 'Новое имя',
     deleteTitle: name => `Удалить ${name}?`,
     deleteBody: 'Элемент будет перемещён в корзину — его можно восстановить оттуда.',
-    pathCopied: 'Путь скопирован'
+    pathCopied: 'Путь скопирован',
+    revealMissing: 'Этой папки нет на этом компьютере',
+    revealUnavailable: 'Этот путь находится не на этом компьютере, а на машине бэкенда. Используйте «Показать в дереве файлов».'
   },
   boot: {
     ready: 'Hermes Desktop готов',
@@ -175,7 +138,14 @@ export const ru = defineLocale({
       desktopBootFailed: 'Не удалось запустить приложение',
       gatewayConnectionLost: 'Соединение с шлюзом потеряно',
       gatewaySignInRequired: 'Требуется вход в шлюз',
-      ipcBridgeUnavailable: 'IPC-мост приложения недоступен.'
+      ipcBridgeUnavailable: 'IPC-мост приложения недоступен.',
+      restartHermes: 'Перезапустить Hermes',
+      openLogs: 'Открыть журналы',
+      gatewayConnectionLostDetail: 'Всё ещё пытаемся переподключиться. Вы можете продолжать читать и писать черновики. Если это затянется, переподключитесь сейчас или проверьте настройки подключения.',
+      reconnectNow: 'Переподключиться сейчас',
+      connectionSettings: 'Настройки подключения',
+      gatewaySignInRequiredDetail: 'Войдите снова, чтобы переподключиться. Ваши чаты и настройки в безопасности.',
+      signInAgain: 'Войти снова'
     },
     failure: {
       title: 'Sbar Rafiq не удалось запустить',
@@ -204,7 +174,21 @@ export const ru = defineLocale({
       signInFailed: 'Не удалось войти',
       signInToRemoteGateway: 'Войти в удалённый шлюз',
       signInWithProvider: provider => `Войти через ${provider}`,
-      identityProvider: 'вашему провайдеру аутентификации'
+      identityProvider: 'вашему провайдеру аутентификации',
+      details: 'Подробности',
+      cloudDownTitle: 'Облачный агент Nous Cloud недоступен',
+      cloudDownDescription: 'Облачный агент под управлением Nous, к которому подключается этот шлюз, возвращает ошибку сервера. Перезапустить его отсюда нельзя: проверьте его статус, переключитесь на локальный шлюз или обратитесь в поддержку.',
+      cloudDownHint: 'Кнопки ниже открывают Nous Portal (статус и управление экземпляром) и наш Discord для поддержки.',
+      cloudDownCheckPortal: 'Проверить статус в Portal',
+      cloudDownDiscord: 'Получить помощь в Discord'
+    },
+    causes: {
+      exitedEarly: 'Фоновая служба Hermes остановилась сразу после запуска.',
+      timedOut: 'Фоновая служба Hermes не ответила вовремя.',
+      permission: 'Hermes не смог записать в свою папку данных (проблема с правами доступа).',
+      diskFull: 'Диск заполнен, поэтому Hermes не смог запуститься.',
+      portInUse: 'Нужный Hermes сетевой порт занят другой программой.',
+      installMissing: 'Часть установки Hermes отсутствует. Выберите «Восстановить установку», чтобы вернуть её.'
     }
   },
   notifications: {
@@ -249,7 +233,11 @@ export const ru = defineLocale({
         'Бэкенд приложения отклонил запрос (405 Method Not Allowed). Попробуйте перезапустить Sbar Rafiq Desktop.',
       microphonePermission: 'Доступ к микрофону запрещён.',
       openaiRejectedApiKey: 'OpenAI отклонил API-ключ.',
-      openaiTtsNeedsKey: 'Для TTS OpenAI нужен VOICE_TOOLS_OPENAI_KEY или OPENAI_API_KEY.'
+      openaiTtsNeedsKey: 'Для TTS OpenAI нужен VOICE_TOOLS_OPENAI_KEY или OPENAI_API_KEY.',
+      storageFailure: 'Hermes не смог сохранить данные в свою папку. Откройте «Обслуживание», чтобы проверить и исправить её.',
+      codeSkewRestartRequired: 'Hermes обновлён, но всё ещё работает старая версия. Перезапустите его, чтобы завершить обновление.',
+      rpcOutOfSync: 'У приложения и бэкенда разные версии. Обновите оба.',
+      restartHermesFailed: 'Не удалось перезапустить Hermes'
     },
     voice: {
       configureSpeechToText: 'Настройте распознавание речи, чтобы использовать голосовой режим.',
@@ -269,13 +257,21 @@ export const ru = defineLocale({
       transcriptionFailed: 'Не удалось расшифровать речь',
       transcriptionUnavailable: 'Расшифровка речи пока недоступна.',
       tryRecordingAgain: 'Попробуйте записать ещё раз.',
-      unavailable: 'Голос недоступен'
+      unavailable: 'Голос недоступен',
+      liveEnded: 'Живая голосовая сессия завершена',
+      liveEndedConnectionLost: 'Живая голосовая сессия потеряла соединение.',
+      liveEndedClosed: 'Живая голосовая сессия закрыта сервисом.',
+      liveError: 'Живой голос',
+      liveDelegationFailed: 'Не удалось передать запрос Sbar Rafiq',
+      liveUnavailable: reason => `Голосовой чат GPT-Live недоступен: ${reason}. Вместо него используется распознавание речи.`
     },
     native: {
       approvalTitle: 'Требуется одобрение',
+      approvalTitleNamed: session => `Требуется одобрение — ${session}`,
       approveAction: 'Одобрить',
       rejectAction: 'Отклонить',
       inputTitle: 'Требуется ввод',
+      inputTitleNamed: session => `Требуется ввод — ${session}`,
       inputBody: 'Sbar Rafiq ожидает ваш ответ.',
       turnDoneTitle: 'Sbar Rafiq завершил',
       turnDoneBody: '',
@@ -283,6 +279,12 @@ export const ru = defineLocale({
       backgroundDoneTitle: 'Фоновая задача завершена',
       backgroundFailedTitle: 'Фоновая задача не удалась',
       creditsTitle: 'Кредиты'
+    },
+    actions: {
+      restartHermes: 'Перезапустить Hermes',
+      openKeys: 'Открыть ключи',
+      openGateways: 'Открыть шлюзы',
+      openMaintenance: 'Открыть обслуживание'
     }
   },
   remoteDisplayBanner: {
@@ -352,7 +354,7 @@ export const ru = defineLocale({
       'nav.commandCenter': 'Открыть центр команд',
       'nav.settings': 'Открыть настройки',
       'nav.profiles': 'Открыть профили',
-      'nav.skills': 'Открыть навыки',
+      'nav.capabilities': 'Открыть навыки',
       'nav.messaging': 'Открыть мессенджеры',
       'nav.artifacts': 'Открыть артефакты',
       'nav.cron': 'Открыть запланированные задачи',
@@ -385,6 +387,7 @@ export const ru = defineLocale({
       'view.toggleStatusbar': 'Показать / скрыть строку состояния',
       'view.toggleTabStrip': 'Показать / скрыть вкладки',
       'view.toggleProfileRail': 'Показать / скрыть панель профилей',
+      'view.toggleSimpleMode': 'Переключить простой режим',
       'view.showFiles': 'Показать браузер файлов',
       'view.showBrowser': 'Открыть браузер',
       'view.toggleHud': 'Включить / выключить режим HUD',
@@ -454,6 +457,57 @@ export const ru = defineLocale({
     noResults: 'Языки не найдены'
   },
   settings: {
+    subpages: {
+      appearanceTheme: 'Тема',
+      appearanceTypography: 'Шрифты и масштаб',
+      appearanceWindowLayout: 'Окно и расположение',
+      appearanceChatDisplay: 'Отображение чата',
+      appearancePet: 'Питомец',
+      appearanceGeneral: 'Общие',
+      modelMain: 'Основная модель',
+      modelAuxiliary: 'Вспомогательные модели',
+      modelMoa: 'Совместная работа агентов',
+      modelFallbacks: 'Резервные модели',
+      chatBehavior: 'Поведение',
+      chatAttachments: 'Вложения',
+      workspaceProjects: 'Проекты и поиск',
+      workspaceShell: 'Среда оболочки',
+      workspaceFiles: 'Файлы и выполнение',
+      safetyApprovals: 'Подтверждения',
+      safetyPrivacy: 'Приватность и сеть',
+      safetyCheckpoints: 'Контрольные точки',
+      browserProfile: 'Профиль браузера',
+      browserNetwork: 'Локальные и частные URL',
+      memoryPersistent: 'Постоянная память',
+      memoryContext: 'Контекст и сжатие',
+      voiceConversation: 'Голосовой разговор',
+      voiceTranscription: 'Речь в текст',
+      voiceSpeech: 'Текст в речь',
+      advancedRuntime: 'Ограничения агента',
+      advancedTools: 'Доступ к инструментам',
+      advancedTerminal: 'Сервер терминала',
+      advancedOutput: 'Ограничения вывода',
+      advancedDelegation: 'Субагенты',
+      advancedDesktop: 'Приложение и запуск',
+      gatewayConnection: 'Это окно',
+      gatewayDevices: 'Сохранённые подключения',
+      gatewayManagedUpdates: 'Удалённые обновления',
+      gatewayManagedUpdatesUnavailable: 'Нужна версия приложения с поддержкой управляемых обновлений SSH.',
+      gatewayManagedUpdatesEmpty: 'Добавьте SSH в сохранённые подключения, чтобы управлять его обновлениями здесь.',
+      keyboardShortcuts: 'Назначения клавиш',
+      hudGesture: 'Жест HUD',
+      screenCapture: 'Захват экрана',
+      notificationAlerts: 'Системные уведомления',
+      notificationSounds: 'Звуки',
+      archivedSessions: 'Архив и хранение',
+      defaultDirectory: 'Папка проекта по умолчанию',
+      vaultCredentials: 'Сохранённые учётные данные',
+      vaultSources: 'Менеджеры паролей',
+      appUpdates: 'Версия и обновления',
+      uninstall: 'Удаление',
+      billingOverview: 'Обзор',
+      billingPlans: 'Тарифы'
+    },
     closeSettings: 'Закрыть настройки',
     exportConfig: 'Экспорт конфигурации',
     importConfig: 'Импорт конфигурации',
@@ -481,7 +535,7 @@ export const ru = defineLocale({
       title: 'Плагины приложения',
       blurb: 'Встроенные или добавленные в папку desktop-plugins. Отключите, чтобы выгрузить без перезапуска.',
       count: n => `Установлено: ${n}`,
-      openFolder: 'Открыть папку плагинов',
+      openFolder: 'Открыть папку плагинов приложения',
       rescan: 'Пересканировать',
       reveal: 'Показать в файловом менеджере',
       enable: 'Включить',
@@ -496,6 +550,7 @@ export const ru = defineLocale({
         includesHeading: 'Состав пакета',
         agentLabel: 'Плагин агента',
         desktopLabel: 'UI приложения',
+        profileLabel: 'Установить для профиля',
         agentTargetLocal: (profile, dir) => `Устанавливается в локальный бэкенд ${profile} (${dir})`,
         agentTargetRemote: profile => `Устанавливается в подключённый бэкенд ${profile}`,
         desktopTarget: 'Устанавливается в локальную папку desktop-plugins этого приложения',
@@ -526,7 +581,11 @@ export const ru = defineLocale({
         desktopSuccess: name => `Плагин приложения ${name} установлен`,
         agentFailed: 'Не удалось установить плагин агента',
         desktopFailed: 'Не удалось установить плагин приложения',
-        missingEnv: (_name, vars) => `Не хватает переменных окружения: ${vars}. Добавьте их в Настройки → Ключи.`
+        missingEnv: (_name, vars) => `Не хватает переменных окружения: ${vars}. Добавьте их в Настройки → Ключи.`,
+        toolsConnected: n => `Подключено инструментов: ${n}`,
+        skillsReady: names => (names.length === 1 ? `навык ${names[0]} готов` : `готово навыков: ${names.length}`),
+        nextChat: 'остальные инструменты появятся в следующем чате',
+        serverNotConnected: (server, reason) => `MCP-сервер ${server} не подключён${reason ? `: ${reason}` : '.'}`
       }
     },
     notifications: {
@@ -607,6 +666,11 @@ export const ru = defineLocale({
       colorModeDesc: 'Выберите фиксированный режим или позвольте Sbar Rafiq следовать настройкам системы.',
       toolViewTitle: 'Отображение вызовов инструментов',
       toolViewDesc: 'Режим «Продукт» скрывает сырые данные инструментов, «Технический» показывает полный вход/выход.',
+      hideCodeDiffsTitle: 'Скрывать изменения кода',
+      hideCodeDiffsDesc:
+        'Показывать правки файлов строками инструментов с числом добавленных и удалённых строк, без кода.',
+      hideThreadTimelineTitle: 'Скрывать полоски истории диалога',
+      hideThreadTimelineDesc: 'Скрывать полоски навигации вдоль правого края каждого диалога.',
       reasoningCollapsedTitle: 'Сворачивать «мышление» по умолчанию',
       reasoningCollapsedDesc:
         'Стриминговое рассуждение остаётся доступным, но не разворачивается, пока вы его не откроете.',
@@ -619,7 +683,8 @@ export const ru = defineLocale({
       sessionDensityComfortable: 'Комфортно',
       sessionDensityDetailed: 'Подробно',
       tabStripTitle: 'Панель вкладок',
-      tabStripDesc: 'Показывать вкладки над зоной. Автоматически скрываются для одной панели, если не открыта другая зона чата или плитки.',
+      tabStripDesc:
+        'Показывать вкладки над зоной. Автоматически скрываются для одной панели, если не открыта другая зона чата или плитки.',
       tabStripAuto: 'Авто',
       tabStripAlways: 'Всегда',
       tabStripNever: 'Никогда',
@@ -741,7 +806,8 @@ export const ru = defineLocale({
     },
     fieldLabels: defineFieldCopy({
       model: 'Модель по умолчанию',
-      modelContextLength: 'Окно контекста',
+      modelContextLength:
+        'Переопределяет обнаруженное окно контекста ТОЛЬКО основной модели чата (в токенах). Оставьте 0, чтобы использовать обнаруженное значение выбранной модели. Не влияет на вспомогательные модели и модели MoA.',
       fallbackProviders: 'Резервные модели',
       toolsets: 'Включённые наборы инструментов',
       timezone: 'Часовой пояс',
@@ -895,6 +961,11 @@ export const ru = defineLocale({
         targetRatio: 'Целевое сжатие',
         protectLastN: 'Защищённые недавние сообщения'
       },
+      auxiliary: {
+        compression: {
+          timeout: 'Таймаут модели сжатия (с)'
+        }
+      },
       delegation: {
         model: 'Модель субагента',
         provider: 'Провайдер субагента',
@@ -959,6 +1030,12 @@ export const ru = defineLocale({
       compression: {
         enabled: 'Сжимать более старый контекст, когда диалоги становятся большими.',
         codexGpt55Autoraise: 'Повышает порог сжатия до 85% для поддерживаемых моделей ChatGPT Codex OAuth.'
+      },
+      auxiliary: {
+        compression: {
+          timeout:
+            'Сколько секунд ждать вспомогательную модель сжатия за один вызов (по умолчанию 120). Увеличьте для медленных локальных моделей.'
+        }
       },
       voice: {
         autoTts: 'Автоматически зачитывать ответы ассистента.'
@@ -1025,6 +1102,11 @@ export const ru = defineLocale({
       daysAgo: count => `${count} ${RU_NOUN(count, 'день', 'дня', 'дней')} назад`
     },
     config: {
+      minimizeToTrayTitle: 'Сворачивать в трей',
+      minimizeToTrayDesc:
+        'Сворачивание окон или закрытие главного окна скрывает их в системном трее (строке меню macOS), оставляя Hermes работать. Для выхода выберите «Выйти из Hermes» в меню трея или нажмите Cmd+Q. По умолчанию выключено; действует только на этом устройстве.',
+      minimizeToTrayUnavailable:
+        'Системный трей недоступен. Окна будут сворачиваться и закрываться как обычно. Выключите и снова включите настройку, чтобы повторить попытку.',
       none: 'Нет',
       noneParen: '(нет)',
       builtinOnly: 'Только встроенные',
@@ -1054,6 +1136,19 @@ export const ru = defineLocale({
       attachmentSizeUnit: 'МБ',
       attachmentSizeLabel: 'Макс. размер превью / загрузки изображений в мегабайтах'
     },
+    hudModifier: {
+      title: 'Вызов HUD коротким нажатием',
+      description:
+        'Нажмите и отпустите ⌘ + Option на Mac или Ctrl + Alt на Windows/Linux, чтобы вызвать HUD из любого приложения. По умолчанию выключено; действует только на этом устройстве.',
+      permission:
+        'Разрешите Hermes в Системных настройках → Конфиденциальность и безопасность → Мониторинг ввода, затем повторите попытку. Жест не записывает нажатия клавиш и не снимает экран.',
+      unavailable:
+        'Вспомогательная программа жеста HUD не запустилась или неожиданно остановилась. Повторите попытку или перезапустите Hermes. Обычное сочетание HUD по-прежнему работает внутри Hermes.',
+      missingHelper:
+        'В этой установке Hermes отсутствует вспомогательная программа жеста HUD. Обновите или переустановите Hermes и повторите попытку.',
+      unsupportedSession:
+        'Этот сеанс рабочего стола не поддерживает глобальные нажатия модификаторов. В Linux требуется X11; Wayland не поддерживается.'
+    },
     screenshot: {
       enabledTitle: 'Сочетание клавиш для снимка окна',
       enabledDesc:
@@ -1073,7 +1168,8 @@ export const ru = defineLocale({
       errorTitle: 'Ошибка сочетания для снимка окна',
       loadFailed: 'Не удалось прочитать состояние сочетания. Повторите попытку, чтобы проверить текущую настройку.',
       saveFailed: 'Не удалось подтвердить изменение сочетания. Повторите попытку, чтобы проверить текущую настройку.',
-      permissionFailed: 'Не удалось открыть Системные настройки. Откройте раздел «Конфиденциальность и безопасность» вручную и повторите попытку.',
+      permissionFailed:
+        'Не удалось открыть Системные настройки. Откройте раздел «Конфиденциальность и безопасность» вручную и повторите попытку.',
       captureFailed: 'Не удалось снять переднее окно. Ничего не прикреплено и не отправлено.',
       contextChanged: 'Текущий черновик изменился во время съёмки. Снимок не прикреплён и не отправлен.'
     },
@@ -1249,11 +1345,11 @@ export const ru = defineLocale({
       pasteSessionToken: 'Вставьте токен сессии',
       plainTextConfirmTitle: 'Хранить токен шлюза в открытом виде?',
       plainTextConfirmDesc:
-        'Служба системного хранилища ключей на этой машине не найдена, поэтому токен будет сохранён без шифрования в файле настроек соединения приложения, и его сможет прочитать любой процесс, работающий от вашего имени. Для шифрованного хранилища установите и включите GNOME Keyring или KWallet.',
+        'Служба системного хранилища ключей на этой машине не найдена, поэтому токен будет сохранён без шифрования в файле настроек соединения приложения, и его сможет прочитать любой процесс, работающий от вашего имени. Для шифрованного хранилища установите и включите системное хранилище ключей (в Linux — GNOME Keyring или KWallet).',
       plainTextConfirmAction: 'Сохранить в открытом виде',
       plainTextStoredTitle: 'Токен сохранён в открытом виде',
       plainTextStoredDesc:
-        'Безопасное хранилище недоступно, поэтому сохранённый токен хранится без шифрования в файле настроек соединения приложения на этой машине. Установите и включите GNOME Keyring или KWallet для шифрования.',
+        'Безопасное хранилище недоступно, поэтому сохранённый токен хранится без шифрования в файле настроек соединения приложения на этой машине. Установите и включите системное хранилище ключей (в Linux — GNOME Keyring или KWallet) для шифрования.',
       testRemote: 'Проверить удалённый',
       saveForRestart: 'Сохранить до следующего перезапуска',
       saveAndReconnect: 'Сохранить и переподключиться',
@@ -1334,60 +1430,24 @@ export const ru = defineLocale({
     },
     mcp: {
       loading: 'Загрузка MCP-серверов…',
-      failedLoad: 'Не удалось загрузить конфигурацию MCP',
-      nameRequiredTitle: 'Нужно имя',
-      nameRequiredMessage: 'Задайте этому MCP-серверу ключ конфигурации.',
-      objectRequired: 'Конфигурация сервера должна быть JSON-объектом',
       invalidJson: 'Неверный JSON MCP',
       saveFailed: 'Не удалось сохранить',
       removeFailed: 'Не удалось удалить',
-      gatewayUnavailableTitle: 'Шлюз недоступен',
-      gatewayUnavailableMessage: 'Переподключите шлюз, прежде чем перезагружать MCP.',
-      reloadedTitle: 'Инструменты MCP перезагружены',
-      reloadedMessage: 'Новые схемы инструментов применяются к новым ходам.',
       reloadFailed: 'Не удалось перезагрузить MCP',
       savedTitle: 'MCP-сервер сохранён',
       savedMessage: name => `${name} применится после перезагрузки MCP.`,
-      newServer: 'Новый сервер',
-      reload: 'Перезагрузить MCP',
-      reloading: 'Перезагрузка…',
-      emptyTitle: 'MCP-серверов нет',
-      emptyDesc: 'Добавьте stdio- или HTTP-сервер, чтобы получить инструменты MCP.',
       disabled: 'отключён',
-      editServer: 'Изменить сервер',
       name: 'Имя',
       serverJson: 'JSON сервера',
       remove: 'Удалить',
-      saveServer: 'Сохранить сервер',
       test: 'Проверить соединение',
-      testing: 'Проверка…',
-      testOk: count =>
-        `Подключено — доступно ${count} ${RU_PLURAL(count, 'инструмент', 'инструмента', 'инструментов')}`,
-      testFailed: 'Не удалось подключиться',
-      enableServer: name => `Включить ${name}`,
-      disableServer: name => `Отключить ${name}`,
-      serverEnabled: name => `${name} включён — применится к новым сеансам.`,
-      serverDisabled: name => `${name} отключён — применится к новым сеансам.`,
-      toggleFailed: (name, enabled) => `Не удалось ${enabled ? 'включить' : 'отключить'} ${name}`,
-      tabServers: 'Серверы',
-      tabCatalog: 'Каталог',
       catalogLoading: 'Загрузка каталога MCP…',
-      catalogLoadFailed: 'Не удалось загрузить каталог MCP',
-      catalogEmpty: 'Записей каталога нет.',
-      catalogInstalled: 'Установлен',
-      catalogEnabled: 'Включён',
-      catalogNeedsInstall: 'Нужна сборка',
-      catalogInstall: 'Установить',
-      catalogInstalling: 'Установка…',
-      catalogInstallStarted: name => `Установка ${name}… применится к новым сеансам после завершения.`,
       catalogInstallFailed: name => `Не удалось установить ${name}`,
-      catalogEnvPrompt: name => `${name} требует учётные данные`,
       catalogEnvRequired: 'Заполните обязательные значения перед установкой.',
       capabilitySummary: (tools, prompts, resources) =>
         `${[`${tools} ${RU_NOUN(tools, 'инструмент', 'инструмента', 'инструментов')}`, ...(prompts ? [`${prompts} ${RU_NOUN(prompts, 'промпт', 'промпта', 'промптов')}`] : []), ...(resources ? [`${resources} ${RU_NOUN(resources, 'ресурс', 'ресурса', 'ресурсов')}`] : [])].join(', ')} включено`,
       costTokens: tokens => `~${tokens} ток/вызов`,
       usage30d: uses => `${uses} ${RU_NOUN(uses, 'использование', 'использования', 'использований')}/30д`,
-      unusedPill: 'не используется',
       statusConnecting: 'Подключение…',
       statusNeedsAuth: 'Нужна аутентификация',
       statusError: 'Ошибка',
@@ -1396,11 +1456,7 @@ export const ru = defineLocale({
       authenticatedTitle: 'Аутентифицирован',
       authenticatedMessage: (server, count) =>
         `${server}: ${count} ${RU_PLURAL(count, 'инструмент', 'инструмента', 'инструментов')}`,
-      waitingForBrowser: 'Ожидание браузера…',
       authenticate: 'Аутентифицироваться',
-      unsavedConnect: 'Не сохранено — сохраните mcp.json, чтобы подключиться.',
-      enableTool: tool => `Включить ${tool}`,
-      disableTool: tool => `Отключить ${tool}`,
       noOutput: 'Вывода пока нет.',
       deepLinkTitle: 'Добавить MCP-сервер?',
       deepLinkDescription:
@@ -1415,15 +1471,31 @@ export const ru = defineLocale({
       deepLinkErrorConfig: 'Конфигурация в ссылке не является корректным JSON в base64.',
       deepLinkErrorShape: 'Конфигурация должна быть JSON-объектом со строковым полем `url` или `command`.',
       deepLinkErrorUrl: 'Разрешены только URL серверов http:// и https://.',
-      deepLinkErrorTooLarge: 'Пакет конфигурации превышает лимит 32 КБ.',
-      importButton: 'Импортировать',
-      importPlaceholder:
-        'Вставьте фрагмент mcp.json, команду npx/docker, строку claude mcp add, URL или ссылку Cursor…',
-      importNoMatch: 'В вставленном тексте не распознана конфигурация сервера.',
-      importConfirm: 'Добавить в mcp.json',
-      importConfirmMany: count => `Добавить ${count} ${RU_PLURAL(count, 'сервер', 'сервера', 'серверов')} в mcp.json`
+      deepLinkErrorTooLarge: 'Пакет конфигурации превышает лимит 32 КБ.'
     },
     model: {
+      moaPreset: 'Пресет',
+      moaDescription:
+        'Настройте именованные пресеты, которые появятся как модели провайдера Mixture of Agents. Модель-агрегатор выполняет каждый шаг цикла инструментов; почти вся стоимость запуска списывается у её провайдера. По умолчанию референсные модели дают совет один раз на сообщение пользователя.',
+      moaAggregator: 'Модель-агрегатор',
+      moaAggregatorBilled: 'исполняющая модель · на неё приходится стоимость запуска',
+      moaReferenceHint: 'по умолчанию советует один раз за ход',
+      setupProviderFallback: 'провайдер',
+      setUpProvider: name => `Настроить ${name}`,
+      staleAuxBefore: (count, names) => `Вспомогательные задачи (${count}: ${names}) по-прежнему используют `,
+      staleAuxAfter: ', а не основную модель.',
+      staleAuxOtherProviders: 'других провайдеров',
+      moaEnabled: 'Включено',
+      moaSetDefault: 'Сделать основным',
+      moaNewPresetPlaceholder: 'новый пресет',
+      moaAddPreset: 'Добавить пресет',
+      customModel: 'Своя модель…',
+      customModelPlaceholder: 'ID модели',
+      chooseFromList: 'Выбрать из списка',
+      moaDefault: 'По умолчанию:',
+      moaReferenceToggle: (enabled, index) => `${enabled ? 'Отключить' : 'Включить'} референс ${index}`,
+      moaReferenceTitle: index => `Референс ${index}`,
+      moaAddReference: 'Добавить референсную модель',
       loading: 'Загрузка конфигурации модели…',
       appliesDesc:
         'Применяется к новым сеансам. Для горячей смены модели в активном чате используйте выборщик модели в композере.',
@@ -1446,6 +1518,7 @@ export const ru = defineLocale({
       fallbackAdd: 'Добавить запасную',
       fallbackEmpty: 'Запасных моделей нет — используется модель по умолчанию, если она не падает.',
       notInCatalog: 'нет в списке моделей этого провайдера — вызовы могут уходить на запасную.',
+      moaTitle: 'Смесь агентов',
       tasks: {
         vision: { label: 'Зрение', hint: 'Анализ изображений' },
         web_extract: { label: 'Веб-извлечение', hint: 'Суммаризация страниц' },
@@ -1490,7 +1563,7 @@ export const ru = defineLocale({
       loading: 'Загрузка архивных сеансов…',
       archivedTitle: 'Архивные сеансы',
       archivedIntro:
-        'Архивированные чаты скрыты из боковой панели, но сохраняют все сообщения. Чтобы архивировать чат из боковой панели — Ctrl/⌘-клик по нему.',
+        'Архивированные чаты скрыты из боковой панели, но сохраняют все сообщения. Чтобы архивировать чат из боковой панели — Alt/⌥+Shift-клик по нему.',
       emptyArchivedTitle: 'Архив пуст',
       emptyArchivedDesc: 'Архивируйте чат, чтобы скрыть его отсюда.',
       unarchive: 'Восстановить',
@@ -1596,15 +1669,102 @@ export const ru = defineLocale({
         selectedMessage: backend =>
           `Команды терминала теперь выполняются через ${backend}. Применится к новым сеансам.`,
         failedSelect: backend => `Не удалось выбрать ${backend}`,
-        needsSetupHint: 'Этот бэкенд можно выбрать сейчас — команды будут падать, пока настройка не завершена.'
+        needsSetupHint:
+          'Этот бэкенд уже выбран без завершённой настройки — команды будут завершаться ошибкой, пока настройка не будет завершена.',
+        needsSetupConfirmTitle: backend => `Всё равно выбрать ${backend}?`,
+        needsSetupConfirmDescription: detail =>
+          `${detail} Сеансы, запущенные после этого изменения, останутся без терминала и файловых инструментов, пока настройка не завершена.`,
+        needsSetupConfirmDescriptionGeneric:
+          'Этот бэкенд ещё не настроен. Сеансы, запущенные после этого изменения, останутся без терминала и файловых инструментов, пока настройка не завершена.',
+        needsSetupConfirmAction: 'Выбрать всё равно'
       }
     }
   },
   skills: {
+    plugins: {
+      pageBlurb: 'Плагин может расширять приложение, агента или оба сразу — у каждой части свой переключатель.',
+      agentTitle: 'Плагины агента',
+      agentBlurb: 'Расширяют агента для выбранного профиля: инструменты, хуки, провайдеры. Вступают в силу после перезапуска шлюза.',
+      halfDesktop: 'Приложение',
+      halfDesktopHint: 'это приложение, одинаково для всех профилей',
+      halfAgent: 'Агент',
+      defaultProfile: 'Sbar Rafiq (по умолчанию)',
+      kindAgent: 'Агент',
+      kindDesktop: 'Приложение',
+      kindBoth: 'Агент + приложение',
+      installAgentHere: 'Установить сюда',
+      installAgentHereNoOrigin: 'Часть для агента не установлена в этом профиле, а этот пакет скопирован вручную (без записи в каталоге и без git remote), поэтому установить его отсюда нельзя. Скопируйте его папку в профиль или переустановите из Git.',
+      desktopHalfPending: 'копирование…',
+      desktopHalfPendingTip: 'В этом пакете есть часть для приложения, которая ещё не скопирована в приложение. Нажмите «Пересканировать» или перезапустите приложение.',
+      desktopHalfRemote: 'недоступно (удалённый бэкенд)',
+      desktopHalfRemoteTip: 'Часть этого пакета для приложения находится на диске удалённого бэкенда, который это приложение не может прочитать. Чтобы использовать её здесь, выполните «Установить из Git» с URL репозитория пакета и отмеченной целью «Приложение»: так часть для приложения будет клонирована на этот компьютер.',
+      emptyAll: 'Плагинов пока нет.',
+      empty: 'Для этого профиля не установлено ни одного плагина агента.',
+      emptyHint: 'Просмотрите каталог ниже и установите проверенный плагин одним нажатием.',
+      loadFailed: 'Не удалось загрузить плагины агента',
+      legacyBackend: 'Этот бэкенд старше переключателей плагинов по ключу. Обновите Sbar Rafiq, чтобы управлять им здесь.',
+      portableBadge: 'переносимый',
+      serverStates: {
+        connected: 'подключено',
+        app_not_running: 'приложение не запущено',
+        endpoint_unavailable: 'эндпоинт недоступен',
+        no_interactive_session: 'нет интерактивной сессии',
+        version_too_old: 'слишком старая версия',
+        missing_app: 'приложение отсутствует',
+        unknown: 'статус неизвестен'
+      },
+      catalogTitle: 'Каталог плагинов',
+      catalogBrowse: 'Обзор',
+      catalogHide: 'Скрыть обзор каталога',
+      catalogHint: 'Нажмите «+ Добавить этому агенту» у любого плагина: проверенные записи устанавливаются в выбранный профиль на закреплённом коммите. Плагины агент+приложение предлагают обе части.',
+      tierOfficial: 'официальный',
+      tierCommunity: 'сообщество',
+      updateConsentConfirm: 'Применить обновление',
+      uninstall: 'Удалить',
+      deepLinkErrorTitle: 'Ссылка на установку плагина отклонена',
+      deepLinkCatalogInvalidName: 'Имя в каталоге в ссылке отсутствует или недопустимо.',
+      deepLinkCatalogUnavailable: 'Не удалось загрузить каталог плагинов Hermes. Проверьте подключение и снова откройте ссылку.',
+      settingsForm: {
+        save: 'Сохранить настройки',
+        optional: '(необязательно)',
+        secretSet: '•••••••• (задано)',
+        saved: (name: string) => `Настройки ${name} сохранены.`,
+        saveFailed: (name: string) => `Не удалось сохранить настройки ${name}`,
+        secretStoredAs: (env: string) =>
+          `Хранится в .env профиля как ${env}, никогда в config.yaml; оставьте пустым, чтобы сохранить текущее значение.`
+      },
+      halfAgentIn: (profile: string) => `Агент в ${profile}`,
+      installAgentHereTip: (profile: string) =>
+        `Часть для приложения загружена, но часть для агента не установлена в ${profile}. Установите её туда.`,
+      toggleFailed: (name: string) => `Не удалось переключить ${name}`,
+      alreadyInstalled: (name: string) => `${name} уже установлен в этом профиле.`,
+      catalogProvenance: (sha: string) => `Установлено из каталога Sbar Rafiq${sha ? ` на закреплённом коммите ${sha}` : ''}.`,
+      pinnedProvenance: (sha: string) =>
+        `Закреплено на коммите ${sha}. Обновления отклоняются, пока плагин не будет переустановлен с новым закреплением.`,
+      pinnedBadge: (sha: string) => `закреплено @ ${sha}`,
+      updateToPin: (sha: string) => `Обновить до ${sha}`,
+      updateFailed: (name: string) => `Не удалось обновить ${name}`,
+      updated: (name: string) => `${name} обновлён до текущего закрепления в каталоге. Перезапустите шлюз, чтобы применить.`,
+      updateConsentTitle: (name: string) => `${name} запрашивает больше`,
+      updateConsentBody: (name: string, sha: string) =>
+        `Новое закрепление ${name} в каталоге (${sha}) добавляет возможности, которых нет в установленной версии. Применяйте, только если доверяете им:`,
+      uninstallTip: (name: string, profile: string) => `Удалить ${name} из ${profile}`,
+      uninstallConfirmTitle: (name: string) => `Удалить ${name}?`,
+      uninstallConfirmBody: (name: string, profile: string) =>
+        `Файлы плагина будут удалены из профиля ${profile}. Его часть для приложения, если она была, удаляется вместе с ним. Переустановить его можно из каталога или из Git в любой момент.`,
+      uninstallFailed: (name: string) => `Не удалось удалить ${name}`,
+      uninstalled: (name: string) => `${name} удалён. Перезапустите шлюз, чтобы выгрузить его.`,
+      uninstallDesktopTip: (name: string) => `Удалить ${name} из этого приложения`,
+      uninstallDesktopConfirmBody: (name: string) =>
+        `${name} будет удалён из папки desktop-plugins на этом компьютере и сразу выгружен. Переустановить его можно из Git или вернув папку в любой момент.`,
+      uninstalledDesktop: (name: string) => `${name} удалён.`,
+      deepLinkCatalogUnknown: (name: string) =>
+        `\u00AB${name}\u00BB нет в каталоге плагинов Hermes. Ничего не установлено.`,
+      settingsToggle: (name: string) => `Настройки: ${name}`
+    },
     tabSkills: 'Навыки',
     tabToolsets: 'Инструменты',
     configuringProfile: 'Настраивается:',
-    tabMcp: 'MCP',
     all: 'Все',
     searchSkills: 'Поиск навыков...',
     searchToolsets: 'Поиск инструментов...',
@@ -1708,8 +1868,16 @@ export const ru = defineLocale({
       loadFailed: 'Не удалось загрузить хаб навыков',
       previewFailed: 'Не удалось получить предпросмотр навыка',
       scanFailed: 'Не удалось выполнить проверку безопасности',
-      searchFailed: 'Поиск в хабе не удался'
-    }
+      searchFailed: 'Поиск в хабе не удался',
+      viewScan: 'Посмотреть проверку',
+      openLog: 'Открыть журнал',
+      installBlockedTitle: name => `Не удалось установить ${name}`,
+      installBlockedMessage: (findings, unverified) =>
+        `Проверка безопасности отметила для просмотра ${findings > 0 ? `${findings} ${RU_NOUN(findings, 'элемент', 'элемента', 'элементов')}` : 'рискованные шаблоны'}${unverified ? ', и навык получен из непроверенного источника' : ''}. Изучите результаты проверки, прежде чем решать, доверять ли автору.`
+    },
+    tabPlugins: 'Плагины',
+    officialCatalog: 'Доступно для установки',
+    officialPill: 'Официальный'
   },
   starmap: {
     title: 'Граф памяти',
@@ -1871,7 +2039,7 @@ export const ru = defineLocale({
     nav: {
       newChat: { title: 'Новый сеанс', detail: 'Начать новый сеанс' },
       settings: { title: 'Настройки', detail: 'Настройка Sbar Rafiq desktop' },
-      skills: { title: 'Возможности', detail: 'Навыки, инструменты и MCP-серверы' },
+      capabilities: { title: 'Возможности', detail: 'Навыки, инструменты и MCP-серверы' },
       messaging: { title: 'Сообщения', detail: 'Настройка Telegram, Slack, Discord и других' },
       artifacts: { title: 'Артефакты', detail: 'Просмотр сгенерированных результатов' }
     },
@@ -2167,7 +2335,10 @@ export const ru = defineLocale({
         help: 'Рекомендуется. Номера телефонов или ID WhatsApp через запятую.'
       }
     },
-    platformIntro: {}
+    platformIntro: {},
+    restartFailedManualDetail: 'Попробуйте перезапустить ещё раз; если не получится, откройте журналы и отправьте диагностику.',
+    restartAgain: 'Перезапустить снова',
+    openLogs: 'Открыть журналы'
   },
   webhooks: {
     search: 'Поиск вебхуков...',
@@ -2329,20 +2500,55 @@ export const ru = defineLocale({
     failedLoadSoul: 'Не удалось загрузить SOUL.md',
     failedSaveSoul: 'Не удалось сохранить SOUL.md',
     failedCreate: 'Не удалось создать профиль',
-    failedRename: 'Не удалось переименовать профиль'
+    failedRename: 'Не удалось переименовать профиль',
+    fleet: {
+      allOnGateway: 'Все профили на этом шлюзе',
+      gateway: gateway => `Профили на ${gateway}`,
+      gatewayUnreachable: gateway => `${gateway} · недоступен`,
+      onGateway: (name, gateway) => `${name} · ${gateway}`,
+      switchTo: (name, gateway) => `Переключиться на ${name} на ${gateway}`,
+      deleteOn: gateway => ` на ${gateway}`
+    },
+    remoteOverride: {
+      menuItem: 'Подключить к удалённому хосту…',
+      description: 'Сессии этого профиля будут выполняться на указанном удалённом Sbar Rafiq, а не на этом компьютере.',
+      urlLabel: 'Удалённый адрес',
+      urlInvalid: 'Введите полный адрес, начинающийся с http:// или https://',
+      tokenLabel: 'Токен доступа',
+      tokenPlaceholder: 'Вставьте токен удалённой сессии',
+      tokenSavedHint: 'Токен уже сохранён. Оставьте пустым, чтобы сохранить его.',
+      plainTextOptIn: 'На этом компьютере нет защищённого хранилища ключей, поэтому токен будет сохранён на диске без шифрования. Всё равно сохранить.',
+      confirmTitle: 'Подключить этот профиль к удалённому хосту?',
+      confirmBack: 'Назад',
+      connect: 'Подключить',
+      connecting: 'Подключение…',
+      disconnect: 'Удалить удалённое подключение',
+      savedTitle: 'Профиль подключён',
+      removedTitle: 'Удалённое подключение удалено',
+      removeFailed: 'Не удалось удалить удалённое подключение',
+      authFailedTitle: 'Удалённый хост отклонил сохранённый токен',
+      updateToken: 'Ввести новый токен…',
+      badge: (host: string) => `Работает на ${host}`,
+      title: (profile: string) => `Подключить ${profile} к удалённому хосту`,
+      collisionWarning: (label: string) =>
+        `Шлюз с именем «${label}» уже есть в настройках. Это подключение профиля отдельное и его не изменит.`,
+      confirmNote: (profile: string, host: string) =>
+        `Новые чаты в ${profile} будут выполняться на ${host}. Команды и чтение файлов будут происходить на том компьютере, а не на этом. Подключайтесь только к хосту, которому доверяете.`,
+      savedMessage: (profile: string, host: string) => `${profile} теперь работает на ${host}`,
+      removedMessage: (profile: string) => `${profile} теперь работает на этом компьютере`,
+      authFailedMessage: (profile: string, host: string) =>
+        `${host} отклонил токен, сохранённый для ${profile}. Возможно, он был изменён на удалённой стороне.`
+    },
+    exportMenu: 'Экспорт…'
   },
+  modelAssignment: {
+    saveFailed: 'Sbar Rafiq не сохранил это изменение модели.'
+  },
+
   cron: {
     close: 'Закрыть cron',
     title: 'Запланированные задачи',
     count: count => `${count} ${RU_PLURAL(count, 'задача', 'задачи', 'задач')}`,
-    modelImpact: {
-      title: 'Запланированные задачи остаются на исходной модели',
-      message: count =>
-        `${count} незакреплённых запланированных задач продолжат работать на модели, с которой были созданы. Закрепите их или задайте cron.model, чтобы перевести.`,
-      detailMore: (names, remaining) => `${names} и ещё ${remaining}`,
-      review: 'Проверить запланированные задачи',
-      saveFailed: 'Sbar Rafiq не сохранил это изменение модели.'
-    },
     search: 'Поиск cron-задач...',
     loading: 'Загрузка cron-задач...',
     states: {
@@ -2359,7 +2565,7 @@ export const ru = defineLocale({
       telegram: 'Telegram',
       discord: 'Discord',
       slack: 'Slack',
-      email: 'Email'
+      email: 'Эл. почта'
     },
     scheduleLabels: {
       daily: 'Ежедневно',
@@ -2472,7 +2678,11 @@ export const ru = defineLocale({
       failedLoad: 'Не удалось загрузить шаблоны',
       emptyTitle: 'Шаблоны недоступны',
       emptyDesc: 'На этом бэкенде нет шаблонов автоматизации.'
-    }
+    },
+    lastRunFailed: 'Последний запуск не удался:',
+    editJob: 'Изменить задание',
+    runAgain: 'Запустить снова',
+    overdueSince: 'Просрочено с:'
   },
   projectWorkflows: {
     title: 'Шаблоны работы над проектом',
@@ -2603,6 +2813,38 @@ export const ru = defineLocale({
     missingBody: 'Этот артефакт больше нет в локальном реестре.'
   },
   sidebar: {
+    profileRail: 'Панель профилей',
+    filter: {
+      grouping: 'Группировка',
+      ordering: 'Сортировка',
+      show: 'Показывать',
+      inboxStyle: 'Стиль «Входящие»',
+      status: 'Статус',
+      pullRequest: 'Запрос на слияние',
+      profile: 'Профиль',
+      project: 'Проект',
+      archived: 'Архивные',
+      expandAll: 'Развернуть все',
+      collapseAll: 'Свернуть все',
+      updated: 'Обновление',
+      created: 'Создано',
+      tokens: 'Токены',
+      cost: 'Стоимость',
+      manual: 'Вручную',
+      preview: 'Превью',
+      pr: 'PR',
+      open: 'Открыт',
+      draft: 'Черновик',
+      merged: 'Слит',
+      closed: 'Закрыт',
+      needsInput: 'Нужен ввод',
+      working: 'В работе',
+      unread: 'Непрочитанные',
+      idle: 'Бездействие',
+      filters: 'Фильтры',
+      resetToDefaults: 'Сбросить настройки',
+      noPR: 'Без PR'
+    },
     gatewayGroups: {
       grouping: 'Шлюз и профиль',
       rename: 'Переименовать группу',
@@ -2616,7 +2858,7 @@ export const ru = defineLocale({
     },
     nav: {
       'new-session': 'Новый сеанс',
-      skills: 'Возможности',
+      capabilities: 'Возможности',
       messaging: 'Сообщения',
       artifacts: 'Артефакты',
       cron: 'Запланированные задачи'
@@ -2628,6 +2870,10 @@ export const ru = defineLocale({
     results: 'Результаты',
     pinned: 'Закреплённые',
     sessions: 'Сеансы',
+    terminal: 'Терминал',
+    files: 'Файлы',
+    review: 'Проверка',
+    logs: 'Журналы',
     cronJobs: 'Cron-задачи',
     groupAriaGrouped: 'Показать сеансы одним списком',
     groupAriaUngrouped: 'Сгруппировать сеансы по рабочим пространствам',
@@ -2720,7 +2966,34 @@ export const ru = defineLocale({
       reorder: label => `Изменить порядок ${label}`,
       toggle: (label, open) => `${open ? 'Показать' : 'Скрыть'} сеансы ${label}`,
       showAllCount: count => `Показать все сессии (${count})`,
-      back: 'Все проекты'
+      back: 'Все проекты',
+      folderNeedsAttention: 'Папки с исходниками требуют внимания',
+      folderMissing: 'Папка не найдена',
+      folderUnavailable: 'Папка недоступна',
+      folderNotDirectory: 'Этот путь ведёт к файлу, а не к папке',
+      reconnectFolder: 'Переподключить',
+      editTitle: 'Изменить проект',
+      editDesc: 'Управляйте папками с исходниками. Изменение пути переподключает существующие задачи без перемещения файлов. Основная папка используется для новых задач.',
+      changeFolder: 'Изменить путь к папке',
+      makePrimary: 'Сделать основной',
+      autoDiscovered: 'Найдено автоматически',
+      menuTransfer: 'Переместить в профиль…',
+      transferHint: 'Папки остаются на своих местах на диске. Переносятся проект и его разговоры.',
+      transferTarget: 'Профиль',
+      transferNoTargets: 'Нет другого профиля, куда можно это переместить.',
+      transferFoldersStay: 'Ни одна папка на диске не перемещается, не переименовывается и не удаляется.',
+      transferMove: 'Переместить вместо копирования',
+      transferMoveHint: 'Разговоры здесь будут архивированы, а проект исчезнет из этой боковой панели. Приложение не сможет это отменить.',
+      transferConfirmCopy: 'Копировать',
+      transferConfirmMove: 'Переместить',
+      transferTitle: name => `Переместить «${name}» в другой профиль`,
+      transferCarries: (sessions, messages) =>
+        `Переносится ${sessions} ${RU_NOUN(sessions, 'разговор', 'разговора', 'разговоров')}, ${messages} ${RU_NOUN(messages, 'сообщение', 'сообщения', 'сообщений')}.`,
+      transferDone: (sessions, profile) =>
+        `Перенесено в ${profile}: ${sessions} ${RU_NOUN(sessions, 'разговор', 'разговора', 'разговоров')}.`,
+      transferWorking: sessions => `Переносим ${sessions} ${RU_NOUN(sessions, 'разговор', 'разговора', 'разговоров')}\u2026`,
+      transferPartial: failed =>
+        `Не удалось перенести: ${failed}. Повторный запуск перенесёт только недостающее.`
     },
     newSessionIn: label => `Новый сеанс в ${label}`,
     showMoreIn: (count, label) => `Показать ещё ${count} в ${label}`,
@@ -2788,7 +3061,14 @@ export const ru = defineLocale({
       working: 'Работает',
       done: 'Готово'
     },
-    markAllRead: 'Отметить все как прочитанные'
+    markAllRead: 'Отметить все как прочитанные',
+    storageCorrupt: {
+      title: 'База данных сессий повреждена',
+      action: 'Закройте Hermes в этом профиле, затем изучите файл, не изменяя его, или восстановите снимок:',
+      guide: 'Руководство по восстановлению',
+      body: (profiles: string) =>
+        `Hermes не может прочитать всю историю сессий для ${profiles}. Чаты, отсутствующие в этом списке, не удалены; повреждён файл, в котором они хранятся.`
+    }
   },
   composer: {
     message: 'Сообщение',
@@ -2851,12 +3131,77 @@ export const ru = defineLocale({
     hotkeys: 'Горячие клавиши',
     helpFooter: 'открывает полную панель · backspace закрывает',
     commandDescs: {
-      '/help': 'полный список команд + горячих клавиш',
+      '/help': 'Показать слеш-команды приложения',
       '/clear': 'начать новый сеанс',
-      '/resume': 'возобновить прошлый сеанс',
+      '/resume': 'Возобновить сохранённый сеанс',
       '/details': 'уровень детализации транскрипта',
       '/copy': 'скопировать выделенное или последнее сообщение ассистента',
-      '/quit': 'выйти из hermes'
+      '/quit': 'выйти из hermes',
+      '/start': 'Подтвердить запуск платформы без ответа',
+      '/new': 'Начать новый чат в приложении',
+      '/topic': 'Включить или просмотреть темы личных сообщений Telegram',
+      '/save': 'Сохранить текущую переписку в JSON',
+      '/retry': 'Повторно отправить последнее сообщение агенту',
+      '/prompt': 'Написать следующий запрос в Markdown в $EDITOR и отправить',
+      '/undo': 'Вернуться на N ходов пользователя и повторить запрос (по умолчанию 1)',
+      '/title': 'Переименовать текущий сеанс',
+      '/handoff': 'Передать этот сеанс в мессенджер',
+      '/branch': 'Создать новый чат из последнего сообщения',
+      '/worktree': 'Показать, перечислить, создать или очистить изолированные рабочие деревья Git',
+      '/compress': 'Сжать контекст текущей беседы',
+      '/rollback': 'Показать или восстановить контрольные точки файлов, сохранив ручные правки',
+      '/export': 'Экспортировать профиль, настройки, навыки и тему в общий архив',
+      '/import': 'Импортировать архив как новый профиль',
+      '/stop': 'Остановить текущий ход и фоновые процессы',
+      '/pause': 'Приостановить новую работу глобально; /pause off возобновляет её',
+      '/bg': 'Выполнить запрос в отдельном фоновом сеансе',
+      '/btw': 'Задать побочный вопрос о беседе, не прерывая её',
+      '/agents': 'Показать активных агентов и выполняемые задачи',
+      '/journey': 'Открыть граф памяти — навыки и воспоминания во времени',
+      '/queue': 'Добавить, просмотреть, изменить, удалить, переместить или очистить запросы в очереди',
+      '/steer': 'Добавить сообщение после следующего вызова инструмента без прерывания',
+      '/goal': 'Задать постоянную цель, над которой Hermes работает до завершения',
+      '/heartbeat': 'Задать повторяющийся запрос для этого сеанса в состоянии простоя',
+      '/refine': 'Проанализировать беседу и сохранить выводы в памяти или навыках',
+      '/review': 'Запустить независимого субагента для проверки обсуждаемой работы',
+      '/loop': 'Повторять запрос с заданным интервалом в этом сеансе',
+      '/plan': 'Записать план реализации в Markdown в .hermes/plans/ без выполнения',
+      '/moa': 'Выполнить запрос через Mixture of Agents, затем вернуть исходную модель',
+      '/subgoal': 'Добавить или изменить критерии активной цели',
+      '/status': 'Показать состояние текущего сеанса',
+      '/egress': 'Показать состояние исходящего прокси Docker',
+      '/context': 'Показать использование контекста, категории, статистику сжатия и скорость обработки',
+      '/whoami': 'Показать права доступа к слеш-командам',
+      '/profile': 'Переключить активный профиль Hermes',
+      '/codex-runtime': 'Переключить среду Codex app-server для моделей OpenAI/Codex',
+      '/personality': 'Выбрать готовую личность',
+      '/battery': 'Переключить цветной индикатор батареи в строке состояния',
+      '/timestamps': 'Переключить метки времени в сообщениях и /history',
+      '/diff': 'Показать изменения Git в рабочем каталоге',
+      '/focus': 'Переключить вид только с запросом и итоговым ответом',
+      '/yolo': 'Переключить YOLO — автоматически одобрять опасные команды',
+      '/approvals': 'Показать или задать постоянный режим одобрения опасных команд',
+      '/reasoning': 'Управлять уровнем и отображением рассуждений',
+      '/skin': 'Переключить тему приложения или выбрать следующую',
+      '/wake': 'Управлять распознаванием фразы пробуждения [on|off|status]',
+      '/tools': 'Управлять доступными агенту инструментами',
+      '/memory': 'Просмотреть ожидающие записи в память или переключить их одобрение',
+      '/bundles': 'Показать наборы навыков',
+      '/pet': 'Переключить или выбрать питомца petdex',
+      '/hatch': 'Создать нового питомца',
+      '/learn': 'Создать навык на основе каталогов, URL, беседы или заметок',
+      '/init': 'Просканировать репозиторий и создать или обновить инструкции AGENTS.md',
+      '/suggestions': 'Просмотреть, принять или отклонить предложенные автоматизации',
+      '/blueprint': 'Настроить автоматизацию по шаблону',
+      '/browser': 'Управлять CDP-подключением браузера [connect|disconnect|status] (только локальный шлюз)',
+      '/palette': 'Открыть палитру команд',
+      '/usage': 'Показать расход токенов и лимиты; reset использует накопленный сброс лимита Codex',
+      '/subscription': 'Показать план Nous и изменить его в браузере',
+      '/topup': 'Показать баланс Nous и управлять оплатой',
+      '/platform': 'Приостановить, возобновить или перечислить сбоящие платформы шлюза',
+      '/version': 'Показать версию Hermes Agent',
+      '/debug': 'Загрузить отчёт отладки с данными системы и журналами и получить ссылку',
+      '/model': 'Переключить модель для этого сеанса'
     },
     hotkeyDescs: {
       'composer.mention': 'ссылки на файлы, папки, URL, git',
@@ -2882,6 +3227,8 @@ export const ru = defineLocale({
     attachmentsShowFewer: 'Показать меньше',
     editingInComposer: 'Редактирование в композере',
     editingQueuedInComposer: 'Редактирование хода в очереди в композере',
+    restoredDraftNotice: 'Восстановлено ваше неотправленное сообщение',
+    restoredDraftUndo: 'Отменить',
     queueEdit: 'Изменить',
     queueSendNext: 'Дальше',
     queueSteer: 'Направить — изменить текущий ход сейчас',
@@ -2970,9 +3317,29 @@ export const ru = defineLocale({
         description: 'Разберите, как работает выделенный код, и дайте ссылки на ключевые файлы.',
         text: 'Пожалуйста, объясните, как это работает, и укажите ключевые файлы.'
       }
-    }
+    },
+    voiceEngine: 'Движок голосового чата',
+    voiceEngineChained: 'Распознавание речи + голос Sbar Rafiq',
+    voiceEngineLive: 'GPT-Live (полный дуплекс, передаёт задачи Sbar Rafiq)',
+    voiceEngineLiveNeedsKey: 'Нужен API-ключ OpenAI',
+    voiceEngineChangeFailed: 'Не удалось сменить движок голосового чата',
+    voiceEngineChainedShort: 'распознавание речи',
+    hiddenQueued: 'Заметка настройки',
+    queueStuckAction: 'Отправить снова',
+    queueLostTitle: 'Сообщения в очереди из удалённого чата',
+    queueLostAction: 'Восстановить текст',
+    queueRecoveredNothing: 'Восстанавливать нечего.',
+    queueStuckBodyIn: title => `Ход в очереди в «${title}» так и не удалось отправить. Он всё ещё в очереди.`,
+    queueLostBody: count =>
+      count === 1
+        ? 'Одно сообщение стояло в очереди чата, которого больше нет, поэтому его нельзя отправить. Восстановить его в композер?'
+        : `${count} ${RU_NOUN(count, 'сообщение стояло', 'сообщения стояли', 'сообщений стояли')} в очереди чата, которого больше нет, поэтому их нельзя отправить. Восстановить их в композер?`,
+    queueRecovered: count =>
+      count === 1 ? 'Сообщение восстановлено в композер.' : `${count} ${RU_NOUN(count, 'сообщение восстановлено', 'сообщения восстановлены', 'сообщений восстановлено')} в композер.`
   },
   statusStack: {
+    hideStack: 'Скрыть панель состояния',
+    showStack: 'Показать панель состояния',
     agents: 'Агенты',
     background: count => `${count} ${RU_NOUN(count, 'фоновая задача', 'фоновые задачи', 'фоновых задач')}`,
     goalActive: 'Цель активна',
@@ -3144,6 +3511,7 @@ export const ru = defineLocale({
     notAvailableTitle: 'Обновление недоступно',
     unsupportedMessage: 'Эта версия Sbar Rafiq не может обновлять себя из приложения.',
     connectionRetry: 'Проверьте соединение и попробуйте снова.',
+    gitUnusable: 'Hermes не удалось запустить Git на этом компьютере, поэтому проверить обновления не получилось.',
     latestBody: 'У вас последняя версия.',
     latestBodyBackend: 'Бэкенд работает на последней версии.',
     allSetTitle: 'Всё готово',
@@ -3195,6 +3563,13 @@ export const ru = defineLocale({
     everythingSkipped: 'Пропущено',
     everythingRowFailed: 'Обновление не удалось',
     everythingFanoutFailedTitle: 'Не удалось обновить другие инстанции',
+    changeLogNew: 'Новое',
+    changeLogFixed: 'Исправления',
+    changeLogFaster: 'Быстродействие',
+    changeLogImproved: 'Улучшения',
+    changeLogOther: 'Другие улучшения',
+    changeLogFallbackLabel: 'В этом обновлении',
+    changeLogFallbackItem: 'Улучшения и исправления',
     applyStatus: {
       preparing: 'Обновляем бэкенд…',
       pulling: 'Бэкенд обновляется…',
@@ -3202,7 +3577,9 @@ export const ru = defineLocale({
       notAvailable: 'Обновление недоступно для этого бэкенда.',
       failed: 'Не удалось обновить бэкенд.',
       noReturn: 'Бэкенд не вернулся в сеть. Обновление могло не завершиться — проверьте хост бэкенда.'
-    }
+    },
+    connectionSettings: 'Настройки подключения',
+    openDownloadPage: 'Открыть страницу загрузки'
   },
   guidedGreeting: {
     line: 'Заходите. Я Sbar Rafiq. Дайте мне пару минут — обустрою тут всё под вас, а потом займёмся тем, что вам правда нужно.\n\nДля начала: как к вам обращаться?',
@@ -3279,7 +3656,9 @@ export const ru = defineLocale({
     transcriptSaved: 'Полный транскрипт сохранён в',
     copiedOutput: 'Скопировано!',
     copyOutput: 'Копировать вывод',
-    reloadRetry: 'Перезагрузить и повторить'
+    reloadRetry: 'Перезагрузить и повторить',
+    probeErrorDetails: 'Подробности',
+    openLogs: 'Открыть журналы'
   },
   onboarding: {
     headerTitle: 'Настроим для вас Sbar Rafiq Agent',
@@ -3309,7 +3688,7 @@ export const ru = defineLocale({
       gemini: { short: 'модели Gemini', description: 'Прямой доступ к моделям Google Gemini.' },
       xai: { short: 'модели Grok', description: 'Прямой доступ к моделям xAI Grok.' },
       local: {
-        short: 'self-hosted',
+        short: 'свой сервер',
         description:
           'Укажите Sbar Rafiq локальный или self-hosted OpenAI-совместимый endpoint (vLLM, llama.cpp, Ollama и т.д.).'
       }
@@ -3352,11 +3731,19 @@ export const ru = defineLocale({
     defaultModel: 'Модель по умолчанию',
     freeTier: 'Бесплатный тариф',
     pro: 'Pro',
-    free: 'Free',
+    free: 'Бесплатно',
     price: (input, output) => `${input} вход / ${output} выход за Mtok`,
     change: 'Изменить',
     startChatting: 'Начать',
-    docs: provider => `Документация ${provider}`
+    docs: provider => `Документация ${provider}`,
+    localModelsTitle: 'Запускать модели локально',
+    localModelsPitch: 'Аккаунт не нужен: скачайте модель и запустите её на этом компьютере',
+    signInExpired: 'Время страницы входа истекло до того, как вы закончили. Попробуйте снова и завершите шаг в браузере в течение нескольких минут или используйте API-ключ.',
+    tryAgain: 'Повторить',
+    useApiKeyInstead: 'Использовать API-ключ',
+    errorDetails: 'Подробности',
+    signInDidNotFinish: provider =>
+      `Вход через ${provider} не завершён. Проверьте подключение к интернету и повторите попытку или выберите другого провайдера.`
   },
   modelPicker: {
     title: 'Сменить модель',
@@ -3369,17 +3756,25 @@ export const ru = defineLocale({
     noAuthenticatedProviders: 'Нет провайдеров с аутентификацией.',
     pro: 'Pro',
     proNeedsSubscription: 'Модели Pro требуют платной подписки Nous.',
-    free: 'Free',
+    free: 'Бесплатно',
     freeTier: 'Бесплатный тариф',
     priceTitle: 'Цена вход / выход за миллион токенов',
-    wasPrice: 'было'
+    wasPrice: 'было',
+    customModel: 'Своя модель',
+    addCustomModelAction: 'Добавить свою модель…',
+    customModelPlaceholder: 'Введите id модели, например openai/gpt-5',
+    loadingIntoMemory: 'Загрузка в память',
+    downloading: 'Скачивание',
+    localDownloadsHeading: 'Локальные'
   },
 
   modelVisibility: {
     title: 'Модели',
     search: 'Поиск моделей',
     noAuthenticatedProviders: 'Нет провайдеров с аутентификацией.',
-    addProvider: 'Добавить провайдера…'
+    addProvider: 'Добавить провайдера…',
+    addCustomModel: 'Добавить свою модель',
+    removeCustomModel: 'Удалить свою модель'
   },
   shell: {
     windowControls: 'Управление окном',
@@ -3405,6 +3800,7 @@ export const ru = defineLocale({
       xhigh: 'Очень высокое',
       max: 'Максимум',
       ultra: 'Ультра',
+      sendsOnRoute: (level: string) => `на этом маршруте отправляется ${level}`,
       updateFailed: 'Не удалось обновить опцию модели',
       fastFailed: 'Не удалось обновить быстрый режим'
     },
@@ -3507,13 +3903,15 @@ export const ru = defineLocale({
           skills: 'Навыки',
           subagent_definitions: 'Определения субагентов',
           system_prompt: 'Системный промпт',
-          tool_definitions: 'Определения инструментов'
+          tool_definitions: 'Определения инструментов',
+          files: 'Файлы'
         },
         empty: 'Данных контекста пока нет',
         loading: 'Загрузка разбивки…',
         percentFull: percent => `${percent}% занято`,
         title: 'Использование контекста',
-        tokenSummary: (used, max) => `${used} / ${max} токенов`
+        tokenSummary: (used, max) => `${used} / ${max} токенов`,
+        categoryCount: count => `${count} ${RU_PLURAL(count, 'файл', 'файла', 'файлов')}`
       },
       session: 'Сеанс',
       yoloOn: 'YOLO включён — автоматическое подтверждение опасных команд. Shift-клик переключает глобально.',
@@ -3524,7 +3922,44 @@ export const ru = defineLocale({
       openModelPicker: 'Открыть выбор модели',
       modelPinned: 'закреплено вами; новые чаты используют её вместо модели по умолчанию из настроек',
       modelTitle: (provider, model) => `Модель · ${provider}: ${model}`,
-      providerModelTitle: (provider, model) => `${provider} · ${model}`
+      providerModelTitle: (provider, model) => `${provider} · ${model}`,
+      showBrowser: 'Открыть браузер',
+      gatewayUnavailable: 'инференс недоступен',
+      toggleBrowser: 'Браузер',
+      toggleFreeTier: 'Бесплатный тариф',
+      accountUsagePanel: {
+        empty: 'Нет подключённых подписок',
+        loading: 'Проверяем тарифы…',
+        refresh: 'Обновить',
+        states: {
+          network_error: 'Не удалось связаться с провайдером',
+          no_usage_endpoint: 'Нет данных о тарифе для этого провайдера',
+          not_authenticated: 'Вход не выполнен',
+          parse_error: 'Неожиданный ответ провайдера',
+          rate_limited: 'Лимит запросов, повторите чуть позже',
+          unauthorized: 'Срок входа истёк'
+        },
+        title: 'Использование тарифа',
+        windows: {
+          '5h': 'Окно 5 часов',
+          '7d': 'Недельное окно',
+          credits: 'Кредиты',
+          key_limit: 'Лимит API-ключа',
+          period: 'Расчётный период'
+        },
+        resetsAt: when => `сброс ${when}`
+      },
+      accountUsage: 'Тарифы',
+      toggleAccountUsage: 'Показать использование тарифа',
+      systemResources: {
+        title: 'Системные ресурсы',
+        loading: 'Ресурсы…',
+        gpuUtilization: 'Загрузка GPU',
+        gpuMemory: 'Память GPU',
+        ram: 'ОЗУ',
+        unifiedNote: 'Единая память: GPU и система используют общий пул.',
+        toggle: 'Системные ресурсы'
+      }
     }
   },
   rightSidebar: {
@@ -3541,6 +3976,8 @@ export const ru = defineLocale({
     openFolder: 'Открыть папку',
     refreshTree: 'Обновить дерево',
     collapseAll: 'Свернуть все папки',
+    showIgnored: 'Показать файлы из gitignore',
+    hideIgnored: 'Скрыть файлы из gitignore',
     previewUnavailable: 'Предпросмотр недоступен',
     couldNotPreview: path => `Не удалось предпросмотреть ${path}`,
     noProjectTitle: 'Проект не открыт',
@@ -3731,6 +4168,20 @@ export const ru = defineLocale({
       addFailedMessage: 'Нет открытого окна ввода, чтобы их принять.'
     }
   },
+  interfaceMode: {
+    title: 'Режим интерфейса',
+    hint: 'Меняет то, что показано, а не то, что умеет Hermes.',
+    sessionNote:
+      'Задано простым режимом. Изменение здесь действует до конца сеанса; переключитесь в расширенный, чтобы сделать его своим.',
+    simple: {
+      label: 'Простой',
+      description: 'Для общения с Hermes. Боковая панель и чат; без терминала, файлов и панелей diff.'
+    },
+    advanced: {
+      label: 'Расширенный',
+      description: 'Для разработчиков. Терминал, файлы, diff, строка состояния и раскладки — как вы их настроили.'
+    }
+  },
   zones: {
     showTabStrip: 'Показать вкладки',
     hideTabStrip: 'Скрыть вкладки',
@@ -3849,7 +4300,201 @@ export const ru = defineLocale({
       restoreNext: 'Восстановить следующий чекпоинт',
       goForward: 'Двигаться вперёд',
       sendEdited: 'Отправить изменённое сообщение',
-      attachingFile: 'Прикрепление…'
+      attachingFile: 'Прикрепление…',
+      processingPrompt: 'Обработка запроса',
+      progressTitle: 'Ход задачи',
+      progressTask: 'Работаю над',
+      progressEdit: 'Последняя записанная правка',
+      progressCheck: 'Последняя успешная проверка',
+      progressCheckOutdated: 'Проверка была до последней правки',
+      progressError: 'Последняя сообщённая ошибка',
+      progressRepeated: 'Повторяющееся действие',
+      errorLayers: {
+        auth: 'Проблема со входом',
+        billing: 'Закончились кредиты',
+        disk: 'Диск заполнен',
+        endpoint: 'Нет связи с вашим сервером модели',
+        gateway: 'В Sbar Rafiq возникла проблема',
+        generic: 'Sbar Rafiq не удалось завершить этот ответ',
+        provider: 'ИИ-сервис вернул ошибку',
+        runtime: 'В Sbar Rafiq возникла проблема',
+        streaming: 'Ответ оборвался'
+      },
+      errorLayerBodies: {
+        auth: 'ИИ-сервис отклонил ваш вход. Проверьте учётные данные этого провайдера и отправьте сообщение снова.',
+        billing: 'На вашем аккаунте у этого провайдера не осталось кредитов. Пополните баланс или смените провайдера и отправьте снова.',
+        disk: 'Диск заполнен, поэтому Sbar Rafiq не смог сохранить этот разговор. Освободите место и повторите.',
+        endpoint: 'Sbar Rafiq не может связаться с вашим сервером модели. Убедитесь, что он запущен, и отправьте сообщение снова.',
+        gateway: 'При запуске этого ответа в Sbar Rafiq возникла внутренняя проблема. Отправьте сообщение снова; если это повторяется, отправьте диагностику.',
+        generic: 'Во время ответа Sbar Rafiq что-то пошло не так. Повторите или скопируйте подробности, если это повторяется.',
+        provider: 'ИИ-сервис не смог выполнить этот запрос. Повторите чуть позже или смените провайдера.',
+        runtime: 'При запуске этого ответа в Sbar Rafiq возникла внутренняя проблема. Отправьте сообщение снова; если это повторяется, отправьте диагностику.',
+        streaming: 'Соединение оборвалось до завершения ответа. Повторите, чтобы отправить снова.'
+      },
+      errorCodes: {
+        billing: {
+          title: 'Закончились кредиты',
+          body: provider => `На вашем аккаунте ${provider} не осталось кредитов. Пополните баланс или смените провайдера и отправьте снова.`
+        },
+        rate_limit: {
+          title: 'ИИ-сервис занят',
+          body: provider => `${provider} сейчас ограничивает запросы. Подождите минуту и повторите.`
+        },
+        upstream_rate_limit: {
+          title: 'ИИ-сервис занят',
+          body: provider => `${provider} сейчас ограничивает запросы. Подождите минуту и повторите.`
+        },
+        overloaded: {
+          title: 'ИИ-сервис перегружен',
+          body: provider => `У ${provider} сейчас проблемы. Повторите чуть позже или смените провайдера.`
+        },
+        server_error: {
+          title: 'В ИИ-сервисе возникла проблема',
+          body: provider => `${provider} вернул ошибку сервера. Повторите чуть позже или смените провайдера.`
+        },
+        timeout: {
+          title: 'Время ожидания ответа истекло',
+          body: provider => `${provider} не ответил вовремя. Повторите, чтобы отправить снова.`
+        },
+        stream_drop: {
+          title: 'Ответ оборвался',
+          body: 'Соединение оборвалось до завершения ответа. Повторите, чтобы отправить снова.'
+        },
+        upstream_blocked: {
+          title: 'Файрвол заблокировал запрос',
+          body: provider =>
+            `Файрвол или CDN перед ${provider} заблокировал запрос до того, как он дошёл до модели; скорее всего, с вашим ключом всё в порядке. Задайте заголовок User-Agent через extra_headers провайдера в настройках или смените провайдера и отправьте сообщение снова.`
+        },
+        ssl_cert_verification: {
+          title: 'Не удалось установить защищённое соединение',
+          body: provider =>
+            `Sbar Rafiq не смог проверить защищённое соединение с ${provider}. Проверьте сеть или настройки прокси либо смените провайдера и отправьте сообщение снова.`
+        },
+        context_overflow: {
+          title: 'Этот разговор слишком длинный',
+          body: 'Разговор больше не помещается в модель. Сожмите его или начните новый чат и отправьте снова.'
+        },
+        payload_too_large: {
+          title: 'Это сообщение слишком большое',
+          body: 'Запрос слишком велик для модели. Сожмите разговор или начните новый чат и отправьте снова.'
+        },
+        model_not_found: {
+          title: 'Эта модель недоступна',
+          body: provider =>
+            `${provider} не предоставляет эту модель для вашего аккаунта. Выберите другую модель и отправьте сообщение снова.`
+        },
+        provider_policy_blocked: {
+          title: 'Эта модель заблокирована настройками вашего аккаунта',
+          body: provider =>
+            `${provider} не стал обрабатывать этот запрос из-за настроек данных или конфиденциальности вашего аккаунта. Выберите другую модель или смените провайдера.`
+        },
+        content_policy_blocked: {
+          title: 'ИИ-сервис отклонил этот запрос',
+          body: provider => `${provider} отказался отвечать на это сообщение. Измените его и отправьте снова.`
+        },
+        format_error: {
+          title: 'ИИ-сервис отверг запрос',
+          body: provider =>
+            `${provider} не принял структуру этого запроса. Смените провайдера или отправьте диагностику, чтобы мы разобрались.`
+        },
+        truncated: {
+          title: 'Ответ обрезан',
+          body: 'Модель остановилась, не закончив. Повторите, чтобы получить полный ответ.'
+        },
+        invalid_response: {
+          title: 'ИИ-сервис прислал нечитаемый ответ',
+          body: provider => `${provider} вернул то, что Sbar Rafiq не смог прочитать. Повторите чуть позже.`
+        },
+        empty_response: {
+          title: 'ИИ-сервис прислал пустой ответ',
+          body: provider => `${provider} ничего не вернул на это сообщение. Повторите чуть позже.`
+        },
+        loop_error: {
+          title: 'Sbar Rafiq зациклился',
+          body: 'Ответ повторял одни и те же шаги, поэтому Sbar Rafiq его остановил. Повторите или начните новый чат, если это случится снова.'
+        },
+        SESSION_NOT_OWNED: {
+          title: 'Этот чат открыт в другом месте',
+          body: 'Этот чат сейчас открыт в другом окне Sbar Rafiq или в терминале. Закройте его там и отправьте сообщение снова или начните здесь новый чат.'
+        },
+        disk_full: {
+          title: 'Диск заполнен',
+          body: 'Диск заполнен, поэтому Sbar Rafiq не смог сохранить этот разговор. Освободите место и повторите.'
+        },
+        free_tier_disabled: {
+          title: 'Использование Sbar Rafiq без входа сейчас отключено',
+          body: 'Войдите с аккаунтом Nous, чтобы продолжить общение, это бесплатно.'
+        },
+        free_tier_rate_limited: {
+          title: 'Вы исчерпали лимит общения без входа',
+          body: 'Скоро он обновится. Войдите с аккаунтом Nous, чтобы получить больший лимит, это бесплатно.'
+        },
+        free_tier_at_capacity: {
+          title: 'Общение без входа сейчас сильно загружено',
+          body: 'Войдите, чтобы пропустить очередь (это бесплатно), или попробуйте чуть позже.'
+        },
+        free_tier_model_not_free: {
+          title: 'Эта модель недоступна без входа',
+          body: 'Пока Sbar Rafiq использует бесплатную модель. Войдите с аккаунтом Nous, чтобы получить больше моделей, это бесплатно.'
+        },
+        free_tier_route: {
+          title: 'Sbar Rafiq не удалось связаться с бесплатной моделью по этому маршруту',
+          body: 'Войдите с аккаунтом Nous (это бесплатно) или проверьте параметр NOUS_INFERENCE_BASE_URL.'
+        },
+        free_tier_outage: {
+          title: 'Бесплатная модель сейчас отвечает с перебоями',
+          body: 'Попробуйте отправить сообщение снова через минуту.'
+        },
+        free_tier_refused: {
+          title: 'Sbar Rafiq не может отправить это без входа',
+          body: 'Вход с аккаунтом Nous бесплатный.'
+        },
+        auth: {
+          title: provider => `${provider} отклонил ваш вход`,
+          body: provider =>
+            `Сохранённые учётные данные для ${provider} не приняты. Исправьте их в настройках или смените провайдера и отправьте сообщение снова.`
+        },
+        auth_permanent: {
+          title: provider => `${provider} отклонил ваш вход`,
+          body: provider =>
+            `Сохранённые учётные данные для ${provider} недействительны или отозваны. Обновите их или смените провайдера и отправьте сообщение снова.`
+        }
+      },
+      errorDetails: 'Подробности',
+      errorGenericProvider: 'ИИ-сервис',
+      errorToastTitle: 'Hermes не удалось завершить ответ',
+      errorRetry: 'Повторить',
+      errorRetryScheduledCancel: 'Отмена',
+      errorStartNewSession: 'Начать новую сессию',
+      errorSwitchProvider: 'Сменить провайдера',
+      errorChooseModel: 'Выбрать модель',
+      errorCompressConversation: 'Сжать разговор',
+      errorCompressFailed: 'Не удалось сжать разговор',
+      errorOpenHermesFolder: 'Открыть папку Hermes',
+      errorOpenHermesFolderFailed: 'Не удалось открыть папку Hermes',
+      errorUpdateApiKey: 'Обновить API-ключ',
+      errorSignInFreeTier: 'Войти с аккаунтом Nous',
+      errorOpenLogs: 'Открыть журналы',
+      errorOpenLogsFailed: 'Не удалось открыть папку журналов',
+      errorOpenDesktopLogs: 'Открыть журналы приложения',
+      errorCopyDiagnostics: 'Копировать подробности ошибки',
+      errorSendDiagnostics: 'Отправить диагностику',
+      loadingLocalModel: model => `Загрузка ${model} в память`,
+      errorAuthKinds: {
+        api_key: {
+          title: provider => `${provider} отклонил ваш API-ключ`,
+          body: provider => `Сохранённый ключ для ${provider} недействителен или отозван. Обновите его и повторите.`
+        },
+        oauth: {
+          title: provider => `Срок вашего входа в ${provider} истёк`
+        }
+      },
+      errorLimitResets: time => `Лимит сбросится в ${time}`,
+      errorRetryAtReset: time => `Повторить после сброса лимита (${time})`,
+      errorRetryScheduled: (time, wait) => `Повтор в ${time}, через ${wait}`,
+      errorSignInAgain: provider => `Снова войти в ${provider}`,
+      errorOauthExpired: provider =>
+        `Срок вашего входа в ${provider} истёк или он был отозван. Войдите снова, чтобы продолжить общение.`
     },
     approval: {
       gatewayDisconnected: 'Шлюз Sbar Rafiq не подключён',
@@ -3864,7 +4509,10 @@ export const ru = defineLocale({
       alwaysTitle: 'Всегда разрешать эту команду?',
       alwaysDescription: pattern =>
         `Это добавит паттерн «${pattern}» в ваш постоянный список разрешений (~/.hermes/config.yaml). Sbar Rafiq больше не будет спрашивать о подобных командах — ни в этом сеансе, ни в будущем.`,
-      alwaysAllow: 'Всегда разрешать'
+      alwaysAllow: 'Всегда разрешать',
+      reconnect: 'Переподключиться',
+      timedOutSystemLine: 'Время на подтверждение истекло, команда не выполнена. Попросите Sbar Rafiq повторить или увеличьте лимит в Настройки → Безопасность → Тайм-аут подтверждения.',
+      openSafetySettings: 'Открыть настройки безопасности'
     },
     clarify: {
       notReady: 'Запрос уточнения ещё не готов',
@@ -3883,6 +4531,29 @@ export const ru = defineLocale({
       lateAnswerTip: 'Составить этот ответ как продолжение',
       lateAnswerHint: 'Этот промпт больше не ждёт. Выберите вариант, чтобы составить его как сообщение-продолжение.'
     },
+    catalogInstall: {
+      preparing: 'Готовим установку…',
+      install: 'Установить',
+      advanced: 'Дополнительно',
+      skip: 'Пропустить',
+      installing: 'Установка…',
+      installed: 'Установлено',
+      notInstalled: 'Не установлено',
+      failed: 'Ошибка',
+      showNames: 'показать имена',
+      hideNames: 'скрыть имена',
+      skill: name => `навык ${name}`,
+      kind: { plugin: 'плагин', skill: 'навык' },
+      tier: { official: 'официальный', community: 'сообщество' },
+      targetProfile: profile => `Установка в ваш профиль ${profile}`,
+      sendFailed: 'Не удалось отправить ответ. Попробуйте ещё раз.',
+      commitLabel: 'Коммит',
+      subdirLabel: 'Папка',
+      securityHeading: 'Безопасность',
+      scan: { passed: 'Проверка пройдена', warnings: 'Проверка нашла предупреждения', failed: 'Проверка не пройдена' },
+      requirementsLabel: 'Требования',
+      credentialsHeading: 'Учётные данные'
+    },
     mcpSetup: {
       installTitle: 'Добавить MCP-серверы',
       enableTitle: 'Включить MCP-серверы',
@@ -3895,7 +4566,6 @@ export const ru = defineLocale({
       authorized: server => `${server} авторизован`,
       failed: server => `Настройка не удалась для ${server}`,
       toolCount: count => `${count} ${RU_NOUN(count, 'инструмент', 'инструмента', 'инструментов')}`,
-      notInCatalog: server => `«${server}» нет в MCP-каталоге`,
       envRequired: 'Сначала заполните обязательные учётные данные',
       sendFailed: 'Не удалось отправить ответ на настройку MCP',
       reloadFailed: 'Сервер сохранён, но перезагрузка MCP-инструментов не удалась — они загрузятся в следующем сеансе',
@@ -3938,6 +4608,7 @@ export const ru = defineLocale({
       statusRecovered: 'Восстановлено',
       statusDone: 'Готово',
       resultUnavailable: 'Результат недоступен',
+      resultInterrupted: 'Прервано',
       memoryWriteNoted: 'Запись в память отмечена',
       actions: {
         read: 'Чтение',
@@ -3954,7 +4625,7 @@ export const ru = defineLocale({
       },
       prefixes: {
         browser: 'Браузер',
-        web: 'Web'
+        web: 'Веб'
       },
       graft: {
         files: count => `${count} файл(ов)`,
@@ -4046,10 +4717,37 @@ export const ru = defineLocale({
     sudoDesc:
       'Проверьте команду перед вводом пароля sudo. Пароль отправляется агенту, который её выполняет, и кэшируется на время сеанса.',
     sudoCommandUnavailable: 'Агент не предоставил команду. Отмените запрос, если не можете проверить её в разговоре.',
+    sudoInstallDesc:
+      'Hermes нужен ваш пароль sudo, чтобы установить пакеты Bot Screen (TigerVNC + Xfce) на хосте шлюза. Он отправляется только на этот хост.',
     sudoPlaceholder: 'пароль sudo',
     secretTitle: 'Требуется секрет',
     secretDesc: 'Sbar Rafiq нужны учётные данные, чтобы продолжить.',
-    secretPlaceholder: 'значение секрета'
+    secretPlaceholder: 'значение секрета',
+    reconnect: 'Переподключиться',
+    vaultUnlockSendFailed: 'Не удалось отправить мастер-пароль',
+    vaultUnlockPlaceholder: 'Мастер-пароль',
+    vaultUnlockKeepLocked: 'Оставить заблокированным',
+    vaultUnlockConfirm: 'Разблокировать',
+    vaultSaveSendFailed: 'Не удалось сохранить данные входа',
+    vaultSaveIdentifierLabel: 'Эл. почта или имя пользователя',
+    vaultSavePasswordPlaceholder: 'Пароль',
+    vaultSaveFootnote: 'Сохранёнными данными входа можно управлять в Настройки → Пароли и входы.',
+    vaultSaveDecline: 'Не сохранять',
+    vaultSaveConfirm: 'Сохранить и войти',
+    vaultCodeSendFailed: 'Не удалось отправить код',
+    vaultCodeLabel: 'Код',
+    vaultCodeFootnote: 'Совет: сохраните ключ аутентификатора вместе с этими данными входа в Настройки → Пароли и входы, и Sbar Rafiq будет вводить коды за вас.',
+    vaultCodeSkip: 'Пропустить',
+    vaultCodeConfirm: 'Ввести код',
+    vaultUnlockTitle: name => `Разблокировать ${name}`,
+    vaultUnlockDesc: name =>
+      `Агент хочет войти на сайт с данными входа, сохранёнными в ${name}. Введите мастер-пароль, чтобы разблокировать его на эту сессию. Пароль передаётся напрямую в ${name} на этом компьютере, нигде не хранится и не показывается агенту.`,
+    vaultSaveTitle: site => `Сохранить данные входа для ${site}?`,
+    vaultSaveDesc: origin =>
+      `Sbar Rafiq дошёл до страницы входа на ${origin}, но данных входа для неё нет. Введите их здесь один раз: они шифруются на этом компьютере и подставляются на страницу, а модель никогда не видит пароль.`,
+    vaultCodeTitle: site => `Код подтверждения для ${site}`,
+    vaultCodeDesc: site =>
+      `${site} запрашивает одноразовый код (SMS, эл. почта или приложение-аутентификатор). Введите его здесь, и Sbar Rafiq впишет его на страницу; модель его не увидит.`
   },
   desktop: {
     audioReadFailed: 'Не удалось прочитать записанное аудио',
@@ -4130,15 +4828,24 @@ export const ru = defineLocale({
       success: platform => `Передаём в ${platform}. Возобновите здесь в любой момент.`,
       systemNote: platform => `↻ Передано в ${platform} — возобновите здесь в любой момент.`,
       failed: error => `Передача не удалась: ${error}`,
-      timedOut: 'Превышено время ожидания шлюза. Выполняется ли `hermes gateway`?'
-    }
+      timedOut: 'Превышено время ожидания шлюза. Выполняется ли `hermes gateway`?',
+      startMessaging: 'Начать переписку'
+    },
+    readOnlyTranscriptTitle: 'Открыто только для чтения',
+    readOnlyTranscriptBody: 'Ни один подключённый бэкенд пока не взял этот старый чат, поэтому он открыт как стенограмма только для чтения. История цела; отправка отключена, пока бэкенд не возьмёт чат.',
+    readOnlyTranscriptSendBlocked: 'Этот чат открыт как стенограмма только для чтения, отправка отключена.',
+    pastedContent: 'Вставленное содержимое',
+    pasteAttachFailed: 'Не удалось прикрепить вставленный текст',
+    hydrationSyncing: (profile: string) => `Синхронизация ${profile}\u2026`
   },
   errors: {
     genericFailure: 'Что-то пошло не так',
     boundaryTitle: 'Что-то сломалось в интерфейсе',
     boundaryDesc: 'Вид столкнулся с неожиданной ошибкой. Ваши чаты и настройки в безопасности.',
     reloadWindow: 'Перезагрузить окно',
-    openLogs: 'Открыть журналы'
+    openLogs: 'Открыть журналы',
+    boundaryDetails: 'Подробности',
+    sendDiagnostics: 'Отправить диагностику'
   },
 
   ui: {
@@ -4157,5 +4864,375 @@ export const ru = defineLocale({
       description: 'Показывает мобильную боковую панель.',
       toggle: open => `${open ? 'Показать' : 'Скрыть'} боковую панель`
     }
+  },
+  connectorsPage: {
+    title: 'Коннекторы',
+    filterCategory: 'Категория',
+    categoryAll: 'Все категории',
+    uncategorised: 'Без категории',
+    residencyLocal: 'На этом устройстве',
+    segment: {
+      all: 'Все',
+      available: 'Доступные',
+      connected: 'Подключённые',
+      off: 'Выключенные'
+    },
+    group: {
+      connected: 'Подключённые',
+      connectedNote: 'Сначала сломанные подключения.',
+      available: 'Доступные',
+      off: 'Выключенные',
+      offNote: 'Входы в аккаунты сохраняются.'
+    },
+    card: {
+      kindManaged: 'Управляемый',
+      kindCatalog: 'MCP · Каталог',
+      kindCustom: 'MCP · Свой',
+      inCatalog: 'В каталоге Sbar Rafiq',
+      hostedTwin: 'Доступна управляемая версия',
+      alsoLocal: 'Также работает на этом устройстве',
+      state: {
+        accessExpired: 'Доступ истёк',
+        available: 'Доступно',
+        connected: 'Подключено',
+        connecting: 'Подключение',
+        connectionUnknown: 'Состояние неизвестно',
+        couldNotConnect: 'Не удалось подключиться',
+        offByYourOrganisation: 'Выключено вашей организацией',
+        offForYou: 'Выключено для вас',
+        serverConnecting: 'Подключение…',
+        serverError: 'Ошибка',
+        serverNeedsAuth: 'Нужна аутентификация',
+        serverOff: 'Выкл.',
+        serverOn: 'Вкл.',
+        serverOnUnused: 'Вкл., не используется'
+      },
+      verb: {
+        authenticate: 'Войти',
+        connect: 'Подключить',
+        install: 'Установить',
+        openLogs: 'Открыть журналы',
+        reconnect: 'Переподключить',
+        stopWaiting: 'Перестать ждать',
+        tryAgain: 'Повторить',
+        turnBackOn: 'Снова включить'
+      },
+      reason: {
+        finishSignIn: 'Завершите вход в браузере.',
+        reconnect: 'Переподключитесь, чтобы приложение продолжало работать.',
+        serverError: 'Сервер отклонил подключение.',
+        serverNeedsAuth: 'Войдите, чтобы этот сервер мог отвечать.'
+      },
+      kindPlugin: (plugin: string) => `MCP · Плагин ${plugin}`,
+      open: (name: string) => `Открыть ${name}`,
+      turnServerOn: (name: string) => `Включить ${name}`,
+      turnServerOff: (name: string) => `Выключить ${name}`,
+      fact: {
+        tools: (count: number) => `${count} ${RU_PLURAL(count, 'инструмент', 'инструмента', 'инструментов')}`,
+        toolsOff: (count: number) => `${count} ${RU_PLURAL(count, 'инструмент выключен', 'инструмента выключено', 'инструментов выключено')}`,
+        toolsOn: (count: number) => `${count} ${RU_PLURAL(count, 'инструмент включён', 'инструмента включено', 'инструментов включено')}`,
+        toolsSomeOn: (total: number, on: number) => `${total} ${RU_PLURAL(total, 'инструмент', 'инструмента', 'инструментов')}, включено ${on}`
+      }
+    },
+    page: {
+      loading: 'Читаем каталог и серверы на этом компьютере',
+      emptyTitle: 'Здесь пока нет приложений. Добавьте сервер на этом компьютере, чтобы начать.',
+      noMatchTitle: 'Подходящих приложений нет',
+      noMatchBody: 'Ничего не найдено. Укажите Sbar Rafiq свой MCP-сервер, чтобы добавить его.',
+      clearSearch: 'Очистить поиск',
+      hostedFailedTitle: 'Не удалось связаться с облачными приложениями.',
+      hostedFailedBody: 'Серверы на этом компьютере не затронуты и продолжают работать. Ничего не было выключено.',
+      retry: 'Повторить',
+      showAllMatches: 'Показать все совпадения',
+      freeTierNote: 'Подключения остаются на этом компьютере, пока вы не войдёте.',
+      signInLine: 'Войдите в Nous, чтобы пользоваться управляемыми приложениями.',
+      signIn: 'Войти',
+      managedUnavailable: 'Управляемые приложения пока недоступны для этого аккаунта.',
+      writeFailed: 'Это изменение не сохранено.',
+      refreshFailed: 'Список инструментов не обновлён.',
+      disconnectNoAccount: 'У Sbar Rafiq нет аккаунта, который можно здесь отключить. Обновите страницу и попробуйте снова.',
+      disconnectRefused: 'Nous сейчас не может удалить этот вход. Выключите приложение переключателем или попробуйте позже.',
+      matchesElsewhere: (count: number) => `Ещё ${count} ${RU_PLURAL(count, 'совпадение', 'совпадения', 'совпадений')} в других группах.`,
+      segmentNoMatch: (segment: string) => `В разделе «${segment}» совпадений нет, поэтому показаны все совпадения.`
+    },
+    add: {
+      action: 'Добавить свой',
+      title: 'Подключить свой MCP',
+      hint: 'одна новая запись в mcp.json на этом устройстве',
+      pasteLabel: 'Вставьте команду или фрагмент',
+      pastePlaceholder: 'npx -y @modelcontextprotocol/server-filesystem /path/to/dir',
+      pasteNoMatch: 'Здесь не удалось распознать сервер. Заполните поля ниже.',
+      name: 'Имя',
+      nameTaken: 'Это имя уже занято.',
+      type: 'Тип',
+      typeStdio: 'STDIO',
+      typeHttp: 'Streamable HTTP',
+      command: 'Команда запуска',
+      args: 'Аргументы',
+      addArg: '+ Добавить аргумент',
+      envVars: 'Переменные окружения',
+      addEnvVar: '+ Добавить переменную окружения',
+      passthrough: 'Проброс переменных окружения',
+      addPassthrough: '+ Добавить переменную',
+      cwd: 'Рабочий каталог',
+      url: 'URL',
+      headers: 'Заголовки',
+      addHeader: '+ Добавить заголовок',
+      auth: 'Аутентификация',
+      authNone: 'Нет',
+      authOauth: 'OAuth',
+      authBearer: 'Bearer-токен',
+      keyPlaceholder: 'КЛЮЧ',
+      valuePlaceholder: 'значение',
+      removeRow: 'Удалить эту строку',
+      editJson: 'Редактировать mcp.json',
+      saveFailed: 'Сервер не сохранён.'
+    },
+    dialog: {
+      disconnect: 'Отключить',
+      disconnectBody: 'Sbar Rafiq перестанет действовать от имени этого аккаунта. Подключиться снова можно в любой момент.',
+      menuRefreshTools: 'Обновить инструменты',
+      moreActions: 'Другие действия',
+      removeServerBody: 'Запись будет удалена из mcp.json на этом компьютере. Больше ничего не удаляется.',
+      wayHosted: 'Управляемый',
+      turnOffLocal: 'Выключить локальный сервер',
+      openPlugins: 'Открыть вкладку «Плагины»',
+      nousLine: 'Приложения Nous привязаны к вашему аккаунту, а не к профилю.',
+      rulesReadOnly: 'Правила сейчас нельзя изменить.',
+      rulesSignIn: 'Войдите, чтобы изменить, что Sbar Rafiq может здесь делать.',
+      orgLink: 'Открыть управление коннекторами',
+      connectEnded: 'Вход не был завершён.',
+      connectOpenAgain: 'Открыть ссылку снова',
+      tokensPerCall: 'токенов за вызов',
+      usesPerMonth: 'использований за 30 дней',
+      advanced: 'Дополнительно',
+      advancedHint: 'запись в mcp.json и журналы',
+      disconnectTitle: (name: string) => `Отключить ${name}?`,
+      removeServerTitle: (name: string) => `Удалить ${name}?`,
+      appSwitch: (name: string) => `Sbar Rafiq может использовать ${name}`,
+      waysTitle: (name: string) => `Где работает ${name}`,
+      wayNotConnected: (name: string) => `Ещё не подключено. Войдите в ${name} в браузере.`,
+      bothOn: (name: string) => `Включены оба, поэтому Sbar Rafiq видит каждый инструмент ${name} дважды.`,
+      providedByPlugin: (plugin: string) => `Предоставлено плагином ${plugin}`,
+      rulesAppOff: (name: string) => `Включите ${name}, чтобы изменить его инструменты.`,
+      orgNote: (count: number) => `Ваша организация выключила ${count} ${RU_NOUN(count, 'инструмент', 'инструмента', 'инструментов')}.`
+    },
+    tools: {
+      title: 'Инструменты',
+      notInstalledBody: 'Установите его на этом устройстве, чтобы увидеть его инструменты.',
+      summaryAllTools: 'Все инструменты',
+      summaryOther: 'Прочее',
+      allToolsSwitch: 'Включить или выключить все инструменты',
+      summaryAllOn: 'все включены',
+      summaryOff: 'выкл.',
+      showSummary: 'Показать сводку',
+      staleSignIn: 'Войдите, чтобы получить актуальный список инструментов.',
+      quickReadOnly: 'Только чтение',
+      quickNoDestructive: 'Выключить разрушающие',
+      quickEverythingOn: 'Всё включено',
+      lockedHint: 'выключено вашей организацией',
+      noMatch: 'Под эти фильтры не подходит ни один инструмент.',
+      loading: 'Читаем список инструментов',
+      unavailableLine: 'Список инструментов недоступен.',
+      needsAuthBody: 'Вход остаётся на этом компьютере. Ничего не покидает его.',
+      retry: 'Повторить',
+      goneBody: 'Sbar Rafiq больше не может его вызывать. Строка останется, пока вы её не удалите, чтобы ничего не исчезало.',
+      remove: 'Удалить',
+      offBody: 'Включите его переключателем выше, чтобы увидеть его инструменты.',
+      signedOutTitle: 'Войдите в Nous, чтобы увидеть список инструментов.',
+      signedOutBody: 'Ваши серверы на этом компьютере не затронуты.',
+      conflictTitle: 'Кто-то изменил это правило, пока вы его редактировали.',
+      conflictReload: 'Загрузить их версию',
+      conflictSave: 'Сохранить поверх их версии',
+      saveFailed: 'Правила инструментов не сохранены.',
+      discard: 'Отменить',
+      save: 'Сохранить изменения',
+      saving: 'Сохранение...',
+      summaryTitle: (name: string) => `Что Sbar Rafiq может делать с ${name}`,
+      summaryPreviewTitle: (name: string) => `Что Sbar Rafiq сможет делать с ${name} после подключения`,
+      summaryCount: (count: number) => `${count} ${RU_PLURAL(count, 'инструмент', 'инструмента', 'инструментов')}`,
+      summarySomeOn: (on: number, total: number) => `Включено ${on} из ${total}`,
+      showAllTools: (count: number) => `Показать все инструменты (${count})`,
+      facetSwitch: (facet: string) => `Включить или выключить инструменты категории «${facet}»`,
+      moreHints: (count: number) => `+${count}`,
+      searchCountPlaceholder: (count: number) => `Поиск среди ${count} ${RU_NOUN(count, 'инструмента', 'инструментов', 'инструментов')}`,
+      toolList: (name: string) => `Инструменты ${name}`,
+      categorySelect: (count: number) => `${count} ${RU_PLURAL(count, 'категория', 'категории', 'категорий')}`,
+      showDeprecated: (count: number) => `Показать устаревшие (${count})`,
+      hideDeprecated: (count: number) => `Скрыть устаревшие (${count})`,
+      turnToolOn: (tool: string) => `Включить ${tool}`,
+      turnToolOff: (tool: string) => `Выключить ${tool}`,
+      showDetails: (tool: string) => `Показать, что делает ${tool}`,
+      hideDetails: (tool: string) => `Скрыть, что делает ${tool}`,
+      needsAuthTitle: (name: string) => `Войдите в ${name}, чтобы увидеть его инструменты.`,
+      goneTitle: (name: string) => `${name} удалён из каталога.`,
+      offTitle: (name: string) => `${name} выключен.`,
+      conflictBody: (theyOff: number, theyOn: number) => {
+        const they = [
+          theyOff > 0 ? `выключил ${theyOff} ${RU_NOUN(theyOff, 'инструмент', 'инструмента', 'инструментов')}, которые у вас включены` : '',
+          theyOn > 0 ? `оставил включёнными ${theyOn} ${RU_NOUN(theyOn, 'инструмент', 'инструмента', 'инструментов')}, которые вы выключили` : ''
+        ].filter(Boolean)
+
+        return `${they.length > 0 ? `Другой пользователь ${they.join(' и ')}. ` : ''}Ваши правки остаются на экране, ничего не записано.`
+      },
+      footerDirty: (off: number, backOn: number) =>
+        `Выключено: ${off}, снова включено: ${backOn === 0 ? 'ни одного' : backOn}`
+    },
+    vocabulary: {
+      facetRead: {
+        label: 'Чтение',
+        long: 'Читает данные из этого приложения. Ничего не меняет.'
+      },
+      facetWrite: {
+        label: 'Запись',
+        long: 'Создаёт или изменяет что-то в этом приложении.'
+      },
+      facetDestructive: {
+        label: 'Разрушающее',
+        long: 'Может безвозвратно удалить что-то в этом приложении.'
+      },
+      facetUnclassified: {
+        label: 'Неизвестное действие',
+        long: 'Приложение не сообщило, что делает этот инструмент.'
+      },
+      hintReadOnly: {
+        label: 'Только чтение',
+        long: 'Инструмент заявляет, что только читает.'
+      },
+      hintCreate: {
+        label: 'Создаёт',
+        long: 'Создаёт что-то новое.'
+      },
+      hintUpdate: {
+        label: 'Изменяет',
+        long: 'Изменяет что-то уже существующее.'
+      },
+      hintDelete: {
+        label: 'Удаляет',
+        long: 'Удаляет что-то.'
+      },
+      hintDestructive: {
+        label: 'Разрушающее',
+        long: 'Сделанное им изменение здесь нельзя отменить.'
+      },
+      hintIdempotent: {
+        label: 'Повторяемое',
+        long: 'Два запуска дают тот же результат, что и один.'
+      },
+      hintOpenWorld: {
+        label: 'Внешнее',
+        long: 'Обращается к чему-то за пределами этого приложения.'
+      }
+    },
+    searchPlaceholder: (count: number) => `Поиск среди ${count} ${RU_NOUN(count, 'приложения', 'приложений', 'приложений')}`
+  },
+  freeTier: {
+    providerRowTitle: 'Nous · бесплатный тариф',
+    providerRowPitch: 'Войдите с аккаунтом Nous, чтобы открыть больше моделей и инструментов.',
+    readyTitle: 'Sbar Rafiq готов.',
+    readyCaption: 'Бесплатно · коннекторы включены',
+    begin: 'Начать',
+    signInInstead: 'Войти с аккаунтом Nous',
+    otherProviders: 'Другие провайдеры',
+    stripTitle: 'Теперь доступны бесплатный инференс Nous и коннекторы.',
+    stripBody: 'Откройте выбор модели, чтобы попробовать их, или войдите с аккаунтом Nous.',
+    openModelPicker: 'Открыть выбор модели',
+    dismiss: 'Скрыть',
+    signIn: 'Войти',
+    signInHeading: 'Войдите с аккаунтом Nous, чтобы открыть больше моделей и инструментов.',
+    settingUp: 'Настраиваем бесплатный инференс…',
+    codeBody: 'Введите этот код в браузере, чтобы завершить вход.',
+    copyLink: 'Копировать ссылку',
+    doNotShare: 'Никому не сообщайте этот код.',
+    waiting: 'Ожидание входа…',
+    finishingHeading: 'Завершаем вход…',
+    finishingBody: 'Подтверждено в браузере. Получаем токены вашего аккаунта.',
+    signedIn: 'Вход выполнен.',
+    completedBody: 'Теперь ваш аккаунт даёт доступ к инференсу и инструментам.',
+    defaultModel: 'Модель по умолчанию',
+    change: 'Изменить',
+    done: 'Готово',
+    notNow: 'Не сейчас',
+    tryAgain: 'Повторить',
+    startAgain: 'Начать заново',
+    didNotComplete: 'Вход не завершён',
+    rejectedBody: 'Ничего страшного, вы по-прежнему пользуетесь бесплатным сервисом Nous. Войдите, когда будете готовы.',
+    supersededBody: 'Этот код входа заменён более новым. Используйте самый новый или начните заново.',
+    timedOutHeading: 'Срок действия ссылки для входа истёк',
+    timedOutBody: 'Начните заново, когда будете готовы. Вы по-прежнему пользуетесь бесплатным сервисом Nous.',
+    retiredBody: 'Ваша сессия завершилась до окончания входа. Sbar Rafiq начнёт новую, после чего войдите снова, когда будете готовы.',
+    errorBody: 'Вход не завершён. Повторите попытку, когда будете готовы.',
+    busyHeading: 'Почти готово',
+    unreachableBody: 'Sbar Rafiq не удалось связаться с сервисом Nous, чтобы завершить вход. Проверьте подключение к интернету и повторите попытку. Ваша сессия сохранена.',
+    alreadySignedInHeading: 'Вход уже выполнен.',
+    alreadySignedInBody: 'Этот Sbar Rafiq уже вошёл в аккаунт Nous.',
+    setupFailed: {
+      gateClosed: 'Эта версия Sbar Rafiq не запускается без аккаунта Nous. Войдите или создайте аккаунт, это бесплатно и займёт минуту.',
+      paused: 'Использование Sbar Rafiq без входа ненадолго приостановлено. Sbar Rafiq продолжит проверять. Вход бесплатный и позволит начать прямо сейчас.',
+      unreachable: 'Sbar Rafiq не удалось связаться с сервисом Nous. Проверьте подключение к интернету и нажмите «Повторить». Или пока подключите другого провайдера.',
+      serverError: 'В сервисе Nous произошёл сбой. Нажмите «Повторить» чуть позже или пока подключите другого провайдера.',
+      powRequired: 'Сервер Nous запросил доказательство работы (proof of work), но в вашем агенте это пока не реализовано. Войдите или создайте бесплатный аккаунт Nous, чтобы продолжить.',
+      locked: 'Эту сессию нельзя продолжить без входа. Войдите или создайте бесплатный аккаунт Nous, чтобы продолжить.',
+      generic: 'Sbar Rafiq не удалось настроить бесплатный доступ без входа. Вход бесплатный, или подключите другого провайдера.',
+      signInBelow: 'Вход бесплатный. Выберите Nous ниже.',
+      tryAgain: 'Повторить',
+      retrying: 'Повторяем…',
+      rateLimited: wait =>
+        `Сейчас начинают работу очень многие, поэтому Sbar Rafiq повторит попытку через ${wait}. Вход бесплатный и позволяет не ждать.`
+    },
+    statusLabel: model => `Nous · ${model}`,
+    signedInAs: email => `Вход выполнен как ${email}`,
+    busyBody: wait =>
+      `Sbar Rafiq не удалось завершить вход, потому что сервис Nous перегружен. Повторите через ${wait}. Ваша сессия пока сохранена.`
+  },
+  connectors: {
+    title: 'Подключите свои приложения',
+    connect: 'Подключить',
+    skip: 'Не сейчас',
+    cancel: 'Перестать ждать',
+    retry: 'Повторить',
+    grant: 'Переподключить',
+    connected: 'Подключено',
+    checking: 'Проверяем ваши приложения…',
+    notConnected: 'Не подключено',
+    skipped: 'Пропущено',
+    disabled: 'Недоступно',
+    failed: 'Не удалось подключиться',
+    needsAuth: 'Доступ истёк',
+    opening: 'Открываем вход…',
+    waiting: 'Ожидаем ваш браузер…',
+    timeout: 'Всё ещё ждём авторизации.',
+    refresh: 'Обновить статус',
+    connectError: 'Не удалось начать авторизацию. Повторите попытку.',
+    unavailable: 'Коннекторы недоступны для этой сессии.',
+    ownerMissing: 'Откройте этот разговор заново, чтобы управлять его подключениями.',
+    search: 'Найти приложение',
+    empty: 'Подходящих приложений нет',
+    disclaimer: 'Подключение необязательно. Авторизуйте только те приложения, которыми Sbar Rafiq должен пользоваться.',
+    execution: 'Инструменты коннекторов',
+    openInBrowser: 'Открыть в браузере',
+    setupCancel: 'Отмена',
+    authorizedToolsUnavailable: 'Авторизовано. Инструменты недоступны.',
+    required: 'Обязательно',
+    connectErrorFor: (app: string) => `Не удалось начать авторизацию для ${app}.`,
+    setup: server => `Настроить ${server}`
+  },
+  sendDiagnostics: {
+    title: 'Отправить диагностику в Nous',
+    privacyNotice: 'Будет загружен отладочный пакет во внутреннее хранилище Nous (не публичная вставка). Он содержит сведения о системе (ОС, версии, провайдер, какие API-ключи настроены, но никогда сами ключи) и полные журналы агента, шлюза и приложения (до 512 КБ каждый), которые, скорее всего, содержат содержимое разговоров, результаты инструментов и пути к файлам. Секреты удаляются перед загрузкой. Пакет доступен только сотрудникам Nous и разрешённым модераторам Discord и автоматически удаляется через 14 дней.',
+    upload: 'Загрузить',
+    uploading: 'Загрузка…',
+    cancel: 'Отмена',
+    close: 'Закрыть',
+    copyLink: 'Копировать ссылку',
+    doneTitle: 'Диагностика отправлена',
+    doneDescription: 'Ваш пакет загружен приватно. Поделитесь ссылкой ниже в своей теме поддержки, чтобы команда могла посмотреть журналы.',
+    failedTitle: 'Загрузка не удалась',
+    failedHint: 'Также можно выполнить `hermes debug share --nous` в терминале или `hermes debug share --local`, чтобы вывести отчёт без загрузки.',
+    handoffLead: 'Продолжите обсуждение в:',
+    links: {
+      portal: 'Поддержка Nous Portal'
+    },
+    uploadIdFallback: id => `Ссылка для просмотра не получена. Сообщите в поддержку ID загрузки ${id}`
   }
 })

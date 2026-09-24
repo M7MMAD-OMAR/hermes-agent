@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
+import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n/context'
 import {
   customViewport,
@@ -59,33 +60,34 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-3 py-2 text-xs">
-      <button
-        className={cn(
-          'rounded px-2 py-1 font-medium transition-colors',
-          viewport ? 'bg-muted hover:bg-muted/70' : 'bg-primary text-primary-foreground'
-        )}
-        onClick={() => onChange(null)}
-        title={copy.fitTitle}
-        type="button"
-      >
-        {copy.fit}
-      </button>
-
-      {VIEWPORT_PRESETS.map(preset => (
+      <Tip label={copy.fitTitle}>
         <button
           className={cn(
-            'rounded px-2 py-1 transition-colors',
-            viewport?.id === preset.id && viewport.width === preset.width
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted hover:bg-muted/70'
+            'rounded px-2 py-1 font-medium transition-colors',
+            viewport ? 'bg-muted hover:bg-muted/70' : 'bg-primary text-primary-foreground'
           )}
-          key={preset.id}
-          onClick={() => onChange(preset)}
-          title={`${preset.width}×${preset.height}${preset.mobile ? ` · ${copy.mobile}` : ''}`}
+          onClick={() => onChange(null)}
           type="button"
         >
-          {preset.label}
+          {copy.fit}
         </button>
+      </Tip>
+
+      {VIEWPORT_PRESETS.map(preset => (
+        <Tip key={preset.id} label={`${preset.width}×${preset.height}${preset.mobile ? ` · ${copy.mobile}` : ''}`}>
+          <button
+            className={cn(
+              'rounded px-2 py-1 transition-colors',
+              viewport?.id === preset.id && viewport.width === preset.width
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted hover:bg-muted/70'
+            )}
+            onClick={() => onChange(preset)}
+            type="button"
+          >
+            {preset.label}
+          </button>
+        </Tip>
       ))}
 
       <div className="ms-auto flex items-center gap-1">
@@ -119,16 +121,17 @@ export function PreviewViewportBar({ onChange, open, scale, viewport }: PreviewV
           placeholder="h"
           value={height}
         />
-        <button
-          aria-label={copy.rotate}
-          className="rounded px-1.5 py-1 hover:bg-muted disabled:opacity-40"
-          disabled={!viewport}
-          onClick={() => viewport && onChange(rotateViewport(viewport))}
-          title={copy.rotateTitle}
-          type="button"
-        >
-          <Codicon name="screen-normal" size="0.8125rem" />
-        </button>
+        <Tip label={copy.rotateTitle}>
+          <button
+            aria-label={copy.rotate}
+            className="rounded px-1.5 py-1 hover:bg-muted disabled:opacity-40"
+            disabled={!viewport}
+            onClick={() => viewport && onChange(rotateViewport(viewport))}
+            type="button"
+          >
+            <Codicon name="screen-normal" size="0.8125rem" />
+          </button>
+        </Tip>
       </div>
 
       {viewport && (

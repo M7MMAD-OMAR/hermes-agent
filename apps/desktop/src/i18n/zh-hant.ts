@@ -1,47 +1,10 @@
 import { defineFieldCopy } from '@/app/settings/field-copy'
 
 import { defineLocale } from './define-locale'
+import { introZhHant } from './intro-zh-hant'
 
 export const zhHant = defineLocale({
-  catalog: {
-    listView: '清單檢視',
-    cardView: '卡片檢視',
-    installTitle: (name: string) => `安裝「${name}」？`,
-    installDescription: '此技能將於新的工作階段中可用。請僅安裝可信來源的內容。',
-    installTo: '安裝至',
-    thisComputer: '這部電腦',
-    installing: '正在安裝…',
-    installComplete: (name: string) => `已安裝「${name}」`,
-    destinationChanged: '安裝目標已變更。請關閉此對話框並重新開啟安裝連結。',
-    browse: '瀏覽',
-    installed: '已安裝',
-    searchSkills: '搜尋技能',
-    searchPlugins: '搜尋外掛',
-    allSources: '所有來源',
-    allCategories: '所有分類',
-    about: '簡介',
-    author: '作者',
-    source: '來源',
-    category: '分類',
-    version: '版本',
-    platforms: '支援的平台',
-    requires: '相依項目',
-    tools: '工具',
-    hooks: '掛鉤',
-    repository: '程式碼儲存庫',
-    documentation: '文件',
-    noResults: '沒有符合的項目',
-    tryAnother: '請嘗試其他搜尋或清除篩選條件。',
-    clearFilters: '清除篩選條件',
-    loadFailed: '無法載入目錄',
-    retry: '再試一次',
-    more: '顯示更多',
-    pinned: '已審核的提交',
-    snapshotHint: '內容來自 Sbar Rafiq 目錄。瀏覽時不會連線至來源程式碼儲存庫。',
-    installHint: '安裝前請檢查原始碼。變更將於新的工作階段生效。',
-    results: (count: number) => `${count.toLocaleString('zh-Hant')} 個結果`,
-    back: '返回結果'
-  },
+  intro: introZhHant,
   sessionImport: {
     title: '從其他應用程式繼續',
     subtitle: '將對話匯入 Sbar Rafiq，接著上次的進度繼續。',
@@ -90,6 +53,7 @@ export const zhHant = defineLocale({
     connect: '連線',
     connecting: '連線中',
     continue: '繼續',
+    bots: '機器人',
     copied: '已複製',
     copy: '複製',
     copyFailed: '複製失敗',
@@ -133,7 +97,9 @@ export const zhHant = defineLocale({
     renameLabel: '新名稱',
     deleteTitle: name => `刪除 ${name}？`,
     deleteBody: '將移至垃圾桶，你可以從那裡還原。',
-    pathCopied: '已複製路徑'
+    pathCopied: '已複製路徑',
+    revealMissing: '該資料夾不在這台電腦上',
+    revealUnavailable: '該路徑不在這部電腦上，而是位於後端機器。請使用「在檔案樹中顯示」。'
   },
 
   boot: {
@@ -156,7 +122,13 @@ export const zhHant = defineLocale({
       gatewayConnectionLostDetail:
         'Still retrying in the background. You can keep reading and drafting — open Gateway settings if this persists.',
       gatewaySignInRequired: '需要閘道登入',
-      ipcBridgeUnavailable: '桌面 IPC 橋接器不可用。'
+      ipcBridgeUnavailable: '桌面 IPC 橋接器不可用。',
+      restartHermes: '重新啟動 Hermes',
+      openLogs: '開啟記錄',
+      reconnectNow: '立即重新連線',
+      connectionSettings: '連線設定',
+      gatewaySignInRequiredDetail: '重新登入即可重新連線。你的聊天和設定都安全無虞。',
+      signInAgain: '重新登入'
     },
     failure: {
       title: 'Sbar Rafiq 無法啟動',
@@ -189,7 +161,16 @@ export const zhHant = defineLocale({
       signInFailed: '登入失敗',
       signInToRemoteGateway: '登入遠端閘道',
       signInWithProvider: provider => `使用 ${provider} 登入`,
-      identityProvider: '您的身分提供方'
+      identityProvider: '您的身分提供方',
+      details: '詳細資料'
+    },
+    causes: {
+      exitedEarly: 'Hermes 的背景服務在啟動後立即停止。',
+      timedOut: 'Hermes 的背景服務未及時回應。',
+      permission: 'Hermes 無法寫入其資料資料夾（權限問題）。',
+      diskFull: '磁碟已滿，因此 Hermes 無法啟動。',
+      portInUse: '另一個程式正在使用 Hermes 需要的網路連接埠。',
+      installMissing: 'Hermes 的部分安裝檔案遺失。請選擇「修復安裝」將其還原。'
     }
   },
 
@@ -232,7 +213,10 @@ export const zhHant = defineLocale({
       microphonePermission: '麥克風權限已被拒絕。',
       openaiRejectedApiKey: 'OpenAI 拒絕了該 API 金鑰。',
       openaiTtsNeedsKey: 'OpenAI TTS 需要 VOICE_TOOLS_OPENAI_KEY 或 OPENAI_API_KEY。',
-      codeSkewRestartRequired: '更新後此後端仍在執行舊程式碼。請重新啟動以載入新程式碼。'
+      codeSkewRestartRequired: '更新後此後端仍在執行舊程式碼。請重新啟動以載入新程式碼。',
+      storageFailure: 'Hermes 無法儲存到其資料資料夾。請開啟「維護」進行檢查和修復。',
+      rpcOutOfSync: '應用程式與後端的版本不同。請同時更新兩者。',
+      restartHermesFailed: '無法重新啟動 Hermes'
     },
     voice: {
       configureSpeechToText: '設定語音轉文字後即可使用語音模式。',
@@ -252,13 +236,21 @@ export const zhHant = defineLocale({
       transcriptionFailed: '語音轉寫失敗',
       transcriptionUnavailable: '語音轉寫暫不可用。',
       tryRecordingAgain: '請再錄製一次。',
-      unavailable: '語音不可用'
+      unavailable: '語音不可用',
+      liveEnded: '即時語音工作階段已結束',
+      liveEndedConnectionLost: '即時語音工作階段的連線已中斷。',
+      liveEndedClosed: '即時語音工作階段已被服務端關閉。',
+      liveError: '即時語音',
+      liveDelegationFailed: '無法將請求轉交給 Sbar Rafiq',
+      liveUnavailable: reason => `無法使用 GPT-Live 語音聊天：${reason}。改用語音轉文字。`
     },
     native: {
       approvalTitle: '需要核准',
+      approvalTitleNamed: session => `需要核准 — ${session}`,
       approveAction: '核准',
       rejectAction: '拒絕',
       inputTitle: '需要輸入',
+      inputTitleNamed: session => `需要輸入 — ${session}`,
       inputBody: 'Sbar Rafiq 正在等待你的回應。',
       turnDoneTitle: 'Sbar Rafiq 已完成',
       turnDoneBody: '',
@@ -266,6 +258,12 @@ export const zhHant = defineLocale({
       backgroundDoneTitle: '背景工作已完成',
       backgroundFailedTitle: '背景工作失敗',
       creditsTitle: '額度'
+    },
+    actions: {
+      restartHermes: '重新啟動 Hermes',
+      openKeys: '開啟「金鑰」',
+      openGateways: '開啟「閘道」',
+      openMaintenance: '開啟「維護」'
     }
   },
 
@@ -341,11 +339,67 @@ export const zhHant = defineLocale({
   },
 
   settings: {
+    subpages: {
+      appearanceTheme: '主題',
+      appearanceTypography: '字體與縮放',
+      appearanceWindowLayout: '視窗與佈局',
+      appearanceChatDisplay: '聊天顯示',
+      appearancePet: '寵物',
+      appearanceGeneral: '一般',
+      modelMain: '主要模型',
+      modelAuxiliary: '輔助模型',
+      modelMoa: '多代理協作',
+      modelFallbacks: '備用模型',
+      chatBehavior: '行為',
+      chatAttachments: '附件',
+      workspaceProjects: '專案與探索',
+      workspaceShell: 'Shell 環境',
+      workspaceFiles: '檔案與執行',
+      safetyApprovals: '核准',
+      safetyPrivacy: '隱私與網路',
+      safetyCheckpoints: '檢查點',
+      browserProfile: '瀏覽器設定檔',
+      browserNetwork: '本機與私人網址',
+      memoryPersistent: '持久記憶',
+      memoryContext: '上下文與壓縮',
+      voiceConversation: '語音對話',
+      voiceTranscription: '語音轉文字',
+      voiceSpeech: '文字轉語音',
+      advancedRuntime: '代理限制',
+      advancedTools: '工具存取',
+      advancedTerminal: '終端後端',
+      advancedOutput: '輸出限制',
+      advancedDelegation: '子代理',
+      advancedDesktop: '桌面與啟動',
+      gatewayConnection: '目前視窗',
+      gatewayDevices: '已儲存的連線',
+      gatewayManagedUpdates: '遠端更新',
+      gatewayManagedUpdatesUnavailable: '遠端更新需要支援受管理 SSH 更新的桌面版本。',
+      gatewayManagedUpdatesEmpty: '請在已儲存的連線中新增 SSH 連線，即可在此管理更新。',
+      keyboardShortcuts: '按鍵繫結',
+      hudGesture: 'HUD 手勢',
+      screenCapture: '螢幕擷取',
+      notificationAlerts: '桌面通知',
+      notificationSounds: '聲音',
+      archivedSessions: '封存與保留',
+      defaultDirectory: '預設專案資料夾',
+      vaultCredentials: '已儲存的憑證',
+      vaultSources: '密碼管理員',
+      appUpdates: '版本與更新',
+      uninstall: '解除安裝',
+      billingOverview: '概覽',
+      billingPlans: '方案'
+    },
     plugins: {
+      openFolder: '開啟桌面外掛資料夾',
       installModal: {
         installFromGit: '從 Git 安裝',
         reviewRepository: '檢查儲存庫',
-        repoPlaceholder: 'https://github.com/owner/repo'
+        repoPlaceholder: 'https://github.com/owner/repo',
+        toolsConnected: n => `已連線 ${n} 個工具`,
+        skillsReady: names => (names.length === 1 ? `技能 ${names[0]} 已就緒` : `${names.length} 個技能已就緒`),
+        nextChat: '更多工具將在下一次聊天中可用',
+        serverNotConnected: (server, reason) => `MCP 伺服器 ${server} 未連線${reason ? `：${reason}` : '。'}`
       }
     },
     closeSettings: '關閉設定',
@@ -522,6 +576,10 @@ export const zhHant = defineLocale({
       colorModeDesc: '選擇固定模式，或讓 Sbar Rafiq 跟隨系統設定。',
       toolViewTitle: '工具呼叫顯示',
       toolViewDesc: '產品模式會隱藏原始工具 payload；技術模式會顯示完整輸入/輸出。',
+      hideCodeDiffsTitle: '隱藏程式碼差異',
+      hideCodeDiffsDesc: '將檔案編輯顯示為附有新增和刪除行數的行內工具列，不顯示程式碼。',
+      hideThreadTimelineTitle: '隱藏對話時間軸列',
+      hideThreadTimelineDesc: '隱藏每個對話右側邊緣的導覽列。',
       reasoningCollapsedTitle: '預設摺疊推理過程',
       reasoningCollapsedDesc: '保留串流推理內容，但在您開啟前維持摺疊。',
       uiScaleTitle: '介面縮放',
@@ -656,7 +714,8 @@ export const zhHant = defineLocale({
     },
     fieldLabels: defineFieldCopy({
       model: '預設模型',
-      modelContextLength: '上下文視窗',
+      modelContextLength:
+        '僅覆寫主聊天模型偵測到的上下文視窗（以 token 計）。保留 0 會使用所選模型偵測到的值。不影響輔助模型/MoA 模型。',
       fallbackProviders: '備用模型',
       toolsets: '已啟用工具集',
       timezone: '時區',
@@ -816,6 +875,11 @@ export const zhHant = defineLocale({
         targetRatio: '壓縮目標',
         protectLastN: '保護最近訊息'
       },
+      auxiliary: {
+        compression: {
+          timeout: '壓縮模型逾時（秒）'
+        }
+      },
       delegation: {
         model: '子代理模型',
         provider: '子代理提供方',
@@ -880,6 +944,11 @@ export const zhHant = defineLocale({
         enabled: '對話變大時摘要較早的上下文。',
         codexGpt55Autoraise: '為支援的 ChatGPT Codex OAuth 模型將壓縮閾值提高到 85%。'
       },
+      auxiliary: {
+        compression: {
+          timeout: '每次呼叫輔助壓縮模型的等待秒數（預設 120）。本機模型較慢時請調高。'
+        }
+      },
       browser: {
         useRealProfile:
           '本機瀏覽會使用你的真實登入狀態。Sbar Rafiq 會將預設瀏覽器的設定（Cookie、登入資訊與偏好）複製成受管理的快照，再以內建的 Chromium 驅動它——不會直接開啟你正在使用的設定檔，且每次執行都會從目前的設定檔重新整理副本。設定雲端瀏覽器後端時，也允許代理視需要開啟本機真實設定檔工作階段。僅支援 Chromium 系瀏覽器（Chrome、Edge、Brave、Brave Origin、Chromium）；若預設瀏覽器並非 Chromium 系，會顯示明確錯誤。預設關閉。'
@@ -921,8 +990,32 @@ export const zhHant = defineLocale({
     }),
     uninstallSection: {
       dangerZone: '危險操作',
+      checkingInstalled: '正在檢查已安裝內容…',
+      uninstallHermes: '解除安裝 Hermes',
+      chooseHowMuch: '選擇要移除的內容。應用程式會關閉以完成作業；隨時重新開啟安裝程式即可返回。',
       confirmUninstall: '確認解除安裝',
-      uninstallHermes: '解除安裝 Hermes'
+      confirmBody: what => `這將移除${what}。此操作無法復原。`,
+      appLabel: '應用程式：',
+      couldNotStart: '無法開始解除安裝。',
+      uninstalling: '正在解除安裝…',
+      yesUninstall: '是，解除安裝',
+      options: {
+        gui: {
+          title: '僅解除安裝聊天 GUI',
+          description: '移除此桌面應用程式。Hermes 代理、你的設定和聊天記錄都會保留。',
+          consequence: '桌面聊天 GUI（此應用程式及其資料）'
+        },
+        lite: {
+          title: '解除安裝 GUI 與代理，保留資料',
+          description: '移除應用程式和 Hermes 代理，但保留設定、聊天記錄和機密，以便日後重新安裝。',
+          consequence: '聊天 GUI 和 Hermes 代理（設定、聊天記錄和機密會保留）'
+        },
+        full: {
+          title: '解除安裝全部',
+          description: '移除應用程式、代理和所有使用者資料——設定、聊天記錄、排程工作、機密和日誌。',
+          consequence: '全部內容——聊天 GUI、Hermes 代理，以及你的所有設定、聊天記錄、機密和日誌'
+        }
+      }
     },
     poolLimits: {
       warmBotBackendsAria: '預熱機器人後端',
@@ -931,6 +1024,39 @@ export const zhHant = defineLocale({
       backendIdleTimeoutTitle: '後端閒置逾時（毫秒）'
     },
     customEndpoints: {
+      active: '已啟用',
+      apiKeySet: '已設定 API 金鑰',
+      use: '使用',
+      editTitle: '編輯端點',
+      addTitle: '新增端點',
+      fields: {
+        name: '名稱',
+        providerId: '供應商 ID',
+        endpointUrl: '端點 URL',
+        defaultModel: '預設模型',
+        context: '上下文',
+        apiKey: 'API 金鑰',
+        apiKeyNewPlaceholder: '留空以保留目前金鑰',
+        apiKeyPlaceholder: '選填',
+        useNewChats: '用於新對話',
+        discoverModels: '探索模型'
+      },
+      test: '測試',
+      save: '儲存',
+      newEndpoint: '新增端點',
+      apiMode: 'API 模式',
+      autoDetect: '自動偵測',
+      couldNotLoad: '無法載入自訂端點',
+      endpointSaved: '自訂端點已儲存。',
+      saveFailed: '儲存失敗',
+      endpointReachable: '端點可連線。',
+      endpointReachableTransport: transport => `端點可連線（${transport} 路由已回應）。`,
+      endpointReachableModels: (reachable, count) => `${reachable} 找到 ${count} 個模型。`,
+      endpointValidationFailed: '端點驗證失敗。',
+      validationFailed: '驗證失敗',
+      activationFailed: '啟用失敗',
+      deleteConfirm: name => `刪除 ${name}？`,
+      deleteFailed: '刪除失敗',
       title: '自訂端點',
       deleteEndpoint: '刪除端點',
       emptyDescription: '在下方新增 OpenAI 相容端點。',
@@ -980,6 +1106,10 @@ export const zhHant = defineLocale({
       daysAgo: count => `${count} 天前`
     },
     config: {
+      minimizeToTrayTitle: '最小化至系統匣',
+      minimizeToTrayDesc:
+        '最小化視窗或關閉主視窗時，將其隱藏至系統匣（macOS 上為選單列），讓 Hermes 繼續執行。透過系統匣選單中的「結束 Hermes」或 Cmd+Q 結束。預設關閉，僅適用於此裝置。',
+      minimizeToTrayUnavailable: '系統匣無法使用。視窗將正常最小化和關閉。關閉此選項後重新開啟即可重試。',
       none: '無',
       noneParen: '(無)',
       builtinOnly: '僅內建',
@@ -998,6 +1128,15 @@ export const zhHant = defineLocale({
       keepAwakeTitle: '保持電腦喚醒',
       keepAwakeDesc: '阻止本機睡眠，讓長時間或整夜執行持續進行。螢幕仍可變暗。',
       showOptions: '顯示選項'
+    },
+    hudModifier: {
+      title: '輕按叫出 HUD',
+      description:
+        '在 Mac 上按下並放開 ⌘ + Option，在 Windows/Linux 上按下並放開 Ctrl + Alt，即可從任何應用程式將 HUD 帶到前景。預設關閉，僅適用於此裝置。',
+      permission: '請在系統設定 → 隱私權與安全性 → 輸入監控中允許 Hermes，然後重試。此手勢不會記錄按鍵或擷取畫面。',
+      unavailable: 'HUD 手勢輔助程式無法啟動或意外停止。請重試或重新啟動 Hermes。Hermes 內原有的 HUD 快速鍵仍可使用。',
+      missingHelper: '此 Hermes 安裝缺少 HUD 手勢輔助程式。請更新或重新安裝 Hermes，然後重試。',
+      unsupportedSession: '此桌面工作階段不支援全域修飾鍵輕按事件。Linux 需要 X11；不支援 Wayland。'
     },
     screenshot: {
       enabledTitle: '螢幕截圖快速鍵',
@@ -1086,11 +1225,11 @@ export const zhHant = defineLocale({
       pasteSessionToken: '貼上工作階段 Token',
       plainTextConfirmTitle: '以純文字儲存閘道 Token？',
       plainTextConfirmDesc:
-        '在此裝置上找不到作業系統的金鑰環服務，因此 Token 將以未加密的純文字儲存在應用程式的連線設定檔中，以該使用者身分執行的任何處理程序皆可讀取。請安裝或啟用 GNOME Keyring 或 KWallet 以進行加密儲存。',
+        '在此裝置上找不到作業系統的金鑰環服務，因此 Token 將以未加密的純文字儲存在應用程式的連線設定檔中，以該使用者身分執行的任何處理程序皆可讀取。請安裝或啟用系統鑰匙圈（Linux 上為 GNOME Keyring 或 KWallet）以進行加密儲存。',
       plainTextConfirmAction: '以純文字儲存',
       plainTextStoredTitle: 'Token 以純文字儲存',
       plainTextStoredDesc:
-        '安全儲存無法使用，因此已儲存的 Token 以未加密方式儲存在此裝置上應用程式的連線設定檔中。請安裝或啟用 GNOME Keyring 或 KWallet 以將其加密。',
+        '安全儲存無法使用，因此已儲存的 Token 以未加密方式儲存在此裝置上應用程式的連線設定檔中。請安裝或啟用系統鑰匙圈（Linux 上為 GNOME Keyring 或 KWallet）以將其加密。',
       keychainEncryptionTitle: '使用系統鑰匙圈加密已儲存的機密',
       keychainEncryptionDesc:
         '預設關閉。開啟後，閘道 Token 與登入憑證將使用系統鑰匙圈（Keychain Access、GNOME Keyring 或 Windows DPAPI）加密——系統可能會要求授權或密碼。關閉時，它們以僅目前使用者可讀的一般檔案形式儲存。',
@@ -1172,36 +1311,20 @@ export const zhHant = defineLocale({
     },
     mcp: {
       loading: '正在載入 MCP 伺服器...',
-      failedLoad: 'MCP 設定載入失敗',
-      nameRequiredTitle: '需要名稱',
-      nameRequiredMessage: '請為此 MCP 伺服器提供設定鍵。',
-      objectRequired: '伺服器設定必須是 JSON 物件',
       invalidJson: 'MCP JSON 無效',
       saveFailed: '儲存失敗',
       removeFailed: '移除失敗',
-      gatewayUnavailableTitle: '閘道不可用',
-      gatewayUnavailableMessage: '重新載入 MCP 前請先重新連線閘道。',
-      reloadedTitle: 'MCP 工具已重新載入',
-      reloadedMessage: '新的工具 Schema 將套用至後續回合。',
       reloadFailed: 'MCP 重新載入失敗',
       savedTitle: 'MCP 伺服器已儲存',
       savedMessage: name => `${name} 會在 MCP 重新載入後生效。`,
-      newServer: '新伺服器',
-      reload: '重新載入 MCP',
-      reloading: '重新載入中...',
-      emptyTitle: '沒有 MCP 伺服器',
-      emptyDesc: '新增 stdio 或 HTTP 伺服器以公開 MCP 工具。',
       disabled: '已停用',
-      editServer: '編輯伺服器',
       name: '名稱',
       serverJson: '伺服器 JSON',
       remove: '移除',
-      saveServer: '儲存伺服器',
       capabilitySummary: (tools, prompts, resources) =>
         `已啟用 ${[`${tools} 個工具`, ...(prompts ? [`${prompts} 個提示`] : []), ...(resources ? [`${resources} 個資源`] : [])].join('、')}`,
       costTokens: tokens => `每次呼叫約 ${tokens} token`,
       usage30d: uses => `30 天內 ${uses} 次呼叫`,
-      unusedPill: '未使用',
       statusConnecting: '連線中…',
       statusNeedsAuth: '需要驗證',
       statusError: '錯誤',
@@ -1209,11 +1332,7 @@ export const zhHant = defineLocale({
       allServers: '所有伺服器',
       authenticatedTitle: '已驗證',
       authenticatedMessage: (server, count) => `${server}：${count} 個工具`,
-      waitingForBrowser: '等待瀏覽器…',
       authenticate: '驗證',
-      unsavedConnect: '未儲存 — 儲存 mcp.json 以連線。',
-      enableTool: tool => `啟用 ${tool}`,
-      disableTool: tool => `停用 ${tool}`,
       noOutput: '尚無輸出。',
       deepLinkTitle: '新增 MCP 伺服器？',
       deepLinkDescription: '一個連結要求將此 MCP 伺服器加入 Sbar Rafiq。請檢查下方的完整設定——它來自該連結，而非 Sbar Rafiq。',
@@ -1226,14 +1345,25 @@ export const zhHant = defineLocale({
       deepLinkErrorConfig: '連結中的設定不是有效的 base64 編碼 JSON。',
       deepLinkErrorShape: '設定必須是包含字串 `url` 或 `command` 欄位的 JSON 物件。',
       deepLinkErrorUrl: '僅允許 http:// 和 https:// 伺服器網址。',
-      deepLinkErrorTooLarge: '設定內容超過 32KB 上限。',
-      importButton: '匯入',
-      importPlaceholder: '貼上 mcp.json 片段、npx/docker 指令、claude mcp add 指令、URL 或 Cursor 連結…',
-      importNoMatch: '貼上的文字中未識別到伺服器設定。',
-      importConfirm: '加入 mcp.json',
-      importConfirmMany: count => `將 ${count} 個伺服器加入 mcp.json`
+      deepLinkErrorTooLarge: '設定內容超過 32KB 上限。'
     },
     model: {
+      setupProviderFallback: '提供方',
+      setUpProvider: name => `設定 ${name}`,
+      staleAuxBefore: (count, names) => `${count} 個輔助任務（${names}）仍由 `,
+      staleAuxAfter: ' 執行，而非主要模型。',
+      staleAuxOtherProviders: '其他提供方',
+      moaEnabled: '啟用',
+      moaSetDefault: '設為預設',
+      moaNewPresetPlaceholder: '新預設',
+      moaAddPreset: '新增預設',
+      customModel: '自訂模型…',
+      customModelPlaceholder: '模型 ID',
+      chooseFromList: '從清單中選擇',
+      moaDefault: '預設：',
+      moaReferenceToggle: (enabled, index) => `${enabled ? '停用' : '啟用'}參考 ${index}`,
+      moaReferenceTitle: index => `參考 ${index}`,
+      moaAddReference: '新增參考模型',
       loading: '正在載入模型設定...',
       appliesDesc: '套用至新工作階段。可在輸入框的模型選擇器中臨時切換目前對話。',
       provider: '提供方',
@@ -1373,6 +1503,229 @@ export const zhHant = defineLocale({
       deleted: model => `已刪除 ${model}。`,
       deleteFailed: '刪除失敗'
     },
+    billing: {
+      perMonth: amount => `${amount}/月`,
+      creditsPerMonth: amount => `${amount} 額度/月`,
+      usageLabel: label => `${label}用量`,
+      freeTier: {
+        signIn: '登入',
+        title: '你正在使用 Nous 免費服務',
+        message: '登入 Nous 帳戶以解鎖更多模型和工具。',
+        caption: '使用 nous/welcome，包含連接器。登入後會保留連接器，並增加需要帳戶的工具和其他所有模型。',
+        name: 'Nous · 免費服務',
+        footnote: '免費服務沒有餘額，無需付款。登入 Nous 帳戶後才會顯示支付與用量。',
+        plan: '免費服務',
+        model: '模型',
+        connectors: '連接器',
+        included: '已包含'
+      },
+      amountValidation: {
+        reloadTo: '儲值金額',
+        greaterThanThreshold: '儲值金額必須大於門檻。',
+        decimal: label => `${label}：請輸入最多含兩位小數的美元金額。`,
+        positive: label => `${label}：金額必須大於 $0。`,
+        minimum: (label, amount) => `${label}：最低金額為 ${amount}。`,
+        maximum: (label, amount) => `${label}：最高金額為 ${amount}。`
+      },
+      stepUp: {
+        openVerification: '開啟驗證頁面',
+        dismiss: '關閉',
+        waiting: '正在等待驗證連結…',
+        verify: '驗證以繼續',
+        deniedTitle: '驗證未獲核准',
+        deniedBody: '驗證已結束，但未允許此終端進行遠端支出。',
+        successTitle: '驗證完成',
+        successBody: '此終端已獲准進行遠端支出。'
+      },
+      charge: {
+        added: amount => (amount ? `已加入 $${amount}。` : '已加入額度。'),
+        failedTitle: '扣款失敗',
+        unconfirmedTitle: '扣款結果尚未確認',
+        unconfirmedBody: message => `${message} 上次扣款結果尚未確認，請在重試前檢查餘額和歷史記錄。`,
+        checkTitle: '無法檢查扣款',
+        checkBody: '無法檢查扣款。',
+        untrackedTitle: '無法追蹤扣款',
+        untrackedBody: '帳單服務已接受請求，但未傳回扣款識別碼。',
+        timeoutTitle: '5 分鐘後仍在處理',
+        timeoutBody: '扣款仍可能結算，請在重試前檢查入口網站。',
+        authenticationRequired: '銀行要求驗證（3DS）。請在入口網站完成驗證以完成本次購買。',
+        expired: '銀行卡已到期。請在入口網站中更新。',
+        declined: '銀行卡遭拒。請在入口網站中嘗試另一張卡。',
+        failedBody: reason => `扣款未成功（${reason}）。`
+      },
+      title: '帳單',
+      preview: '預覽',
+      summary: { balance: '餘額', plan: '方案', autoRefill: '自動儲值' },
+      sections: {
+        invoices: '發票',
+        plan: '方案',
+        paymentAndCredits: '支付與額度',
+        usage: '用量'
+      },
+      usage: { title: '用量' },
+      buyCredits: {
+        customAmount: '自訂儲值金額',
+        title: '立即購買額度',
+        buyButton: '購買',
+        processing: '處理中…正在確認結算',
+        added: amount => `已加入 ${amount}，正在重新整理餘額。`,
+        retry: '重試',
+        openPortal: '開啟入口網站'
+      },
+      plan: {
+        title: '方案',
+        changePlan: '變更方案',
+        viewPlans: '查看方案',
+        backAria: '返回帳單',
+        current: '目前方案',
+        scheduled: '已排定',
+        empty: '目前沒有可切換的方案。',
+        undo: '復原',
+        undoing: '正在復原…',
+        downgrade: '降級',
+        confirmDowngrade: '確認降級',
+        tryAgain: '重試',
+        checkingChange: '正在檢查此變更…',
+        cannotChange: '無法在此進行該變更。',
+        alreadyOn: name => `你已使用 ${name}，無需變更。`,
+        notScheduleable: '無法在此排定該變更。',
+        scheduling: '正在排定…',
+        cancel: '取消',
+        effectScheduled: (targetName, effectiveAt, creditsDelta) =>
+          `變更為 ${targetName}，於 ${effectiveAt} 生效。現在不扣款；在此之前保留目前方案。${creditsDelta ? `每月額度變化：${creditsDelta}。` : ''}`
+      },
+      autoReload: {
+        threshold: '門檻',
+        thresholdAria: '自動儲值門檻',
+        reloadTo: '儲值金額',
+        reloadToAria: '自動儲值金額',
+        turnOffConfirm: '關閉自動儲值？',
+        turnOff: '關閉',
+        disable: '停用',
+        updated: '自動儲值已更新。',
+        turnedOff: '自動儲值已關閉。',
+        manage: '管理',
+        save: '儲存',
+        saving: '正在儲存…',
+        cancel: '取消'
+      },
+      state: {
+        notice: {
+          loggedOut: {
+            title: '連接你的 Nous 帳戶',
+            message: '在 TUI 中執行 /portal，或開啟 Nous 入口網站連接帳戶。',
+            action: '開啟入口網站 ↗'
+          },
+          noCard: {
+            title: '尚未新增付款方式',
+            message: '新增銀行卡後才能購買額度和使用自動儲值。請在入口網站中新增。',
+            action: '新增銀行卡 ↗'
+          }
+        },
+        paymentMethod: {
+          title: '付款方式',
+          description: '管理用於儲值和訂閱續費的銀行卡。',
+          addAction: '新增付款方式',
+          updateAction: '更新',
+          provenance: {
+            autoRefill: '自動儲值卡',
+            customerDefault: '帳戶預設卡',
+            subPin: '訂閱卡',
+            suffix: label => ` - ${label}`
+          }
+        },
+        buyCredits: { description: '從銀行卡一次性扣款，今天即可計入餘額。' },
+        autoRefill: {
+          title: '餘額不足時儲值',
+          genericDescription: '餘額低於門檻時自動補充額度。',
+          offPill: '已關閉',
+          enabledPill: '已啟用',
+          notAvailablePill: '—',
+          manageCaption: '在入口網站中管理自動儲值。',
+          turnOnCaption: '在入口網站中開啟自動儲值',
+          chargesDescription: (reloadTo, threshold) => `餘額低於 ${threshold} 時自動扣款 ${reloadTo}。`,
+          distinctCardCaption: cardLabel => `自動儲值使用 ${cardLabel} 扣款，請在入口網站中核對`,
+          distinctCardFallback: '另一張銀行卡',
+          reconcileAction: '核對 ↗'
+        },
+        usage: {
+          subscriptionCredits: {
+            title: '訂閱額度',
+            barLabel: '剩餘訂閱額度',
+            captionResets: date => `於 ${date} 重設`,
+            valueOf: (remaining, monthly) => `${monthly} 中剩餘 ${remaining}`,
+            valueOver: (remaining, monthly, over) => `${monthly} 中剩餘 ${remaining} · 超出 ${over}`
+          },
+          topupCredits: { title: '儲值額度', caption: '不會到期' },
+          monthlyCap: {
+            title: '每月支出上限',
+            barLabel: '已用每月支出限額',
+            captionDefault: '預設上限',
+            captionSpending: '每月遠端支出',
+            valueUsed: (spent, limit) => `${limit} 中已用 ${spent}`
+          }
+        },
+        planCard: {
+          freeTier: '免費',
+          chooseAction: '選擇 ↗',
+          adjustPlanAction: '調整方案 ↗',
+          unavailableCaption: '訂閱詳細資料暫不可用，仍可開啟入口網站。',
+          downgradeCaption: (tierName, when) => `於 ${when} 變更為 ${tierName}。`,
+          cancellationCaption: when => `於 ${when} 取消。`,
+          renewsCaption: date => `於 ${date} 續費`,
+          noSubscriptionCaption: '沒有有效訂閱，付費模型會扣除儲值額度。'
+        }
+      },
+      errors: {
+        consentRequired: { title: '需要確認銀行卡', message: '請在入口網站中確認此卡可用於終端扣款' },
+        insufficientScope: {
+          title: '需要核准遠端支出',
+          message: '此操作需要遠端支出權限。請發起一次儲值以授權，然後重試。'
+        },
+        remoteSpendingRevoked: {
+          title: '遠端支出已停止',
+          messageByAdmin: '管理員已停止此終端的遠端支出。',
+          messageBySelf: '你已停止此終端的遠端支出。'
+        },
+        remoteSpendingReconnect: who => `${who} 請從「設定 → 閘道」重新連線以重新授權此裝置。`,
+        sessionRevoked: { title: '工作階段已登出', message: '你的工作階段已登出。請從「設定 → 閘道」重新登入。' },
+        cliBillingDisabled: {
+          title: '遠端支出已關閉',
+          message: '此帳戶的遠端支出已關閉，帳單管理員可在入口網站的 Hermes Agent 頁面開啟。'
+        },
+        roleRequired: {
+          title: '需要管理員權限',
+          message: '新增資金需要組織管理員或擁有者權限。請聯絡管理員，或在入口網站中管理。'
+        },
+        idempotencyConflict: { title: '請發起新的儲值', message: '🔴 此扣款識別碼已用於另一金額。請發起新的儲值。' },
+        noPaymentMethod: {
+          title: '沒有已儲存的銀行卡',
+          message: '💳 尚未儲存用於終端扣款的銀行卡。請在入口網站中設定（一次性購買額度不會儲存可重複使用的卡）。'
+        },
+        orgAccessDenied: { title: '組織存取遭拒', message: '此權杖未綁定到你可管理的組織' },
+        monthlyCapExceeded: {
+          title: '已達每月支出上限',
+          messageReached: '🔴 已達每月支出上限。',
+          messageHeadroom: remaining => `🔴 已達每月支出上限，剩餘額度為 $${remaining}。`
+        },
+        rateLimited: {
+          title: '目前扣款請求過多',
+          message: mins => `🟡 目前扣款請求過多${mins > 0 ? `（請約 ${mins} 分鐘後重試）` : ''}。這不是付款失敗。`
+        },
+        stripeUnavailable: {
+          title: 'Stripe 遇到問題',
+          message: mins => (mins > 0 ? `Stripe 遇到問題，請約 ${mins} 分鐘後重試` : 'Stripe 遇到問題，請稍後重試')
+        },
+        upgradeCapExceeded: { title: '已達每日方案變更次數上限', message: '已達每日方案變更次數上限，請明天重試' },
+        endpointUnavailable: {
+          title: '帳單端點不可用',
+          message: '帳單端點傳回了非 JSON 回應（此部署可能不支援該端點）。'
+        },
+        timeout: { title: '帳單請求逾時', message: '帳單請求逾時。' },
+        transport: { title: '帳單連線失敗', message: '帳單請求在到達閘道前失敗。' },
+        default: { title: '帳單請求失敗', message: '帳單請求失敗。' }
+      }
+    },
     providers: {
       connectAccount: '連結帳號',
       haveApiKey: '改用 API 金鑰？',
@@ -1398,7 +1751,7 @@ export const zhHant = defineLocale({
     sessions: {
       loading: '正在載入已封存工作階段…',
       archivedTitle: '已封存工作階段',
-      archivedIntro: '已封存的聊天會從側邊欄隱藏，但保留全部訊息。在側邊欄 Ctrl/⌘ 點擊聊天即可封存。',
+      archivedIntro: '已封存的聊天會從側邊欄隱藏，但保留全部訊息。在側邊欄 Alt/⌥+Shift 點擊聊天即可封存。',
       emptyArchivedTitle: '暫無封存',
       emptyArchivedDesc: '封存一個聊天後會顯示在這裡。',
       unarchive: '取消封存',
@@ -1491,7 +1844,13 @@ export const zhHant = defineLocale({
         selectedTitle: '已選擇後端',
         selectedMessage: backend => `終端命令現在透過 ${backend} 執行。將套用於新工作階段。`,
         failedSelect: backend => `選擇 ${backend} 失敗`,
-        needsSetupHint: '現在即可選擇此後端——但在完成設定前命令將會失敗。'
+        needsSetupHint: '此後端已選取但尚未完成設定——在設定完成前命令將會失敗。',
+        needsSetupConfirmTitle: backend => `仍要選擇 ${backend} 嗎？`,
+        needsSetupConfirmDescription: detail =>
+          `${detail} 此變更生效後啟動的工作階段在設定完成前將沒有終端或檔案工具。`,
+        needsSetupConfirmDescriptionGeneric:
+          '此後端尚未完成設定。此變更生效後啟動的工作階段在設定完成前將沒有終端或檔案工具。',
+        needsSetupConfirmAction: '仍然選擇'
       },
       browserRealProfile: {
         label: '使用我的真實瀏覽器設定檔',
@@ -1517,9 +1876,146 @@ export const zhHant = defineLocale({
   },
 
   skills: {
+    plugins: {
+      pageBlurb: '外掛可以擴充本應用程式、代理，或兩者 — 每一部分都有自己的開關。',
+      agentTitle: 'Agent 外掛',
+      agentBlurb: '為所選設定檔擴充代理的工具、掛鉤和供應商。重新啟動閘道後生效。',
+      halfDesktop: '桌面',
+      halfDesktopHint: '此應用程式，所有設定檔皆相同',
+      halfAgent: 'Agent',
+      defaultProfile: 'Sbar Rafiq（預設）',
+      kindAgent: 'Agent',
+      kindDesktop: '桌面',
+      kindBoth: 'Agent + 桌面',
+      installAgentHere: '在此安裝',
+      installAgentHereNoOrigin: '此設定檔未安裝 Agent 部分，而且此套件是手動複製進來的（沒有目錄項目或 git 遠端），因此無法從這裡安裝。請將其資料夾複製到設定檔中，或從 Git 重新安裝。',
+      desktopHalfPending: '正在複製…',
+      desktopHalfPendingTip: '此套件附帶的桌面部分尚未複製到應用程式中。請使用「重新掃描」，或重新啟動應用程式。',
+      desktopHalfRemote: '無法使用（遠端後端）',
+      desktopHalfRemoteTip: '此套件的桌面部分位於遠端後端的磁碟上，此應用程式無法讀取。若要在這裡使用，請執行「從 Git 安裝」，輸入套件的儲存庫 URL 並勾選「桌面」目標，這樣會將桌面部分複製到這部電腦上。',
+      emptyAll: '尚無外掛。',
+      empty: '此設定檔尚未安裝任何 Agent 外掛。',
+      emptyHint: '瀏覽下方目錄，一鍵安裝經過審核的外掛。',
+      loadFailed: '無法載入 Agent 外掛',
+      legacyBackend: '此後端版本過舊，不支援以金鑰識別的外掛切換。請更新 Sbar Rafiq 後再於此處管理。',
+      portableBadge: '可攜式',
+      serverStates: {
+        connected: '已連線',
+        app_not_running: '應用程式未執行',
+        endpoint_unavailable: '端點無法使用',
+        no_interactive_session: '沒有互動式工作階段',
+        version_too_old: '版本過舊',
+        missing_app: '缺少應用程式',
+        unknown: '狀態不明'
+      },
+      catalogTitle: '外掛目錄',
+      catalogBrowse: '瀏覽',
+      catalogHide: '隱藏目錄瀏覽器',
+      catalogHint: '按下任一外掛的「+ Add to this Agent」，經過審核的項目會以其固定的提交版本安裝到所選設定檔。內含 Agent 與桌面兩部分的外掛會同時提供兩者。',
+      tierOfficial: '官方',
+      tierCommunity: '社群',
+      updateConsentConfirm: '套用更新',
+      uninstall: '解除安裝',
+      deepLinkErrorTitle: '外掛安裝連結遭拒',
+      deepLinkCatalogInvalidName: '連結中的目錄名稱遺失或無效。',
+      deepLinkCatalogUnavailable: '無法載入 Hermes 外掛目錄。請檢查連線後再次開啟連結。',
+      settingsForm: {
+        save: '儲存設定',
+        optional: '（選填）',
+        secretSet: '••••••••（已設定）',
+        saved: (name: string) => `已儲存 ${name} 設定。`,
+        saveFailed: (name: string) => `無法儲存 ${name} 設定`,
+        secretStoredAs: (env: string) =>
+          `以 ${env} 儲存在設定檔的 .env 中，絕不會寫入 config.yaml；留白即可保留目前的值。`
+      },
+      halfAgentIn: (profile: string) => `${profile} 中的 Agent`,
+      installAgentHereTip: (profile: string) =>
+        `桌面部分已在此應用程式中載入，但 ${profile} 尚未安裝 Agent 部分。請在該設定檔中安裝。`,
+      toggleFailed: (name: string) => `無法切換 ${name}`,
+      alreadyInstalled: (name: string) => `${name} 已安裝在此設定檔中。`,
+      catalogProvenance: (sha: string) => `從 Sbar Rafiq 目錄安裝${sha ? `，固定於 ${sha}` : ''}。`,
+      pinnedProvenance: (sha: string) =>
+        `已固定於提交 ${sha}。在以新的固定版本重新安裝之前，將拒絕所有更新。`,
+      pinnedBadge: (sha: string) => `已固定 @ ${sha}`,
+      updateToPin: (sha: string) => `更新至 ${sha}`,
+      updateFailed: (name: string) => `無法更新 ${name}`,
+      updated: (name: string) => `${name} 已更新至目前目錄的固定版本。重新啟動閘道以套用。`,
+      updateConsentTitle: (name: string) => `${name} 要求更多權限`,
+      updateConsentBody: (name: string, sha: string) =>
+        `${name} 在目錄中的新固定版本（${sha}）新增了目前安裝版本所沒有的功能介面。只有在你信任它們時才套用：`,
+      uninstallTip: (name: string, profile: string) => `從 ${profile} 解除安裝 ${name}`,
+      uninstallConfirmTitle: (name: string) => `要解除安裝 ${name} 嗎？`,
+      uninstallConfirmBody: (name: string, profile: string) =>
+        `這會從 ${profile} 設定檔中刪除此外掛的檔案。它附帶的桌面部分也會一併移除。你隨時可以從目錄或 Git 重新安裝。`,
+      uninstallFailed: (name: string) => `無法解除安裝 ${name}`,
+      uninstalled: (name: string) => `已解除安裝 ${name}。重新啟動閘道以將其卸載。`,
+      uninstallDesktopTip: (name: string) => `從此應用程式解除安裝 ${name}`,
+      uninstallDesktopConfirmBody: (name: string) =>
+        `這會從這部電腦的 desktop-plugins 資料夾中刪除 ${name}，並立即將其卸載。你隨時可以從 Git 重新安裝，或將資料夾放回原處。`,
+      uninstalledDesktop: (name: string) => `已解除安裝 ${name}。`,
+      deepLinkCatalogUnknown: (name: string) =>
+        `「${name}」不在 Hermes 外掛目錄中。未安裝任何項目。`,
+      settingsToggle: (name: string) => `設定：${name}`
+    },
+    hub: {
+      search: '搜尋',
+      searching: '搜尋中…',
+      noResults: '技能中心沒有符合的技能。',
+      installed: '已安裝',
+      installStarted: name => `正在安裝「${name}」…`,
+      pickerBrowse: '瀏覽完整技能中心',
+      pickerHide: '隱藏技能中心瀏覽器',
+      pickerHint: '按下任一技能的「+ Add to this Agent」，即可安裝並顯示在上方清單中。',
+      searchPlaceholder: '搜尋技能中心',
+      connectingHubs: '正在連線到技能中心...',
+      connectedHubs: '已連線的來源：',
+      featured: '精選技能',
+      landingHint: '搜尋技能中心，瀏覽來自官方索引、GitHub 和社群來源的可安裝技能。',
+      install: '安裝',
+      installing: '正在安裝...',
+      uninstall: '解除安裝',
+      uninstalling: '正在解除安裝...',
+      updateAll: '更新已安裝項目',
+      updating: '正在更新...',
+      preview: '預覽',
+      scan: '掃描',
+      scanning: '正在掃描...',
+      close: '關閉',
+      files: '檔案',
+      noReadme: '此技能沒有 SKILL.md 預覽。',
+      trust: {
+        builtin: '內建',
+        trusted: '受信任',
+        community: '社群'
+      },
+      verdictSafe: '安全',
+      verdictCaution: '注意',
+      verdictDangerous: '危險',
+      policyAllow: '允許安裝',
+      policyAsk: '安裝前請先檢閱',
+      policyBlock: '政策禁止安裝',
+      noFindings: '沒有安全性問題。',
+      updateStarted: '正在更新已安裝的技能...',
+      actionFailed: '技能動作失敗',
+      viewScan: '檢視掃描結果',
+      openLog: '開啟記錄',
+      actionLog: '動作記錄',
+      pickerTitle: '技能中心',
+      loadFailed: '技能中心載入失敗',
+      previewFailed: '技能預覽失敗',
+      scanFailed: '安全性掃描失敗',
+      searchFailed: '技能中心搜尋失敗',
+      resultCount: (count, ms) => `${count} 個結果${ms !== null ? `，耗時 ${ms}ms` : ''}`,
+      timedOut: sources => `逾時：${sources}`,
+      findings: count => `${count} 個發現`,
+      uninstallStarted: name => `正在解除安裝 ${name}...`,
+      installBlockedTitle: name => `無法安裝 ${name}`,
+      installBlockedMessage: (findings, unverified) =>
+        `安全性掃描標記了${findings > 0 ? ` ${findings} 個項目` : '有風險的模式'}需要檢閱${unverified ? '，且此技能來自未經驗證的來源' : ''}。在決定是否信任作者之前，請先閱讀掃描結果。`,
+      alreadyInstalled: (name: string) => `「${name}」已安裝`
+    },
     tabSkills: '技能',
     tabToolsets: '工具集',
-    tabMcp: 'MCP',
     all: '全部',
     searchSkills: '搜尋技能...',
     searchToolsets: '搜尋工具集...',
@@ -1547,7 +2043,7 @@ export const zhHant = defineLocale({
     appliesToNewSessions: name => `${name} 將套用至新工作階段。`,
     failedToUpdate: name => `更新 ${name} 失敗`,
     sortMostUsed: '最常用',
-    sortAlpha: 'A–Z',
+    sortAlpha: 'A 至 Z',
     sortMostUsedDesc: '↓ 最常用',
     sortLeastUsedAsc: '↑ 最少用',
     enableAll: '全部啟用',
@@ -1571,7 +2067,9 @@ export const zhHant = defineLocale({
     skillArchivedTitle: '技能已封存',
     skillArchivedMessage: '可透過 hermes curator restore 還原。',
     officialCatalog: '可安裝',
-    officialPill: '官方'
+    officialPill: '官方',
+    configuringProfile: '正在設定：',
+    tabPlugins: '外掛'
   },
 
   starmap: {
@@ -1714,7 +2212,7 @@ export const zhHant = defineLocale({
     nav: {
       newChat: { title: '新工作階段', detail: '開始新的工作階段' },
       settings: { title: '設定', detail: '設定 Sbar Rafiq 桌面端' },
-      skills: { title: '技能與工具', detail: '啟用技能、工具集和提供方' },
+      capabilities: { title: '技能與工具', detail: '啟用技能、工具集和提供方' },
       messaging: { title: '訊息平台', detail: '設定 Telegram、Slack、Discord 等' },
       artifacts: { title: '成品', detail: '瀏覽產生的輸出' }
     },
@@ -1928,7 +2426,27 @@ export const zhHant = defineLocale({
         help: '建議設定。逗號分隔的電話號碼或 WhatsApp ID。'
       }
     },
-    platformIntro: {}
+    platformIntro: {},
+    approve: '核准',
+    approving: '正在核准...',
+    revoke: '撤銷',
+    revoking: '正在撤銷...',
+    revokeTitle: '撤銷存取權',
+    approvedHint: '對方下次傳送訊息時會自動被辨識。',
+    pairingLockedOut: '核准失敗次數過多，此平台已被鎖定。請稍後再試。',
+    restartFailedManualDetail: '請再次嘗試重新啟動；如果仍然失敗，請開啟記錄並傳送診斷資料。',
+    restartAgain: '再次重新啟動',
+    openLogs: '開啟記錄',
+    pendingRequests: count => `待處理的請求（${count}）`,
+    pendingAria: count => `${count} 個待處理的配對請求`,
+    approvedUsers: count => `已核准的使用者（${count}）`,
+    revokeAria: name => `撤銷 ${name}`,
+    revokeDesc: (name: string) => `${name} 將失去存取權，下次傳送訊息時也不會再被辨識。`,
+    approvedUser: name => `已核准 ${name}`,
+    revokedUser: name => `已撤銷 ${name}`,
+    failedApprove: name => `無法核准 ${name}`,
+    failedRevoke: name => `無法撤銷 ${name}`,
+    waitingSince: minutes => (minutes < 1 ? '剛剛' : `${minutes} 分鐘前`)
   },
 
   profiles: {
@@ -2051,24 +2569,33 @@ export const zhHant = defineLocale({
     failedLoadSoul: '載入 SOUL.md 失敗',
     failedSaveSoul: '儲存 SOUL.md 失敗',
     failedCreate: '建立設定檔失敗',
-    failedRename: '重新命名設定檔失敗'
+    failedRename: '重新命名設定檔失敗',
+    connectGateway: '管理閘道…',
+    fleet: {
+      allOnGateway: '此閘道上的所有設定檔',
+      gateway: gateway => `${gateway} 上的設定檔`,
+      gatewayUnreachable: gateway => `${gateway} · 無法連線`,
+      onGateway: (name, gateway) => `${name} · ${gateway}`,
+      switchTo: (name, gateway) => `切換至 ${gateway} 上的 ${name}`,
+      deleteOn: gateway => `（位於 ${gateway}）`
+    },
+    displayNameTitle: '為此代理命名',
+    displayNameDesc: '設定在整個應用程式中顯示的名稱。內部設定檔 ID 仍為「default」。',
+    displayNameLabel: '顯示名稱'
+  },
+
+  modelAssignment: {
+    saveFailed: 'Sbar Rafiq 未儲存該模型變更。',
+    confirmTitle: '模型選擇警告',
+    confirmDetail: '僅在你接受此權衡時確認。',
+    confirmAction: '確認',
+    declined: '已取消模型變更 — 你拒絕了資料訓練層級警告。'
   },
 
   cron: {
     close: '關閉排程',
     title: '排程工作',
     count: count => `${count} 個工作`,
-    modelImpact: {
-      title: '排程工作將繼續使用原模型',
-      message: count => `${count} 個未固定的排程工作將繼續使用建立時的模型執行。固定它們或設定 cron.model 以遷移。`,
-      detailMore: (names, remaining) => `${names}，以及另外 ${remaining} 個`,
-      review: '檢查排程工作',
-      saveFailed: 'Sbar Rafiq 未儲存該模型變更。',
-      confirmTitle: '模型選擇警告',
-      confirmDetail: '僅在你接受此權衡時確認。',
-      confirmAction: '確認',
-      declined: '已取消模型變更 — 你拒絕了資料訓練層級警告。'
-    },
     search: '搜尋排程工作…',
     loading: '正在載入排程工作…',
     states: {
@@ -2197,7 +2724,11 @@ export const zhHant = defineLocale({
       failedLoad: '載入藍圖失敗',
       emptyTitle: '沒有可用的藍圖',
       emptyDesc: '此後端上沒有可用的自動化藍圖。'
-    }
+    },
+    lastRunFailed: '上次執行失敗：',
+    editJob: '編輯工作',
+    runAgain: '再次執行',
+    overdueSince: '逾期起始時間：'
   },
 
   projectWorkflows: {
@@ -2347,6 +2878,39 @@ export const zhHant = defineLocale({
   },
 
   sidebar: {
+    profileRail: '設定檔列',
+    markAllRead: '全部標示為已讀',
+    filter: {
+      grouping: '分組',
+      ordering: '排序',
+      show: '顯示',
+      filters: '篩選',
+      status: '狀態',
+      pullRequest: '提取請求',
+      profile: '設定檔',
+      project: '專案',
+      archived: '已封存',
+      resetToDefaults: '重設為預設值',
+      expandAll: '全部展開',
+      collapseAll: '全部收合',
+      inboxStyle: '收件匣樣式',
+      updated: '已更新',
+      created: '已建立',
+      tokens: '詞元數',
+      cost: '費用',
+      manual: '手動',
+      preview: '預覽',
+      pr: 'PR',
+      needsInput: '需要輸入',
+      working: '運作中',
+      unread: '未讀',
+      draft: '草稿',
+      idle: '閒置',
+      open: '開啟',
+      merged: '已合併',
+      closed: '已關閉',
+      noPR: '無 PR'
+    },
     gatewayGroups: {
       grouping: '閘道與設定檔',
       rename: '重新命名群組',
@@ -2360,7 +2924,7 @@ export const zhHant = defineLocale({
     },
     nav: {
       'new-session': '新工作階段',
-      skills: '技能與工具',
+      capabilities: '技能與工具',
       messaging: '訊息平台',
       artifacts: '成品',
       cron: '排程工作'
@@ -2372,6 +2936,10 @@ export const zhHant = defineLocale({
     results: '結果',
     pinned: '已釘選',
     sessions: '工作階段',
+    terminal: '終端機',
+    files: '檔案',
+    review: '審查',
+    logs: '記錄',
     cronJobs: '排程任務',
     groupAriaGrouped: '以單一清單顯示工作階段',
     groupAriaUngrouped: '依工作區分組工作階段',
@@ -2462,7 +3030,32 @@ export const zhHant = defineLocale({
         '從 git 中移除（刪除工作樹目錄，但保留分支），或僅從側邊欄隱藏該軌道並將工作樹保留在磁碟上。',
       removeWorktreeDirty: '此工作樹有未提交的變更。強制移除（捨棄這些變更），或僅隱藏軌道並保留在磁碟上。',
       forceRemove: '強制移除',
-      enter: label => `開啟 ${label}`
+      enter: label => `開啟 ${label}`,
+      menuTransfer: '移至設定檔…',
+      transferHint: '資料夾會留在磁碟上的原位置。移轉的是專案及其對話。',
+      transferTarget: '設定檔',
+      transferNoTargets: '沒有其他設定檔可以移入。',
+      transferFoldersStay: '不會移動、重新命名或刪除磁碟上的任何資料夾。',
+      transferMove: '移動而非複製',
+      transferMoveHint: '這裡的對話會被封存，專案也會從此側邊欄移除。應用程式無法復原此操作。',
+      transferConfirmCopy: '複製',
+      transferConfirmMove: '移動',
+      moveToProject: '移至專案',
+      moveFailed: '無法移動工作階段',
+      moveNoFolder: '該專案沒有可移入的資料夾',
+      moveNoProjects: '沒有其他專案',
+      back: '所有專案',
+      transferTitle: name => `將「${name}」移至其他設定檔`,
+      transferCarries: (sessions, messages) =>
+        `將移轉 ${sessions} 個對話、${messages} 則訊息。`,
+      transferDone: (sessions, profile) =>
+        `已將 ${sessions} 個對話移轉至 ${profile}。`,
+      transferWorking: sessions => `正在移轉 ${sessions} 個對話\u2026`,
+      transferPartial: failed =>
+        `有 ${failed} 個無法移轉。再次執行只會處理缺少的部分。`,
+      movedTo: name => `已移至 ${name}`,
+      reorder: label => `重新排序 ${label}`,
+      toggle: (label, open) => `${open ? '顯示' : '隱藏'} ${label} 工作階段`
     },
     newSessionIn: label => `在 ${label} 中新建工作階段`,
     showMoreIn: (count, label) => `在 ${label} 中再顯示 ${count} 個`,
@@ -2512,7 +3105,12 @@ export const zhHant = defineLocale({
       ageNow: '剛才',
       ageDay: '天',
       ageHour: '時',
-      ageMin: '分'
+      ageMin: '分',
+      hideTabBar: '隱藏分頁列',
+      openInNewTab: '在新分頁中開啟',
+      openInSplit: '在分割畫面中開啟',
+      todoProgress: '已完成的任務',
+      messageCount: count => `${count} 則訊息`
     },
     dateDivider: {
       today: '今天稍早',
@@ -2524,6 +3122,13 @@ export const zhHant = defineLocale({
     statusDivider: {
       working: '進行中',
       done: '已完成'
+    },
+    storageCorrupt: {
+      title: '工作階段資料庫已損壞',
+      action: '請結束此設定檔上的 Hermes，然後在不變更檔案的情況下檢查它，或還原快照：',
+      guide: '復原指南',
+      body: (profiles: string) =>
+        `Hermes 無法讀取 ${profiles} 的完整工作階段記錄。此列表中缺少的聊天並未被刪除，只是儲存它們的檔案已損壞。`
     }
   },
 
@@ -2587,12 +3192,77 @@ export const zhHant = defineLocale({
     hotkeys: '快捷鍵',
     helpFooter: '開啟完整面板 · 退格鍵關閉',
     commandDescs: {
-      '/help': '指令與快捷鍵的完整清單',
+      '/help': '顯示桌面端斜線指令',
       '/clear': '開始新工作階段',
-      '/resume': '繼續之前的工作階段',
+      '/resume': '繼續已儲存的工作階段',
       '/details': '控制對話記錄的詳細程度',
       '/copy': '複製所選內容或最後一條助手訊息',
-      '/quit': '結束 hermes'
+      '/quit': '結束 hermes',
+      '/start': '確認平台啟動請求，不傳送回覆',
+      '/new': '開始新的桌面聊天',
+      '/topic': '啟用或查看 Telegram 私訊話題工作階段',
+      '/save': '將目前對話記錄儲存為 JSON',
+      '/retry': '重試最後一則訊息（重新傳送給代理）',
+      '/prompt': '在 $EDITOR 中用 Markdown 撰寫下一個提示詞，然後傳送',
+      '/undo': '退回 N 個使用者回合並重新提示（預設為 1）',
+      '/title': '重新命名目前工作階段',
+      '/handoff': '將此工作階段交接至訊息平台',
+      '/branch': '將最新訊息分支至新的聊天',
+      '/worktree': '顯示、列出、建立或清理隔離的 Git worktree',
+      '/compress': '壓縮此對話的上下文',
+      '/rollback': '列出或還原檔案系統檢查點（還原會保留你的手動編輯；--all 可覆寫此行為）',
+      '/export': '將設定檔（設定、技能、主題）匯出為可分享的封存檔',
+      '/import': '將共用的設定檔封存檔匯入為新的設定檔',
+      '/stop': '停止目前回合與背景程序',
+      '/pause': '暫停全域新工作（緊急停止）；/pause off 恢復',
+      '/bg': '在獨立的背景工作階段中執行提示詞',
+      '/btw': '在不中斷目前對話的情況下詢問旁支問題',
+      '/agents': '顯示作用中的代理與執行中的任務',
+      '/journey': '開啟記憶圖譜 — 查看技能與記憶隨時間的變化',
+      '/queue': '排入、檢視、編輯、移除、移動或清空下一回合提示詞',
+      '/steer': '在下一次工具呼叫後插入訊息，不會中斷目前工作',
+      '/goal': '設定持續目標，讓 Hermes 跨回合工作直到完成',
+      '/heartbeat': '設定週期性提示詞，在閒置時重新進入此工作階段',
+      '/refine': '立即檢查此對話，並將心得儲存至記憶或技能',
+      '/review': '產生獨立子代理，審查剛才討論的工作（PR、程式碼、文件）',
+      '/loop': '在此工作階段以固定間隔重新執行提示詞',
+      '/plan': '將 Markdown 實作計畫寫入 .hermes/plans/，不執行任何操作',
+      '/moa': '使用預設的 Mixture of Agents 組合執行提示詞，完成後還原模型',
+      '/subgoal': '新增或管理作用中目標的額外條件',
+      '/status': '顯示目前工作階段狀態',
+      '/egress': '顯示 Docker 對外連線代理狀態',
+      '/context': '顯示詳細的上下文視窗，包括用量、分類明細、壓縮統計與吞吐量',
+      '/whoami': '顯示你的斜線指令存取權限（admin / user）',
+      '/profile': '切換作用中的 Hermes 設定檔',
+      '/codex-runtime': '切換 OpenAI/Codex 模型使用的 Codex app-server runtime',
+      '/personality': '設定預先定義的人格',
+      '/battery': '切換狀態列中的彩色電池指示器',
+      '/timestamps': '切換訊息與 /history 上的 [HH:MM] 時間戳記',
+      '/diff': '顯示工作目錄中的 Git 變更',
+      '/focus': '切換專注檢視 — 只顯示你的提示詞與最終回覆',
+      '/yolo': '切換 YOLO — 自動核准危險指令',
+      '/approvals': '顯示或設定持久化的危險指令核准模式',
+      '/reasoning': '管理推理強度與顯示方式',
+      '/skin': '切換桌面主題，或切換至下一個主題',
+      '/wake': '控制桌面的喚醒詞監聽器 [on|off|status]',
+      '/tools': '管理工具',
+      '/memory': '檢視待處理的記憶寫入，或切換核准閘門',
+      '/bundles': '列出技能套件（可用 /<name> 作為多個技能的別名）',
+      '/pet': '切換或領養 petdex 吉祥物（/pet、/pet list、/pet boba）',
+      '/hatch': '產生新的寵物（開啟寵物產生器）',
+      '/learn': '從你描述的任何內容（目錄、URL、此聊天、筆記）學習可重用的技能',
+      '/init': '掃描儲存庫並產生或更新 AGENTS.md 專案指引',
+      '/suggestions': '檢視建議的自動化項目（接受或略過）',
+      '/blueprint': '使用 blueprint 範本設定自動化',
+      '/browser': '管理瀏覽器 CDP 連線 [connect|disconnect|status]（僅限本機 gateway）',
+      '/palette': '開啟模糊搜尋指令面板（也可使用 Ctrl+P）',
+      '/usage': '顯示 Token 用量與速率限制；`reset` 可兌換保留的 Codex 限額重設',
+      '/subscription': '檢視你的 Nous 方案，並在瀏覽器中變更',
+      '/topup': '顯示你的 Nous 餘額，並在 Portal 管理帳務',
+      '/platform': '暫停、恢復或列出故障的閘道平台',
+      '/version': '顯示 Hermes Agent 版本',
+      '/debug': '上傳偵錯報告（系統資訊與記錄），並取得可分享連結',
+      '/model': '切換此工作階段的模型'
     },
     hotkeyDescs: {
       'composer.mention': '參照檔案、資料夾、URL、git',
@@ -2618,6 +3288,8 @@ export const zhHant = defineLocale({
     attachmentsShowFewer: '收合',
     editingInComposer: '在輸入框中編輯',
     editingQueuedInComposer: '在輸入框中編輯排隊回合',
+    restoredDraftNotice: '已還原你未送出的訊息',
+    restoredDraftUndo: '復原',
     queueEdit: '編輯',
     queueSendNext: '下一個',
     queueSteer: '引導 — 立即修正目前回合',
@@ -2675,10 +3347,58 @@ export const zhHant = defineLocale({
         description: '說明所選程式碼的運作方式，並連結到關鍵檔案。',
         text: '請解釋這是如何運作的，並告訴我關鍵檔案在哪裡。'
       }
+    },
+    steer: '引導目前的執行',
+    voiceEngine: '語音聊天引擎',
+    voiceEngineChained: '語音轉文字 + Sbar Rafiq 語音',
+    voiceEngineLive: 'GPT-Live（全雙工，委派給 Sbar Rafiq）',
+    voiceEngineLiveNeedsKey: '需要 OpenAI API 金鑰',
+    voiceEngineChangeFailed: '無法變更語音聊天引擎',
+    voiceEngineChainedShort: '語音轉文字',
+    voiceEngineLiveShort: 'GPT-Live',
+    hiddenQueued: '設定備註',
+    mcpSuggestions: {
+      cancelTip: '按一下即可取消',
+      addedTip: '已連線，其工具已可在此聊天中使用',
+      label: server => `新增 ${server}`,
+      tip: keyword => `因為你提到「${keyword}」而建議，按一下即可連線`,
+      connecting: server => `正在連線 ${server}…`,
+      added: server => `已新增 ${server}`,
+      connectFailed: server => `無法連線 ${server}`
+    },
+    skillSuggestions: {
+      doneTip: '傳送時會載入此技能',
+      label: skill => `使用技能：${skill}`,
+      tip: skill => `你提到了「${skill}」，按一下即可優先使用該技能`,
+      done: skill => `已新增 /${skill}`
+    },
+    githubSuggestions: {
+      label: '設定 GitHub',
+      tip: '這裡透過 gh CLI 技能使用 GitHub，按一下即可連接你的帳號',
+      done: '已新增 /github-auth',
+      doneTip: '傳送訊息後，代理會引導你完成 GitHub 登入'
+    },
+    repairSuggestions: {
+      workingTip: '按一下即可取消',
+      doneTip: '新的憑證已在此聊天中生效',
+      label: server => `重新連線 ${server}`,
+      tip: server => `對 ${server} 的呼叫剛因連線錯誤而失敗`,
+      working: server => `正在重新連線 ${server}…`,
+      done: server => `已重新連線 ${server}`,
+      failed: server => `無法重新連線 ${server}`
+    },
+    cronSuggestions: {
+      label: '排程執行',
+      prefix: '將此設定為排程工作：',
+      done: '已標記為排程',
+      doneTip: '傳送後，代理會建立此工作',
+      tip: phrase => `「${phrase}」聽起來是週期性的工作，改為排程執行吧`
     }
   },
 
   statusStack: {
+    hideStack: '隱藏狀態面板',
+    showStack: '顯示狀態面板',
     agents: '代理',
     background: count => `${count} 個背景任務`,
     goalActive: '目標進行中',
@@ -2849,6 +3569,7 @@ export const zhHant = defineLocale({
     notAvailableTitle: '更新不可用',
     unsupportedMessage: '此版本的 Sbar Rafiq 無法在應用程式內自行更新。',
     connectionRetry: '請檢查網路連線後重試。',
+    gitUnusable: 'Hermes 無法在這台電腦上執行 Git，因此無法檢查更新。',
     latestBody: '您正在執行最新版本。',
     latestBodyBackend: '後端正在執行最新版本。',
     allSetTitle: '已是最新版本',
@@ -2895,6 +3616,13 @@ export const zhHant = defineLocale({
     everythingSkipped: '已略過',
     everythingRowFailed: '更新失敗',
     everythingFanoutFailedTitle: '無法更新其他執行個體',
+    changeLogNew: '新增功能',
+    changeLogFixed: '修復',
+    changeLogFaster: '更快',
+    changeLogImproved: '改進',
+    changeLogOther: '其他改進',
+    changeLogFallbackLabel: '本次更新',
+    changeLogFallbackItem: '改進與修復',
     applyStatus: {
       preparing: '正在更新後端…',
       pulling: '後端更新中…',
@@ -2902,7 +3630,9 @@ export const zhHant = defineLocale({
       notAvailable: '此後端無法更新。',
       failed: '後端更新失敗。',
       noReturn: '後端未恢復連線。更新可能未完成——請檢查後端主機。'
-    }
+    },
+    connectionSettings: '連線設定',
+    openDownloadPage: '開啟下載頁面'
   },
 
   guidedGreeting: {
@@ -2977,7 +3707,9 @@ export const zhHant = defineLocale({
     transcriptSaved: '完整記錄已儲存至',
     copiedOutput: '已複製！',
     copyOutput: '複製輸出',
-    reloadRetry: '重新載入並重試'
+    reloadRetry: '重新載入並重試',
+    probeErrorDetails: '詳細資料',
+    openLogs: '開啟記錄'
   },
 
   onboarding: {
@@ -3049,7 +3781,13 @@ export const zhHant = defineLocale({
     price: (input, output) => `${input} 輸入 / ${output} 輸出 每 Mtok`,
     change: '變更',
     startChatting: '開始',
-    docs: provider => `${provider} 文件`
+    docs: provider => `${provider} 文件`,
+    localApiKeyPlaceholder: 'API 金鑰（選填，僅在端點需要時填寫）',
+    tryAgain: '再試一次',
+    useApiKeyInstead: '使用 API 金鑰',
+    errorDetails: '詳細資料',
+    signInDidNotFinish: provider =>
+      `使用 ${provider} 登入未完成。請檢查網際網路連線後再試一次，或選擇其他供應商。`
   },
 
   modelPicker: {
@@ -3068,14 +3806,20 @@ export const zhHant = defineLocale({
     free: '免費',
     freeTier: '免費層',
     priceTitle: '每百萬 Token 的輸入/輸出價格',
-    wasPrice: '原價'
+    wasPrice: '原價',
+    customModel: '自訂模型',
+    addCustomModelAction: '新增自訂模型…',
+    customModelPlaceholder: '輸入模型 ID，例如 openai/gpt-5',
+    loadingIntoMemory: '正在載入記憶體'
   },
 
   modelVisibility: {
     title: '模型',
     search: '搜尋模型',
     noAuthenticatedProviders: '沒有已驗證的提供方。',
-    addProvider: '新增提供方…'
+    addProvider: '新增提供方…',
+    addCustomModel: '新增自訂模型',
+    removeCustomModel: '移除自訂模型'
   },
 
   shell: {
@@ -3102,6 +3846,7 @@ export const zhHant = defineLocale({
       xhigh: '極高',
       max: '最高',
       ultra: '超高',
+      sendsOnRoute: (level: string) => `此路由實際傳送 ${level}`,
       updateFailed: '模型選項更新失敗',
       fastFailed: '快速模式更新失敗'
     },
@@ -3197,13 +3942,15 @@ export const zhHant = defineLocale({
           skills: '技能',
           subagent_definitions: '子代理定義',
           system_prompt: '系統提示詞',
-          tool_definitions: '工具定義'
+          tool_definitions: '工具定義',
+          files: '檔案'
         },
         empty: '尚無上下文資料',
         loading: '正在載入明細…',
         percentFull: percent => `已用 ${percent}%`,
         title: '上下文使用量',
-        tokenSummary: (used, max) => `${used} / ${max} Tokens`
+        tokenSummary: (used, max) => `${used} / ${max} Tokens`,
+        categoryCount: count => `${count} 個檔案`
       },
       session: '工作階段',
       yoloOn: 'YOLO 已開啟 — 自動核准危險指令。Shift+點擊可全域切換。',
@@ -3214,7 +3961,51 @@ export const zhHant = defineLocale({
       openModelPicker: '開啟模型選擇器',
       modelPinned: '已由你固定；新對話將使用此模型而非「設定」中的預設模型',
       modelTitle: (provider, model) => `模型 · ${provider}：${model}`,
-      providerModelTitle: (provider, model) => `${provider} · ${model}`
+      providerModelTitle: (provider, model) => `${provider} · ${model}`,
+      customizeTitle: '在狀態列中顯示',
+      hideStatusbar: '隱藏狀態列',
+      resetStatusbar: '重設為預設值',
+      toggleApprovalMode: '批准',
+      toggleBackendVersion: '後端版本',
+      toggleCacheHitRate: '快取命中率',
+      toggleCommandCenter: '指令中心',
+      toggleContextUsage: '上下文用量',
+      toggleRunningTimer: '回合計時器',
+      toggleSessionTimer: '工作階段計時器',
+      toggleBrowser: '瀏覽器',
+      toggleTerminal: '終端機',
+      toggleTokensPerSecond: '每秒 token 數',
+      toggleVersion: '版本與更新',
+      toggleFreeTier: '免費服務',
+      toggleWorkspace: '工作區',
+      cacheHitRateTitle: '本工作階段的提示詞快取命中率。快取的 token 費用較低，因此越高越省錢',
+      tokensPerSecondTitle: '每秒輸出 token 數，取最近 10 次模型呼叫的平均值',
+      webhooks: 'Webhook',
+      openWebhooks: '開啟 Webhook',
+      accountUsagePanel: {
+        empty: '沒有已連接的訂閱',
+        loading: '正在檢查方案…',
+        refresh: '重新整理',
+        states: {
+          network_error: '無法連上供應商',
+          no_usage_endpoint: '此供應商沒有方案資料',
+          not_authenticated: '未登入',
+          parse_error: '供應商傳回了非預期的回應',
+          rate_limited: '已達速率限制，請稍後再試',
+          unauthorized: '登入已過期'
+        },
+        title: '方案用量',
+        windows: {
+          '5h': '5 小時區間',
+          '7d': '每週區間',
+          credits: '額度',
+          key_limit: 'API 金鑰上限',
+          period: '計費週期'
+        },
+        resetsAt: when => `${when} 重置`
+      },
+      accountUsage: '方案',
+      toggleAccountUsage: '顯示方案用量'
     }
   },
 
@@ -3232,6 +4023,8 @@ export const zhHant = defineLocale({
     openFolder: '開啟資料夾',
     refreshTree: '重新整理檔案樹',
     collapseAll: '收合所有資料夾',
+    showIgnored: '顯示 gitignore 的檔案',
+    hideIgnored: '隱藏 gitignore 的檔案',
     previewUnavailable: '預覽不可用',
     couldNotPreview: path => `無法預覽 ${path}`,
     noProjectTitle: '沒有專案',
@@ -3423,6 +4216,20 @@ export const zhHant = defineLocale({
     }
   },
 
+  interfaceMode: {
+    title: '介面模式',
+    hint: '只改變顯示的內容，不改變 Hermes 的能力。',
+    sessionNote: '由簡潔模式設定。此處的變更僅在本次工作階段內生效；切換到進階模式即可保留為你的設定。',
+    simple: {
+      label: '簡潔',
+      description: '用於與 Hermes 對話。只有側邊欄和聊天；沒有終端機、檔案或差異面板。'
+    },
+    advanced: {
+      label: '進階',
+      description: '面向開發者。終端機、檔案、差異、狀態列和版面配置，按你的設定顯示。'
+    }
+  },
+
   zones: {
     showTabStrip: '顯示分頁',
     hideTabStrip: '隱藏分頁',
@@ -3493,6 +4300,29 @@ export const zhHant = defineLocale({
   },
 
   assistant: {
+    catalogInstall: {
+      preparing: '正在準備安裝…',
+      install: '安裝',
+      advanced: '進階',
+      skip: '略過',
+      installing: '正在安裝…',
+      installed: '已安裝',
+      notInstalled: '未安裝',
+      failed: '失敗',
+      showNames: '顯示名稱',
+      hideNames: '隱藏名稱',
+      skill: name => `技能 ${name}`,
+      kind: { plugin: '外掛', skill: '技能' },
+      tier: { official: '官方', community: '社群' },
+      targetProfile: profile => `安裝到你的 ${profile} 設定檔`,
+      sendFailed: '無法傳送你的回覆，請再試一次。',
+      commitLabel: '提交',
+      subdirLabel: '資料夾',
+      securityHeading: '安全性',
+      scan: { passed: '掃描通過', warnings: '掃描發現警告', failed: '掃描未通過' },
+      requirementsLabel: '需求',
+      credentialsHeading: '憑證'
+    },
     thread: {
       loadingSession: '正在載入工作階段',
       showEarlier: '顯示較早的訊息',
@@ -3524,6 +4354,144 @@ export const zhHant = defineLocale({
       branchNewChat: '在新聊天中分支',
       react: '回應',
       dismissError: '关闭错误',
+      errorGenericProvider: 'AI 服務',
+      errorLayerBodies: {
+        generic: 'Hermes 回覆時發生問題。請重試；若問題持續，請複製錯誤詳細資訊。',
+        provider: 'AI 服務無法完成此請求。請稍後重試或切換服務商。',
+        endpoint: 'Hermes 無法連線至你的自訂模型伺服器。請確認它正在執行，然後重新傳送訊息。',
+        streaming: '回覆完成前連線已中斷。請重試以重新傳送。',
+        auth: 'AI 服務拒絕了你的登入。請檢查此供應商的憑證，然後重新傳送訊息。',
+        billing: '你在此供應商的帳戶已無剩餘額度。請儲值或切換供應商，然後重新傳送。',
+        disk: '你的磁碟已滿，Sbar Rafiq 無法儲存此對話。請釋放一些空間後重試。',
+        gateway: 'Sbar Rafiq 在開始回覆時遇到內部問題。請重新傳送訊息；如果問題持續發生，請傳送診斷資料。',
+        runtime: 'Sbar Rafiq 在開始回覆時遇到內部問題。請重新傳送訊息；如果問題持續發生，請傳送診斷資料。'
+      },
+      errorCodes: {
+        provider_policy_blocked: {
+          title: '帳戶設定封鎖了此模型',
+          body: provider => `${provider} 無法依你帳戶的資料或隱私設定路由此請求。請選擇其他模型或切換服務商。`
+        },
+        content_policy_blocked: {
+          title: 'AI 服務拒絕回答此請求',
+          body: provider => `${provider} 拒絕回答這則訊息。請修改後重新傳送。`
+        },
+        format_error: {
+          title: 'AI 服務拒絕了請求格式',
+          body: provider => `${provider} 不接受此請求的建構方式。請切換服務商，或傳送診斷資訊以便我們排查。`
+        },
+        invalid_response: {
+          title: 'AI 服務傳回了無法讀取的回覆',
+          body: provider => `${provider} 傳回了 Hermes 無法讀取的內容。請稍後重試。`
+        },
+        empty_response: {
+          title: 'AI 服務傳回了空回覆',
+          body: provider => `${provider} 沒有為此訊息傳回內容。請稍後重試。`
+        },
+        rate_limit: {
+          title: 'AI 服務忙碌中',
+          body: provider => `${provider} 正在限制請求數量。請稍等片刻後重試。`
+        },
+        upstream_rate_limit: {
+          title: 'AI 服務忙碌中',
+          body: provider => `${provider} 正在限制請求數量。請稍等片刻後重試。`
+        },
+        overloaded: {
+          title: 'AI 服務負載過高',
+          body: provider => `${provider} 目前遇到問題。請稍後重試或切換服務商。`
+        },
+        server_error: {
+          title: 'AI 服務發生錯誤',
+          body: provider => `${provider} 傳回了伺服器錯誤。請稍後重試或切換服務商。`
+        },
+        timeout: {
+          title: '回覆逾時',
+          body: provider => `${provider} 未及時回應。請重試以重新傳送。`
+        },
+        ssl_cert_verification: {
+          title: '安全連線失敗',
+          body: provider => `Hermes 無法驗證與 ${provider} 的安全連線。請檢查網路或代理設定，或切換服務商後重新傳送。`
+        },
+        billing: {
+          title: '額度已用完',
+          body: provider => `你的 ${provider} 帳戶已無剩餘額度。請儲值或切換供應商，然後重新傳送。`
+        },
+        stream_drop: {
+          title: '回覆被中斷',
+          body: '回覆完成前連線中斷了。請重試以重新傳送。'
+        },
+        upstream_blocked: {
+          title: '防火牆封鎖了此請求',
+          body: provider =>
+            `${provider} 前方的防火牆或 CDN 在請求抵達模型前就將其封鎖，你的金鑰應該沒有問題。請在設定中透過供應商的 extra_headers 設定 User-Agent 標頭，或切換供應商，然後重新傳送訊息。`
+        },
+        context_overflow: {
+          title: '此對話太長',
+          body: '此對話已超出模型可容納的長度。請壓縮對話或開始新的聊天，然後重新傳送。'
+        },
+        payload_too_large: {
+          title: '此訊息太大',
+          body: '此請求對模型來說太大。請壓縮對話或開始新的聊天，然後重新傳送。'
+        },
+        model_not_found: {
+          title: '無法使用此模型',
+          body: provider =>
+            `${provider} 未在你的帳戶上提供此模型。請選擇其他模型，然後重新傳送訊息。`
+        },
+        truncated: {
+          title: '回覆提前結束',
+          body: '模型在完成前就停止了。請重試以取得完整回覆。'
+        },
+        loop_error: {
+          title: 'Sbar Rafiq 陷入迴圈',
+          body: '回覆一直重複相同的步驟，因此 Sbar Rafiq 已將其停止。請重試；如果再次發生，請開始新的聊天。'
+        },
+        SESSION_NOT_OWNED: {
+          title: '此聊天已在其他地方開啟',
+          body: '此聊天目前已在另一個 Sbar Rafiq 視窗或終端機中開啟。請在那裡關閉後重新傳送訊息，或在這裡開始新的聊天。'
+        },
+        disk_full: {
+          title: '磁碟已滿',
+          body: '你的磁碟已滿，Sbar Rafiq 無法儲存此對話。請釋放一些空間後重試。'
+        },
+        free_tier_disabled: {
+          title: '目前已關閉免登入使用 Sbar Rafiq',
+          body: '使用 Nous 帳戶登入即可繼續聊天，完全免費。'
+        },
+        free_tier_rate_limited: {
+          title: '你已用完免登入聊天的額度',
+          body: '額度很快就會重置。使用 Nous 帳戶登入可獲得更多額度，完全免費。'
+        },
+        free_tier_at_capacity: {
+          title: '目前免登入聊天非常繁忙',
+          body: '登入即可略過排隊，完全免費；或稍後再試。'
+        },
+        free_tier_model_not_free: {
+          title: '未登入時無法使用該模型',
+          body: 'Sbar Rafiq 目前使用免費模型。使用 Nous 帳戶登入可使用更多模型，完全免費。'
+        },
+        free_tier_route: {
+          title: 'Sbar Rafiq 無法透過此路由連上免費模型',
+          body: '請使用 Nous 帳戶登入（完全免費），或檢查 NOUS_INFERENCE_BASE_URL 設定。'
+        },
+        free_tier_outage: {
+          title: '免費模型目前回應有問題',
+          body: '請稍候一分鐘再重新傳送訊息。'
+        },
+        free_tier_refused: {
+          title: '未登入時 Sbar Rafiq 無法傳送此內容',
+          body: '使用 Nous 帳戶登入是免費的。'
+        },
+        auth: {
+          title: provider => `${provider} 拒絕了你的登入`,
+          body: provider =>
+            `${provider} 未接受已儲存的憑證。請在設定中修正或切換供應商，然後重新傳送訊息。`
+        },
+        auth_permanent: {
+          title: provider => `${provider} 拒絕了你的登入`,
+          body: provider =>
+            `為 ${provider} 儲存的憑證無效或已被撤銷。請更新憑證或切換供應商，然後重新傳送訊息。`
+        }
+      },
       errorLayers: {
         auth: '認證錯誤',
         billing: '額度不足',
@@ -3536,6 +4504,10 @@ export const zhHant = defineLocale({
         streaming: '串流連線錯誤'
       },
       errorRetry: '重試',
+      errorLimitResets: time => `限額將於 ${time} 重設`,
+      errorRetryAtReset: time => `限額重設後重試（${time}）`,
+      errorRetryScheduled: (time, wait) => `將於 ${time} 重試 — 還剩 ${wait}`,
+      errorRetryScheduledCancel: '取消',
       errorStartNewSession: '開始新工作階段',
       errorSwitchProvider: '切換服務商',
       errorSignInAgain: provider => `重新登入 ${provider}`,
@@ -3562,7 +4534,29 @@ export const zhHant = defineLocale({
       restoreNext: '還原至下一個檢查點',
       goForward: '前進',
       sendEdited: '傳送編輯後的訊息',
-      attachingFile: '正在附加…'
+      attachingFile: '正在附加…',
+      processingPrompt: '正在處理提示詞',
+      errorDetails: '詳細資料',
+      errorToastTitle: 'Hermes 無法完成回覆',
+      errorChooseModel: '選擇模型',
+      errorCompressConversation: '壓縮對話',
+      errorCompressFailed: '無法壓縮對話',
+      errorOpenHermesFolder: '開啟 Hermes 資料夾',
+      errorOpenHermesFolderFailed: '無法開啟 Hermes 資料夾',
+      errorUpdateApiKey: '更新 API 金鑰',
+      errorSignInFreeTier: '使用 Nous 帳戶登入',
+      expandMessage: '展開訊息',
+      scrollToBottom: '捲動到底部',
+      loadingLocalModel: model => `正在將 ${model} 載入記憶體`,
+      errorAuthKinds: {
+        api_key: {
+          title: provider => `${provider} 拒絕了你的 API 金鑰`,
+          body: provider => `為 ${provider} 儲存的金鑰無效或已被撤銷。請更新後重試。`
+        },
+        oauth: {
+          title: provider => `你的 ${provider} 登入已過期`
+        }
+      }
     },
     approval: {
       gatewayDisconnected: 'Sbar Rafiq 閘道未連線',
@@ -3577,7 +4571,10 @@ export const zhHant = defineLocale({
       alwaysTitle: '一律允許此指令？',
       alwaysDescription: pattern =>
         `這會將「${pattern}」模式加入永久允許清單（~/.hermes/config.yaml）。Sbar Rafiq 對類似指令將不再詢問，包括目前工作階段和未來工作階段。`,
-      alwaysAllow: '一律允許'
+      alwaysAllow: '一律允許',
+      reconnect: '重新連線',
+      timedOutSystemLine: '批准已逾時，指令未執行。請要求 Sbar Rafiq 再試一次，或在「設定 → 安全性 → 批准逾時」中提高上限。',
+      openSafetySettings: '開啟安全性設定'
     },
     clarify: {
       notReady: '澄清請求尚未就緒',
@@ -3632,6 +4629,7 @@ export const zhHant = defineLocale({
       statusRecovered: '已復原',
       statusDone: '完成',
       resultUnavailable: '結果無法使用',
+      resultInterrupted: '已中斷',
       memoryWriteNoted: '已記下記憶寫入',
       actions: {
         read: '已讀取',
@@ -3710,6 +4708,23 @@ export const zhHant = defineLocale({
         web_search: { done: '已搜尋網頁', pending: '正在搜尋網頁', pendingAction: '正在搜尋' },
         write_file: { done: '已編輯檔案', pending: '正在編輯檔案', pendingAction: '正在編輯' }
       }
+    },
+    mcpSetup: {
+      installTitle: '新增 MCP 伺服器',
+      enableTitle: '啟用 MCP 伺服器',
+      authorizeTitle: '授權 MCP 伺服器',
+      installAction: '安裝',
+      enableAction: '啟用',
+      authorizeAction: '授權',
+      envRequired: '請先填寫必要的憑證',
+      sendFailed: '無法傳送 MCP 設定回應',
+      reloadFailed: '伺服器已儲存，但重新載入 MCP 工具失敗；它們會在下一個工作階段載入',
+      gatewayDisconnected: 'Sbar Rafiq 目前離線。請重新連線後再傳送一次。',
+      installed: server => `已安裝 ${server}`,
+      enabled: server => `已啟用 ${server}`,
+      authorized: server => `已授權 ${server}`,
+      failed: server => `${server} 設定失敗`,
+      toolCount: count => (count === 1 ? '1 個工具' : `${count} 個工具`)
     }
   },
 
@@ -3720,6 +4735,8 @@ export const zhHant = defineLocale({
     sudoTitle: '管理員密碼',
     sudoDesc: '輸入 sudo 密碼前，請先確認指令。密碼會傳送給執行指令的代理，並在本次工作階段中快取。',
     sudoCommandUnavailable: '此代理未提供指令。如果無法在對話中確認，請取消。',
+    sudoInstallDesc:
+      'Hermes 需要您的 sudo 密碼，以在閘道主機上安裝 Bot Screen 套件（TigerVNC + Xfce）。它只會傳送到該主機。',
     sudoPlaceholder: 'sudo 密碼',
     secretTitle: '需要密鑰',
     secretDesc: 'Sbar Rafiq 需要一個憑證才能繼續。',
@@ -3748,7 +4765,8 @@ export const zhHant = defineLocale({
     vaultCodeLabel: '驗證碼',
     vaultCodeFootnote: '提示：在「設定 → 密碼與登入」中為此登入儲存驗證器金鑰後，Sbar Rafiq 會自動填寫驗證碼。',
     vaultCodeSkip: '略過',
-    vaultCodeConfirm: '輸入驗證碼'
+    vaultCodeConfirm: '輸入驗證碼',
+    reconnect: '重新連線'
   },
 
   desktop: {
@@ -3834,7 +4852,8 @@ export const zhHant = defineLocale({
       success: platform => `已移交到 ${platform}。隨時可在此處恢復。`,
       systemNote: platform => `↻ 已移交到 ${platform} — 隨時可在此處恢復。`,
       failed: error => `移交失敗：${error}`,
-      timedOut: '等待閘道逾時。`hermes gateway` 是否正在執行？'
+      timedOut: '等待閘道逾時。`hermes gateway` 是否正在執行？',
+      startMessaging: '開始傳訊'
     }
   },
 
@@ -3843,7 +4862,9 @@ export const zhHant = defineLocale({
     boundaryTitle: '介面出現問題',
     boundaryDesc: '此檢視遇到意外錯誤。您的聊天和設定是安全的。',
     reloadWindow: '重新載入視窗',
-    openLogs: '開啟記錄'
+    openLogs: '開啟記錄',
+    boundaryDetails: '詳細資料',
+    sendDiagnostics: '傳送診斷資料'
   },
 
   tips: {
@@ -3914,5 +4935,358 @@ export const zhHant = defineLocale({
       description: '顯示行動裝置側邊欄。',
       toggle: open => `${open ? '顯示' : '隱藏'}側邊欄`
     }
+  },
+  connectorsPage: {
+    title: '連接器',
+    filterCategory: '類別',
+    categoryAll: '所有類別',
+    uncategorised: '未分類',
+    residencyLocal: '在此裝置上',
+    segment: {
+      all: '全部',
+      available: '可用',
+      connected: '已連線',
+      off: '已關閉'
+    },
+    group: {
+      connected: '已連線',
+      connectedNote: '中斷的連線排在最前面。',
+      available: '可用',
+      off: '已關閉',
+      offNote: '登入資訊會保留。'
+    },
+    card: {
+      kindManaged: '代管',
+      kindCatalog: 'MCP · 目錄',
+      kindCustom: 'MCP · 自訂',
+      inCatalog: '在 Sbar Rafiq 目錄中',
+      hostedTwin: '有代管版本可用',
+      alsoLocal: '也在此裝置上執行',
+      state: {
+        accessExpired: '存取權已過期',
+        available: '可用',
+        connected: '已連線',
+        connecting: '正在連線',
+        connectionUnknown: '狀態不明',
+        couldNotConnect: '無法連線',
+        offByYourOrganisation: '已由你的組織關閉',
+        offForYou: '已為你關閉',
+        serverConnecting: '正在連線…',
+        serverError: '錯誤',
+        serverNeedsAuth: '需要驗證',
+        serverOff: '關閉',
+        serverOn: '開啟',
+        serverOnUnused: '已開啟，未使用'
+      },
+      verb: {
+        authenticate: '驗證',
+        connect: '連線',
+        install: '安裝',
+        openLogs: '開啟記錄',
+        reconnect: '重新連線',
+        stopWaiting: '停止等待',
+        tryAgain: '再試一次',
+        turnBackOn: '重新開啟'
+      },
+      reason: {
+        finishSignIn: '請在瀏覽器中完成登入。',
+        reconnect: '重新連線，讓此應用程式繼續運作。',
+        serverError: '伺服器拒絕了連線。',
+        serverNeedsAuth: '登入後此伺服器才能回應。'
+      },
+      kindPlugin: (plugin: string) => `MCP · 外掛 ${plugin}`,
+      open: (name: string) => `開啟 ${name}`,
+      turnServerOn: (name: string) => `開啟 ${name}`,
+      turnServerOff: (name: string) => `關閉 ${name}`,
+      fact: {
+        tools: (count: number) => `${count} 個工具`,
+        toolsOff: (count: number) => `${count} 個工具已關閉`,
+        toolsOn: (count: number) => `${count} 個工具已開啟`,
+        toolsSomeOn: (total: number, on: number) => `${total} 個工具，${on} 個已開啟`
+      }
+    },
+    page: {
+      loading: '正在讀取目錄和這部電腦上的伺服器',
+      emptyTitle: '這裡還沒有應用程式。在這部電腦上新增伺服器即可開始。',
+      noMatchTitle: '沒有相符的應用程式',
+      noMatchBody: '這裡沒有相符的項目。將 Sbar Rafiq 指向你自己的 MCP 伺服器即可新增。',
+      clearSearch: '清除搜尋',
+      hostedFailedTitle: '無法連上代管的應用程式。',
+      hostedFailedBody: '這部電腦上的伺服器不受影響，仍在執行中。沒有任何項目被關閉。',
+      retry: '重試',
+      showAllMatches: '顯示所有相符項目',
+      freeTierNote: '在你登入之前，連線都保留在這部電腦上。',
+      signInLine: '登入 Nous 即可使用代管的應用程式。',
+      signIn: '登入',
+      managedUnavailable: '此帳號尚無法使用代管的應用程式。',
+      writeFailed: '該變更未儲存。',
+      refreshFailed: '工具列表未重新整理。',
+      disconnectNoAccount: 'Sbar Rafiq 在這裡沒有可中斷連線的帳號。請重新整理頁面後再試一次。',
+      disconnectRefused: 'Nous 目前無法移除此登入資訊。請改用開關關閉此應用程式，或稍後再試。',
+      matchesElsewhere: (count: number) => `其他群組中還有 ${count} 個相符項目。`,
+      segmentNoMatch: (segment: string) => `「${segment}」中沒有相符項目，因此顯示所有相符項目。`
+    },
+    add: {
+      action: '新增自訂項目',
+      title: '連線到自訂 MCP',
+      hint: '在此裝置的 mcp.json 中新增一筆項目',
+      pasteLabel: '貼上指令或程式碼片段',
+      pastePlaceholder: 'npx -y @modelcontextprotocol/server-filesystem /path/to/dir',
+      pasteNoMatch: '這段內容看起來不像伺服器。請改為填寫下方欄位。',
+      name: '名稱',
+      nameTaken: '此名稱已被使用。',
+      type: '類型',
+      typeStdio: 'STDIO',
+      typeHttp: 'Streamable HTTP',
+      command: '啟動指令',
+      args: '引數',
+      addArg: '+ 新增引數',
+      envVars: '環境變數',
+      addEnvVar: '+ 新增環境變數',
+      passthrough: '環境變數傳遞',
+      addPassthrough: '+ 新增變數',
+      cwd: '工作目錄',
+      url: 'URL',
+      headers: '標頭',
+      addHeader: '+ 新增標頭',
+      auth: '驗證',
+      authNone: '無',
+      authOauth: 'OAuth',
+      authBearer: 'Bearer 權杖',
+      keyPlaceholder: 'KEY',
+      valuePlaceholder: '值',
+      removeRow: '移除此列',
+      editJson: '編輯 mcp.json',
+      saveFailed: '該伺服器未儲存。'
+    },
+    dialog: {
+      disconnect: '中斷連線',
+      disconnectBody: 'Sbar Rafiq 將不再以此帳號執行動作。你隨時可以再次連線。',
+      menuRefreshTools: '重新整理工具',
+      moreActions: '更多動作',
+      removeServerBody: '此項目會從這部電腦的 mcp.json 中移除。不會刪除其他任何內容。',
+      wayHosted: '代管',
+      turnOffLocal: '關閉本機伺服器',
+      openPlugins: '開啟「外掛」分頁',
+      nousLine: 'Nous 應用程式跟隨你的帳號，而非設定檔。',
+      rulesReadOnly: '目前無法變更規則。',
+      rulesSignIn: '登入後即可變更 Sbar Rafiq 在這裡可以做的事。',
+      orgLink: '開啟連接器管理頁面',
+      connectEnded: '登入未完成。',
+      connectOpenAgain: '再次開啟連結',
+      tokensPerCall: '每次呼叫的 token 數',
+      usesPerMonth: '30 天內使用次數',
+      advanced: '進階',
+      advancedHint: 'mcp.json 項目和記錄',
+      disconnectTitle: (name: string) => `要中斷與 ${name} 的連線嗎？`,
+      removeServerTitle: (name: string) => `要移除 ${name} 嗎？`,
+      appSwitch: (name: string) => `Sbar Rafiq 可以使用 ${name}`,
+      waysTitle: (name: string) => `${name} 的執行位置`,
+      wayNotConnected: (name: string) => `尚未連線。請在瀏覽器中登入 ${name}。`,
+      bothOn: (name: string) => `兩者都已開啟，因此 Sbar Rafiq 會看到每個 ${name} 工具兩次。`,
+      providedByPlugin: (plugin: string) => `由外掛 ${plugin} 提供`,
+      rulesAppOff: (name: string) => `開啟 ${name} 後才能變更其工具。`,
+      orgNote: (count: number) => `你的組織已關閉 ${count} 個工具。`
+    },
+    tools: {
+      title: '工具',
+      notInstalledBody: '在此裝置上安裝後，即可查看它提供的工具。',
+      summaryAllTools: '所有工具',
+      summaryOther: '其他',
+      allToolsSwitch: '開啟或關閉所有工具',
+      summaryAllOn: '全部開啟',
+      summaryOff: '關閉',
+      showSummary: '顯示摘要',
+      staleSignIn: '登入以讀取最新的工具列表。',
+      quickReadOnly: '唯讀',
+      quickNoDestructive: '關閉破壞性工具',
+      quickEverythingOn: '全部開啟',
+      lockedHint: '已由你的組織關閉',
+      noMatch: '沒有符合這些篩選條件的工具。',
+      loading: '正在讀取工具列表',
+      unavailableLine: '無法取得工具列表。',
+      needsAuthBody: '登入資訊會保留在這部電腦上，不會外傳。',
+      retry: '重試',
+      goneBody: 'Sbar Rafiq 已無法再呼叫它。這一列會保留到你移除為止，因此不會有任何項目突然消失。',
+      remove: '移除',
+      offBody: '用上方的開關開啟後，即可讀取它提供的工具。',
+      signedOutTitle: '登入 Nous 以讀取工具列表。',
+      signedOutBody: '這部電腦上的伺服器不受影響。',
+      conflictTitle: '在你編輯時，有人變更了此規則。',
+      conflictReload: '重新載入對方的版本',
+      conflictSave: '以你的版本覆寫',
+      saveFailed: '這些工具規則未儲存。',
+      discard: '捨棄',
+      save: '儲存變更',
+      saving: '正在儲存...',
+      summaryTitle: (name: string) => `Sbar Rafiq 可以對 ${name} 做的事`,
+      summaryPreviewTitle: (name: string) => `連線後 Sbar Rafiq 可以對 ${name} 做的事`,
+      summaryCount: (count: number) => `${count} 個工具`,
+      summarySomeOn: (on: number, total: number) => `${total} 個中有 ${on} 個已開啟`,
+      showAllTools: (count: number) => `顯示全部 ${count} 個工具`,
+      facetSwitch: (facet: string) => `開啟或關閉「${facet}」工具`,
+      moreHints: (count: number) => `+${count}`,
+      searchCountPlaceholder: (count: number) => `搜尋 ${count} 個工具`,
+      toolList: (name: string) => `${name} 工具`,
+      categorySelect: (count: number) => `${count} 個類別`,
+      showDeprecated: (count: number) => `顯示 ${count} 個已淘汰項目`,
+      hideDeprecated: (count: number) => `隱藏 ${count} 個已淘汰項目`,
+      turnToolOn: (tool: string) => `開啟 ${tool}`,
+      turnToolOff: (tool: string) => `關閉 ${tool}`,
+      showDetails: (tool: string) => `顯示 ${tool} 的作用`,
+      hideDetails: (tool: string) => `隱藏 ${tool} 的作用`,
+      needsAuthTitle: (name: string) => `登入 ${name} 以讀取其工具。`,
+      goneTitle: (name: string) => `${name} 已從目錄中移除。`,
+      offTitle: (name: string) => `${name} 已關閉。`,
+      conflictBody: (theyOff: number, theyOn: number) => {
+        const they = [
+          theyOff > 0 ? `關閉了 ${theyOff} 個你已開啟的工具` : '',
+          theyOn > 0 ? `讓 ${theyOn} 個你已關閉的工具保持開啟` : ''
+        ].filter(Boolean)
+
+        return `${they.length > 0 ? `對方${they.join('，並且')}。` : ''}你的編輯仍保留在畫面上，尚未寫入任何內容。`
+      },
+      footerDirty: (off: number, backOn: number) =>
+        `${off} 個工具已關閉，${backOn === 0 ? '沒有' : `${backOn} 個`}重新開啟`
+    },
+    vocabulary: {
+      facetRead: {
+        label: '讀取',
+        long: '從此應用程式讀取資料，不會變更任何內容。'
+      },
+      facetWrite: {
+        label: '寫入',
+        long: '在此應用程式中建立或變更內容。'
+      },
+      facetDestructive: {
+        label: '破壞性',
+        long: '可能會永久移除此應用程式中的內容。'
+      },
+      facetUnclassified: {
+        label: '效果不明',
+        long: '此應用程式從未說明這個工具的作用。'
+      },
+      hintReadOnly: {
+        label: '唯讀',
+        long: '此工具宣告它只會讀取。'
+      },
+      hintCreate: {
+        label: '建立',
+        long: '建立新的內容。'
+      },
+      hintUpdate: {
+        label: '更新',
+        long: '變更已存在的內容。'
+      },
+      hintDelete: {
+        label: '刪除',
+        long: '移除內容。'
+      },
+      hintDestructive: {
+        label: '破壞性',
+        long: '它所做的變更無法在這裡復原。'
+      },
+      hintIdempotent: {
+        label: '可重複',
+        long: '執行兩次的結果與執行一次相同。'
+      },
+      hintOpenWorld: {
+        label: '外部',
+        long: '會存取此應用程式以外的內容。'
+      }
+    },
+    searchPlaceholder: (count: number) => `搜尋 ${count} 個應用程式`
+  },
+  freeTier: {
+    providerRowTitle: 'Nous · 免費服務',
+    providerRowPitch: '使用 Nous 帳戶登入，以解鎖更多模型和工具。',
+    readyTitle: 'Sbar Rafiq 已準備就緒。',
+    readyCaption: '免費 · 包含連接器',
+    begin: '開始',
+    signInInstead: '改用 Nous 帳戶登入',
+    otherProviders: '其他供應商',
+    stripTitle: '現已提供免費的 Nous 推論和連接器。',
+    stripBody: '開啟模型選擇器試用，或使用 Nous 帳戶登入。',
+    openModelPicker: '開啟模型選擇器',
+    dismiss: '關閉',
+    providerName: 'Nous',
+    signIn: '登入',
+    signInHeading: '使用 Nous 帳戶登入，以解鎖更多模型和工具。',
+    settingUp: '正在設定免費推論…',
+    codeBody: '在瀏覽器中輸入此代碼以完成登入。',
+    copyLink: '複製連結',
+    doNotShare: '請勿分享此代碼。',
+    waiting: '正在等待登入…',
+    finishingHeading: '正在完成登入…',
+    finishingBody: '已在瀏覽器中核准。正在取得你的帳戶權杖。',
+    signedIn: '已登入。',
+    completedBody: '推論和工具現在由你的帳戶提供。',
+    defaultModel: '預設模型',
+    change: '變更',
+    done: '完成',
+    notNow: '暫時不要',
+    tryAgain: '再試一次',
+    startAgain: '重新開始',
+    didNotComplete: '登入未完成',
+    rejectedBody: '沒關係，你仍在使用 Nous 免費服務。準備好時隨時可以登入。',
+    supersededBody: '較新的登入代碼已取代此代碼。請使用最新的代碼，或重新開始。',
+    timedOutHeading: '該登入連結已過期',
+    timedOutBody: '準備好時隨時可以重新開始。你仍在使用 Nous 免費服務。',
+    retiredBody: '登入完成前你的工作階段已結束。Sbar Rafiq 會開始新的工作階段，之後你準備好時再登入即可。',
+    errorBody: '登入未完成。準備好時隨時可以再試一次。',
+    busyHeading: '就快完成了',
+    unreachableBody: 'Sbar Rafiq 無法連上 Nous 服務來完成登入。請檢查網際網路連線後再試一次。你的工作階段仍保留在這裡。',
+    alreadySignedInHeading: '已登入。',
+    alreadySignedInBody: '此 Sbar Rafiq 已登入 Nous 帳戶。',
+    setupFailed: {
+      gateClosed: '此版本的 Sbar Rafiq 必須有 Nous 帳戶才能啟動。請登入或建立帳戶，完全免費，只需一分鐘。',
+      paused: '免登入使用 Sbar Rafiq 暫時停止。Sbar Rafiq 會持續檢查。登入是免費的，而且可以讓你立即開始使用。',
+      unreachable: 'Sbar Rafiq 無法連上 Nous 服務。請檢查網際網路連線，然後點選「再試一次」。或者先連接其他供應商。',
+      serverError: 'Nous 服務出了點狀況。請稍後點選「再試一次」，或先連接其他供應商。',
+      powRequired: 'Nous 伺服器要求工作量證明，但你的 Agent 尚未實作此功能。請登入或建立免費的 Nous 帳戶以繼續。',
+      locked: '此工作階段必須登入才能繼續。請登入或建立免費的 Nous 帳戶以繼續使用。',
+      generic: 'Sbar Rafiq 無法在未登入的情況下設定免費存取。登入是免費的，或者也可以連接其他供應商。',
+      signInBelow: '登入是免費的。請在下方選擇 Nous。',
+      tryAgain: '再試一次',
+      retrying: '正在重試…',
+      rateLimited: wait =>
+        `目前有許多人正在開始使用，因此 Sbar Rafiq 會在 ${wait}後再試一次。登入是免費的，而且可以免去等待。`
+    },
+    statusLabel: model => `Nous · ${model}`,
+    signedInAs: email => `已登入為 ${email}`,
+    busyBody: wait =>
+      `Nous 服務忙碌中，Sbar Rafiq 無法完成登入。請在 ${wait}後再試一次。在此期間你的工作階段仍會保留在這裡。`
+  },
+  connectors: {
+    title: '連接你的應用程式',
+    connect: '連線',
+    skip: '暫時不要',
+    cancel: '停止等待',
+    retry: '再試一次',
+    grant: '重新連線',
+    connected: '已連線',
+    checking: '正在檢查你的應用程式…',
+    notConnected: '未連線',
+    skipped: '已略過',
+    disabled: '無法使用',
+    failed: '無法連線',
+    needsAuth: '存取權已過期',
+    opening: '正在開啟登入頁面…',
+    waiting: '正在等待你的瀏覽器…',
+    timeout: '仍在等待授權。',
+    refresh: '重新整理狀態',
+    connectError: '無法開始授權。請再試一次。',
+    unavailable: '此工作階段無法使用連接器。',
+    ownerMissing: '請重新開啟此對話以管理其連線。',
+    search: '尋找應用程式',
+    empty: '沒有相符的應用程式',
+    disclaimer: '連線是選擇性的。只授權你希望 Sbar Rafiq 使用的應用程式。',
+    execution: '連接器工具',
+    openInBrowser: '在瀏覽器中開啟',
+    setupCancel: '取消',
+    authorizedToolsUnavailable: '已授權。工具無法使用。',
+    required: '必填',
+    connectErrorFor: (app: string) => `無法開始 ${app} 的授權。`,
+    setup: server => `設定 ${server}`
   }
 })

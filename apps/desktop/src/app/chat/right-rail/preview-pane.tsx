@@ -9,12 +9,14 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { openGuestContextMenu } from '@/app/context-menu/store'
 import { PanelEmpty } from '@/app/overlays/panel'
+import { isElementInHiddenPane } from '@/components/pane-shell/pane-visibility'
 import { Tip } from '@/components/ui/tooltip'
 import { type Translations, useI18n } from '@/i18n'
 import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
 import { guardGuestPointers } from '@/lib/guest-pointer-guard'
-import { openPreviewTargetInBrowser, remoteHtmlPreviewDocument } from '@/lib/local-preview'
+import { isLoopbackPreviewUrl, openPreviewTargetInBrowser, remoteHtmlPreviewDocument } from '@/lib/local-preview'
 import { isRemoteGateway } from '@/lib/media'
+import { admitPreviewExternalUrl, PREVIEW_EXTERNAL_CHANNEL } from '@/lib/preview-external'
 import { reachablePreviewUrl } from '@/lib/preview-reach'
 import { toWidgetPoint, type Viewport, viewportFit } from '@/lib/preview-viewport'
 import { rafCoalesce } from '@/lib/raf-coalesce'
@@ -28,7 +30,9 @@ import {
   failPreviewServerRestart,
   noteBrowserPage,
   popOutBrowserTab,
-  type PreviewTarget
+  type PreviewRenderMode,
+  type PreviewTarget,
+  setPreviewRenderMode
 } from '@/store/preview'
 import { $selectedStoredSessionId } from '@/store/session'
 import { canOpenBrowserWindow, isBrowserWindow } from '@/store/windows'
@@ -45,9 +49,9 @@ import {
 import { type ConsoleEntry, consoleLevel } from './preview-console-state'
 import { previewConsoleState } from './preview-console-store'
 import { createEmulationCache } from './preview-emulation-cache'
-import { LocalFilePreview, PreviewEmptyState } from './preview-file'
+import { LocalFilePreview, PreviewEmptyState, PreviewModeSwitcher } from './preview-file'
 import { type PreviewFindTarget, registerPreviewFind } from './preview-find'
-import { type PreviewInputEvent, registerPreviewInput } from './preview-input'
+import { type PreviewInputEvent, registerPreviewInput, toWebviewInputSpace } from './preview-input'
 import { PREVIEW_BROWSER_ATTR, registerPreviewNav } from './preview-nav'
 import { PreviewPinPanel } from './preview-pin-panel'
 import { registerPreviewPageReader } from './preview-reader'
@@ -82,10 +86,11 @@ type PreviewWebview = HTMLElement & {
   selectAll?: () => void
   sendInputEvent?: (event: PreviewInputEvent) => void
   /** Chromium's zoom level for THIS guest. The webview inherits the host
-   *  window's zoom, which breaks every layout the page tuned itself to — the
+   *  window's zoom, which breaks every layout the page tuned itself to, so the
    *  guest is pinned back to 1:1 with this (see pinGuestZoom). */
   setZoomLevel?: (level: number) => void
   setZoomFactor?: (factor: number) => void
+  getZoomFactor?: () => number
 }
 
 /** Electron throws if getURL/getTitle run before attach + dom-ready, or after
@@ -153,10 +158,6 @@ function loadErrorTitle(error: PreviewLoadErrorState, copy: Translations['previe
 
   return copy.failedToLoad
 }
-
-/** Loopback hosts — the address family that means "this machine", and so the
- *  one family whose meaning changes with WHICH machine is running the page. */
-const LOOPBACK_HOST_RE = /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)$/i
 
 /**
  * True when this address can't mean what the agent meant.
@@ -277,15 +278,7 @@ export function guestPinFactor(emulating: boolean): number {
 }
 
 function isRemoteLoopbackUrl(url: string): boolean {
-  if (!isRemoteGateway()) {
-    return false
-  }
-
-  try {
-    return LOOPBACK_HOST_RE.test(new URL(url).hostname)
-  } catch {
-    return false
-  }
+  return isRemoteGateway() && isLoopbackPreviewUrl(url)
 }
 
 function isModuleMimeError(message: string): boolean {
@@ -395,14 +388,30 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
   const [loadError, setLoadError] = useState<PreviewLoadErrorState | null>(null)
   const [localReloadKey, setLocalReloadKey] = useState(0)
 
+  const renderMode = target.renderMode
+
   // Artifacts have no URL to load — they render from the registry, never in a
   // webview.
   const isWebPreview =
-    target.kind !== 'artifact' &&
-    (target.kind === 'url' || (target.previewKind === 'html' && target.renderMode !== 'source'))
+    target.kind !== 'artifact' && (target.kind === 'url' || (target.previewKind === 'html' && renderMode !== 'source'))
 
   const isRemoteHtmlTarget =
     target.kind === 'file' && target.previewKind === 'html' && Boolean(target.dataUrl || target.transient)
+
+  // The mode lives on the store tab, so only a tab-backed pane can flip it. A
+  // remote HTML file whose data URL failed validation arrives as a source-only
+  // transient target; it has no rendered path to offer.
+  const canRenderHtmlFile =
+    Boolean(tabId) &&
+    target.kind === 'file' &&
+    target.previewKind === 'html' &&
+    (!target.transient || Boolean(target.dataUrl))
+
+  const selectRenderMode = (next: PreviewRenderMode) => {
+    if (tabId) {
+      setPreviewRenderMode(tabId, next)
+    }
+  }
 
   // Hand the live address to storage when this guest is about to go away
   // (pop-out, dock-back, tab close). The other renderer builds from
@@ -425,7 +434,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
     }
   }, [tabId, target.kind])
 
-  const isRemoteHtml = isRemoteHtmlTarget && target.renderMode !== 'source' && Boolean(target.dataUrl)
+  const isRemoteHtml = isRemoteHtmlTarget && renderMode !== 'source' && Boolean(target.dataUrl)
 
   const remoteHtmlDocument = useMemo(
     () => (isRemoteHtml ? remoteHtmlPreviewDocument(target.dataUrl!) : null),
@@ -982,7 +991,15 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
     }
 
     return registerPreviewInput(tabId, {
-      focus: () => webviewRef.current?.focus?.(),
+      focus: () => {
+        const webview = webviewRef.current
+
+        // Trusted input still reaches the guest while hidden. Focusing the
+        // webview element would steal the host's composer focus even when inert.
+        if (webview && !isElementInHiddenPane(webview)) {
+          webview.focus?.()
+        }
+      },
       send: event => {
         const webview = webviewRef.current
 
@@ -1006,7 +1023,11 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
             ? { ...event, ...toWidgetPoint({ x: point.x, y: point.y }, viewportScaleRef.current) }
             : event
 
-        webview.sendInputEvent(scaled)
+        // The guest also keeps its own (per-host) zoom, which the act engine's
+        // CSS measurements do not include, so ask the webview, not the window.
+        // pinGuestZoom holds it at 1:1, which makes this a no-op until a page
+        // (or Chromium) moves it.
+        webview.sendInputEvent(toWebviewInputSpace(scaled, webview.getZoomFactor?.()))
       }
     })
   }, [isRemoteHtml, isWebPreview, tabId])
@@ -1094,7 +1115,9 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
 
     lastReloadRequestRef.current = reloadRequest
 
-    if (target.kind !== 'url') {
+    // An agent's file edit can only change a page a local dev server serves.
+    // Reloading any other site just throws away the user's page state.
+    if (target.kind !== 'url' || !isLoopbackPreviewUrl(currentUrl)) {
       return
     }
 
@@ -1103,7 +1126,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
       message: copy.workspaceReloading
     })
     reloadPreview()
-  }, [appendConsoleEntry, copy.workspaceReloading, reloadPreview, reloadRequest, target.kind])
+  }, [appendConsoleEntry, copy.workspaceReloading, currentUrl, reloadPreview, reloadRequest, target.kind])
 
   useEffect(() => {
     if (
@@ -1224,6 +1247,25 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
     webview.setAttribute('partition', isAgentTab ? 'persist:hermes-agent' : 'persist:hermes-preview')
     webview.setAttribute('src', target.url)
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes')
+
+    // The guest preload (main.ts installs it on this partition) forwards a
+    // clicked `_blank` anchor here. Admission is our side of the contract —
+    // http/https only, so a guest page can never reach the local-file
+    // opener — and the open itself goes through the audited
+    // `hermes:openExternal` channel, never a popup side effect.
+    const onGuestExternal = (event: Event) => {
+      const detail = event as Event & { args?: unknown[]; channel?: string }
+
+      if (detail.channel !== PREVIEW_EXTERNAL_CHANNEL) {
+        return
+      }
+
+      const url = String(detail.args?.[0] ?? '')
+
+      if (admitPreviewExternalUrl(url)) {
+        void window.hermesDesktop?.openExternal?.(url)
+      }
+    }
 
     const onConsole = (event: Event) => {
       const detail = event as Event & {
@@ -1418,6 +1460,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
     }
 
     webview.addEventListener('console-message', onConsole)
+    webview.addEventListener('ipc-message', onGuestExternal)
     webview.addEventListener('context-menu', onGuestContextMenu)
     webview.addEventListener('devtools-closed', onDevToolsClosed)
     webview.addEventListener('devtools-opened', onDevToolsOpened)
@@ -1434,6 +1477,7 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
 
     return () => {
       webview.removeEventListener('console-message', onConsole)
+      webview.removeEventListener('ipc-message', onGuestExternal)
       webview.removeEventListener('context-menu', onGuestContextMenu)
       webview.removeEventListener('devtools-closed', onDevToolsClosed)
       webview.removeEventListener('devtools-opened', onDevToolsOpened)
@@ -1493,6 +1537,14 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
           </div>
         )}
 
+        {canRenderHtmlFile && renderMode !== 'source' && (
+          <PreviewModeSwitcher
+            active="rendered"
+            modes={['rendered', 'source']}
+            onSelect={mode => selectRenderMode(mode === 'source' ? 'source' : 'preview')}
+          />
+        )}
+
         {isWebPreview && !isRemoteHtml && (
           <PreviewBrowserBar
             canGoBack={history.back}
@@ -1511,7 +1563,9 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
             }
             onPopIn={isBrowserWindow() ? () => window.close() : undefined}
             onPopOut={
-              isBrowserWindow() || !tabId || !canOpenBrowserWindow() ? undefined : () => popOutBrowserTab(tabId)
+              target.kind !== 'url' || isBrowserWindow() || !tabId || !canOpenBrowserWindow()
+                ? undefined
+                : () => popOutBrowserTab(tabId)
             }
             onReload={reloadPreview}
             onToggleConsole={() => consoleState.setOpen(open => !open)}
@@ -1561,14 +1615,18 @@ function PreviewPaneImpl({ embedded = false, onRestartServer, reloadRequest = 0,
             (target.kind === 'artifact' ? (
               <ArtifactPreview target={target} />
             ) : (
-              <LocalFilePreview reloadKey={localReloadKey} target={target} />
+              <LocalFilePreview
+                onSelectRendered={canRenderHtmlFile ? () => selectRenderMode('preview') : undefined}
+                reloadKey={localReloadKey}
+                target={target}
+              />
             ))}
           {isBlankPage && (
             <div className="absolute inset-0 grid bg-background">
               <PanelEmpty description={copy.blankPageBody} icon="globe" />
             </div>
           )}
-          {loadError && (
+          {isWebPreview && loadError && (
             <PreviewLoadError
               consoleHeight={consoleOpen ? consoleHeight : 0}
               error={loadError}

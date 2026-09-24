@@ -365,9 +365,32 @@ class AIAgent(
                 cwd=_launch_cwd_for_session(source), profile_name=profile_for_session,
             )
             self._session_db_created = True
+            self._title_delegated_thread()
         except Exception as e:
             # Transient failure (e.g. SQLite lock): _session_db_created stays False so the next turn retries.
             logger.warning("Session DB creation failed (will retry next turn): %s", e)
+
+    def _title_delegated_thread(self) -> None:
+        """Name a delegated thread from its goal, once, as its row is created.
+
+        A thread is shown to a person in the Threads dock, so it needs a name.
+        Without one the dock falls back to the goal PREVIEW, a hard truncation
+        at 60 characters that lands mid-word.
+
+        Deduping is on: sibling threads in one fan-out differ only by a repo
+        path or a review dimension, so their derived titles collide, and the
+        unique-title index would otherwise leave every sibling but the first
+        unnamed. Never raises: an unnamed thread still renders from its preview.
+        """
+        goal = str(getattr(self, "_delegate_goal", "") or "").strip()
+        if not goal:
+            return
+        try:
+            from agent.title_generator import apply_instant_title
+
+            apply_instant_title(self._session_db, self.session_id, goal, dedupe=True)
+        except Exception:
+            logger.debug("Delegated thread title failed", exc_info=True)
 
     def _transition_context_engine_session(
         self, *, old_session_id: Optional[str] = None, new_session_id: Optional[str] = None,

@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from agent.codex_responses_adapter import _summarize_user_message_for_log
 from agent.fast_mode import begin_turn as begin_fast_mode_turn
+from agent.skill_routing import begin_turn as begin_skill_routing_turn
 from agent.message_metadata import append_message
 from agent.message_sanitization import _repair_tool_call_arguments, _sanitize_surrogates
 from agent.model_metadata import MINIMUM_CONTEXT_LENGTH, _estimate_tools_tokens_rough
@@ -1476,6 +1477,10 @@ def _run_conversation_turn(
     agent._last_compaction_in_place = agent._last_compression_attempt_recorded = False
     agent._last_compression_attempt_in_place = None
     begin_fast_mode_turn(agent, conversation_history)
+    # One call site for every surface (CLI, gateway, desktop, subagents, kanban
+    # workers): the hint has to exist before build_turn_context assembles the
+    # ephemeral context it rides on. Never raises; off unless configured.
+    begin_skill_routing_turn(agent, user_message)
 
     # Adopt ~/.hermes/.env credential/base-url edits made since the last turn — a
     # Settings save updates .env, not this worker's client (#67821). No-op if unchanged.

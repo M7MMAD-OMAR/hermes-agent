@@ -11,6 +11,15 @@ describe('imageFilename', () => {
     expect(imageFilename('https://example.com/')).toBe('image')
     expect(imageFilename(undefined)).toBe('image')
   })
+
+  // A picture attached in the composer travels as its bounded `data:`
+  // thumbnail, and that is the source the lightbox saves from. Read as a URL
+  // its "pathname" is the media type plus the whole payload, so the naive
+  // basename is a chunk of base64 in the save dialog and in the toast.
+  it('does not read a name out of a data URL payload', () => {
+    expect(imageFilename('data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==')).toBe('image')
+    expect(downloadFilename('data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==', 'image/png')).toBe('image.png')
+  })
 })
 
 describe('downloadFilename', () => {

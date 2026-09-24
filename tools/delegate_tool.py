@@ -200,6 +200,20 @@ def _build_child_agent(
     # as auxiliary.review.
     delegation_cfg = _load_config()
     child_toolsets, child_disabled_toolsets = _resolve_child_toolsets(parent_agent, toolsets, effective_role)
+    # Siblings already running for this parent, as names and one-liners under a
+    # token budget (tools/delegation_sibling_context.py). A thread that knows a
+    # sibling owns the figures does not draw them again. Never raises: context
+    # is a nicety and must not be able to fail a spawn.
+    try:
+        from tools.delegation_sibling_context import (
+            build_sibling_context, merge_context, siblings_from_registry,
+        )
+        _sibling_block = build_sibling_context(
+            siblings_from_registry(parent_agent, exclude_subagent_id=subagent_id)
+        )
+        context = merge_context(context, _sibling_block)
+    except Exception:  # noqa: BLE001
+        logger.debug("sibling context assembly failed; spawning without it", exc_info=True)
     child_prompt = _build_child_system_prompt(
         goal, context, workspace_path=_resolve_workspace_hint(parent_agent), role=effective_role,
         max_spawn_depth=max_spawn, child_depth=child_depth,
@@ -275,6 +289,11 @@ def _build_child_agent(
     # parent delete orphans them (mirrors /branch's ``_branched_from``).
     if parent_sid and getattr(child, "_session_init_model_config", None) is not None:
         child._session_init_model_config["_delegate_from"] = parent_sid
+    # The goal names the thread. The session row is created lazily on the first turn, so the goal is carried
+    # on the child and titled there (``AIAgent._ensure_db_session``) rather than written here against a row
+    # that does not exist yet. Without it a thread is labelled by its goal PREVIEW, a hard truncation at 60
+    # characters that lands mid-word; only 8 of 297 delegate children on a live machine carry a title.
+    child._delegate_goal = goal
     # Shared pool lets children rotate credentials on rate limits.
     child_pool = _resolve_child_credential_pool(
         rt["provider"], parent_agent, rt["base_url"], effective_requested_provider=rt.get("requested_provider"),

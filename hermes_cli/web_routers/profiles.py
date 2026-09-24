@@ -40,6 +40,9 @@ from hermes_cli.web_server_profiles import (
 )
 from hermes_cli.web_server_sessions import _open_session_db_at_path
 from hermes_state_health import STORAGE_CORRUPT, note_storage_error, storage_state
+# The read windows the fan-out shares with the per-profile RPCs: one definition, so the
+# all-profiles sidebar and the single-profile one cannot pull different amounts.
+from tui_gateway import project_tree
 from starlette.concurrency import run_in_threadpool
 from hermes_cli.web_models import (
     ProfileCreate, ProfileActiveUpdate, ProfileExport, ProfileImport, ProfileRename,
@@ -610,7 +613,9 @@ def _merge_profile_tree(
 
 @sessions_router.get("/api/profiles/projects/tree")
 @_sidebar_singleflight_cache
-def get_profiles_projects_tree(preview_limit: int = 3, session_limit: int = 2000):
+def get_profiles_projects_tree(
+        preview_limit: int = project_tree.OVERVIEW_PREVIEW_LIMIT,
+        session_limit: int = project_tree.OVERVIEW_SESSION_LIMIT):
     """Project tree for every profile at once, for the all-profiles sidebar.
 
     ``projects.tree`` over JSON-RPC answers for the backend's own profile only; this runs the
@@ -639,6 +644,46 @@ def get_profiles_projects_tree(preview_limit: int = 3, session_limit: int = 2000
     projects = sorted(merged.values(), key=lambda p: p.get("lastActive") or 0, reverse=True)
     return {"projects": projects, "active_id": None, "scoped_session_ids": scoped_session_ids,
             "errors": errors}
+
+
+@sessions_router.get("/api/profiles/projects/project_sessions")
+@_sidebar_singleflight_cache
+def get_profiles_projects_project_sessions(
+        project_id: str = "", session_limit: int = project_tree.DRILL_IN_SESSION_LIMIT):
+    """Hydrated lanes for ONE project across every profile: the all-profiles drill-in.
+
+    ``projects.project_sessions`` over JSON-RPC answers for the backend's own profile, so the
+    all-profiles sidebar had no drill-in read at all and every entry into a project reported a
+    failed load. This is the same fan-out ``GET /api/profiles/projects/tree`` runs, with the
+    builder hydrating lanes instead of counting them, and the merged tree narrowed to the one
+    project the user entered.
+
+    The narrowing happens AFTER the merge on purpose: the same folder can be a declared
+    project in one profile and an auto entry in another, so only the merged node carries the
+    id the sidebar entered by.
+    """
+    from tui_gateway import server as gateway_server
+    if not project_id:
+        return {"project": None, "errors": []}
+
+    merged: Dict[str, Dict[str, Any]] = {}
+    errors: List[Dict[str, str]] = []
+
+    for name, home in _profile_targets("GET /api/profiles/projects/project_sessions"):
+        def _read(db, name=name, home=home):
+            with _hermes_home_scope(home):
+                tree, _active_id = gateway_server._build_project_tree(
+                    db, preview_limit=0, hydrate=True,
+                    session_limit=session_limit, include_discovered=False)
+                _merge_profile_tree(merged, tree["projects"], name, 0)
+        _read_profile_db(name, home, errors, _read)
+
+    # By id first, since that is what the sidebar entered by; by merge key as a
+    # fallback, which is how the folder-keyed nodes (``__no_project__`` and the
+    # auto entries) name themselves when a profile that won the identity in the
+    # overview is unreadable here.
+    project = next((p for p in merged.values() if p.get("id") == project_id), None) or merged.get(project_id)
+    return {"project": project, "errors": errors}
 
 
 # `gh pr create` prints the PR url and nothing else, so a tool result whose whole output IS a

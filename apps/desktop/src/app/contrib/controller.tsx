@@ -4,7 +4,7 @@ import type { CSSProperties, ReactElement, PointerEvent as ReactPointerEvent } f
 
 import { watchBrowserGuestBudget } from '@/app/chat/browser-guest-budget'
 import { SessionDraftTitle } from '@/app/chat/session-draft-title'
-import { SessionStatusDot } from '@/app/chat/session-status-dot'
+import { SessionStatusChip } from '@/app/chat/session-status-dot'
 import { PALETTE_AREA, type PaletteContribution, paletteToggle } from '@/app/command-palette/contrib'
 import { type StatusbarItem } from '@/app/shell/statusbar-controls'
 import { AskDirective } from '@/components/assistant-ui/ask-directive'
@@ -503,11 +503,11 @@ const syncWorkspaceTitle = () => {
       selected ? $botChatScopes.get()[selected] : undefined
     ),
     data: {
-      // The tab's status dot — the SAME primitive the sidebar row and session
-      // tiles render, so the main tab never disagrees with its sidebar row. A
-      // fresh draft has no session to key by, which IS its status: the dot
-      // resolves to `draft` and marks the tab rather than leaving a hole.
-      tabLead: () => <SessionStatusDot chip session={stored} storedSessionId={selected} />,
+      // The tab's status mark, reading the SAME resolved state the sidebar row's
+      // dot reads, so the main tab never disagrees with its row. One mark, not a
+      // dot and a glyph: the dot is the sidebar's, where it also carries the
+      // project colour. A settled chat, and a fresh draft, carry none at all.
+      tabLead: () => <SessionStatusChip storedSessionId={selected} />,
       // A draft's name lives in its composer, not in any session row, so the
       // label subscribes to it directly — typing renames the tab without
       // re-registering the pane.

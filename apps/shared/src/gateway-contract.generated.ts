@@ -3582,6 +3582,61 @@ export interface LlmOneshotParams {
 export interface LlmOneshotResult {
   text: string
 }
+/** ``states`` filters the returned rows only; ``counts`` always describe the whole scope, so a section header does not move as the client pages. */
+export interface ThreadListParams {
+  coordinator_session_id?: string | null
+  states?: ThreadState[] | null
+  min_message_count?: number
+  limit?: number
+  offset?: number
+}
+/** Derived from the session row, never stored. ``failed`` is a session the supervisor reaped rather than one the child closed itself: rendering that as ``resolved`` would tell the user work landed that never did. */
+export type ThreadState = 'working' | 'resolved' | 'failed'
+export interface ThreadListResult {
+  threads?: ThreadSummary[]
+  counts: ThreadStateCounts
+  total?: number
+  coordinator_session_id?: string | null
+}
+/** One thread's header row, shaped by ``hermes_state_threads._shape_thread_row``. */
+export interface ThreadSummary {
+  session_id: string
+  coordinator_session_id?: string | null
+  label: string
+  title?: string | null
+  preview?: string
+  state: ThreadState
+  started_at?: number | null
+  ended_at?: number | null
+  end_reason?: string | null
+  message_count?: number
+  tool_call_count?: number
+  model?: string | null
+  cwd?: string | null
+  profile_name?: string | null
+}
+/** Inbox headers. Every state is present even at zero: a header that vanishes at zero reads as a missing feature. */
+export interface ThreadStateCounts {
+  working?: number
+  resolved?: number
+  failed?: number
+}
+export interface ThreadIdParams {
+  session_id: string
+}
+export interface ThreadGetResult {
+  thread: ThreadSummary
+}
+export interface ThreadTranscriptParams {
+  session_id: string
+  limit?: number
+}
+/** ``messages`` is the tail in chronological order; ``truncated`` says the thread holds more than this page. */
+export interface ThreadTranscriptResult {
+  thread: ThreadSummary
+  messages?: Record<string, unknown>[]
+  truncated?: boolean
+}
 export interface SystemBatteryParams {
   profile?: string | null
 }
@@ -5411,6 +5466,12 @@ export interface RpcMethods {
   'system.battery': { params: SystemBatteryParams; result: SystemBatteryResult }
   /** Record the client's column width for server-side rendering. */
   'terminal.resize': { params: TerminalResizeParams; result: TerminalResizeResult }
+  /** One thread's header; a session with no delegate marker is not found. */
+  'thread.get': { params: ThreadIdParams; result: ThreadGetResult }
+  /** Durable delegated threads, newest first, with whole-scope inbox counts. */
+  'thread.list': { params: ThreadListParams; result: ThreadListResult }
+  /** A thread's own messages from the durable store, tail-paged. */
+  'thread.transcript': { params: ThreadTranscriptParams; result: ThreadTranscriptResult }
   /** Persist a toolset / MCP enable-disable change and rebuild the session agent so it takes effect now. */
   'tools.configure': { params: ToolsConfigureParams; result: ToolsConfigureResult }
   /** Every toolset with its resolved tool names, flagged against the session's (or config's) enabled set. */
@@ -5694,6 +5755,9 @@ export const RPC_METHODS = [
   'subscription.upgrade',
   'system.battery',
   'terminal.resize',
+  'thread.get',
+  'thread.list',
+  'thread.transcript',
   'tools.configure',
   'tools.list',
   'tools.show',

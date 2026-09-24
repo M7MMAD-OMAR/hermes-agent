@@ -15,6 +15,7 @@ import { HUD_SURFACE } from '@/app/floating-hud'
 import { TITLEBAR_HEIGHT } from '@/app/shell/titlebar'
 import { useOnboardingChatActive } from '@/components/onboarding-chat/assembly'
 import { Codicon } from '@/components/ui/codicon'
+import { PANE_TAB_STRIP_HEIGHT } from '@/components/ui/pane-tab'
 import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
 import { useContributions } from '@/contrib/react/use-contributions'
 import type { Contribution } from '@/contrib/types'
@@ -55,10 +56,14 @@ const $positions = modeLayout.atom<Record<string, StoredRect>>(
   true
 )
 
+// The floating pane's ceiling is the whole top chrome, not just the drag band:
+// a top-edge zone reserves the control band AND the tab row under it, and a
+// pane spawning at the band's bottom edge would land on the tabs it floats
+// over. Both rows, so it clears them.
 const viewportNow = (): FloatingViewport => ({
   width: window.innerWidth,
   height: window.innerHeight,
-  top: TITLEBAR_HEIGHT
+  top: TITLEBAR_HEIGHT + PANE_TAB_STRIP_HEIGHT
 })
 
 function FloatingPane({ pane }: { pane: Contribution }) {

@@ -12,12 +12,13 @@
 import { useStore } from '@nanostores/react'
 import { type CSSProperties, Fragment, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react'
 
-import { TITLEBAR_DRAG_HANDLE_WIDTH, TITLEBAR_HEIGHT } from '@/app/shell/titlebar'
+import { TITLEBAR_HEIGHT } from '@/app/shell/titlebar'
 import { ActionsContextMenu, type MenuKit, renderActionItem } from '@/components/ui/actions-menu'
 import { Codicon } from '@/components/ui/codicon'
 import { DecodeText } from '@/components/ui/decode-text'
 import { DROP_SHEET_BLUR_CLASS, DROP_SHEET_CLASS } from '@/components/ui/drop-affordance'
 import {
+  PANE_TAB_STRIP_HEIGHT,
   PANE_TAB_STRIP_LINE_LEFT,
   PANE_TAB_STRIP_LINE_RIGHT,
   PaneStripGlyph,
@@ -87,7 +88,6 @@ import {
 import { startPaneDrag } from './drag-session'
 import { KeepAlivePaneSlot, useStablePaneHosts } from './keep-alive-panes'
 import { PaneBody } from './pane-body'
-import { usePanelTitlebar } from './panel-titlebar'
 import { tabStripVisibleForZone } from './strip-visibility'
 import { useActiveTabVisible } from './tab-strip-scroll'
 import { paneChrome } from './track-model'
@@ -243,7 +243,6 @@ export function TreeGroup({
   // The scrolling tab list inside the header (the strip also holds the
   // minimize chevron, which must not scroll away).
   const tabsRef = useRef<HTMLDivElement>(null)
-  const measuredBelowControls = usePanelTitlebar(ref, topEdge, Boolean(node.minimized))
   // The chip under the last right-click — the pane the zone menu's Split
   // actions carry into the new zone (header background = the active pane).
   // STATE, not a ref: the menu items (incl. Close's visibility) are JSX
@@ -297,9 +296,6 @@ export function TreeGroup({
 
   const active = paneFor(activeId)
   const isEmpty = shown.length === 0
-  const sidebarGroup = !node.panes.some(id => id === 'workspace' || paneChrome(paneFor(id)).placement === 'main')
-  const tabsBelowControls = topEdge && (sidebarGroup || measuredBelowControls)
-  const tabsInTitlebar = topEdge && !tabsBelowControls
   const pageHeader = paneChrome(active).headerContent
 
   // A SIDE RAIL IS PART OF THE WINDOW, NOT A CARD ON IT. Every pane it hosts
@@ -415,6 +411,20 @@ export function TreeGroup({
   // A minimized group IS its header, so it shows one regardless.
   const headerVisible =
     !isEmpty && !verticalCollapse && (Boolean(node.minimized) || stripVisible || Boolean(pageHeader))
+
+  // TWO ROWS AT THE WINDOW TOP, ALWAYS. The band that carries the window
+  // controls carries nothing else, and the zone's tabs get their own row under
+  // it, at the zone's full width.
+  //
+  // They used to share one row, with the strip reserving whatever the fixed
+  // control clusters measured and dropping below them only when what was left
+  // over fell under three readable tabs. Sharing cost the strip both ends of
+  // the window at once, so the zone holding the conversations, the one with
+  // the most tabs, was squeezed hardest: its last tabs sat under the right
+  // cluster and could not be clicked at all. A row of its own also lines these
+  // tabs up with every other zone's strip (SESSIONS | BOTS | ...), which is
+  // what the top of the window reads as now.
+  const stripHeight = headerVisible ? PANE_TAB_STRIP_HEIGHT : 0
 
   // Keep the activated tab — and, on the last one, the trailing "+" — inside
   // the strip's scroll window. Opening a tab past the right edge otherwise
@@ -593,16 +603,13 @@ export function TreeGroup({
           // the strip, and the active tab's pill is what marks the row.
           className="relative flex min-w-0 shrink-0"
           data-panel-header=""
-          style={topEdge ? { height: TITLEBAR_HEIGHT + (tabsBelowControls && headerVisible ? 28 : 0) } : undefined}
+          style={topEdge ? { height: TITLEBAR_HEIGHT + stripHeight } : undefined}
         >
-          {topEdge && (
-            <div aria-hidden="true" className="shrink-0" style={{ width: 'var(--panel-titlebar-left, 100%)' }} />
-          )}
           {pageHeader && headerVisible ? (
             <div
               className={cn(
                 'flex min-w-0 flex-1 items-stretch overflow-hidden',
-                tabsBelowControls && 'absolute inset-x-0 bottom-0 h-7'
+                topEdge && 'absolute inset-x-0 bottom-0 h-7'
               )}
               data-panel-page-header=""
             >
@@ -611,25 +618,21 @@ export function TreeGroup({
           ) : headerVisible ? (
             <ZoneMenu {...zoneMenu}>
               <PaneTabStrip
-                className={cn('flex-1', tabsBelowControls && 'absolute inset-x-0 bottom-0')}
+                className={cn('flex-1', topEdge && 'absolute inset-x-0 bottom-0')}
                 // data-zone-tabstrip: a drop over here STACKS (drag-session reads it).
                 data-zone-tabstrip={node.id}
                 listRef={tabsRef}
                 onPointerDown={event => {
-                  // Native titlebar gaps move the window; tabs keep their own drag.
-                  if (!tabsInTitlebar) {
-                    startPaneDrag(
-                      activeId,
-                      event,
-                      node.minimized ? () => restoreTreePane(activeId) : undefined,
-                      undefined,
-                      tabText(activeId)
-                    )
-                  }
+                  startPaneDrag(
+                    activeId,
+                    event,
+                    node.minimized ? () => restoreTreePane(activeId) : undefined,
+                    undefined,
+                    active?.title ?? activeId
+                  )
                 }}
                 ref={stripRef}
                 style={{ cursor: 'grab', WebkitAppRegion: dragging ? 'no-drag' : undefined } as CSSProperties}
-                titlebar={tabsInTitlebar}
                 trailing={
                   <>
                     {minimizable && (
@@ -787,27 +790,17 @@ export function TreeGroup({
               </PaneTabStrip>
             </ZoneMenu>
           ) : null}
-          {/* Tabs sharing the titlebar band are all `no-drag` and the strip's
-              list scrolls, so a crowded strip can cover every draggable pixel
-              (#112964). Keep one fixed handle OUTSIDE the list. When the tabs
-              drop below the controls the band above them is free — the handle
-              stays flexible and the whole row moves the window. */}
+          {/* The control band is the drag handle, edge to edge. The fixed
+              clusters sitting on it declare `no-drag` for their own pixels, so
+              the window moves from every part of the row they do not occupy,
+              and nothing scrollable can cover it (#112964). */}
           {topEdge && (
             <div
               aria-hidden="true"
-              className={cn(
-                'self-start [-webkit-app-region:drag]',
-                headerVisible && tabsInTitlebar ? 'shrink-0' : 'min-w-0 flex-1'
-              )}
+              className="min-w-0 flex-1 self-start [-webkit-app-region:drag]"
               data-window-drag-handle=""
-              style={{
-                height: TITLEBAR_HEIGHT,
-                width: headerVisible && tabsInTitlebar ? TITLEBAR_DRAG_HANDLE_WIDTH : undefined
-              }}
+              style={{ height: TITLEBAR_HEIGHT }}
             />
-          )}
-          {topEdge && (
-            <div aria-hidden="true" className="shrink-0" style={{ width: 'var(--panel-titlebar-right, 0px)' }} />
           )}
         </div>
       )}
@@ -895,13 +888,13 @@ export function TreeGroup({
             className="absolute inset-x-0 bottom-0 z-50 flex cursor-grab items-center justify-center outline-1 -outline-offset-2 outline-dashed backdrop-blur-[2px]"
             onPointerDown={e => startPaneDrag(activeId, e, undefined, undefined, tabText(activeId))}
             style={{
-              top: topEdge ? TITLEBAR_HEIGHT + (tabsBelowControls && headerVisible ? 28 : 0) : headerVisible ? 28 : 0,
+              top: topEdge ? TITLEBAR_HEIGHT + stripHeight : stripHeight,
               background:
                 'color-mix(in srgb, var(--ui-accent) 6%, color-mix(in srgb, var(--ui-bg-chrome) 55%, transparent))',
               outlineColor: 'color-mix(in srgb, var(--ui-accent) 55%, transparent)'
             }}
           >
-            <span className="flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-md border border-(--ui-stroke-secondary) bg-popover px-2 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-(--ui-text-secondary)">
+            <span className="flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-md bg-popover px-2 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-(--ui-text-secondary)">
               <Codicon className="shrink-0" name="gripper" size="0.8125rem" />
               <span className="min-w-0 truncate">{tabText(activeId)}</span>
             </span>

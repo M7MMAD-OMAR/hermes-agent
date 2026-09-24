@@ -535,7 +535,13 @@ async function refreshProjectTreeAcrossProfiles(): Promise<void> {
 // last good snapshot" — so a view starved of every response looked exactly like
 // a view that was already current.
 export type ProjectSessionsResult =
-  { error: unknown; status: 'failed' } | { project: SidebarProjectTree | null; status: 'ok' } | { status: 'superseded' }
+  | { error: unknown; status: 'failed' }
+  | { project: SidebarProjectTree | null; status: 'ok' }
+  | { status: 'superseded' }
+  // The scope cannot answer this read at all, which is not a failure: an older
+  // backend without the all-profiles drill-in route says so once, and the
+  // overview's preview rows stand as the content instead of an error block.
+  | { status: 'unavailable' }
 
 // At most one `projects.project_sessions` read in flight per (profile, project):
 // a caller arriving mid-flight joins the pending read instead of starting a
@@ -556,10 +562,60 @@ export type ProjectSessionsResult =
 // read answer for the wrong scope entirely — those two must not share.
 const inFlightProjectSessions = new Map<string, Promise<ProjectSessionsResult>>()
 
+// The all-profiles sidebar has no single backend to ask: `projects.project_sessions`
+// answers for ONE profile, and asking it while the scope spans every profile used to
+// throw "Projects are unavailable while viewing all profiles" straight into the failed
+// branch, so entering a project in that mode reported a failed load every single time
+// while the overview's own fan-out rendered rows underneath it. The REST route is the
+// drill-in twin of `refreshProjectTreeAcrossProfiles`: one hydrated builder pass per
+// profile, merged, narrowed to the entered project.
+async function readProjectSessionsAcrossProfiles(projectId: string): Promise<ProjectSessionsResult> {
+  const res = await hermesApi<{ errors?: { profile?: string }[]; project: SidebarProjectTree | null }>({
+    path: `/api/profiles/projects/project_sessions?project_id=${encodeURIComponent(projectId)}`,
+    timeoutMs: PROJECT_TREE_REQUEST_TIMEOUT_MS
+  })
+
+  // The scope moved under the request, so this payload describes a view the user has
+  // left; whoever owns the new scope will paint it.
+  if ($profileScope.get() !== ALL_PROFILES) {
+    return { status: 'superseded' }
+  }
+
+  // The fan-out answers 200 with an `errors` entry per profile it could not read, so
+  // "no project" from a route whose reads ALL failed is a starved view, not an empty
+  // one, the exact conflation this result type exists to prevent. A profile with no
+  // state.db at all is not an error there, so a non-empty list means a real failure.
+  if (!res.project && (res.errors?.length ?? 0) > 0) {
+    return { error: new Error('Project fan-out read failed for every profile'), status: 'failed' }
+  }
+
+  return { project: res.project ?? null, status: 'ok' }
+}
+
 async function readProjectSessions(projectId: string): Promise<ProjectSessionsResult> {
+  if ($profileScope.get() === ALL_PROFILES) {
+    try {
+      return await readProjectSessionsAcrossProfiles(projectId)
+    } catch (error) {
+      // A backend older than the route is not a broken load: say the scope
+      // cannot answer, and the previews stay.
+      return isMissingRestEndpoint(error) ? { status: 'unavailable' } : { error, status: 'failed' }
+    }
+  }
+
+  // The scope this read was issued under. A read that fails BECAUSE the user
+  // moved off it is not a failed read, and `activeProjectsContext` throws on
+  // exactly that case.
+  const issuedProfile = projectProfile()
+
   try {
     const context = await activeProjectsContext()
 
+    // No retry here. This read has exactly one retry owner, and it is the view:
+    // `useEnteredProjectSessions` re-runs a failed read on a short ladder, and
+    // it is the only place that knows whether anyone is still looking at this
+    // project. The tree read retries itself because its caller is a background
+    // refresh with nobody to ask.
     const res = await gatewayRequestOn<{ project: SidebarProjectTree | null }>(
       context.gateway,
       'projects.project_sessions',
@@ -574,7 +630,11 @@ async function readProjectSessions(projectId: string): Promise<ProjectSessionsRe
 
     return { project: res.project ?? null, status: 'ok' }
   } catch (error) {
-    return { error, status: 'failed' }
+    // A read that failed BECAUSE the scope moved is not a failed read. The
+    // context helpers throw on exactly that ("profile changed while
+    // connecting"), and reporting it as a failure landed an error block on the
+    // project the user was in the act of leaving.
+    return projectProfile() === issuedProfile ? { error, status: 'failed' } : { status: 'superseded' }
   }
 }
 

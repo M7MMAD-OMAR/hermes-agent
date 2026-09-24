@@ -8,7 +8,8 @@ import {
   COMMAND_CENTER_ROUTE,
   isOverlayView,
   NEW_CHAT_ROUTE,
-  STARMAP_ROUTE
+  STARMAP_ROUTE,
+  THREADS_ROUTE
 } from '@/app/routes'
 
 const SECTIONS = ['sessions', 'system', 'usage'] as const
@@ -21,6 +22,7 @@ export function useOverlayRouting() {
   const settingsOpen = currentView === 'settings'
   const commandCenterOpen = currentView === 'command-center'
   const agentsOpen = currentView === 'agents'
+  const threadsOpen = currentView === 'threads'
   const starmapOpen = currentView === 'starmap'
   const cronOpen = currentView === 'cron'
   const profilesOpen = currentView === 'profiles'
@@ -67,10 +69,12 @@ export function useOverlayRouting() {
   }, [closeOverlayToPreviousRoute, commandCenterOpen, navigate])
 
   const openAgents = useCallback(() => navigate(AGENTS_ROUTE), [navigate])
+  const openThreads = useCallback(() => navigate(THREADS_ROUTE), [navigate])
   const openStarmap = useCallback(() => navigate(STARMAP_ROUTE), [navigate])
 
   return {
     agentsOpen,
+    threadsOpen,
     chatOpen,
     closeOverlayToPreviousRoute,
     commandCenterInitialSection,
@@ -78,6 +82,7 @@ export function useOverlayRouting() {
     cronOpen,
     currentView,
     openAgents,
+    openThreads,
     openCommandCenterSection,
     openStarmap,
     profilesOpen,

@@ -11,31 +11,33 @@ interface TitleBarOverlayOptionsInput {
 
 /**
  * Static pre-layout reservation (px) for the right-side native window-controls
- * overlay (min/max/close). Only a FALLBACK — once laid out the renderer reads
+ * overlay (min/max/close). Only a FALLBACK: once laid out the renderer reads
  * the exact width from navigator.windowControlsOverlay
  * (use-window-controls-overlay-width.ts) and uses this value only when the WCO
  * API is unavailable.
  *
- * macOS uses traffic lights positioned via trafficLightPosition, not a WCO
- * overlay, so it reserves nothing here. Every other desktop platform reserves
- * the same right-side footprint: Electron paints it on Windows/plain Linux,
- * while the renderer paints larger controls on WSLg.
+ * Windows paints Electron's overlay and WSLg paints the renderer's own
+ * controls (wslg-window-controls.tsx), so those two reserve room for them.
+ * macOS positions traffic lights with trafficLightPosition instead, and plain
+ * Linux paints no controls of ours at all: the compositor owns those buttons
+ * there. Reserving width for controls nobody paints is a dead gap at the end
+ * of the tab row. Mirrors `titleBarOverlayOptions` below.
  *
- * @param {{ isMac?: boolean }} opts
+ * @param {{ isWindows?: boolean, isWsl?: boolean, isMac?: boolean }} opts
  */
 export function nativeOverlayWidth({ isWindows = false, isWsl = false, isMac = false } = {}) {
-  if (isMac) {
-    return 0
-  }
-
-  return OVERLAY_FALLBACK_WIDTH
+  return isWindows || isWsl ? OVERLAY_FALLBACK_WIDTH : 0
 }
 
 /**
  * Build Electron's Window Controls Overlay options for every desktop host.
- * With `titleBarStyle: hidden`, Windows and Linux show no window controls
- * unless an overlay object is provided. WSLg deliberately returns false so
- * the renderer can paint correctly scaled Windows-style controls instead.
+ * With `titleBarStyle: hidden`, Windows shows no window controls unless an
+ * overlay object is provided. WSLg deliberately returns false so the renderer
+ * can paint correctly scaled Windows-style controls instead, and plain Linux
+ * returns false because the compositor already owns close, minimize and
+ * maximize there (a keybind, a titlebar the WM paints, a gesture): an Electron
+ * overlay would be a second set of buttons sitting on the row the zone's tabs
+ * need.
  */
 export function titleBarOverlayOptions({
   platform = 'linux',
@@ -48,7 +50,7 @@ export function titleBarOverlayOptions({
   // Electron's Linux overlay keeps a narrow, unscaled three-button cluster
   // under WSLg. The renderer owns larger Windows-shaped controls there while
   // the host's RAIL local-move path continues to own edge dragging and Snap.
-  if (platform === 'wslg') {
+  if (platform === 'wslg' || platform === 'linux') {
     return false
   }
 

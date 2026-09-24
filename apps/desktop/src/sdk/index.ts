@@ -1688,14 +1688,18 @@ export {
   type ComposerAttachmentProvider,
   type ComposerMiddleware
 } from '@/app/chat/composer/contrib'
-/** THE session status dot — the one primitive the sidebar row, the pane tabs
- *  and the session switcher render, so a session's status can never disagree
- *  between surfaces. Pass the STORED session id and it resolves the rest
- *  itself: the live state (needs-input / working / stalled / background /
- *  unread / draft / idle) and the project color. Never hand-roll a status
- *  circle beside it — a plugin's own dot inverts core's color vocabulary the
- *  moment either side moves. */
-export { SessionStatusDot, type SessionStatusDotProps } from '@/app/chat/session-status-dot'
+/** THE session status dot, what the sidebar row and the session switcher
+ *  render, so a session's status can never disagree between surfaces. Pass the
+ *  STORED session id and it resolves the rest itself: the live state
+ *  (needs-input / working / stalled / background / unread / draft / idle) and
+ *  the project color. Never hand-roll a status circle beside it: a plugin's
+ *  own dot inverts core's color vocabulary the moment either side moves.
+ *
+ *  On a TAB, use `SessionStatusChip` instead: same resolved state, one glyph,
+ *  and nothing at all while the chat is settled. A tab has no room for a dot
+ *  AND a mark, and the dot's other job (carrying the project colour) is a
+ *  sidebar job. */
+export { SessionStatusChip, SessionStatusDot, type SessionStatusDotProps } from '@/app/chat/session-status-dot'
 /** The sidebar row's leading cell — the fixed box a dot, icon or handle sits in.
  *  Reserve it and your label starts on the same left edge as every session row
  *  above you; spell the classes yourself and the row drifts. The session row is

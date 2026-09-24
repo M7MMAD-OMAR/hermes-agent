@@ -20,12 +20,16 @@ type DotVariant = {
 // Shared base for every active dot; idle is smaller and uses its own class.
 const DOT_BASE = 'size-1.5 rounded-full'
 
-// Three colors and one fill/hollow axis, none of it moving. Motion on a 6px
+// Three colors and one solid/faint axis, none of it moving. Motion on a 6px
 // circle can only say "something is happening" — which the row's arc already
 // says, better — while costing a repaint per frame on every row at once. What
-// the dot is for is telling states APART, and that is a job for color and fill:
-// filled means producing, hollow means open but quiet. The two states this
-// replaces differed by 30% opacity and were, in practice, the same dot.
+// the dot is for is telling states APART, and that is a job for color and
+// weight: solid means producing, diluted means open but quiet. The two states
+// this replaces differed by 30% opacity and were, in practice, the same dot.
+//
+// The quiet states were drawn as a ring (`border`) until a stroke that small
+// read as a hole punched in the row. They carry a diluted fill instead: no
+// line anywhere in the shell, and the axis survives intact.
 const DOT_VARIANTS: Record<SessionDotState, DotVariant> = {
   // Amber — a clarify/approval is blocking the turn. The one "act now" color,
   // and the only state the user is required to do something about.
@@ -41,21 +45,21 @@ const DOT_VARIANTS: Record<SessionDotState, DotVariant> = {
     className: `${DOT_BASE} bg-(--ui-accent)`,
     role: 'status'
   },
-  // Hollow accent — still authoritatively running, but nothing has arrived for
-  // the watchdog window. Same color as working because it IS working; hollow
+  // Faint accent, still authoritatively running, but nothing has arrived for
+  // the watchdog window. Same color as working because it IS working; diluted
   // because nothing is coming out of it right now.
   stalled: {
     ariaLabel: r => r.sessionRunning,
-    className: `${DOT_BASE} border border-(--ui-accent)`,
+    className: `${DOT_BASE} bg-(--ui-accent)/40`,
     role: 'status',
     title: r => r.sessionRunning
   },
-  // Hollow muted — a terminal(background=true) process outlived the turn. An
-  // outline reads as "still open" without claiming the model is working; a
-  // filled grey dot read as finished, the opposite of what this means.
+  // Faint muted: a terminal(background=true) process outlived the turn. A
+  // diluted mark reads as "still open" without claiming the model is working; a
+  // solid grey dot read as finished, the opposite of what this means.
   background: {
     ariaLabel: r => r.backgroundRunning,
-    className: `${DOT_BASE} border border-(--ui-text-tertiary)`,
+    className: `${DOT_BASE} bg-(--ui-text-tertiary)/45`,
     role: 'status',
     title: r => r.backgroundRunning
   },
@@ -69,13 +73,13 @@ const DOT_VARIANTS: Record<SessionDotState, DotVariant> = {
     role: 'status',
     title: r => r.finishedUnread
   },
-  // Hollow grey, the faintest ink the app has — nothing has ever run here. It
-  // shares the outline with `background` because both mean "open, not
-  // producing", and sits a shade dimmer because a draft is the one state that
-  // has yet to do anything at all.
+  // The faintest ink the app has, for a chat that has never run. It shares the
+  // dilution with `background` because both mean "open, not producing", and
+  // sits on the dimmest ink because a draft is the one state that has yet to
+  // do anything at all.
   draft: {
     ariaLabel: r => r.draftSession,
-    className: `${DOT_BASE} border border-(--ui-text-quaternary)`,
+    className: `${DOT_BASE} bg-(--ui-text-quaternary)/45`,
     title: r => r.draftSession
   },
   // Settled: the project color when there is one, else the faintest filled
@@ -92,7 +96,7 @@ const DOT_VARIANTS: Record<SessionDotState, DotVariant> = {
  *  of its own (it inherits the project's), so callers supply one. */
 export const sessionDotClassName = (state: SessionDotState): string => DOT_VARIANTS[state].className
 
-/** The mark a state earns on a TAB, none for the quiet states. Color and fill
+/** The mark a state earns on a TAB, none for the quiet states. Color and weight
  *  on a 6 px dot tell states apart to someone who already knows the code; a
  *  strip of eight tabs has to be read cold, mid-task, by someone who wants to
  *  know which chats are running, which are waiting on them, and which finished
@@ -106,29 +110,31 @@ export const sessionDotClassName = (state: SessionDotState): string => DOT_VARIA
  *
  *  The glyphs carry no language — the word they stand for lives in the tooltip,
  *  translated — which is also why they are not first letters: "بانتظارك" and
- *  "بالخلفية" share one, and a mark that collides is worse than none. */
+ *  "بالخلفية" share one, and a mark that collides is worse than none.
+ *
+ *  Colour, not a box: every mark used to sit in a pill, the two quiet states
+ *  in an OUTLINED one. At this size a stroke around a 10 px glyph is a second
+ *  shape competing with the glyph, and the shell carries no lines anywhere.
+ *  The ink separates the states on its own; only `needs-input` keeps a fill,
+ *  because it is the one state the user has to act on. */
 const CHIP_VARIANTS: Partial<
   Record<SessionDotState, { className: string; glyph: string; label: (r: Translations['sidebar']['row']) => string }>
 > = {
+  // The one state the user must act on keeps its tone fill: a fill is how this
+  // shell separates a surface, and dimming the only "act now" mark to a bare
+  // glyph in a strip of glyphs is the opposite of what it is for.
   'needs-input': {
-    className: 'bg-(--ui-attention-background) text-(--ui-attention)',
+    className: 'rounded bg-(--ui-attention-background) text-(--ui-attention)',
     glyph: '!',
     label: r => r.chipNeedsInput
   },
-  working: { className: 'bg-(--ui-accent)/12 text-(--ui-accent)', glyph: '▶', label: r => r.chipWorking },
-  stalled: { className: 'border border-(--ui-accent)/40 text-(--ui-accent)', glyph: '▶', label: r => r.chipWorking },
-  background: {
-    className: 'border border-(--ui-text-tertiary)/40 text-(--ui-text-tertiary)',
-    glyph: '⋯',
-    label: r => r.chipBackground
-  },
-  unread: { className: 'bg-(--ui-success)/15 text-(--ui-success)', glyph: '✓', label: r => r.chipDone }
+  working: { className: 'text-(--ui-accent)', glyph: '▶', label: r => r.chipWorking },
+  stalled: { className: 'text-(--ui-accent)/70', glyph: '▶', label: r => r.chipWorking },
+  background: { className: 'text-(--ui-text-tertiary)', glyph: '⋯', label: r => r.chipBackground },
+  unread: { className: 'text-(--ui-success)', glyph: '✓', label: r => r.chipDone }
 }
 
 export interface SessionStatusDotProps {
-  /** Draw the state's word beside the dot. Tabs pass this; sidebar rows, which
-   *  already carry a running arc and a subtitle, do not. */
-  chip?: boolean
   /** The STORED session id — the key every live-state atom (working /
    *  attention / stalled / unread / background) is keyed by, on BOTH surfaces:
    *  the sidebar row's `session.id` and a pane tile's `storedSessionId` are the
@@ -158,7 +164,16 @@ export interface SessionStatusDotProps {
  * An idle session shows its project color; the active states own the dot with
  * their semantic color so an attention cue is never masked by the tint.
  */
-export function SessionStatusDot({ storedSessionId, session, branchStem, chip, className }: SessionStatusDotProps) {
+/** The one live state both marks read. Selector, not a plain useStore: the map
+ *  is rebuilt whenever ANY session's status changes, but a given mark only
+ *  repaints when ITS OWN state flips. */
+function useSessionDotState(storedSessionId: null | string): SessionDotState {
+  return useStoreSelector($sessionDotStateById, states =>
+    storedSessionId ? (states[storedSessionId] ?? 'idle') : 'draft'
+  )
+}
+
+export function SessionStatusDot({ storedSessionId, session, branchStem, className }: SessionStatusDotProps) {
   const { t } = useI18n()
   const r = t.sidebar.row
 
@@ -166,13 +181,7 @@ export function SessionStatusDot({ storedSessionId, session, branchStem, chip, c
   // back to the resolver for a session outside the recents page.
   useStore($sessionColorById)
   const color = sessionColorFor(session) ?? null
-
-  // Selector, not a plain useStore: the map is rebuilt whenever any session's
-  // status changes, but a given dot only repaints when ITS OWN state flips.
-  const dotState = useStoreSelector($sessionDotStateById, states =>
-    storedSessionId ? (states[storedSessionId] ?? 'idle') : 'draft'
-  )
-
+  const dotState = useSessionDotState(storedSessionId)
   const variant = DOT_VARIANTS[dotState]
 
   return (
@@ -195,23 +204,54 @@ export function SessionStatusDot({ storedSessionId, session, branchStem, chip, c
           title={variant.title?.(r)}
         />
       )}
-      {chip && CHIP_VARIANTS[dotState] ? (
-        <span
-          aria-hidden="true"
-          className={cn(
-            // Fixed width, so a tab's title starts at the same place whatever
-            // the state is and a strip does not shuffle as chats finish.
-            'ms-1 inline-flex w-3.5 shrink-0 justify-center rounded text-[0.625rem] font-medium leading-4',
-            CHIP_VARIANTS[dotState]!.className
-          )}
-          data-slot="session-status-chip"
-          // The word the mark stands for, in the reader's language, for anyone
-          // who has not yet learned the glyph.
-          title={CHIP_VARIANTS[dotState]!.label(r)}
-        >
-          {CHIP_VARIANTS[dotState]!.glyph}
-        </span>
-      ) : null}
+    </span>
+  )
+}
+
+/**
+ * THE MARK A TAB CARRIES, and the only one. A tab used to show the dot and the
+ * glyph together: two marks, one meaning, on the surface with the least room
+ * for either. The dot is the sidebar's mark, where it also carries the project
+ * colour and sits in a list that reads top to bottom; on a tab it was saying a
+ * second time what the glyph beside it already said.
+ *
+ * Nothing at all for the quiet states, so a strip of settled chats is quiet and
+ * the ones that want something stand out by being the only marked tabs.
+ */
+export function SessionStatusChip({
+  storedSessionId,
+  className
+}: {
+  className?: string
+  storedSessionId: null | string
+}) {
+  const { t } = useI18n()
+  const r = t.sidebar.row
+  const variant = CHIP_VARIANTS[useSessionDotState(storedSessionId)]
+
+  return (
+    <span
+      // The accessible name lives here now: this IS the status on a tab, not a
+      // decoration beside one. A quiet tab announces nothing.
+      aria-label={variant?.label(r)}
+      className={cn(
+        // THE BOX STAYS EVEN WHEN THE GLYPH DOES NOT. Two reasons: a tab's
+        // title starts at the same place whatever the state is, so a strip
+        // does not shuffle as chats finish; and the tab's ⌘-number hint paints
+        // absolutely INSIDE this box (tab-key-hints.tsx), so a zero-width lead
+        // would take the number away from every settled tab, which is most of
+        // them.
+        'inline-flex w-3.5 shrink-0 justify-center text-[0.625rem] font-medium leading-4',
+        variant?.className,
+        className
+      )}
+      data-slot="session-status-chip"
+      role={variant ? 'status' : undefined}
+      // The word the mark stands for, in the reader's language, for anyone who
+      // has not yet learned the glyph.
+      title={variant?.label(r)}
+    >
+      {variant?.glyph}
     </span>
   )
 }

@@ -742,6 +742,13 @@ DEFAULT_CONFIG = {
         "compression": _aux(120, no_progress_timeout=None),
         "skills_hub": _aux(30),
         "approval": _aux(30),   # classifier — a fast/cheap model is recommended
+        # smart_model_routing's picker. UNLIKE every other task here, "auto" is not a
+        # usable default: auto inherits the MAIN model, and asking the expensive model
+        # which model to use, blocking every turn, costs strictly more than not routing
+        # at all. agent/model_routing refuses to run until `model` names something, and
+        # says so. 15s because a decision nobody is waiting on is worth less than the
+        # turn it is delaying.
+        "routing": _aux(15),
         # /review reviewer: a full subagent on the async delegation rail, credentials resolved like
         # delegation.provider pins. "auto" + "" = main agent's model. api_mode forces transport:
         # chat_completions | anthropic_messages | codex_responses.
@@ -1492,6 +1499,61 @@ DEFAULT_CONFIG = {
         # through the unchanged-file dedup and, if still over, drops the oldest entries (0 = keep
         # the ledger append-only forever, the previous behaviour).
         "ledger_max_bytes": 5 * 1024 * 1024,
+        # Skill routing (agent/skill_routing.py): one ephemeral line per turn naming the
+        # likeliest few of a long catalogue. Sixty entries is a list the right one does not
+        # stand out in. Never touches the cached system prompt, and the picker is a local
+        # lexical match, so this costs no call and adds no latency.
+        # mode: "off" (default) | "shadow" (decide and log only) | "on".
+        "auto_select": {
+            "mode": "off",
+            # Below this many VISIBLE skills the model can read the whole list unaided.
+            "min_skills": 12,
+            # "ok" / "go on" are not skill-selection problems.
+            "min_chars": 24,
+            # More than a few names stops being a hint and becomes a second catalogue.
+            "max_skills": 3,
+            # A turn that matches nothing gets silence. Without a floor the picker always
+            # returns its three least-bad guesses and the reader learns to ignore the line.
+            "min_score": 3.0,
+        },
+    },
+
+    # Model routing (agent/model_routing.py). `smart_model_routing` was a known config
+    # root with no reader for a long time; this is what finally reads it.
+    #
+    # mode: "off" (default) | "shadow" (decide and log only) | "on".
+    # "on" currently degrades to "shadow" with a warning: the decider is complete and
+    # tested, and the per-surface one-turn appliers are not wired yet. A key that
+    # silently did nothing would be the exact defect this work was written to avoid.
+    #
+    # Deciding BLOCKS the turn, because nothing can start before the model is known.
+    # That is why shadow exists: same latency, same decisions, nothing re-routed, so
+    # the rules can be read against real traffic before they are allowed to steer.
+    #
+    # tiers are cheapest-first. A tier with no `model` is dropped, so an unconfigured
+    # tier can never become a route. `context_length` (optional) is what lets the
+    # oversized-turn veto fire; leaving it out means "unknown", which never vetoes.
+    #   tiers:
+    #     - name: small
+    #       model: openai/gpt-5-mini
+    #       provider: openrouter
+    #       description: short answers, lookups, small edits
+    #       context_length: 400000
+    #     - name: large
+    #       model: anthropic/claude-opus-5
+    #       provider: openrouter
+    #       description: architecture, multi-file changes, hard debugging
+    #       context_length: 400000
+    #
+    # The picker runs as the `routing` auxiliary task, so auxiliary.routing.model /
+    # .provider / .timeout choose what does the deciding.
+    "smart_model_routing": {
+        "mode": "off",
+        "tiers": [],
+        # Words that forbid routing DOWN, matched on the raw message before any model
+        # sees it. Empty means the built-in English and Arabic list
+        # (agent/model_routing.DEFAULT_RISK_WORDS).
+        "risk_words": [],
     },
 
     # Curator — background maintenance of AGENT-CREATED skills (never hub-installed): marks

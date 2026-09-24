@@ -32,6 +32,20 @@ NO_PROJECT_LABEL = "Home"
 # Sibling probes when recovering a deleted worktree's parent repo (each miss is a git call).
 _MAX_SIBLING_PROBES = 4
 
+# How much each of the two project reads pulls. One source of truth, because every one of
+# these numbers is spent FOUR times: the per-profile RPCs (``tui_gateway.methods_config``)
+# and the all-profiles REST fan-out (``hermes_cli.web_routers.profiles``) each run both the
+# overview and the drill-in, and a limit that drifts between two of them is a project whose
+# rows appear or vanish depending on which sidebar mode you entered it from.
+#
+# The overview counts sessions and shows a few previews per project, so it reads a window.
+# The drill-in lists every row it can, so it reads a wider one; the builder's cost is that
+# read, not the hydration, since lanes are assembled either way and ``hydrate`` only decides
+# whether the assembled rows survive.
+OVERVIEW_SESSION_LIMIT = 2000
+OVERVIEW_PREVIEW_LIMIT = 3
+DRILL_IN_SESSION_LIMIT = 5000
+
 
 def stamp_profile(projects: list[dict], profile: str) -> None:
     """Stamp every session row with the request-scope profile (authoritative even for legacy

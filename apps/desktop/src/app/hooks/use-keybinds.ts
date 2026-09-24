@@ -85,7 +85,8 @@ import {
   NEW_CHAT_ROUTE,
   PROFILES_ROUTE,
   sessionRoute,
-  SETTINGS_ROUTE
+  SETTINGS_ROUTE,
+  THREADS_ROUTE
 } from '../routes'
 
 export interface KeybindRuntimeDeps {
@@ -218,6 +219,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'nav.artifacts': () => navigateToWorkspacePage(navigate, ARTIFACTS_ROUTE),
     'nav.cron': () => navigate(CRON_ROUTE),
     'nav.agents': () => navigate(AGENTS_ROUTE),
+    'nav.threads': () => navigate(THREADS_ROUTE),
 
     'session.new': () => {
       // Match the sidebar New Session button. A plain keyboard new chat should

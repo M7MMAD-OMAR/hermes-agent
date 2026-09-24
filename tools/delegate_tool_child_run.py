@@ -701,6 +701,27 @@ def _build_child_goal_message(goal: str, images: List[str], child) -> Any:
         return goal
 
 
+def _owner_session_key_for(subagent_id: Optional[str]) -> str:
+    """The conversation a child was spawned from, from its live registry record.
+
+    The owner is already recorded there for steering (``owner_session_id``), so
+    a thread's question reaches the same place a steer does. Empty when there is
+    no record, which makes ``can_ask`` false and leaves the unchanged auto
+    policy in charge; that is the correct answer for cron and one-shot workers.
+    """
+    if not subagent_id:
+        return ""
+    try:
+        from tools.delegate_tool_registry import _active_subagents, _active_subagents_lock
+
+        with _active_subagents_lock:
+            record = _active_subagents.get(subagent_id) or {}
+        return str(record.get("owner_session_id") or "")
+    except Exception:  # noqa: BLE001 - never block a spawn on a bookkeeping read
+        logger.debug("thread ask: could not resolve the owner session", exc_info=True)
+        return ""
+
+
 @dataclass
 class _ChildRun:
     """State of one child run, shared by every phase of ``_run_single_child``.
@@ -842,8 +863,13 @@ class _ChildRun:
         from tools.daemon_pool import DaemonThreadPoolExecutor
         child, task_index = self.child, self.task_index
         child_timeout = _get_child_timeout()
+        # The owner conversation is who a thread asks when delegation.subagent_ask_user is on (default off);
+        # without one the callback is the unchanged auto policy. The goal names the thread in the prompt:
+        # an approval that does not say WHICH background worker is asking cannot be answered.
+        _owner_key = _owner_session_key_for(self.subagent_id)
         executor = DaemonThreadPoolExecutor(
-            max_workers=1, initializer=_set_subagent_approval_cb, initargs=(_get_subagent_approval_callback(),),
+            max_workers=1, initializer=_set_subagent_approval_cb,
+            initargs=(_get_subagent_approval_callback(_owner_key, str(self.goal or "")[:60]),),
         )
         # Worker thread handle so the timeout diagnostic can dump its stack.
         worker_thread_holder: Dict[str, Optional[threading.Thread]] = {"t": None}

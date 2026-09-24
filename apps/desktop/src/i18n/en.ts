@@ -380,48 +380,48 @@ export const en: Translations = {
   },
 
   boot: {
-    ready: 'Hermes Desktop is ready',
+    ready: 'Sbar Rafiq Desktop is ready',
     desktopBootFailedWithMessage: message => `Desktop boot failed: ${message}`,
     steps: {
       connectingGateway: 'Connecting live desktop gateway',
-      loadingSettings: 'Loading Hermes settings',
+      loadingSettings: 'Loading Sbar Rafiq settings',
       loadingSessions: 'Loading recent sessions',
-      retryingRemoteBackend: 'Reconnecting to the remote Hermes backend…',
+      retryingRemoteBackend: 'Reconnecting to the remote Sbar Rafiq backend…',
       startingDesktopConnection: 'Starting desktop connection',
-      startingHermesDesktop: 'Starting Hermes Desktop…'
+      startingHermesDesktop: 'Starting Sbar Rafiq Desktop…'
     },
     errors: {
       backgroundExited:
         'The service that runs your chats closed unexpectedly. Restart it to keep going — your chats and settings are safe.',
-      backgroundExitedDuringStartup: 'Hermes stopped right after it started.',
-      backendStopped: 'Hermes stopped working in the background',
-      restartHermes: 'Restart Hermes',
+      backgroundExitedDuringStartup: 'Sbar Rafiq stopped right after it started.',
+      backendStopped: 'Sbar Rafiq stopped working in the background',
+      restartHermes: 'Restart Sbar Rafiq',
       openLogs: 'Open logs',
-      desktopBootFailed: "Hermes couldn't start",
-      gatewayConnectionLost: 'Hermes lost its connection',
+      desktopBootFailed: "Sbar Rafiq couldn't start",
+      gatewayConnectionLost: 'Sbar Rafiq lost its connection',
       gatewayConnectionLostDetail:
         'Still trying to reconnect. You can keep reading and drafting. If this keeps up, reconnect now or check your connection settings.',
       reconnectNow: 'Reconnect now',
       connectionSettings: 'Connection settings',
-      gatewaySignInRequired: 'Your remote Hermes signed you out',
+      gatewaySignInRequired: 'Your remote Sbar Rafiq signed you out',
       gatewaySignInRequiredDetail: 'Sign in again to reconnect. Your chats and settings are safe.',
       signInAgain: 'Sign in again',
-      ipcBridgeUnavailable: "Hermes Desktop couldn't talk to its own background layer. Restart the app."
+      ipcBridgeUnavailable: "Sbar Rafiq Desktop couldn't talk to its own background layer. Restart the app."
     },
     // Plain causes for a local backend boot failure (`classifyBootFailure`);
     // the raw output stays behind "Show recent logs".
     causes: {
-      exitedEarly: "Hermes' background service stopped right after starting.",
-      timedOut: "Hermes' background service didn't answer in time.",
-      permission: "Hermes couldn't write to its data folder (permission problem).",
-      diskFull: 'The disk is full, so Hermes could not start.',
-      portInUse: 'Another program is using the network port Hermes needs.',
-      installMissing: "Part of Hermes' installation is missing. Choose Repair install to put it back."
+      exitedEarly: "Sbar Rafiq' background service stopped right after starting.",
+      timedOut: "Sbar Rafiq' background service didn't answer in time.",
+      permission: "Sbar Rafiq couldn't write to its data folder (permission problem).",
+      diskFull: 'The disk is full, so Sbar Rafiq could not start.',
+      portInUse: 'Another program is using the network port Sbar Rafiq needs.',
+      installMissing: "Part of Sbar Rafiq' installation is missing. Choose Repair install to put it back."
     },
     failure: {
-      title: "Hermes couldn't start",
+      title: "Sbar Rafiq couldn't start",
       description:
-        "Hermes' background service didn't come up. Try one of the recovery steps below. Nothing here deletes your chats or settings.",
+        "Sbar Rafiq' background service didn't come up. Try one of the recovery steps below. Nothing here deletes your chats or settings.",
       details: 'Details',
       remoteTitle: 'Remote gateway sign-in required',
       remoteDescription:
@@ -470,9 +470,9 @@ export const en: Translations = {
     openChat: 'Open chat',
     backendOutOfDateTitle: 'Backend out of date',
     backendOutOfDateMessage:
-      'Your Hermes backend is older than this desktop build and may not work correctly. Update to align them.',
+      'Your Sbar Rafiq backend is older than this desktop build and may not work correctly. Update to align them.',
     installMethodUnsupportedTitle: 'Unsupported install method',
-    updateHermes: 'Update Hermes',
+    updateHermes: 'Update Sbar Rafiq',
     updateReadyTitle: 'Update ready',
     updateReadyMessage: count => `${count} new change${count === 1 ? '' : 's'} available.`,
     updateReadyMessageUnknown: 'A new update is available.',
@@ -492,21 +492,21 @@ export const en: Translations = {
       elevenLabsNeedsKey: 'Voice input needs an ElevenLabs key. Add one in Settings → Keys.',
       elevenLabsRejectedKey: "ElevenLabs didn't accept your API key. Update it in Settings → Keys, then try again.",
       diskFull: 'Disk full — free some space, then try again.',
-      storageFailure: "Hermes couldn't save to its data folder. Open Maintenance to check and repair it.",
+      storageFailure: "Sbar Rafiq couldn't save to its data folder. Open Maintenance to check and repair it.",
       gatewayAuthFailed:
-        'This Hermes no longer accepts your saved sign-in. Open Gateways and sign in again (or paste a new access token), then retry.',
+        'This Sbar Rafiq no longer accepts your saved sign-in. Open Gateways and sign in again (or paste a new access token), then retry.',
       methodNotAllowed:
-        "Hermes' background service is out of step with the app, probably after an update. Restart it to fix this.",
+        "Sbar Rafiq's background service is out of step with the app, probably after an update. Restart it to fix this.",
       microphonePermission: 'Microphone permission was denied.',
       openaiRejectedApiKey: "OpenAI didn't accept your API key. Update it in Settings → Keys, then try again.",
       openaiTtsNeedsKey: 'Voice needs an OpenAI key. Add one in Settings → Keys.',
       codeSkewRestartRequired:
-        'Hermes was updated but is still running the old version. Restart it to finish the update.',
+        'Sbar Rafiq was updated but is still running the old version. Restart it to finish the update.',
       rpcOutOfSync: 'The app and the backend are on different versions. Update both.',
-      restartHermesFailed: "Couldn't restart Hermes"
+      restartHermesFailed: "Couldn't restart Sbar Rafiq"
     },
     actions: {
-      restartHermes: 'Restart Hermes',
+      restartHermes: 'Restart Sbar Rafiq',
       openKeys: 'Open Keys',
       openGateways: 'Open Gateways',
       openMaintenance: 'Open Maintenance'
@@ -648,6 +648,7 @@ export const en: Translations = {
       'nav.messaging': 'Open messaging',
       'nav.artifacts': 'Open artifacts',
       'nav.cron': 'Open scheduled jobs',
+      'nav.threads': 'Open threads',
       'nav.agents': 'Open agents',
       'session.new': 'New session',
       'session.newTab': 'New session tab',
@@ -1202,7 +1203,7 @@ export const en: Translations = {
     uninstallSection: {
       dangerZone: 'Danger zone',
       checkingInstalled: 'Checking what’s installed…',
-      uninstallHermes: 'Uninstall Hermes',
+      uninstallHermes: 'Uninstall Sbar Rafiq',
       chooseHowMuch:
         'Choose how much to remove. The app closes to finish the job; reopen the installer any time to come back.',
       confirmUninstall: 'Confirm uninstall',
@@ -1628,25 +1629,25 @@ export const en: Translations = {
       sshPortDesc: 'Blank = 22 or the ~/.ssh/config port.',
       sshKeyTitle: 'Identity file',
       sshKeyDesc: 'Private key path. Blank = ssh-agent or ~/.ssh/config.',
-      sshHermesPathTitle: 'Hermes path (optional)',
+      sshHermesPathTitle: 'Sbar Rafiq path (optional)',
       sshHermesPathDesc: 'Full path to the remote hermes binary. Blank = auto-detect.',
       sshHermesPathPlaceholder: 'auto-detect',
       sshTestConnection: 'Test SSH',
       sshConnect: 'Connect',
       sshButtonsHint: 'Save applies on the next launch. Connect reconnects now.',
-      sshReachable: (host, platform) => `Reachable: ${host} (${platform}) — Hermes found`,
+      sshReachable: (host, platform) => `Reachable: ${host} (${platform}) — Sbar Rafiq found`,
       sshIncompleteHost: 'Enter an SSH host before connecting.',
       sshErrUnreachable: 'Could not reach that host over SSH. Check the host, port, and your network.',
       sshErrAuth:
-        'SSH authentication failed. Load your key into the ssh-agent (ssh-add) or set an IdentityFile in ~/.ssh/config — Hermes runs ssh non-interactively.',
+        'SSH authentication failed. Load your key into the ssh-agent (ssh-add) or set an IdentityFile in ~/.ssh/config — Sbar Rafiq runs ssh non-interactively.',
       sshErrHostKey:
         'The host key has CHANGED since you last connected. Verify this is expected, then run ssh-keygen -R <host> and reconnect.',
       sshErrNotInstalled:
-        'Hermes is not installed on the remote host. Install it there (curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh) or set the Hermes path.',
+        'Sbar Rafiq is not installed on the remote host. Install it there (curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh) or set the Sbar Rafiq path.',
       sshErrPlatform:
-        'Unsupported remote platform. Hermes Desktop SSH mode supports Linux, macOS, and Windows remote hosts.',
+        'Unsupported remote platform. Sbar Rafiq Desktop SSH mode supports Linux, macOS, and Windows remote hosts.',
       sshErrTimeout: 'SSH connection timed out. The host may be unreachable or asleep.',
-      sshErrUpdateRequired: 'Update Hermes on the remote host before connecting with Desktop SSH.',
+      sshErrUpdateRequired: 'Update Sbar Rafiq on the remote host before connecting with Desktop SSH.',
       sshErrUnknown: 'SSH connection failed.'
     },
     keys: {
@@ -2576,6 +2577,42 @@ export const en: Translations = {
     importedBadge: 'imported map',
     resetToMine: 'Back to my map'
   },
+  threads: {
+    close: 'Close threads',
+    title: 'Threads',
+    subtitle: 'Work that kept going after the turn ended.',
+    emptyTitle: 'No threads yet',
+    emptyDesc: 'When this conversation delegates work in the background, each thread lands here with its own transcript.',
+    working: 'Working',
+    workingDesc: 'Running right now.',
+    resolved: 'Resolved',
+    resolvedDesc: 'Finished threads file here.',
+    failed: 'Failed',
+    failedDesc: 'Stopped before finishing.',
+    waiting: 'Waiting on you',
+    waitingDesc: 'Decisions, reviews and permissions only you can give.',
+    live: 'Live',
+    subagents: 'Sub-agents',
+    messages: 'Messages',
+    tools: 'Tool calls',
+    model: 'Model',
+    started: 'Started',
+    openThread: 'Open thread',
+    backToThreads: 'Back to threads',
+    transcript: 'Transcript',
+    transcriptTail: 'Showing the latest messages.',
+    transcriptEmpty: 'This thread has not written anything yet.',
+    transcriptFailed: 'Could not read this thread.',
+    steerPlaceholder: 'Steer this thread...',
+    steerSend: 'Send to thread',
+    steerSent: 'Sent to the thread.',
+    steerFailed: 'Could not reach this thread.',
+    steerUnavailable: 'This thread has finished, so there is nothing to steer.',
+    routedTo: 'Sent to the thread',
+    routeUndo: 'Undo',
+    refresh: 'Refresh threads',
+    loading: 'Reading threads...'
+  },
   agents: {
     extendedTranscript: 'Extended transcript',
     transcriptTruncated: 'Showing the latest 16 KiB',
@@ -2738,7 +2775,7 @@ export const en: Translations = {
     sharedGatewayRestartDescription: bots => `All bots on this device reconnect: ${bots}`,
     sharedGatewayRestartConfirm: 'Restart all',
     sharedGatewayRestarted: count => `Shared gateway restarted (${count} ${count === 1 ? 'bot' : 'bots'})`,
-    updateHermes: 'Update Hermes',
+    updateHermes: 'Update Sbar Rafiq',
     reloadWindow: 'Reload window',
     actionRunning: 'running',
     actionDone: 'done',
@@ -3552,7 +3589,8 @@ export const en: Translations = {
       capabilities: 'Capabilities',
       messaging: 'Messaging',
       artifacts: 'Artifacts',
-      cron: 'Scheduled jobs'
+      cron: 'Scheduled jobs',
+      threads: 'Threads'
     },
     searchAria: 'Search sessions',
     searchPlaceholder: 'Search sessions…',
@@ -3928,6 +3966,7 @@ export const en: Translations = {
     attachments: count => `${count} attachment${count === 1 ? '' : 's'}`,
     attachmentsShowAll: count => `Show all ${count}`,
     attachmentsShowFewer: 'Show fewer',
+    attachmentImage: 'Image',
     editingInComposer: 'Editing in composer',
     editingQueuedInComposer: 'Editing queued turn in composer',
     restoredDraftNotice: 'Restored your unsent message',
@@ -5249,7 +5288,7 @@ export const en: Translations = {
       },
       errorDetails: 'Details',
       errorGenericProvider: 'The AI service',
-      errorToastTitle: "Hermes couldn't finish the reply",
+      errorToastTitle: "Sbar Rafiq couldn't finish the reply",
       errorRetry: 'Retry',
       errorLimitResets: time => `Limit resets at ${time}`,
       errorRetryAtReset: time => `Retry when the limit resets (${time})`,
@@ -5260,8 +5299,8 @@ export const en: Translations = {
       errorChooseModel: 'Choose a model',
       errorCompressConversation: 'Compress conversation',
       errorCompressFailed: 'Could not compress the conversation',
-      errorOpenHermesFolder: 'Open Hermes folder',
-      errorOpenHermesFolderFailed: 'Could not open the Hermes folder',
+      errorOpenHermesFolder: 'Open Sbar Rafiq folder',
+      errorOpenHermesFolderFailed: 'Could not open the Sbar Rafiq folder',
       errorUpdateApiKey: 'Update API key',
       errorSignInAgain: provider => `Sign in to ${provider} again`,
       errorSignInFreeTier: 'Sign in with a Nous account',

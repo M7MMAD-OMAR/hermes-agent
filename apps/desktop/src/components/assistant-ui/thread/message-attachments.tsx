@@ -22,9 +22,14 @@ import { notifyError } from '@/store/notifications'
 const VISIBLE_LIMIT = 8
 
 interface Attachment {
-  /** The reference's raw value: a path, or a URL for `url` refs. */
+  /** The reference's raw value: a path, a URL for `url` refs, or the bytes
+   *  themselves when a picture arrived inline. */
   id: string
-  /** Basename for a path, host and path for a URL. */
+  /** Uppercase format for the corner. Read from the extension for a path, and
+   *  from the media type for inline bytes, which have no extension to read. */
+  badge: string
+  /** Basename for a path, host and path for a URL, and '' for inline bytes,
+   *  which carry no name of their own. */
   label: string
   type: string
 }
@@ -37,14 +42,19 @@ function basename(label: string): string {
   return parts[parts.length - 1] || label
 }
 
-/** Uppercase extension for the tile's corner badge, '' when there is none.
- *  Capped so a pathological "file.somethingverylong" cannot widen the tile. */
+/** A format word for the tile's corner, '' when it is not one. Capped so a
+ *  pathological "file.somethingverylong" cannot widen the tile, and rejected
+ *  outright when it is not plain alphanumeric ("x-icon", "svg+xml"). */
+function formatBadge(format: string): string {
+  return format && format.length <= 5 && /^[a-z0-9]+$/i.test(format) ? format.toUpperCase() : ''
+}
+
+/** Uppercase extension for the tile's corner badge, '' when there is none. */
 function extensionBadge(label: string): string {
   const name = basename(label)
   const dot = name.lastIndexOf('.')
-  const ext = dot > 0 ? name.slice(dot + 1) : ''
 
-  return ext && ext.length <= 5 && /^[a-z0-9]+$/i.test(ext) ? ext.toUpperCase() : ''
+  return formatBadge(dot > 0 ? name.slice(dot + 1) : '')
 }
 
 // Each entry of `attachmentRefs` is ONE whole reference, so the value is
@@ -54,11 +64,30 @@ function extensionBadge(label: string): string {
 // attachments when an older message carries it unquoted.
 const WHOLE_REFERENCE_RE = /^@([a-z]+):([\s\S]+)$/i
 
+// A picture the user just attached is NOT an `@image:` reference. It arrives as
+// the bounded `data:` thumbnail the composer already holds, deliberately: a
+// path would route through `/api/media` and 403 on a remote gateway, and
+// painting the full source is what froze the send (see
+// `optimisticAttachmentRef` in lib/chat-runtime). Refusing that form here is
+// how every sent picture lost its tile. Once the turn persists, the gateway
+// rewrites it to `@image:<path>` and the tile picks up the real filename.
+const INLINE_IMAGE_RE = /^data:image\/([a-z0-9][a-z0-9.+-]*)[;,]/i
+
 function parseAttachments(refs: string[]): Attachment[] {
   const out: Attachment[] = []
 
   for (const ref of refs) {
-    const match = WHOLE_REFERENCE_RE.exec(ref.trim())
+    const value = ref.trim()
+    const inline = INLINE_IMAGE_RE.exec(value)
+
+    if (inline) {
+      // "svg+xml" is one format wearing a suffix; the badge is the format.
+      out.push({ badge: formatBadge(inline[1].split('+')[0]), id: value, label: '', type: 'image' })
+
+      continue
+    }
+
+    const match = WHOLE_REFERENCE_RE.exec(value)
     const type = match?.[1]?.toLowerCase() ?? ''
 
     if (!match || !(WIRE_REFERENCE_KINDS as readonly string[]).includes(type)) {
@@ -68,7 +97,9 @@ function parseAttachments(refs: string[]): Attachment[] {
     const id = unwrapRefValue(match[2].trim())
 
     if (id) {
-      out.push({ id, label: refChipLabel(type, id), type })
+      const label = refChipLabel(type, id)
+
+      out.push({ badge: extensionBadge(label), id, label, type })
     }
   }
 
@@ -126,12 +157,16 @@ function AttachmentTile({ attachment }: { attachment: Attachment }) {
   const cwd = useStore(useSessionView().$cwd)
   const isImage = attachment.type === 'image'
   const isUrl = attachment.type === 'url'
+  // Bytes that arrived inline with no name of their own (see INLINE_IMAGE_RE).
+  const inline = attachment.label === ''
   const [lightboxSrc, setLightboxSrc] = useState('')
   // Same save affordance the composer's image pill offers, so a picture opened
   // from the transcript can be kept without going back to the file it came from.
   const { download, saving } = useImageDownload(lightboxSrc)
-  const name = isUrl ? attachment.label : basename(attachment.label)
-  const badge = isUrl ? 'URL' : extensionBadge(attachment.label)
+  // Inline bytes have no filename, so the format stands in for one. Anything
+  // else is named by its own last path segment.
+  const name = inline ? c.attachmentImage : isUrl ? attachment.label : basename(attachment.label)
+  const badge = isUrl ? 'URL' : attachment.badge
 
   async function open() {
     try {
@@ -142,7 +177,11 @@ function AttachmentTile({ attachment }: { attachment: Attachment }) {
       }
 
       if (isImage) {
-        const source = await attachmentImageDataUrl([attachment.id])
+        // Inline bytes ARE the source; reading them as a path would fail and
+        // put an error toast where a picture should be. They are the bounded
+        // thumbnail, so this opens at thumbnail resolution until the turn
+        // persists and the reference becomes the real file.
+        const source = inline ? attachment.id : await attachmentImageDataUrl([attachment.id])
 
         if (!source) {
           throw new Error(c.couldNotPreview(name))
@@ -163,7 +202,9 @@ function AttachmentTile({ attachment }: { attachment: Attachment }) {
 
   return (
     <>
-      <Tip label={attachment.id}>
+      {/* The raw value is the useful hover for a path or a URL, and a
+          multi-kilobyte base64 blob for inline bytes. Those get the name. */}
+      <Tip label={inline ? name : attachment.id}>
         <button
           aria-label={c.previewLabel(name)}
           className={cn(
@@ -177,7 +218,7 @@ function AttachmentTile({ attachment }: { attachment: Attachment }) {
             {isImage ? (
               <AttachmentThumbnail id={attachment.id} label={name} />
             ) : (
-              <FileTypeIcon className="text-lg" path={isUrl ? undefined : attachment.label} />
+              <FileTypeIcon className="text-lg" path={isUrl || inline ? undefined : attachment.label} />
             )}
             {badge ? (
               <span className="absolute bottom-0.5 end-0.5 rounded bg-background/85 px-1 text-[0.5625rem] font-medium leading-4 text-(--ui-text-tertiary)">

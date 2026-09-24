@@ -84,7 +84,15 @@ def _artifact(value, cwd):
     value = value.strip().removeprefix("MEDIA:").strip().strip('`\"\'').rstrip('),.;')
     if not value or len(value) > 4096:
         return None
-    parsed = urlparse(value)
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        # urlparse RAISES on a malformed authority: any ``scheme://[`` that does
+        # not close into a valid IPv6 host ("Invalid IPv6 URL"). Transcripts are
+        # full of such text, and this scan walks EVERY message, so one unguarded
+        # parse aborted the whole index and left project_results permanently
+        # empty. A candidate we cannot parse is simply not an artifact.
+        return None
     remote = parsed.scheme in {"http", "https"} and bool(parsed.netloc)
     native_absolute = os.path.isabs(value)
     if parsed.scheme and not remote and parsed.scheme != "file" and not native_absolute:

@@ -175,6 +175,7 @@ describe('projects RPC profile forwarding', () => {
     const gateway = { connectionState: 'open', request }
     activeGateway.mockReturnValue(gateway as never)
     gatewayAtom.set(gateway as never)
+    vi.mocked(hermes.hermesApi).mockResolvedValue({ project: null })
     setShowAllProfiles(true)
 
     await refreshProjects()
@@ -182,6 +183,32 @@ describe('projects RPC profile forwarding', () => {
     await fetchProjectSessions('p_123')
 
     expect(request).not.toHaveBeenCalled()
+    setShowAllProfiles(false)
+  })
+
+  it('reads the entered project from the fan-out in the all-profiles view', async () => {
+    const project = { id: 'p_123', label: 'Sbar Rafiq', path: '/srv/hermes', repos: [], sessionCount: 2 }
+    const request = vi.fn()
+    activeGateway.mockReturnValue({ connectionState: 'open', request } as never)
+    vi.mocked(hermes.hermesApi).mockResolvedValue({ project })
+    setShowAllProfiles(true)
+
+    await expect(fetchProjectSessions('p_123')).resolves.toEqual({ project, status: 'ok' })
+    expect(hermes.hermesApi).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/profiles/projects/project_sessions?project_id=p_123' })
+    )
+    // The one backend that can answer for every profile at once is the REST
+    // fan-out; the per-profile RPC must not be asked.
+    expect(request).not.toHaveBeenCalled()
+    setShowAllProfiles(false)
+  })
+
+  it('an all-profiles drill-in on a backend without the route is not a failed load', async () => {
+    activeGateway.mockReturnValue({ connectionState: 'open', request: vi.fn() } as never)
+    vi.mocked(hermes.hermesApi).mockRejectedValue(new Error('404 no such api endpoint'))
+    setShowAllProfiles(true)
+
+    await expect(fetchProjectSessions('p_123')).resolves.toEqual({ status: 'unavailable' })
     setShowAllProfiles(false)
   })
 })

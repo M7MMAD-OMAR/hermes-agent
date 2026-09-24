@@ -539,17 +539,23 @@ def _persist_session_title(session_db, session_id, title, *, source, dedupe=True
 
 def apply_instant_title(
     session_db, session_id: str, user_message: str, title_callback: Optional[TitleCallback] = None,
-    title_preview: str | None = None,
+    title_preview: str | None = None, *, dedupe: bool = False,
 ) -> Optional[str]:
     """Write the derived title inline. Returns it, or None (no usable text, or a ``derived``+ title exists). Never raises.
 
     ``title_preview`` must reach this stage too: the model upgrade's own ``derive_title`` fallback writes
-    ``derived`` provenance, which never replaces the ``derived`` title written here."""
+    ``derived`` provenance, which never replaces the ``derived`` title written here.
+
+    ``dedupe`` defaults off because the instant title is on a chat's critical path: it collides constantly on
+    "hi" and the model replaces it a second later anyway. Callers whose title is the FINAL name of the row
+    (delegated threads, whose goals differ only by a repo path or a review dimension) pass True, so a
+    collision yields ``name #2`` instead of leaving the row unnamed.
+    """
     if not session_db or not session_id:
         return None
     try:
         title = derive_title(user_message, title_preview) if is_titleable_user_message(user_message) else None
-        persisted = _persist_session_title(session_db, session_id, title, source="derived", dedupe=False) if title else None
+        persisted = _persist_session_title(session_db, session_id, title, source="derived", dedupe=dedupe) if title else None
         if persisted:
             _notify_title(title_callback, persisted, "derived", "Instant-title")
         return persisted

@@ -277,9 +277,12 @@ interface PaneTabStripProps extends React.ComponentProps<'div'> {
   listRef?: React.Ref<HTMLDivElement>
   /** Non-scrolling trailing chrome pinned to the right (the minimize chevron). */
   trailing?: React.ReactNode
-  /** Top-edge panel header shares the native window-control band. */
-  titlebar?: boolean
 }
+
+/** The strip's own height, in px, for the layouts that have to reserve it
+ *  (a top-edge zone stacks it under the window-control band). Keep in step
+ *  with the `h-7` below; this is the same number, in the unit geometry uses. */
+export const PANE_TAB_STRIP_HEIGHT = 28
 
 /**
  * The horizontal tab bar every strip in the app sits in. Owns the bar's height
@@ -291,7 +294,7 @@ interface PaneTabStripProps extends React.ComponentProps<'div'> {
  * `data-zone-tabstrip`, drop carets) ride on the usual div props.
  */
 export const PaneTabStrip = React.forwardRef<HTMLDivElement, PaneTabStripProps>(function PaneTabStrip(
-  { children, className, listRef, trailing, titlebar = false, ...props },
+  { children, className, listRef, trailing, ...props },
   ref
 ) {
   return (
@@ -308,8 +311,7 @@ export const PaneTabStrip = React.forwardRef<HTMLDivElement, PaneTabStripProps>(
       // it. Transparent tabs is how the chats ended up stacked on top of each
       // other. Only the active tab's wash is meant to be visible.
       className={cn(
-        'group/pane-header relative flex min-w-0 shrink-0 select-none',
-        titlebar ? 'h-full flex-1 [-webkit-app-region:drag]' : 'h-7 [-webkit-app-region:no-drag]',
+        'group/pane-header relative flex h-7 min-w-0 shrink-0 select-none [-webkit-app-region:no-drag]',
         className
       )}
       ref={ref}

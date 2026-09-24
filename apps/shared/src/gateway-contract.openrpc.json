@@ -4255,6 +4255,60 @@
       }
     },
     {
+      "name": "thread.get",
+      "summary": "One thread's header; a session with no delegate marker is not found.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/ThreadIdParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/ThreadGetResult"
+        }
+      }
+    },
+    {
+      "name": "thread.list",
+      "summary": "Durable delegated threads, newest first, with whole-scope inbox counts.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/ThreadListParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/ThreadListResult"
+        }
+      }
+    },
+    {
+      "name": "thread.transcript",
+      "summary": "A thread's own messages from the durable store, tail-paged.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/ThreadTranscriptParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/ThreadTranscriptResult"
+        }
+      }
+    },
+    {
       "name": "tools.configure",
       "summary": "Persist a toolset / MCP enable-disable change and rebuild the session agent so it takes effect now.",
       "params": [
@@ -35881,6 +35935,334 @@
           "cols"
         ],
         "title": "TerminalResizeResult",
+        "type": "object"
+      },
+      "ThreadGetResult": {
+        "additionalProperties": false,
+        "properties": {
+          "thread": {
+            "$ref": "#/components/schemas/ThreadSummary"
+          }
+        },
+        "required": [
+          "thread"
+        ],
+        "title": "ThreadGetResult",
+        "type": "object"
+      },
+      "ThreadIdParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "ThreadIdParams",
+        "type": "object"
+      },
+      "ThreadListParams": {
+        "additionalProperties": false,
+        "description": "``states`` filters the returned rows only; ``counts`` always describe the\nwhole scope, so a section header does not move as the client pages.",
+        "properties": {
+          "coordinator_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Coordinator Session Id"
+          },
+          "states": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ThreadState"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "States"
+          },
+          "min_message_count": {
+            "default": 0,
+            "title": "Min Message Count",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          }
+        },
+        "title": "ThreadListParams",
+        "type": "object"
+      },
+      "ThreadListResult": {
+        "additionalProperties": false,
+        "properties": {
+          "threads": {
+            "items": {
+              "$ref": "#/components/schemas/ThreadSummary"
+            },
+            "title": "Threads",
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ThreadStateCounts"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "coordinator_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Coordinator Session Id"
+          }
+        },
+        "required": [
+          "counts"
+        ],
+        "title": "ThreadListResult",
+        "type": "object"
+      },
+      "ThreadState": {
+        "description": "Derived from the session row, never stored.\n\n``failed`` is a session the supervisor reaped rather than one the child\nclosed itself: rendering that as ``resolved`` would tell the user work\nlanded that never did.",
+        "enum": [
+          "working",
+          "resolved",
+          "failed"
+        ],
+        "title": "ThreadState",
+        "type": "string"
+      },
+      "ThreadStateCounts": {
+        "additionalProperties": false,
+        "description": "Inbox headers. Every state is present even at zero: a header that\nvanishes at zero reads as a missing feature.",
+        "properties": {
+          "working": {
+            "default": 0,
+            "title": "Working",
+            "type": "integer"
+          },
+          "resolved": {
+            "default": 0,
+            "title": "Resolved",
+            "type": "integer"
+          },
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          }
+        },
+        "title": "ThreadStateCounts",
+        "type": "object"
+      },
+      "ThreadSummary": {
+        "additionalProperties": false,
+        "description": "One thread's header row, shaped by ``hermes_state_threads._shape_thread_row``.",
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "coordinator_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Coordinator Session Id"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          },
+          "preview": {
+            "default": "",
+            "title": "Preview",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ThreadState"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ended At"
+          },
+          "end_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Reason"
+          },
+          "message_count": {
+            "default": 0,
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "tool_call_count": {
+            "default": 0,
+            "title": "Tool Call Count",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cwd"
+          },
+          "profile_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile Name"
+          }
+        },
+        "required": [
+          "session_id",
+          "label",
+          "state"
+        ],
+        "title": "ThreadSummary",
+        "type": "object"
+      },
+      "ThreadTranscriptParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "limit": {
+            "default": 200,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "ThreadTranscriptParams",
+        "type": "object"
+      },
+      "ThreadTranscriptResult": {
+        "additionalProperties": false,
+        "description": "``messages`` is the tail in chronological order; ``truncated`` says the\nthread holds more than this page.",
+        "properties": {
+          "thread": {
+            "$ref": "#/components/schemas/ThreadSummary"
+          },
+          "messages": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "thread"
+        ],
+        "title": "ThreadTranscriptResult",
         "type": "object"
       },
       "TipShowPayload": {

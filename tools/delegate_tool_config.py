@@ -52,11 +52,26 @@ def _subagent_auto_approve(command: str, description: str, **kwargs) -> str:
     logger.warning("Subagent auto-approved dangerous command: %s (%s)", command, description)
     return "once"
 
-def _get_subagent_approval_callback():
-    """Callback for subagent worker threads per delegation.subagent_auto_approve (default False)."""
-    if is_truthy_value(_cfg().get("subagent_auto_approve", False)):
-        return _subagent_auto_approve
-    return _subagent_auto_deny
+def _get_subagent_approval_callback(owner_session_key: Optional[str] = None, thread_label: str = ""):
+    """Callback for subagent worker threads per delegation.subagent_auto_approve (default False).
+
+    With ``delegation.subagent_ask_user`` on (default OFF), the person who owns the conversation is asked
+    first and the auto policy below becomes the answer for when they cannot be reached or do not reply in
+    time (tools/delegation_ask_user.py). Turning that on converts a bounded automatic refusal into a
+    blocking request for a human, so it is the operator's decision and never the agent's. With it off this
+    function is exactly what it was.
+    """
+    cfg = _cfg()
+    auto = _subagent_auto_approve if is_truthy_value(cfg.get("subagent_auto_approve", False)) else _subagent_auto_deny
+
+    from tools.delegation_ask_user import ask_timeout_seconds, ask_user_enabled, build_ask_callback
+
+    if not ask_user_enabled(cfg):
+        return auto
+
+    return build_ask_callback(
+        owner_session_key, auto, timeout_seconds=ask_timeout_seconds(cfg), thread_label=thread_label,
+    )
 
 def _knob(key: str, env_var: Optional[str], parse, default, invalid_msg: str):
     """delegation.<key> > <env_var> > default. A config value that fails ``parse`` logs ``invalid_msg`` (``%r`` = the

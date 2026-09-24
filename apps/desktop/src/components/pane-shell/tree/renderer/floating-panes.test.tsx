@@ -81,9 +81,11 @@ describe('FloatingPanes (live DOM)', () => {
     const el = card()!
 
     expect(el).toBeTruthy()
-    // 1440 - 224 - 12 margin = 1204; titlebar 34 + 12 = 46.
+    // 1440 - 224 - 12 margin = 1204. The ceiling is the whole top chrome, the
+    // control band plus the tab row it stacks on (34 + 28), + 12 margin = 74:
+    // a card spawning at the band's bottom edge would sit on those tabs.
     expect(el.style.left).toBe('1204px')
-    expect(el.style.top).toBe('46px')
+    expect(el.style.top).toBe('74px')
     expect(el.style.width).toBe('224px')
     expect(document.querySelector('[data-testid="hud-body"]')?.textContent).toBe('live')
   })
@@ -106,7 +108,8 @@ describe('FloatingPanes (live DOM)', () => {
     pointer(grab(), 'pointerup', 260, 240)
 
     expect(card()!.style.left).toBe('172px')
-    expect(card()!.style.top).toBe('186px')
+    // Spawn top (74) + the 140px the pointer travelled down.
+    expect(card()!.style.top).toBe('214px')
   })
 
   it('persists the dragged position across a remount', () => {

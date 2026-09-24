@@ -113,8 +113,10 @@ export function GatewayProfileGroups({
           onNewSessionSplit={onNewSessionSplit}
           renderRows={renderRows}
         >
+          {/* Indent alone says "nested". The rule that used to run down this
+              side was a line doing a job whitespace already does. */}
           {gatewayProfiles.has(group.id) && (
-            <div className="ms-3 border-s border-border/50 ps-1">
+            <div className="ms-3 ps-1">
               <GatewayProfileGroups
                 groups={gatewayProfiles.get(group.id)!}
                 nested

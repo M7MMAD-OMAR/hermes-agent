@@ -21,7 +21,7 @@ test('Windows reserves the overlay fallback width', () => {
 
 test('WSLg custom controls reserve the same fallback width', () => {
   // The original bug: WSL fell through to 0, so the right tools sat under the
-  // controls and the title overran into them.
+  // controls and the title overran into them. The renderer paints them there.
   assert.equal(nativeOverlayWidth({ isWsl: true }), OVERLAY_FALLBACK_WIDTH)
 })
 
@@ -38,13 +38,15 @@ test('WSLg disables the undersized native overlay in favor of renderer controls'
   )
 })
 
-test('native Windows and Linux keep the same window-controls overlay', () => {
+test('native Windows keeps the window-controls overlay; plain Linux asks for none', () => {
   const input = { titlebarHeight: 34, color: 'transparent', foreground: '#ffffff', dark: false }
-  const expected = { color: 'transparent', height: 34, symbolColor: '#ffffff' }
 
-  for (const platform of ['windows', 'linux'] as const) {
-    assert.deepEqual(titleBarOverlayOptions({ platform, ...input }), expected)
-  }
+  assert.deepEqual(titleBarOverlayOptions({ platform: 'windows', ...input }), {
+    color: 'transparent',
+    height: 34,
+    symbolColor: '#ffffff'
+  })
+  assert.equal(titleBarOverlayOptions({ platform: 'linux', ...input }), false)
 })
 
 test('macOS keeps its height-only traffic-light overlay', () => {
@@ -60,13 +62,13 @@ test('macOS keeps its height-only traffic-light overlay', () => {
   )
 })
 
-test('plain Linux paints the WCO too, so it reserves the fallback width', () => {
-  // Regression #53185: re-enabling the overlay on plain Linux (KDE/GNOME)
-  // without reserving its width left the native min/max/close buttons painting
-  // on top of the app's right-edge titlebar tools.
-  assert.equal(nativeOverlayWidth({ isWindows: false, isWsl: false }), OVERLAY_FALLBACK_WIDTH)
-  assert.equal(nativeOverlayWidth(), OVERLAY_FALLBACK_WIDTH)
-  assert.equal(nativeOverlayWidth({}), OVERLAY_FALLBACK_WIDTH)
+test('Linux paints no overlay of ours, so it reserves nothing', () => {
+  // The compositor owns close/minimize/maximize on Linux, so main.ts asks for
+  // no overlay there. Reserving its width anyway is a dead gap at the end of
+  // the top-edge zone's tab row, which is the row that needed the space.
+  assert.equal(nativeOverlayWidth({ isWindows: false, isWsl: false }), 0)
+  assert.equal(nativeOverlayWidth(), 0)
+  assert.equal(nativeOverlayWidth({}), 0)
 })
 
 test('macOS uses traffic lights, not a WCO overlay, so it reserves nothing', () => {

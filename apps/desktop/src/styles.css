@@ -619,7 +619,6 @@
     --sidebar-accent-foreground: var(--dt-accent-foreground);
     --sidebar-border: var(--dt-sidebar-border);
     --sidebar-ring: var(--dt-ring);
-    --sidebar-edge-border: color-mix(in srgb, var(--ui-base) 7.5%, transparent);
     --chrome-action-hover: var(--ui-control-hover-background);
 
     --midground: var(--dt-midground);
@@ -655,7 +654,6 @@
     --ui-diff-add-foreground: color-mix(in srgb, var(--ui-green) 62%, #fff);
     --ui-diff-remove-foreground: color-mix(in srgb, var(--ui-red) 62%, #fff);
 
-    --sidebar-edge-border: color-mix(in srgb, var(--ui-base) 12%, transparent);
     --composer-ring-strength: 1.3;
     --backdrop-invert-mul: 0;
     /* Dark mode: a dark card needs a stronger black inset to show the recess. */

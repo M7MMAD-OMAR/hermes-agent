@@ -2190,6 +2190,42 @@ export interface Translations {
     importedBadge: string
     resetToMine: string
   }
+  threads: {
+    close: string
+    title: string
+    subtitle: string
+    emptyTitle: string
+    emptyDesc: string
+    working: string
+    workingDesc: string
+    resolved: string
+    resolvedDesc: string
+    failed: string
+    failedDesc: string
+    waiting: string
+    waitingDesc: string
+    live: string
+    subagents: string
+    messages: string
+    tools: string
+    model: string
+    started: string
+    openThread: string
+    backToThreads: string
+    transcript: string
+    transcriptTail: string
+    transcriptEmpty: string
+    transcriptFailed: string
+    steerPlaceholder: string
+    steerSend: string
+    steerSent: string
+    steerFailed: string
+    steerUnavailable: string
+    routedTo: string
+    routeUndo: string
+    refresh: string
+    loading: string
+  }
   agents: {
     extendedTranscript: string
     transcriptTruncated: string
@@ -3252,6 +3288,7 @@ export interface Translations {
     /** Expander on a sent message that carries more attachments than fit. */
     attachmentsShowAll: (count: number) => string
     attachmentsShowFewer: string
+    attachmentImage: string
     editingInComposer: string
     editingQueuedInComposer: string
     restoredDraftNotice: string

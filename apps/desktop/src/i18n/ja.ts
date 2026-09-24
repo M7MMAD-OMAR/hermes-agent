@@ -103,19 +103,19 @@ export const ja = defineLocale({
   },
 
   boot: {
-    ready: 'Hermes Desktop の準備ができました',
+    ready: 'Sbar Rafiq Desktop の準備ができました',
     desktopBootFailedWithMessage: message => `デスクトップの起動に失敗しました: ${message}`,
     steps: {
       connectingGateway: 'ライブデスクトップゲートウェイに接続中',
-      loadingSettings: 'Hermes の設定を読み込み中',
+      loadingSettings: 'Sbar Rafiq の設定を読み込み中',
       loadingSessions: '最近のセッションを読み込み中',
-      retryingRemoteBackend: 'リモート Hermes バックエンドに再接続中…',
+      retryingRemoteBackend: 'リモート Sbar Rafiq バックエンドに再接続中…',
       startingDesktopConnection: 'デスクトップ接続を開始中',
-      startingHermesDesktop: 'Hermes Desktop を起動中…'
+      startingHermesDesktop: 'Sbar Rafiq Desktop を起動中…'
     },
     errors: {
-      backgroundExited: 'Hermes バックグラウンドプロセスが終了しました。',
-      backgroundExitedDuringStartup: '起動中に Hermes バックグラウンドプロセスが終了しました。',
+      backgroundExited: 'Sbar Rafiq バックグラウンドプロセスが終了しました。',
+      backgroundExitedDuringStartup: '起動中に Sbar Rafiq バックグラウンドプロセスが終了しました。',
       backendStopped: 'バックエンドが停止しました',
       desktopBootFailed: 'デスクトップの起動に失敗しました',
       gatewayConnectionLost: 'ゲートウェイへの接続が切断されました',
@@ -191,9 +191,9 @@ export const ja = defineLocale({
     openChat: 'チャットを開く',
     backendOutOfDateTitle: 'バックエンドが古いです',
     backendOutOfDateMessage:
-      'Hermes バックエンドがこのデスクトップビルドより古く、正常に動作しない場合があります。更新して揃えてください。',
+      'Sbar Rafiq バックエンドがこのデスクトップビルドより古く、正常に動作しない場合があります。更新して揃えてください。',
     installMethodUnsupportedTitle: 'サポート対象外のインストール方法',
-    updateHermes: 'Hermes を更新',
+    updateHermes: 'Sbar Rafiq を更新',
     updateReadyTitle: '更新の準備ができました',
     updateReadyMessage: count => `${count} 件の新しい変更が利用可能です。`,
     updateReadyMessageUnknown: '新しい更新が利用可能です。',
@@ -351,7 +351,7 @@ export const ja = defineLocale({
     uninstallSection: {
       dangerZone: '危険ゾーン',
       checkingInstalled: 'インストール内容を確認中…',
-      uninstallHermes: 'Hermes をアンインストール',
+      uninstallHermes: 'Sbar Rafiq をアンインストール',
       chooseHowMuch:
         '削除する範囲を選択してください。完了するためにアプリが閉じます。インストーラーを開き直せばいつでも戻れます。',
       confirmUninstall: 'アンインストールの確認',
@@ -1230,25 +1230,25 @@ export const ja = defineLocale({
       sshPortDesc: '空欄 = 22 または ~/.ssh/config のポート。',
       sshKeyTitle: '鍵ファイル',
       sshKeyDesc: '秘密鍵のパス。空欄 = ssh-agent または ~/.ssh/config。',
-      sshHermesPathTitle: 'Hermes パス（任意）',
+      sshHermesPathTitle: 'Sbar Rafiq パス（任意）',
       sshHermesPathDesc: 'リモートの hermes バイナリへのフルパス。空欄 = 自動検出。',
       sshHermesPathPlaceholder: '自動検出',
       sshTestConnection: 'SSH をテスト',
       sshConnect: '接続',
       sshButtonsHint: '「保存」は次回起動時に適用され、「接続」は今すぐ再接続します。',
-      sshReachable: (host, platform) => `接続可能: ${host}（${platform}）— Hermes を検出`,
+      sshReachable: (host, platform) => `接続可能: ${host}（${platform}）— Sbar Rafiq を検出`,
       sshIncompleteHost: '接続する前に SSH ホストを入力してください。',
       sshErrUnreachable: 'SSH でそのホストに到達できませんでした。ホスト、ポート、ネットワークを確認してください。',
       sshErrAuth:
-        'SSH 認証に失敗しました。鍵を ssh-agent に読み込む（ssh-add）か、~/.ssh/config に IdentityFile を設定してください。Hermes は非対話的に ssh を実行します。',
+        'SSH 認証に失敗しました。鍵を ssh-agent に読み込む（ssh-add）か、~/.ssh/config に IdentityFile を設定してください。Sbar Rafiq は非対話的に ssh を実行します。',
       sshErrHostKey:
         '前回の接続以降、ホスト鍵が変更されています。想定どおりか確認し、ssh-keygen -R <host> を実行してから再接続してください。',
       sshErrNotInstalled:
-        'リモートホストに Hermes がインストールされていません。リモートでインストールする（curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh）か、Hermes パスを設定してください。',
+        'リモートホストに Sbar Rafiq がインストールされていません。リモートでインストールする（curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh）か、Sbar Rafiq パスを設定してください。',
       sshErrPlatform:
-        'サポートされていないリモートプラットフォームです。Hermes Desktop の SSH モードは Linux、macOS、Windows のリモートホストに対応しています。',
+        'サポートされていないリモートプラットフォームです。Sbar Rafiq Desktop の SSH モードは Linux、macOS、Windows のリモートホストに対応しています。',
       sshErrTimeout: 'SSH 接続がタイムアウトしました。ホストが到達不能、またはスリープ中の可能性があります。',
-      sshErrUpdateRequired: 'Desktop SSH で接続する前に、リモートホストの Hermes を更新してください。',
+      sshErrUpdateRequired: 'Desktop SSH で接続する前に、リモートホストの Sbar Rafiq を更新してください。',
       sshErrUnknown: 'SSH 接続に失敗しました。'
     },
     keys: {
@@ -1840,6 +1840,47 @@ export const ja = defineLocale({
     emptyTitle: 'まだ学習はありません',
     emptyDesc: 'Sbar Rafiq がスキルやメモリを蓄積すると、ここに表示されます。'
   },
+  keybinds: {
+    actions: {
+      'nav.threads': 'スレッドを開く'
+    }
+  },
+  threads: {
+    close: 'スレッドを閉じる',
+    title: 'スレッド',
+    subtitle: 'ターン終了後も続いている作業。',
+    emptyTitle: 'スレッドはまだありません',
+    emptyDesc: 'この会話がバックグラウンドで作業を委任すると、各スレッドが独自の記録とともにここに表示されます。',
+    working: '作業中',
+    workingDesc: '現在実行中です。',
+    resolved: '完了',
+    resolvedDesc: '完了したスレッドはここに保存されます。',
+    failed: '失敗',
+    failedDesc: '完了前に停止しました。',
+    waiting: 'あなた待ち',
+    waitingDesc: 'あなたにしかできない判断、レビュー、承認です。',
+    live: 'ライブ',
+    subagents: 'サブエージェント',
+    messages: 'メッセージ',
+    tools: 'ツール呼び出し',
+    model: 'モデル',
+    started: '開始',
+    openThread: 'スレッドを開く',
+    backToThreads: 'スレッド一覧に戻る',
+    transcript: '記録',
+    transcriptTail: '最新のメッセージを表示しています。',
+    transcriptEmpty: 'このスレッドはまだ何も書いていません。',
+    transcriptFailed: 'このスレッドを読み取れませんでした。',
+    steerPlaceholder: 'このスレッドに指示...',
+    steerSend: 'スレッドへ送信',
+    steerSent: 'スレッドに送信しました。',
+    steerFailed: 'このスレッドに届きませんでした。',
+    steerUnavailable: 'このスレッドは終了しているため、指示できません。',
+    routedTo: 'スレッドに送信しました',
+    routeUndo: '取り消す',
+    refresh: 'スレッドを更新',
+    loading: 'スレッドを読み込み中...'
+  },
   agents: {
     extendedTranscript: '詳細な実行ログ',
     transcriptTruncated: '最新の 16 KiB を表示',
@@ -1994,7 +2035,7 @@ export const ja = defineLocale({
     sharedGatewayRestartDescription: bots => `このデバイス上のすべてのボットが再接続します: ${bots}`,
     sharedGatewayRestartConfirm: 'すべて再起動',
     sharedGatewayRestarted: count => `共有ゲートウェイを再起動しました（${count} ボット）`,
-    updateHermes: 'Hermes を更新',
+    updateHermes: 'Sbar Rafiq を更新',
     reloadWindow: 'ウィンドウを再読み込み',
     actionRunning: '実行中',
     actionDone: '完了',
@@ -2706,7 +2747,8 @@ export const ja = defineLocale({
       capabilities: 'スキルとツール',
       messaging: 'メッセージング',
       artifacts: 'アーティファクト',
-      cron: 'スケジュール済みジョブ'
+      cron: 'スケジュール済みジョブ',
+      threads: 'スレッド'
     },
     searchAria: 'セッションを検索',
     searchPlaceholder: 'セッションを検索…',
@@ -3071,6 +3113,7 @@ export const ja = defineLocale({
     attachments: count => `${count} 件の添付`,
     attachmentsShowAll: count => `すべて表示 (${count})`,
     attachmentsShowFewer: '表示を減らす',
+    attachmentImage: '画像',
     editingInComposer: 'コンポーザーで編集中',
     editingQueuedInComposer: 'コンポーザーでキュー済みターンを編集中',
     restoredDraftNotice: '未送信のメッセージを復元しました',

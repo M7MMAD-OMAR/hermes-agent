@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { atom } from 'nanostores'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { type I18nContextValue, I18nProvider, useI18n } from '@/i18n'
+import { type I18nContextValue, I18nProvider, loadTranslations, useI18n } from '@/i18n'
 import type { CustomEndpointsResponse } from '@/types/hermes'
 
 const getCustomEndpoints = vi.fn()
@@ -98,6 +98,8 @@ describe('CustomEndpointsSettings', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '端点 URL' }), { target: { value: 'http://fixture.test/v1' } })
     fireEvent.change(screen.getByRole('combobox', { name: '默认模型' }), { target: { value: 'fixture-model' } })
     fireEvent.click(screen.getByRole('button', { name: 'Responses API' }))
+    // Locale chunks load on demand; switch only once zh-hant is in memory.
+    await loadTranslations('zh-hant')
     await act(() => language.setLocale('zh-hant'))
     expect((screen.getByRole('textbox', { name: '名稱' }) as HTMLInputElement).value).toBe('Fixture Ω')
     expect(screen.getByText('API 模式')).toBeTruthy()

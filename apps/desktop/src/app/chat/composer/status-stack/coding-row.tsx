@@ -206,7 +206,12 @@ export const CodingStatusRow = memo(function CodingStatusRow({
         <StatusRow
           // The base "where am I working" strip is part of the composer surface
           // itself, so it inherits the composer's width and clipped top radius.
-          className="coding-status-bar min-h-7 rounded-t-[inherit] rounded-b-none px-3.5 py-1.5 hover:bg-transparent"
+          // Horizontal inset shares --composer-surface-pad-x with the input +
+          // toolbar block below (composer/index.tsx's "composer-fade" div), so
+          // the kebab and the ahead/behind counts sit on the exact same left/
+          // right edge as the send button and the effort pill — a hardcoded
+          // px-3.5 here used to run 6px wider than that edge (#composer-edges).
+          className="coding-status-bar min-h-7 rounded-t-[inherit] rounded-b-none px-(--composer-surface-pad-x) py-1.5 hover:bg-transparent"
           // Static branch glyph — never the loading spinner. This row only renders
           // once `status` exists, so a spinner here only ever fired on *refreshes*
           // of an already-loaded repo (window focus, turn settle), reading as an

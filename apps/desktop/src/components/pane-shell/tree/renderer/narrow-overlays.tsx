@@ -166,10 +166,12 @@ export function NarrowOverlays() {
       {revealed && (
         <div
           className={cn(
+            // The shadow is what lifts this off the panes below; the hairline
+            // it used to carry on its content-facing side was a second edge
+            // saying the same thing, on a rail that is meant to read as the
+            // window rather than as a card.
             'absolute inset-y-0 z-40 flex flex-col overflow-hidden bg-(--ui-sidebar-surface-background) shadow-2xl',
-            sideOf(revealed) === 'left'
-              ? 'left-0 border-r border-(--ui-stroke-secondary)'
-              : 'right-0 border-l border-(--ui-stroke-secondary)'
+            sideOf(revealed) === 'left' ? 'left-0' : 'right-0'
           )}
           // Floats OVER the layout, so under glass its surface must mask the
           // panes beneath it — a see-through overlay reads as text bleeding

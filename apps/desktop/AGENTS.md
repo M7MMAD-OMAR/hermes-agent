@@ -9,6 +9,55 @@ apply), [`DESIGN.md`](./DESIGN.md) for the visual and interaction contract, and
 When a rule here and the code disagree, trust the code and fix whichever is
 wrong — but never break an invariant to make a change easier.
 
+## Dev, build, test (run from `apps/desktop`)
+
+Node `^22.22 || ^24.11 || >=26`. This is an npm workspace of the repo root
+(`apps/*`), and deps hoist there: install with `npm ci` **at the repo root**,
+not here. `scripts/assert-root-install.mjs` fails the build on a partial install.
+
+| Task | Command |
+| --- | --- |
+| Dev app (vite `127.0.0.1:5174` + Electron) | `npm run dev` |
+| Dev variants | `npm run dev:fake-boot`, `npm run dev:mock` |
+| Types (renderer + electron + e2e tsconfigs) | `npm run typecheck` |
+| Lint / autofix + format | `npm run lint` / `npm run fix` |
+| All vitest projects | `npm run test` |
+| Renderer only (`src/**/*.test.tsx`, jsdom) | `npm run test:ui` |
+| Electron + scripts + e2e helpers | `npm run test:desktop:platforms` |
+| Playwright (builds first, specs in `e2e/`) | `npm run test:e2e` |
+| Visual snapshots (headless `cage`) | `npm run test:e2e:visual`, `...:update-snapshots` |
+| Packaged-installer smoke | `npm run test:desktop:all` |
+| Full gate before handing off | `npm run check` |
+| Build / package | `npm run build`, `npm run pack`, `npm run dist:linux` |
+| Perf probes | `npm run perf`, e.g. `node scripts/perf/run.mjs return-burst` |
+
+Two suites use `node:test`, not vitest, and have their own scripts:
+`npm run test:task-scroll` and `npm run repro:short-session-hang:test`.
+
+## Conventions and pitfalls
+
+- Formatting comes from the root `.prettierrc`: no semicolons, single quotes,
+  width 120, `arrowParens: avoid`, no trailing commas. Run `npm run fmt`; do not
+  hand-format.
+- `eslint.config.mjs` encodes real invariants as `no-restricted-syntax`, not
+  style: no mirroring reactive values into refs from `useEffect` (read
+  `$atom.get()` in the callback), and never call a contribution's `render()`
+  inline in JSX (mount `<ContribRender render={c.render} />`, or plugin
+  load/unload shifts the host's hook count → React #310).
+  `eslint-shell-no-borders.mjs` enforces the shell chrome rules in `DESIGN.md`.
+- Locales live in `src/i18n/{en,ar,ja,ru,zh,zh-hant}.ts`; non-English files are
+  partial overrides merged onto `en`, so a missing key renders English instead of
+  failing. `src/i18n/coverage.test.ts` is a ratchet — add new strings to every
+  locale rather than lowering a threshold.
+- Test-file placement decides the runner: `src/**/*.test.tsx` → `ui` project,
+  `electron/**/*.test.ts` + `scripts/**.test.{ts,mjs}` + `e2e/**/*.unit.test.ts`
+  → `electron` project, everything else in `e2e/` → Playwright. Put a file in the
+  wrong place and it runs twice or not at all.
+- Generated, never hand-edit: `dist/` (incl. the `dist/electron-main.mjs` entry
+  produced by `scripts/bundle-electron-main.mjs`), `release/`, and the build stamp.
+- Ports in use by the dev loop: 5174 (renderer), 4174 (`npm run preview`), 9229
+  (`npm run profile:main`). E2E starts a real Electron app: stop dev first.
+
 ## What this app is
 
 Desktop is its own native chat surface. It is not the browser dashboard and it

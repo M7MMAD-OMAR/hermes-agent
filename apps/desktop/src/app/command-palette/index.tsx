@@ -102,7 +102,8 @@ import {
   NEW_CHAT_ROUTE,
   PROFILES_ROUTE,
   SETTINGS_ROUTE,
-  STARMAP_ROUTE
+  STARMAP_ROUTE,
+  THREADS_ROUTE
 } from '../routes'
 import { SECTIONS } from '../settings/constants'
 import { type SettingsSearchEntry, settingsSearchTargetQuery } from '../settings/settings-search'
@@ -849,6 +850,13 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
           },
           { action: 'nav.profiles', icon: Users, id: 'nav-profiles', label: t.profiles.title, run: go(PROFILES_ROUTE) },
           { action: 'nav.agents', icon: Cpu, id: 'nav-agents', label: t.agents.title, run: go(AGENTS_ROUTE) },
+          {
+            icon: GitBranch,
+            id: 'nav-threads',
+            keywords: ['background', 'delegated', 'subagents', 'inbox', 'working'],
+            label: t.threads.title,
+            run: go(THREADS_ROUTE)
+          },
           {
             icon: Starmap,
             id: 'nav-starmap',

@@ -52,7 +52,13 @@ const INDEX = path.join(DIST, 'index.html')
 // open to 12% and 3x, which is a guard that no longer guards.
 // A chunk count creeping back up means a group stopped matching, not that the
 // app grew.
-const MAX_BOOT_BYTES = 6 * 1024 * 1024
+//
+// Re-measured after the 24 September 2026 upstream merge (4772 commits, Bot
+// Screen among them): 6.29 MB / 23 chunks. The growth is in `index` and
+// `app-shared`, organic code rather than a library: noVNC, the heaviest new
+// dependency, stays in its own lazy `rfb` chunk off the boot graph. Same ~9%
+// headroom on top of that.
+const MAX_BOOT_BYTES = 6.85 * 1024 * 1024
 const MAX_BOOT_CHUNKS = 24
 
 // Substrings matched against eager chunk filenames. Each names a library whose

@@ -9,6 +9,7 @@ import { resetBrowseState } from '@/store/composer-input-history'
 import { enqueueQueuedPrompt, type QueuedPromptEntry } from '@/store/composer-queue'
 import { hasConnectionRequest, skipConnectionRequest } from '@/store/connection-request'
 import { hasBlockingPromptRequest } from '@/store/prompts'
+import { tryRouteToThread } from '@/store/threads'
 
 import { cloneAttachments, type QueueEditState } from '../composer-utils'
 import { onComposerSubmitRequest } from '../focus'
@@ -294,6 +295,20 @@ export function useComposerSubmit({
       const submittedAttachments = cloneAttachments(attachments)
       triggerHaptic('submit')
       resetBrowseState(sessionId)
+
+      // A message the user EXPLICITLY addressed at a running thread goes there
+      // instead of starting a turn here. Nothing routes without that explicit
+      // address, so an ordinary message never takes this branch, and the
+      // receipt the composer shows carries an undo. Attachments never route: a
+      // steer has no carriage for them, which is why they queue elsewhere too.
+      if (!submittedAttachments.length && sessionId && tryRouteToThread(text, sessionId)) {
+        clearDraft()
+        scope.attachments.clear()
+        focusInput()
+
+        return
+      }
+
       clearDraft()
       scope.attachments.clear()
       dispatchSubmit(text, submittedAttachments)

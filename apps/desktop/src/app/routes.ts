@@ -20,6 +20,7 @@ export const ARTIFACTS_ROUTE = '/artifacts'
 export const CRON_ROUTE = '/cron'
 export const PROFILES_ROUTE = '/profiles'
 export const AGENTS_ROUTE = '/agents'
+export const THREADS_ROUTE = '/threads'
 export const STARMAP_ROUTE = '/starmap'
 
 export type AppView =
@@ -39,6 +40,7 @@ export type AppView =
   | 'profiles'
   | 'settings'
   | 'starmap'
+  | 'threads'
   | 'webhooks'
 
 export type AppRouteId =
@@ -53,6 +55,7 @@ export type AppRouteId =
   | 'profiles'
   | 'settings'
   | 'starmap'
+  | 'threads'
   | 'webhooks'
 
 export interface AppRoute {
@@ -73,6 +76,7 @@ export const APP_ROUTES = [
   { id: 'cron', path: CRON_ROUTE, view: 'cron' },
   { id: 'profiles', path: PROFILES_ROUTE, view: 'profiles' },
   { id: 'agents', path: AGENTS_ROUTE, view: 'agents' },
+  { id: 'threads', path: THREADS_ROUTE, view: 'threads' },
   { id: 'starmap', path: STARMAP_ROUTE, view: 'starmap' }
 ] as const satisfies readonly AppRoute[]
 
@@ -168,6 +172,7 @@ export const OVERLAY_VIEWS: ReadonlySet<AppView> = new Set([
   'profiles',
   'settings',
   'starmap',
+  'threads',
   'webhooks'
 ])
 

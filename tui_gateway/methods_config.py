@@ -87,12 +87,13 @@ def _(rid, params: dict) -> dict:
     """Project -> repo -> lane overview with counts + a few preview sessions per project, plus the
     flat set of session ids claimed by any project (excluded from flat Recents). Lanes carry no
     session rows; drill-in uses ``projects.project_sessions``."""
+    from tui_gateway.project_tree import OVERVIEW_PREVIEW_LIMIT, OVERVIEW_SESSION_LIMIT
     with _profile_db(params) as db:
         if db is None:
             return _ok(rid, {"projects": [], "active_id": None, "scoped_session_ids": []})
         tree, active_id = _stamped_project_tree(
-            db, params, preview_limit=int(params.get("preview_limit") or 3), hydrate=False,
-            session_limit=int(params.get("session_limit") or 2000), include_discovered=True)
+            db, params, preview_limit=int(params.get("preview_limit") or OVERVIEW_PREVIEW_LIMIT), hydrate=False,
+            session_limit=int(params.get("session_limit") or OVERVIEW_SESSION_LIMIT), include_discovered=True)
         return _ok(rid, {"projects": tree["projects"], "active_id": active_id,
                          "scoped_session_ids": tree["scoped_session_ids"]})
 
@@ -100,6 +101,7 @@ def _(rid, params: dict) -> dict:
 @_projects_handler("projects.project_sessions")
 def _(rid, params: dict) -> dict:
     """Fully hydrated lanes for one project, from the same grouping as ``projects.tree``."""
+    from tui_gateway.project_tree import DRILL_IN_SESSION_LIMIT
     project_id = str(params.get("project_id") or "")
     if not project_id:
         return _err(rid, 5063, "project_id required")
@@ -109,7 +111,7 @@ def _(rid, params: dict) -> dict:
         # Drill-in only needs the entered project: skip the zero-session discovery tier.
         tree, _active = _stamped_project_tree(
             db, params, preview_limit=0, hydrate=True,
-            session_limit=int(params.get("session_limit") or 5000), include_discovered=False)
+            session_limit=int(params.get("session_limit") or DRILL_IN_SESSION_LIMIT), include_discovered=False)
         return _ok(rid, {"project": next((p for p in tree["projects"] if p["id"] == project_id), None)})
 
 

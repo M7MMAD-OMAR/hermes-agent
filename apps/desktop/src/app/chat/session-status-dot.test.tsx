@@ -5,7 +5,7 @@ import { createClientSessionState } from '@/lib/chat-runtime'
 import { $unreadFinishedSessionIds } from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
 
-import { SessionStatusDot } from './session-status-dot'
+import { SessionStatusChip } from './session-status-dot'
 
 const SID = 'session-under-test'
 
@@ -20,7 +20,7 @@ afterEach(() => {
   $unreadFinishedSessionIds.set([])
 })
 
-/** The status mark beside the dot. */
+/** The one mark a tab carries. */
 const chip = () => document.querySelector('[data-slot="session-status-chip"]')
 
 describe('the tab status mark', () => {
@@ -28,7 +28,7 @@ describe('the tab status mark', () => {
     // A tab is mostly title, and the title is what tells two running chats
     // apart; the status must not be the widest thing on it.
     sessionState({ busy: true })
-    render(<SessionStatusDot chip storedSessionId={SID} />)
+    render(<SessionStatusChip storedSessionId={SID} />)
 
     expect(chip()?.textContent).toHaveLength(1)
     // Language-free: the word it stands for lives in the tooltip, translated.
@@ -37,7 +37,7 @@ describe('the tab status mark', () => {
 
   it('keeps the word for anyone who has not learned the glyph', () => {
     sessionState({ needsInput: true })
-    render(<SessionStatusDot chip storedSessionId={SID} />)
+    render(<SessionStatusChip storedSessionId={SID} />)
 
     expect((chip()?.getAttribute('title') ?? '').length).toBeGreaterThan(1)
   })
@@ -53,7 +53,7 @@ describe('the tab status mark', () => {
 
     for (const arrange of arrangements) {
       arrange()
-      render(<SessionStatusDot chip storedSessionId={SID} />)
+      render(<SessionStatusChip storedSessionId={SID} />)
       const mark = chip()?.textContent
 
       expect(mark, 'every live state earns a mark').toBeTruthy()
@@ -67,9 +67,34 @@ describe('the tab status mark', () => {
     expect(new Set(marks).size).toBe(marks.length)
   })
 
-  it('stays out of the way when nothing is happening', () => {
-    render(<SessionStatusDot chip storedSessionId={SID} />)
+  it('paints nothing when nothing is happening, but keeps its slot', () => {
+    render(<SessionStatusChip storedSessionId={SID} />)
 
-    expect(chip()).toBeNull()
+    // No glyph and nothing announced: a strip of settled chats is quiet.
+    expect(chip()?.textContent).toBe('')
+    expect(chip()?.getAttribute('role')).toBeNull()
+    // The box itself stays. The tab's ⌘-number hint paints absolutely inside
+    // it, so a zero-width lead would take the number off every settled tab.
+    expect(chip()).not.toBeNull()
+  })
+
+  it('is the ONLY mark on a tab: no dot beside it', () => {
+    // The dot is the sidebar's mark, where it also carries the project colour.
+    // Two marks for one meaning, on the surface with the least room for either,
+    // is what this replaced.
+    sessionState({ busy: true })
+    const { container } = render(<SessionStatusChip storedSessionId={SID} />)
+
+    expect(container.querySelectorAll('span')).toHaveLength(1)
+    // The dot is a `rounded-full` circle; the tab carries no such thing.
+    expect(container.querySelector('.rounded-full')).toBeNull()
+  })
+
+  it('still names the state for a reader who cannot see the glyph', () => {
+    sessionState({ needsInput: true })
+    render(<SessionStatusChip storedSessionId={SID} />)
+
+    expect(chip()?.getAttribute('role')).toBe('status')
+    expect((chip()?.getAttribute('aria-label') ?? '').length).toBeGreaterThan(1)
   })
 })

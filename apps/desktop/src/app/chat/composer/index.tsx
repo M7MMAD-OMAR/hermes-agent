@@ -13,6 +13,7 @@ import {
 
 import { useTourMarker } from '@/app/chat/tour-marker'
 import { useHudComposerDrag } from '@/app/hud/composer-drag'
+import { ThreadRouteReceiptBar } from '@/app/threads/route-receipt'
 import { composerFloatingStrip, composerInputBacking } from '@/components/chat/composer-dock'
 import { $chatOnboardingSolo, $chatOnboardingThreadIds } from '@/components/onboarding-chat/assembly'
 import { OnboardingSkip } from '@/components/onboarding-chat/skip'
@@ -1422,6 +1423,12 @@ export function ChatBar({
               queue). An in-flow dock child: the dock is bottom-anchored, so it
               grows upward over the thread and the dock's own measurement covers
               it. Collapses to nothing when every status is empty. */}
+          {/* Where a message went when it was addressed at a thread instead
+              of at this conversation. A redirect is never silent, and the
+              receipt carries the undo that hands the words back. */}
+          <ThreadRouteReceiptBar
+            onRestore={text => loadIntoComposer(text, scope.attachments.$attachments.get())}
+          />
           <StatusDrawerContent collapsed={statusDrawerCollapsed} id={statusDrawerId}>
             <ComposerStatusStack
               busy={busy}

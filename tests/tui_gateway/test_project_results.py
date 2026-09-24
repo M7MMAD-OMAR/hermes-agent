@@ -268,3 +268,49 @@ def test_preview_reads_verified_snapshot_and_refuses_tampering(tmp_path):
                 preview_version(conn, version["id"])
     finally:
         db.close()
+
+
+def test_a_malformed_url_in_a_transcript_does_not_abort_the_whole_index(tmp_path):
+    """Why `project_results` was empty on a real machine: `urlparse` RAISES on
+    any ``scheme://[`` that does not close into a valid IPv6 host ("Invalid
+    IPv6 URL"). This scan walks EVERY message, so one such string anywhere in
+    history aborted the run and the durable artifact store never populated.
+
+    Measured before the guard: the indexer died partway through a real
+    945 MB state.db and indexed nothing. After it: 9,537 artifacts, 533 of them
+    produced by delegated threads.
+    """
+    db, folder, pid = seed(tmp_path)
+    try:
+        # The shape that kills it, ahead of a perfectly good artifact.
+        db.append_message("source-task", "assistant", "try http://[unclosed and see")
+        db.append_message("source-task", "assistant", "[report](https://example.com/report.pdf)")
+        with projects_db.connect_closing() as conn:
+            while refresh_index(conn)["has_more"]:
+                pass
+            values = {r["value"] for r in list_results(conn)["results"]}
+
+        assert "https://example.com/report.pdf" in values
+    finally:
+        db.close()
+
+
+def test_a_delegated_thread_s_artifacts_are_indexed_like_any_session_s(tmp_path):
+    """A thread IS a session, so its output belongs in the project's results.
+    The sidebar hides thread ROWS; the artifact index deliberately does not,
+    because the file a thread wrote is the point of having run it."""
+    db, folder, pid = seed(tmp_path)
+    try:
+        db.create_session(
+            "thread-1", "desktop", cwd=str(folder),
+            model_config={"_delegate_from": "source-task"}, parent_session_id="source-task",
+        )
+        db.append_message("thread-1", "assistant", f"[deck]({folder / 'thread-deck.pptx'})")
+        with projects_db.connect_closing() as conn:
+            while refresh_index(conn)["has_more"]:
+                pass
+            rows = list_results(conn)["results"]
+
+        assert any(r["session_id"] == "thread-1" for r in rows)
+    finally:
+        db.close()

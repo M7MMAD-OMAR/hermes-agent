@@ -9,6 +9,9 @@ Two behaviors that only show up with more than one profile on disk:
 * ``/api/profiles/projects/tree`` must build each profile's tree from that
   profile's own state.db AND its own projects.db, and hand back ids that can
   coexist in one list.
+* ``/api/profiles/projects/project_sessions`` must do the same for the ONE
+  project the user entered, with its lanes hydrated: the per-profile RPC
+  cannot answer for a scope that spans every profile.
 """
 
 import pytest
@@ -282,3 +285,80 @@ class TestSidebarTruncation:
             _seed_session(home, f"s-{index}", source="desktop", pinned=index == 5)
         # Six on disk, two pins among the newest four: a full window, more below it.
         assert window() == (4, {"default": True})
+
+
+class TestCrossProfileProjectDrillIn:
+    """``/api/profiles/projects/project_sessions``: the drill-in twin of the tree fan-out.
+
+    ``projects.project_sessions`` over JSON-RPC answers for one backend's own profile, so
+    while the sidebar spans every profile there is no backend that can answer it at all.
+    Entering a project used to report a failed load every single time.
+    """
+
+    def _enter(self, client, label):
+        """The id the sidebar would enter by: read from the overview, as the client does."""
+        payload = client.get("/api/profiles/projects/tree").json()
+
+        return next(p for p in payload["projects"] if p["label"] == label)["id"]
+
+    def test_lanes_carry_every_profile_that_worked_the_folder(self, client, profiles_on_disk, tmp_path):
+        shared = tmp_path / "repos" / "shared"
+        shared.mkdir(parents=True)
+
+        for name, home in profiles_on_disk.items():
+            _seed_session(home, f"{name}-chat", source="cli", cwd=shared)
+            _seed_project(home, "Shared", shared)
+
+        project_id = self._enter(client, "Shared")
+        payload = client.get(f"/api/profiles/projects/project_sessions?project_id={project_id}").json()
+
+        assert payload["errors"] == []
+
+        rows = [s for repo in payload["project"]["repos"] for lane in repo["groups"] for s in lane["sessions"]]
+        # The overview only ever carried counts and a few previews; these are the
+        # hydrated rows, and they come from BOTH profiles, each stamped with its own.
+        assert {row["id"] for row in rows} == {"default-chat", "worker-chat"}
+        assert {row["profile"] for row in rows} == {"default", "worker"}
+
+    def test_a_project_no_profile_has_is_absent_not_an_error(self, client, profiles_on_disk):
+        for name, home in profiles_on_disk.items():
+            _seed_session(home, f"{name}-chat", source="cli")
+
+        payload = client.get("/api/profiles/projects/project_sessions?project_id=p_nothing").json()
+
+        # Absent and broken must not look alike: the caller paints an empty
+        # project for one and keeps what is on screen for the other.
+        assert payload == {"project": None, "errors": []}
+
+    def test_an_unreadable_profile_is_reported_rather_than_swallowed(
+        self, client, profiles_on_disk, tmp_path, monkeypatch
+    ):
+        shared = tmp_path / "repos" / "shared"
+        shared.mkdir(parents=True)
+
+        for name, home in profiles_on_disk.items():
+            _seed_session(home, f"{name}-chat", source="cli", cwd=shared)
+            _seed_project(home, "Shared", shared)
+
+        project_id = self._enter(client, "Shared")
+
+        from tui_gateway import server as gateway_server
+
+        real_build = gateway_server._build_project_tree
+
+        def explode_for_worker(db, **kwargs):
+            from hermes_constants import get_hermes_home
+
+            if get_hermes_home().name == "worker":
+                raise RuntimeError("worker store is unreadable")
+
+            return real_build(db, **kwargs)
+
+        monkeypatch.setattr(gateway_server, "_build_project_tree", explode_for_worker)
+
+        payload = client.get(f"/api/profiles/projects/project_sessions?project_id={project_id}").json()
+
+        assert [error["profile"] for error in payload["errors"]] == ["worker"]
+        # The readable profile still lands, so a half-read project is still a project.
+        rows = [s for repo in payload["project"]["repos"] for lane in repo["groups"] for s in lane["sessions"]]
+        assert {row["id"] for row in rows} == {"default-chat"}

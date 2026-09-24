@@ -742,6 +742,17 @@ def _ensure_session_row(agent: Any, pending_cli_message: Any) -> None:
     )
 
 
+def _merge_skill_hint(agent: Any, existing: str) -> str:
+    """Append this turn's skill hint, if skill routing produced one."""
+    try:
+        from agent.skill_routing import merge_into_context
+
+        return merge_into_context(agent, existing)
+    except Exception:
+        logger.debug("skill hint merge failed", exc_info=True)
+        return existing
+
+
 def _collect_pre_llm_call_context(
     agent: Any, *, effective_task_id: str, turn_id: str, original_user_message: Any,
     messages: List[Any], conversation_history: Optional[List[Any]],
@@ -1127,6 +1138,11 @@ def build_turn_context(
     plugin_user_context = _merge_gateway_notes(
         agent, messages, current_turn_user_idx, plugin_user_context
     )
+    # The skill hint decided at the top of the turn rides the same ephemeral
+    # channel: injected into the user message at API-call time, never into the
+    # cached system prompt. It goes last because plugin context and gateway
+    # notes are the substance and a skill pointer is background.
+    plugin_user_context = _merge_skill_hint(agent, plugin_user_context)
 
     _bind_interrupt_scope(agent, ra)
     ext_prefetch_cache = _memory_turn_start_and_prefetch(agent, original_user_message, turn_author)

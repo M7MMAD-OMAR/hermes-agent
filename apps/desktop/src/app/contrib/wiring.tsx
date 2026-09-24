@@ -89,6 +89,8 @@ import {
   setBusy,
   setMessages
 } from '@/store/session'
+import { storedSessionIdForRuntimeId } from '@/store/session-states'
+import { $requestedThreadSessionId, refreshThreadsForSession } from '@/store/threads'
 import { $titlebarAppActionsSide, titlebarAppActionsClusterCounts } from '@/store/titlebar-app-actions'
 import { armWakeWord, stopClientCapture } from '@/store/wake-word'
 import { isAuxiliaryWindow, isBrowserWindow, isHudWindow } from '@/store/windows'
@@ -175,6 +177,7 @@ import { POOL_LIMITS_SETTINGS_ROUTE } from './wiring-routing'
 // The workspace-route full-page views (skills/messaging/artifacts) are the
 // ChatRoutesSurface's and live in ./surfaces.
 const AgentsView = lazy(async () => ({ default: (await import('../agents')).AgentsView }))
+const ThreadsView = lazy(async () => ({ default: (await import('../threads')).ThreadsView }))
 const CommandCenterView = lazy(async () => ({ default: (await import('../command-center')).CommandCenterView }))
 const CronView = lazy(async () => ({ default: (await import('../cron')).CronView }))
 const WebhooksView = lazy(async () => ({ default: (await import('../webhooks')).WebhooksView }))
@@ -342,15 +345,40 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     cronOpen,
     currentView,
     openAgents,
+    openThreads,
     openCommandCenterSection,
     openStarmap,
     profilesOpen,
     resetOverlayReturnRoute,
     settingsOpen,
     starmapOpen,
+    threadsOpen,
     toggleCommandCenter,
     webhooksOpen
   } = useOverlayRouting()
+
+  // A thread is stamped with its parent's DURABLE session id
+  // (`model_config.$._delegate_from` = `parent_agent.session_id`), and the
+  // composer routes with the same stored id. `$activeSessionId` holds a RUNTIME
+  // id, so handing it straight to `thread.list` would query a key the backend
+  // never writes and every conversation would look thread-less. The mapper
+  // accepts either identity and returns the durable one.
+  const threadCoordinatorId = useMemo(
+    () => (activeSessionId ? storedSessionIdForRuntimeId(activeSessionId) : null),
+    [activeSessionId]
+  )
+
+  // An inline thread chip in the transcript asks for a thread by id. The dock
+  // is where a thread opens, so a request made while it is closed has to open
+  // it first, or clicking a chip does nothing at all.
+  const requestedThread = useStore($requestedThreadSessionId)
+
+  useEffect(() => {
+    if (requestedThread && !threadsOpen) {
+      openThreads()
+    }
+  }, [openThreads, requestedThread, threadsOpen])
+
 
   const {
     activeSessionIdRef,
@@ -1434,6 +1462,16 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       {agentsOpen && (
         <Suspense fallback={null}>
           <AgentsView onClose={closeOverlayToPreviousRoute} />
+        </Suspense>
+      )}
+
+      {threadsOpen && (
+        <Suspense fallback={null}>
+          <ThreadsView
+            coordinatorSessionId={threadCoordinatorId}
+            onClose={closeOverlayToPreviousRoute}
+            onRefresh={refreshThreadsForSession}
+          />
         </Suspense>
       )}
 

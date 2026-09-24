@@ -70,7 +70,7 @@ import { useComposerActions } from './hooks/use-composer-actions'
 import { paneMirror } from './pane-mirror'
 import { SessionDraftTitle } from './session-draft-title'
 import { startSessionDrag } from './session-drag'
-import { SessionStatusDot } from './session-status-dot'
+import { SessionStatusChip } from './session-status-dot'
 import { useSessionTileActions } from './session-tile-actions'
 import { tileOwnerRoute } from './session-tile-owner'
 import { type SessionView, SessionViewProvider } from './session-view'
@@ -785,7 +785,7 @@ export const watchSessionTiles = paneMirror<SessionTile>({
   source: $sessionTiles,
   // $projectTree: a tile whose session is older than the recents page resolves
   // its title through the tree, which loads after the tiles register. (The tab's
-  // status dot subscribes to color/state itself, so it needs no `also` entry.)
+  // status mark subscribes to its own state, so it needs no `also` entry.)
   also: [$sessions, $projectTree, $workspaceOwnerLabels],
   key: t => t.storedSessionId,
   prefix: 'session-tile',
@@ -794,13 +794,12 @@ export const watchSessionTiles = paneMirror<SessionTile>({
   before: t => t.before,
   minWidth: '20rem',
   title: tileCaption,
-  // The tab's status dot — the SAME primitive the sidebar row renders, keyed by
-  // the stored id, so a session's status/color can never disagree between the
-  // two surfaces. Self-subscribing (live state + resolved color), so the strip
-  // needn't re-sync when it changes.
-  tabLead: storedSessionId => (
-    <SessionStatusDot chip session={tileStoredRow(storedSessionId)} storedSessionId={storedSessionId} />
-  ),
+  // The tab's status mark, reading the SAME resolved state the sidebar row's dot
+  // reads, so a session's status can never disagree between the two surfaces.
+  // One mark, not two: the dot belongs to the sidebar, where it also carries the
+  // project colour. Self-subscribing, so the strip needn't re-sync on a change,
+  // and null while the chat is settled, which is most tabs most of the time.
+  tabLead: storedSessionId => <SessionStatusChip storedSessionId={storedSessionId} />,
   // Until the first turn lists a row there is no title to register, so the tab
   // takes its name from the composer instead — live, without re-registering.
   tabTitle: storedSessionId =>

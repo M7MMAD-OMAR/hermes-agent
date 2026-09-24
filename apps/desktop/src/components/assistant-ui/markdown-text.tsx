@@ -44,9 +44,9 @@ import { useMathPlugin } from '@/lib/use-math-plugin'
 import { cn } from '@/lib/utils'
 
 import { ArtifactCard } from './artifact-card'
-import { SessionRefLink } from './directive-text'
 import { detectEmbed, extractAlert, MarkdownAlert, RichCodeBlock, UrlEmbed } from './embeds'
 import { ResizableMarkdownTable, ResizableMarkdownTh } from './markdown-table'
+import { SessionOrThreadRef } from './session-or-thread-ref'
 import { paragraphPlainText, TranscriptDirectiveLeaf, useResolvedParagraph } from './transcript-directive'
 
 const onboardingEnabled = isOnboardingEnabled()
@@ -317,7 +317,7 @@ function MarkdownLink({ children, className, href, ...props }: ComponentProps<'a
   const sessionRef = sessionRefFromMarkdownHref(href)
 
   if (sessionRef) {
-    return <SessionRefLink value={sessionRef} />
+    return <SessionOrThreadRef value={sessionRef} />
   }
 
   const target = href ? normalizeExternalUrl(href) : href

@@ -19,6 +19,13 @@ export function imageFilename(src?: string): string {
     return 'image'
   }
 
+  // A data URL carries no name. Its "pathname" is the media type followed by
+  // the entire payload, so reading a basename off one puts a kilobyte of
+  // base64 into the save dialog and into the toast that says what was saved.
+  if (/^data:/i.test(src)) {
+    return 'image'
+  }
+
   try {
     return new URL(src, window.location.href).pathname.split('/').filter(Boolean).pop() || 'image'
   } catch {

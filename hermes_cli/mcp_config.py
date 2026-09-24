@@ -1,6 +1,7 @@
 """MCP Server Management CLI — ``hermes mcp`` subcommand."""
 
 import asyncio
+import copy
 import logging
 import os
 import re
@@ -179,8 +180,45 @@ def _redact_probe_exception(exc: BaseException) -> Exception:
     return RuntimeError(safe)
 
 
+# Maestro Cloud runs upload the app under test to a third party and need an
+# account there. Both are decisions an operator makes deliberately, so the
+# preset holds these back and says so rather than enabling them quietly.
+MAESTRO_CLOUD_TOOLS = (
+    "describe_cloud_run", "get_cloud_run_status", "list_cloud_devices", "run_on_cloud",
+)
+
+
+def _maestro_preset_command() -> str:
+    """The installed Maestro binary, or a ValueError carrying the way to get one.
+
+    Resolved rather than hardcoded: ``maestro_command()`` prefers the user's own
+    install over ours, because if they installed it deliberately that is the
+    version their flows and their CI are written against.
+    """
+    from hermes_cli.tools_config_maestro import maestro_command
+
+    binary = maestro_command()
+    if not binary:
+        raise ValueError(
+            "Maestro is not installed. Run `hermes device maestro install` (about 315 MB "
+            "and a JDK 17+), or install it from https://maestro.dev and Hermes will use yours."
+        )
+    return binary
+
+
 _MCP_PRESETS: Dict[str, Dict[str, Any]] = {
     "codex": {"command": "codex", "args": ["mcp-server"]},
+    # Maestro's own MCP server, which ships inside the CLI we pin and install
+    # (hermes_cli/tools_config_maestro.py). It gives a live look/act/look loop on a
+    # device (``inspect_screen``, ``take_screenshot``, ``run``) that tools/mobile_test.py
+    # cannot: that one writes a whole flow and runs it. It also reaches iOS simulators,
+    # which the Android device backend does not.
+    "maestro": {
+        "resolve_command": _maestro_preset_command,
+        "args": ["mcp"],
+        "display_name": "Maestro (mobile UI automation)",
+        "tools": {"exclude": list(MAESTRO_CLOUD_TOOLS)},
+    },
 }
 
 
@@ -377,6 +415,12 @@ def _apply_mcp_preset(
     if url or command:
         return url, command, cmd_args, False
     url, command = preset.get("url"), preset.get("command")
+    # A preset whose transport is only knowable at run time (an installed binary whose
+    # path depends on how the user installed it) resolves it here; the resolver raises
+    # ValueError carrying the install hint, which cmd_mcp_add already surfaces.
+    resolver = preset.get("resolve_command")
+    if not command and callable(resolver):
+        command = resolver()
     cmd_args = list(preset.get("args") or [])
     if url:
         server_config["url"] = url
@@ -384,6 +428,11 @@ def _apply_mcp_preset(
         server_config["command"] = command
     if cmd_args:
         server_config["args"] = cmd_args
+    preset_tools = preset.get("tools")
+    if isinstance(preset_tools, dict) and preset_tools:
+        # copy.deepcopy, not a reference: the caller mutates server_config["tools"]
+        # (see _choose_tools) and must not write back into the preset table.
+        server_config["tools"] = copy.deepcopy(preset_tools)
     return url, command, cmd_args, True
 
 
@@ -576,13 +625,41 @@ def _configure_http_auth(
     return True
 
 
+def _held_back_by_preset(tools: List[Tuple[str, str]], server_config: Dict[str, Any]) -> List[str]:
+    """Tool names a preset excluded ahead of the offer, in the order the server reported them.
+
+    Only a preset's own ``tools.exclude`` reaches this: it is written before the probe
+    runs, so anything here was decided by the preset rather than by the operator.
+    """
+    excluded = (server_config.get("tools") or {}).get("exclude")
+    if not isinstance(excluded, list):
+        return []
+    blocked = {str(entry) for entry in excluded}
+    return [tool_name for tool_name, _ in tools if tool_name in blocked]
+
+
 def _choose_tools(name: str, tools: List[Tuple[str, str]], server_config: Dict[str, Any]) -> Optional[int]:
-    """Ask enable-all / select / cancel; returns the enabled-tool count or None when cancelled."""
+    """Ask enable-all / select / cancel; returns the enabled-tool count or None when cancelled.
+
+    Tools a preset held back are named and then removed from the offer, so the count the
+    caller reports is the count that will actually register. Hiding them without saying so
+    would make "Enable all 10" save six.
+    """
+    held_back = _held_back_by_preset(tools, server_config)
+    if held_back:
+        tools = [entry for entry in tools if entry[0] not in set(held_back)]
     print()
     _success(f"Connected! Found {len(tools)} tool(s) from '{name}':")
     print()
     _print_tools(tools, 40, 60)
+    if held_back:
+        print()
+        _info(f"Held back by the preset: {', '.join(held_back)}")
+        _info(f"Remove them from mcp_servers.{name}.tools.exclude in config.yaml to enable them.")
     print()
+    if not tools:
+        _warning("Every tool this server reported was held back by the preset.")
+        return None
     try:
         choice = input(
             color(f"  Enable all {len(tools)} tools? [Y/n/select]: ", Colors.YELLOW)

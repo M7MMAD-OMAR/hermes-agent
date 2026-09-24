@@ -918,3 +918,130 @@ def test_tool_filters_keeps_explicit_empty_include():
     assert _tool_filters({"tools": {"include": "bad", "exclude": ["x"]}}) == (None, ["x"])
     assert _tool_filters({}) == (None, None)
 
+
+
+# ---------------------------------------------------------------------------
+# The Maestro preset.
+#
+# Maestro's MCP server is not a third-party download: it ships inside the CLI
+# that hermes_cli/tools_config_maestro.py already pins, verifies and installs.
+# So the preset's whole job is resolving WHICH copy (the user's install wins
+# over ours) and holding back the four cloud tools, which upload the app under
+# test to a third party and need an account there.
+# ---------------------------------------------------------------------------
+class TestMaestroPreset:
+    def test_the_preset_uses_whichever_maestro_is_installed(self, monkeypatch):
+        from hermes_cli.mcp_config import _apply_mcp_preset
+
+        monkeypatch.setattr("hermes_cli.tools_config_maestro.maestro_command", lambda: "/opt/maestro/bin/maestro")
+        config = {}
+        url, command, args, applied = _apply_mcp_preset(
+            "maestro", preset_name="maestro", url=None, command=None, cmd_args=[], server_config=config)
+
+        assert applied is True
+        assert (url, command, args) == (None, "/opt/maestro/bin/maestro", ["mcp"])
+        assert config["command"] == "/opt/maestro/bin/maestro"
+
+    def test_no_maestro_means_an_install_hint_rather_than_a_dead_server_entry(self, monkeypatch):
+        """A saved server whose command does not exist fails at every session start.
+        Refusing at add time, with the command that fixes it, is the whole point."""
+        import pytest
+
+        from hermes_cli.mcp_config import _apply_mcp_preset
+
+        monkeypatch.setattr("hermes_cli.tools_config_maestro.maestro_command", lambda: None)
+        config = {}
+        with pytest.raises(ValueError, match="hermes device maestro install"):
+            _apply_mcp_preset("maestro", preset_name="maestro", url=None, command=None,
+                              cmd_args=[], server_config=config)
+
+        assert config == {}
+
+    def test_an_explicit_command_still_wins_over_the_preset(self, monkeypatch):
+        """The existing preset contract: a caller-supplied transport short-circuits.
+        The resolver must not run and must not be able to refuse the add."""
+        from hermes_cli.mcp_config import _apply_mcp_preset
+
+        def _never(*_args, **_kwargs):
+            raise AssertionError("the resolver ran despite an explicit --command")
+
+        monkeypatch.setattr("hermes_cli.tools_config_maestro.maestro_command", _never)
+        config = {}
+        _url, command, _args, applied = _apply_mcp_preset(
+            "maestro", preset_name="maestro", url=None, command="/my/maestro", cmd_args=["mcp"],
+            server_config=config)
+
+        assert (command, applied) == ("/my/maestro", False)
+
+    def test_the_cloud_tools_are_held_back_and_the_local_ones_are_not(self, monkeypatch):
+        from hermes_cli.mcp_config import MAESTRO_CLOUD_TOOLS, _apply_mcp_preset
+
+        monkeypatch.setattr("hermes_cli.tools_config_maestro.maestro_command", lambda: "/bin/maestro")
+        config = {}
+        _apply_mcp_preset("maestro", preset_name="maestro", url=None, command=None,
+                          cmd_args=[], server_config=config)
+
+        assert set(config["tools"]["exclude"]) == set(MAESTRO_CLOUD_TOOLS)
+        for local in ("inspect_screen", "take_screenshot", "run", "list_devices", "cheat_sheet"):
+            assert local not in config["tools"]["exclude"]
+
+    def test_the_preset_table_is_never_mutated_by_a_later_tool_choice(self, monkeypatch):
+        """`_choose_tools` writes into server_config["tools"]. A shared reference would
+        leak one add's selection into the next."""
+        from hermes_cli.mcp_config import _MCP_PRESETS, _apply_mcp_preset
+
+        monkeypatch.setattr("hermes_cli.tools_config_maestro.maestro_command", lambda: "/bin/maestro")
+        config = {}
+        _apply_mcp_preset("maestro", preset_name="maestro", url=None, command=None,
+                          cmd_args=[], server_config=config)
+        config["tools"]["include"] = ["run"]
+
+        assert "include" not in _MCP_PRESETS["maestro"]["tools"]
+
+
+class TestHeldBackToolsAreNotHidden:
+    """"Enable all 10 tools" must not save six. The offer is filtered, and what was
+    filtered is named along with the way to get it back."""
+
+    TOOLS = [
+        ("inspect_screen", "View hierarchy"),
+        ("run", "Run commands"),
+        ("run_on_cloud", "Submit to Maestro Cloud"),
+    ]
+
+    def test_an_excluded_tool_leaves_the_offer_and_the_count(self, capsys, monkeypatch):
+        from hermes_cli.mcp_config import _choose_tools
+
+        monkeypatch.setattr("builtins.input", lambda _: "")
+        count = _choose_tools("maestro", list(self.TOOLS), {"tools": {"exclude": ["run_on_cloud"]}})
+        out = capsys.readouterr().out
+
+        assert count == 2
+        assert "Found 2 tool(s)" in out
+
+    def test_what_was_held_back_is_named_with_the_way_to_undo_it(self, capsys, monkeypatch):
+        from hermes_cli.mcp_config import _choose_tools
+
+        monkeypatch.setattr("builtins.input", lambda _: "")
+        _choose_tools("maestro", list(self.TOOLS), {"tools": {"exclude": ["run_on_cloud"]}})
+        out = capsys.readouterr().out
+
+        assert "run_on_cloud" in out
+        assert "tools.exclude" in out
+
+    def test_a_server_with_no_exclusions_is_offered_whole(self, capsys, monkeypatch):
+        from hermes_cli.mcp_config import _choose_tools
+
+        monkeypatch.setattr("builtins.input", lambda _: "")
+        count = _choose_tools("plain", list(self.TOOLS), {})
+
+        assert count == 3
+        assert "Held back" not in capsys.readouterr().out
+
+    def test_excluding_everything_saves_nothing_rather_than_an_empty_server(self, capsys, monkeypatch):
+        from hermes_cli.mcp_config import _choose_tools
+
+        monkeypatch.setattr("builtins.input", lambda _: "")
+        excluded = [name for name, _ in self.TOOLS]
+
+        assert _choose_tools("maestro", list(self.TOOLS), {"tools": {"exclude": excluded}}) is None

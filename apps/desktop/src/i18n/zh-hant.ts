@@ -103,19 +103,19 @@ export const zhHant = defineLocale({
   },
 
   boot: {
-    ready: 'Hermes Desktop 已就緒',
+    ready: 'Sbar Rafiq Desktop 已就緒',
     desktopBootFailedWithMessage: message => `桌面啟動失敗：${message}`,
     steps: {
       connectingGateway: '正在連線桌面閘道',
-      loadingSettings: '正在載入 Hermes 設定',
+      loadingSettings: '正在載入 Sbar Rafiq 設定',
       loadingSessions: '正在載入最近工作階段',
-      retryingRemoteBackend: '正在重新連線遠端 Hermes 後端…',
+      retryingRemoteBackend: '正在重新連線遠端 Sbar Rafiq 後端…',
       startingDesktopConnection: '正在啟動桌面連線',
-      startingHermesDesktop: '正在啟動 Hermes Desktop…'
+      startingHermesDesktop: '正在啟動 Sbar Rafiq Desktop…'
     },
     errors: {
-      backgroundExited: 'Hermes 背景程序已結束。',
-      backgroundExitedDuringStartup: 'Hermes 背景程序在啟動期間結束。',
+      backgroundExited: 'Sbar Rafiq 背景程序已結束。',
+      backgroundExitedDuringStartup: 'Sbar Rafiq 背景程序在啟動期間結束。',
       backendStopped: '後端已停止',
       desktopBootFailed: '桌面啟動失敗',
       gatewayConnectionLost: '與閘道的連線已中斷',
@@ -186,9 +186,9 @@ export const zhHant = defineLocale({
     copyDetailFailed: '無法複製通知詳情',
     openChat: '開啟對話',
     backendOutOfDateTitle: '後端版本過舊',
-    backendOutOfDateMessage: '您的 Hermes 後端早於目前的桌面版本，可能無法正常運作。請更新以保持一致。',
+    backendOutOfDateMessage: '您的 Sbar Rafiq 後端早於目前的桌面版本，可能無法正常運作。請更新以保持一致。',
     installMethodUnsupportedTitle: '不受支援的安裝方式',
-    updateHermes: '更新 Hermes',
+    updateHermes: '更新 Sbar Rafiq',
     updateReadyTitle: '有可用更新',
     updateReadyMessage: count => `有 ${count} 項新變更可用。`,
     updateReadyMessageUnknown: '有新更新可用。',
@@ -985,13 +985,13 @@ export const zhHant = defineLocale({
       },
       updates: {
         nonInteractiveLocalChanges:
-          'Hermes 從應用程式內更新自身時，保留本機原始碼變更（stash）或丟棄（discard）。終端機更新一律會詢問。'
+          'Sbar Rafiq 從應用程式內更新自身時，保留本機原始碼變更（stash）或丟棄（discard）。終端機更新一律會詢問。'
       }
     }),
     uninstallSection: {
       dangerZone: '危險操作',
       checkingInstalled: '正在檢查已安裝內容…',
-      uninstallHermes: '解除安裝 Hermes',
+      uninstallHermes: '解除安裝 Sbar Rafiq',
       chooseHowMuch: '選擇要移除的內容。應用程式會關閉以完成作業；隨時重新開啟安裝程式即可返回。',
       confirmUninstall: '確認解除安裝',
       confirmBody: what => `這將移除${what}。此操作無法復原。`,
@@ -1277,23 +1277,23 @@ export const zhHant = defineLocale({
       sshPortDesc: '留空 = 22 或 ~/.ssh/config 中的連接埠。',
       sshKeyTitle: '金鑰檔案',
       sshKeyDesc: '私密金鑰路徑。留空 = ssh-agent 或 ~/.ssh/config。',
-      sshHermesPathTitle: 'Hermes 路徑（選用）',
+      sshHermesPathTitle: 'Sbar Rafiq 路徑（選用）',
       sshHermesPathDesc: '遠端 hermes 執行檔的完整路徑。留空 = 自動偵測。',
       sshHermesPathPlaceholder: '自動偵測',
       sshTestConnection: '測試 SSH',
       sshConnect: '連線',
       sshButtonsHint: '「儲存」會在下次啟動時生效，「連線」則立即重新連線。',
-      sshReachable: (host, platform) => `可連線：${host}（${platform}）——已找到 Hermes`,
+      sshReachable: (host, platform) => `可連線：${host}（${platform}）——已找到 Sbar Rafiq`,
       sshIncompleteHost: '連線前請輸入 SSH 主機。',
       sshErrUnreachable: '無法透過 SSH 連線到該主機。請檢查主機、連接埠和網路。',
       sshErrAuth:
-        'SSH 驗證失敗。請將金鑰載入 ssh-agent（ssh-add），或在 ~/.ssh/config 中設定 IdentityFile——Hermes 以非互動方式執行 ssh。',
+        'SSH 驗證失敗。請將金鑰載入 ssh-agent（ssh-add），或在 ~/.ssh/config 中設定 IdentityFile——Sbar Rafiq 以非互動方式執行 ssh。',
       sshErrHostKey: '自上次連線以來主機金鑰已變更。請確認這是預期的，然後執行 ssh-keygen -R <host> 並重新連線。',
       sshErrNotInstalled:
-        '遠端主機上未安裝 Hermes。請在遠端安裝（curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh）或設定 Hermes 路徑。',
-      sshErrPlatform: '不支援的遠端平台。Hermes Desktop 的 SSH 模式支援 Linux、macOS 和 Windows 遠端主機。',
+        '遠端主機上未安裝 Sbar Rafiq。請在遠端安裝（curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh）或設定 Sbar Rafiq 路徑。',
+      sshErrPlatform: '不支援的遠端平台。Sbar Rafiq Desktop 的 SSH 模式支援 Linux、macOS 和 Windows 遠端主機。',
       sshErrTimeout: 'SSH 連線逾時。主機可能無法存取或處於睡眠狀態。',
-      sshErrUpdateRequired: '使用 Desktop SSH 連線前，請更新遠端主機上的 Hermes。',
+      sshErrUpdateRequired: '使用 Desktop SSH 連線前，請更新遠端主機上的 Sbar Rafiq。',
       sshErrUnknown: 'SSH 連線失敗。'
     },
     keys: {
@@ -2087,6 +2087,47 @@ export const zhHant = defineLocale({
     emptyTitle: '尚無學習內容',
     emptyDesc: '當 Sbar Rafiq 為你的工作建立技能與記憶時，會顯示在這裡。'
   },
+  keybinds: {
+    actions: {
+      'nav.threads': '開啟執行緒'
+    }
+  },
+  threads: {
+    close: '關閉執行緒',
+    title: '執行緒',
+    subtitle: '在這一輪結束後仍在繼續的工作。',
+    emptyTitle: '尚無執行緒',
+    emptyDesc: '當這個對話在背景委派工作時，每條執行緒都會帶著自己的紀錄出現在這裡。',
+    working: '進行中',
+    workingDesc: '正在執行。',
+    resolved: '已完成',
+    resolvedDesc: '已完成的執行緒存放在這裡。',
+    failed: '已失敗',
+    failedDesc: '在完成前停止了。',
+    waiting: '等你處理',
+    waitingDesc: '只有你能給出的決定、審閱與授權。',
+    live: '即時',
+    subagents: '子代理',
+    messages: '訊息',
+    tools: '工具呼叫',
+    model: '模型',
+    started: '開始',
+    openThread: '開啟執行緒',
+    backToThreads: '返回執行緒列表',
+    transcript: '紀錄',
+    transcriptTail: '顯示最新的訊息。',
+    transcriptEmpty: '這條執行緒還沒有寫下任何內容。',
+    transcriptFailed: '無法讀取這條執行緒。',
+    steerPlaceholder: '引導這條執行緒...',
+    steerSend: '傳送至執行緒',
+    steerSent: '已傳送至執行緒。',
+    steerFailed: '無法聯繫這條執行緒。',
+    steerUnavailable: '這條執行緒已結束，沒有可引導的內容。',
+    routedTo: '已傳送至執行緒',
+    routeUndo: '復原',
+    refresh: '重新整理執行緒',
+    loading: '正在讀取執行緒...'
+  },
   agents: {
     extendedTranscript: '完整記錄尾端',
     transcriptTruncated: '顯示最新 16 KiB',
@@ -2241,7 +2282,7 @@ export const zhHant = defineLocale({
     sharedGatewayRestartDescription: bots => `此裝置上的所有機器人都會重新連線：${bots}`,
     sharedGatewayRestartConfirm: '全部重新啟動',
     sharedGatewayRestarted: count => `共享閘道已重新啟動（${count} 個機器人）`,
-    updateHermes: '更新 Hermes',
+    updateHermes: '更新 Sbar Rafiq',
     reloadWindow: '重新載入視窗',
     actionRunning: '執行中',
     actionDone: '完成',
@@ -2927,7 +2968,8 @@ export const zhHant = defineLocale({
       capabilities: '技能與工具',
       messaging: '訊息平台',
       artifacts: '成品',
-      cron: '排程工作'
+      cron: '排程工作',
+      threads: '執行緒'
     },
     searchAria: '搜尋工作階段',
     searchPlaceholder: '搜尋工作階段…',
@@ -3286,6 +3328,7 @@ export const zhHant = defineLocale({
     attachments: count => `${count} 個附件`,
     attachmentsShowAll: count => `顯示全部 (${count})`,
     attachmentsShowFewer: '收合',
+    attachmentImage: '圖片',
     editingInComposer: '在輸入框中編輯',
     editingQueuedInComposer: '在輸入框中編輯排隊回合',
     restoredDraftNotice: '已還原你未送出的訊息',

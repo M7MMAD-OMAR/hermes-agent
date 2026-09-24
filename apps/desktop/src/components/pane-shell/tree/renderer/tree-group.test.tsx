@@ -2,6 +2,8 @@ import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { TITLEBAR_HEIGHT } from '@/app/shell/titlebar'
+import { PANE_TAB_STRIP_HEIGHT } from '@/components/ui/pane-tab'
 import { registry } from '@/contrib/registry'
 import { $tabStripDefault, setTabStripDefault } from '@/store/tabstrip-prefs'
 import { stubResizeObserver } from '@/test/jsdom'
@@ -90,8 +92,9 @@ describe('TreeGroup', () => {
           disconnect() {}
         }
       )
-      // jsdom has no layout: give usePanelTitlebar real chrome rects so it
-      // picks the tabs-in-titlebar layout (wide) or below-controls (narrow).
+      // jsdom has no layout. The chrome rects are still stubbed so a regression
+      // that re-couples the strip to the control clusters would have something
+      // to measure rather than silently reading zeroes.
       vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
         if (this.matches('[data-titlebar-cluster="left"]')) {
           return { left: 0, right: 100 } as DOMRect
@@ -116,6 +119,7 @@ describe('TreeGroup', () => {
 
       return {
         handles: [...zone.querySelectorAll<HTMLElement>('[data-window-drag-handle]')],
+        header: zone.querySelector<HTMLElement>('[data-panel-header]')!,
         strip: zone.querySelector<HTMLElement>('[data-zone-tabstrip]')!
       }
     }
@@ -167,11 +171,22 @@ describe('TreeGroup', () => {
       expect(container!.querySelector('[data-zone-tabstrip]')).toBeNull()
     })
 
-    it('keeps a fixed drag handle outside the tablist when tabs share the titlebar', () => {
-      const { handles } = mountCrowdedStrip(800)
-      const fixed = handles.filter(handle => !handle.closest('[role="tablist"]') && handle.style.width !== '')
+    // Both widths, because the two used to be different layouts: a wide window
+    // put the tabs IN the control band and a narrow one dropped them below.
+    // There is one layout now, and the wide case is the one that stranded the
+    // last tabs under the right cluster.
+    it.each([
+      ['a wide window', 800],
+      ['a narrow window', 300]
+    ])('gives the tabs their own row under a fully draggable band in %s', (_name, width) => {
+      const { handles, header, strip } = mountCrowdedStrip(width)
 
-      expect(fixed.length).toBeGreaterThan(0)
+      expect(strip.className).toContain('bottom-0')
+      // Two rows: the control band, then the strip's own 28px under it.
+      expect(header.style.height).toBe(`${TITLEBAR_HEIGHT + PANE_TAB_STRIP_HEIGHT}px`)
+      // One handle, spanning the band: no fixed-width remnant beside the tabs.
+      expect(handles.some(handle => handle.className.includes('flex-1') && handle.style.width === '')).toBe(true)
+      expect(handles.every(handle => handle.style.width === '')).toBe(true)
     })
   })
 

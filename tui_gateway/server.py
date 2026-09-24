@@ -3390,6 +3390,7 @@ from . import (  # noqa: E402
     methods_tools as _methods_tools, prompt_turn as _prompt_turn, billing_view as _billing_view,
     methods_projects as _methods_projects, methods_session_foreign as _methods_session_foreign,
     methods_session_control as _methods_session_control, methods_subagents as _methods_subagents,
+    methods_threads as _methods_threads,
     methods_vault as _methods_vault, methods_free_tier as _methods_free_tier,
     methods_connectors as _methods_connectors, methods_connectors_account as _methods_connectors_account,
     methods_display as _methods_display, methods_display_watch as _methods_display_watch,
@@ -3403,8 +3404,8 @@ for _m in (
     _methods_browser_control, _methods_session, _methods_prompt, _methods_config,
     _methods_config_set, _methods_complete, _methods_tools, _methods_profiles, _methods_images,
     _methods_bot_relay, _prompt_turn, _billing_view, _methods_projects, _methods_session_foreign,
-    _methods_session_control, _methods_subagents, _methods_device, _methods_vault, _methods_free_tier,
-    _methods_connectors, _methods_connectors_account, _methods_display, _methods_display_watch,
-    _methods_onboarding):
+    _methods_session_control, _methods_subagents, _methods_threads, _methods_device, _methods_vault,
+    _methods_free_tier, _methods_connectors, _methods_connectors_account, _methods_display,
+    _methods_display_watch, _methods_onboarding):
     _m.register(sys.modules[__name__])
 del _m

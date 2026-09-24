@@ -100,6 +100,25 @@ describe('ChatSidebar navigation activity', () => {
     noteActiveTreeGroup(null)
   })
 
+  // The bug this caught: a nav row shipped with an icon and no word under it.
+  // Every row declares `label: ''` and reads its name from `sidebar.nav[id]`,
+  // and that block is typed `Record<string, string>`, so a row whose key was
+  // never added compiles, renders, and is simply nameless on screen. Nothing
+  // but this assertion stands between that and a user staring at a bare glyph.
+  it('gives every navigation row a name, not just a glyph', () => {
+    const { container } = renderSidebar('/', 'chat')
+
+    const rows = Array.from(container.querySelectorAll('[data-tour^="sidebar-nav-"]'))
+
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.filter(row => !row.textContent?.trim()).map(row => row.getAttribute('data-tour'))).toEqual([])
+  })
+
+  it('lights the threads row up at its own route', () => {
+    renderSidebar('/threads', 'threads')
+    expectOnlyCurrent('Threads')
+  })
+
   it('keeps navigation and session activity coherent with the focused pane', () => {
     renderSidebar('/kanban', 'extension')
     expectOnlyCurrent('Kanban')

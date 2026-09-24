@@ -36,7 +36,6 @@ import { $interfaceMode, $showsAdvancedChrome, shownInMode } from '@/store/inter
 import { $bindings } from '@/store/keybinds'
 import {
   $dismissedAutoProjectIds,
-  $panesFlipped,
   $pinnedSessionIds,
   $sidebarCardRows,
   $sidebarCronOpen,
@@ -144,7 +143,8 @@ import {
   CRON_ROUTE,
   MESSAGING_ROUTE,
   SIDEBAR_NAV_AREA,
-  type SidebarNavContribution
+  type SidebarNavContribution,
+  THREADS_ROUTE
 } from '../../routes'
 import type { SidebarNavItem } from '../../types'
 import { type NewSessionSplitHandler, startNewSessionDrag } from '../new-session-drag'
@@ -243,6 +243,14 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
     icon: props => <Codicon name="watch" {...props} />,
     route: CRON_ROUTE,
     keybindActionId: 'nav.cron',
+    tier: 'advanced'
+  },
+  {
+    id: 'threads',
+    label: '',
+    icon: props => <Codicon name="git-branch" {...props} />,
+    route: THREADS_ROUTE,
+    keybindActionId: 'nav.threads',
     tier: 'advanced'
   }
 ]
@@ -438,7 +446,6 @@ export function ChatSidebar({
     [contributedNav, interfaceMode]
   )
 
-  const panesFlipped = useStore($panesFlipped)
   const grouping = useStore($sidebarGrouping)
   const ordering = useStore($sidebarOrdering)
   const statusFilter = useStore($sidebarStatusFilter)
@@ -1141,6 +1148,15 @@ export function ChatSidebar({
     [enteredProject, enteredProjectOverlaySessions, removedSessionIds, projectOwners]
   )
 
+  // A failed drill-in over a list that is already showing rows says "your data
+  // is gone" about rows the user can see, which is the one thing the error
+  // state exists to avoid. With content on screen the failed read is a stale
+  // snapshot, not a loss, and the refresh behind it keeps trying.
+  const enteredProjectHasRows = useMemo(
+    () => projectTreeSessions(enteredProjectContent).length > 0,
+    [enteredProjectContent]
+  )
+
   const scopedRepoPaths = useMemo(
     () =>
       enteredProject ? enteredProject.repos.map(repo => repo.path).filter((path): path is string => Boolean(path)) : [],
@@ -1148,11 +1164,17 @@ export function ChatSidebar({
   )
 
   // git worktree list is a VISUAL-only enhancer (empty lanes); never membership.
-  const inEnteredProject = Boolean(enteredProject && !showAllProfiles)
+  //
+  // It used to be gated on single-profile too, from when all-profiles had no
+  // drill-in read at all and there was no hydrated project to enhance. There is
+  // one now, and the probe reads repo paths on disk, which no profile owns, so
+  // the same project showing its worktree lanes in one mode and hiding them in
+  // the other was the drill-in's history leaking into the view.
+  const inEnteredProject = Boolean(enteredProject)
   const [scopedRepoWorktrees] = useRepoWorktreeMap(scopedRepoPaths, inEnteredProject)
 
   // Re-probe worktree lanes on out-of-band git changes the renderer can't see.
-  // A turn can `git worktree add/remove` in the terminal (e.g. you ask Hermes to
+  // A turn can `git worktree add/remove` in the terminal (e.g. you ask Sbar Rafiq to
   // "remove that worktree"), and the window never blurs during an in-app chat,
   // so nothing would otherwise re-run the visual probe. Re-sync when a working
   // session settles (its turn finished) or the window refocuses (an external
@@ -1575,9 +1597,20 @@ export function ChatSidebar({
         // Visibility is the layout tree's job (a hidden zone is display:none;
         // the narrow overlay renders the live instance) — the sidebar always
         // paints itself fully.
-        'relative h-full min-w-0 overflow-hidden border-t-0 border-b-0 text-foreground transition-none',
-        panesFlipped ? 'border-l border-r-0' : 'border-r border-l-0',
-        'border-(--sidebar-edge-border) bg-(--ui-sidebar-surface-background) opacity-100'
+        // No edge line. The rail is not a card on the shell, it IS the shell
+        // ground (`--ui-shell-ground` resolves to this same fill), so the only
+        // thing a hairline down its content-facing side could separate is the
+        // window from itself. The conversation beside it is the raised surface;
+        // that difference in fill is the whole separation.
+        //
+        // It read as harmless for a long time because the zone stylesheet
+        // (tree/renderer/index.tsx) zeroes `border-width` on every pane mounted
+        // in a group, so the docked rail never painted it. The peek overlay
+        // mounts this same pane OUTSIDE that stylesheet, and there the line came
+        // back, doubled by the overlay's own. A class that paints only where a
+        // neutralizer cannot reach is worse than one that always paints.
+        'relative h-full min-w-0 overflow-hidden text-foreground transition-none',
+        'bg-(--ui-sidebar-surface-background) opacity-100'
       )}
       collapsible="none"
       data-tip-region=""
@@ -1595,6 +1628,7 @@ export function ChatSidebar({
                   (item.id === 'messaging' && currentView === 'messaging') ||
                   (item.id === 'artifacts' && currentView === 'artifacts') ||
                   (item.id === 'cron' && currentView === 'cron') ||
+                  (item.id === 'threads' && currentView === 'threads') ||
                   // Contributed rows light up at their own route.
                   (currentView === 'extension' && Boolean(item.route) && pathname === item.route)
 
@@ -1611,11 +1645,12 @@ export function ChatSidebar({
                       // resolved region has been observed to swallow clicks on the
                       // top rows. Same carve-out as USER_BUBBLE_BASE_CLASS in
                       // thread.tsx.
-                      'flex h-7 w-full justify-start gap-2 rounded-md border border-transparent px-2 text-start text-[0.8125rem] font-medium text-(--ui-text-secondary) transition-colors duration-100 ease-out [-webkit-app-region:no-drag] hover:bg-(--ui-control-hover-background) hover:text-foreground hover:transition-none',
-                      active &&
-                        'border-(--ui-stroke-tertiary) bg-(--ui-control-active-background) text-foreground shadow-none hover:border-(--ui-stroke-tertiary)!',
-                      !isInteractive &&
-                        'cursor-default hover:border-transparent hover:bg-transparent hover:text-inherit'
+                      'flex h-7 w-full justify-start gap-2 rounded-md px-2 text-start text-[0.8125rem] font-medium text-(--ui-text-secondary) transition-colors duration-100 ease-out [-webkit-app-region:no-drag] hover:bg-(--ui-control-hover-background) hover:text-foreground hover:transition-none',
+                      // Selected is a fill and an ink, never an outline: the row
+                      // already lifts off the rail, and a stroke around a filled
+                      // row is a second edge saying what the fill just said.
+                      active && 'bg-(--ui-control-active-background) text-foreground shadow-none',
+                      !isInteractive && 'cursor-default hover:bg-transparent hover:text-inherit'
                     )}
                     // A tip anchored to the label points at the end of the
                     // word; the row is what it's actually about.
@@ -1793,7 +1828,9 @@ export function ChatSidebar({
               />
             )}
 
-            {!trimmedQuery && inProject && projectLoadFailed && <SidebarLoadErrorState onRetry={retryProject} />}
+            {!trimmedQuery && inProject && projectLoadFailed && !enteredProjectHasRows && (
+              <SidebarLoadErrorState onRetry={retryProject} />
+            )}
             {!trimmedQuery && (
               <SidebarSessionsSection
                 activeProjectId={activeProjectId}

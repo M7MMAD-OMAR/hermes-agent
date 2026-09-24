@@ -365,3 +365,36 @@ def test_allocation_lock_is_released_once_xvnc_claims_the_number(in_process_runt
     t.join()
     assert st.running
     assert seen.get("free") is True, "allocation lock still held after Xvnc wrote its X lock"
+
+
+@pytest.mark.parametrize(
+    ("mode", "env", "expected"),
+    [
+        (False, {}, False),
+        (True, {}, True),
+        (True, {"DISPLAY": ":0"}, False),
+        (True, {"WAYLAND_DISPLAY": "wayland-1"}, False),
+        ("always", {"DISPLAY": ":0", "WAYLAND_DISPLAY": "wayland-1"}, True),
+        ("always", {}, True),
+        ("true", {}, True),
+        ("off", {}, False),
+    ],
+)
+def test_auto_start_always_also_starts_on_a_host_with_a_display(monkeypatch, mode, env, expected):
+    import hermes_cli.config as config
+
+    monkeypatch.setattr(runtime, "is_supported_host", lambda: True)
+    monkeypatch.setattr(runtime, "missing_binaries", lambda: [])
+    monkeypatch.setattr(config, "load_config_readonly", lambda: {"bot_desktop": {"auto_start": mode}})
+
+    assert runtime._should_auto_start(env) is expected
+
+
+def test_auto_start_always_still_needs_the_packages(monkeypatch):
+    import hermes_cli.config as config
+
+    monkeypatch.setattr(runtime, "is_supported_host", lambda: True)
+    monkeypatch.setattr(runtime, "missing_binaries", lambda: ["Xvnc"])
+    monkeypatch.setattr(config, "load_config_readonly", lambda: {"bot_desktop": {"auto_start": "always"}})
+
+    assert runtime._should_auto_start({"DISPLAY": ":0"}) is False

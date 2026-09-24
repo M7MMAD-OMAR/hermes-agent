@@ -351,13 +351,22 @@ def ensure_started_for_tool() -> None:
 
 
 def _should_auto_start(env: Dict[str, str]) -> bool:
-    if not is_supported_host() or env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"):
-        return False
-    if missing_binaries():
+    """``auto_start`` true starts the screen only on a host with no display. ``"always"`` starts it on a
+    workstation too: without a running screen, computer_use falls through to the DISPLAY the host process
+    inherited, which is the seat a person is sitting at, and ``"always"`` is how that host says the agent
+    must never act there."""
+    if not is_supported_host() or missing_binaries():
         return False
     from hermes_cli.config import load_config_readonly
     cfg = load_config_readonly().get("bot_desktop") or {}
-    return bool(cfg.get("auto_start", False))
+    mode = cfg.get("auto_start", False)
+    if isinstance(mode, str) and mode.strip().lower() == "always":
+        return True
+    if env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"):
+        return False
+    if isinstance(mode, str):
+        return mode.strip().lower() in {"true", "yes", "on", "1"}
+    return bool(mode)
 
 
 # ---- idle auto-stop -------------------------------------------------------------------------------

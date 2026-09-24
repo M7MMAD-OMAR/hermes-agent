@@ -2567,7 +2567,8 @@ DEFAULT_CONFIG = {
         "geometry": "1440x900",
         # Opt-in: start the screen automatically the first time computer_use needs a display on a headless
         # host. Off by default so installing TigerVNC for other reasons never yields a screen nobody asked
-        # for; Hermes Desktop's Screen pane offers Start and this toggle.
+        # for; Hermes Desktop's Screen pane offers Start and this toggle. "always" starts it on a host WITH
+        # a display too, so the agent acts on its own screen and never on the person's.
         "auto_start": False,
         # Refuse to start the screen while the host (or its container cgroup) has less than this free.
         # Xvnc + Xfce idle at ~220 MB and a takeover's browser adds 0.5-1 GB; on a small instance the

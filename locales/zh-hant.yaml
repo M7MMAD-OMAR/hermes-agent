@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "子代理定義"
       memory: "記憶"
       conversation: "對話"
+      files: "檔案"
     category_header: "各類別預估用量"
     no_data_yet: "  （尚無資料 — 請先傳送一則訊息）"
     free_space: "剩餘空間"

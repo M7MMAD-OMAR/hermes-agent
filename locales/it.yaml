@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "Definizioni dei subagenti"
       memory: "Memoria"
       conversation: "Conversazione"
+      files: "File"
     category_header: "Utilizzo stimato per categoria"
     no_data_yet: "  (ancora nessun dato — invia prima un messaggio)"
     free_space: "Spazio libero"

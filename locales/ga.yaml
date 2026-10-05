@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "Sainmhínithe fo-ghníomhairí"
       memory: "Cuimhne"
       conversation: "Comhrá"
+      files: "Comhaid"
     category_header: "Úsáid mheasta de réir catagóire"
     no_data_yet: "  (gan sonraí fós — seol teachtaireacht ar dtús)"
     free_space: "Spás saor"

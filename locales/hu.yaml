@@ -407,6 +407,7 @@ gateway:
       subagent_definitions: "Alügynök-definíciók"
       memory: "Memória"
       conversation: "Beszélgetés"
+      files: "Fájlok"
     category_header: "Becsült használat kategóriánként"
     no_data_yet: "  (még nincs adat — küldj előbb egy üzenetet)"
     free_space: "Szabad hely"

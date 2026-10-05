@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "サブエージェント定義"
       memory: "メモリ"
       conversation: "会話"
+      files: "ファイル"
     category_header: "カテゴリ別の推定使用量"
     no_data_yet: "  (まだデータがありません — 先にメッセージを送信してください)"
     free_space: "空き容量"

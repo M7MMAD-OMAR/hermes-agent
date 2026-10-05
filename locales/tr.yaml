@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "Alt ajan tanımları"
       memory: "Bellek"
       conversation: "Konuşma"
+      files: "Dosyalar"
     category_header: "Kategoriye göre tahmini kullanım"
     no_data_yet: "  (henüz veri yok — önce bir mesaj gönderin)"
     free_space: "Boş alan"

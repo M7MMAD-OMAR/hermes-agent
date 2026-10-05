@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "서브에이전트 정의"
       memory: "메모리"
       conversation: "대화"
+      files: "파일"
     category_header: "카테고리별 예상 사용량"
     no_data_yet: "  (아직 데이터 없음 — 먼저 메시지를 보내세요)"
     free_space: "여유 공간"

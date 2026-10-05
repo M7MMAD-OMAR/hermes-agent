@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "Subagent-definisies"
       memory: "Geheue"
       conversation: "Gesprek"
+      files: "Lêers"
     category_header: "Geskatte gebruik per kategorie"
     no_data_yet: "  (nog geen data nie — stuur eers 'n boodskap)"
     free_space: "Vrye ruimte"

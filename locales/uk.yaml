@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "Визначення субагентів"
       memory: "Пам'ять"
       conversation: "Розмова"
+      files: "Файли"
     category_header: "Орієнтовне використання за категоріями"
     no_data_yet: "  (даних ще немає — спочатку надішліть повідомлення)"
     free_space: "Вільне місце"

@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "Определения подагентов"
       memory: "Память"
       conversation: "Разговор"
+      files: "Файлы"
     category_header: "Оценка расхода по категориям"
     no_data_yet: "  (данных пока нет — сначала отправьте сообщение)"
     free_space: "Свободно"

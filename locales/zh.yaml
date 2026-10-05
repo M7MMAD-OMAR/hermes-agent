@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "子代理定义"
       memory: "记忆"
       conversation: "对话"
+      files: "文件"
     category_header: "按类别估算的用量"
     no_data_yet: "  （暂无数据——请先发送一条消息）"
     free_space: "剩余空间"

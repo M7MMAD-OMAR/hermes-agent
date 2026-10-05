@@ -404,6 +404,7 @@ gateway:
       subagent_definitions: "تعريفات الوكلاء الفرعيين"
       memory: "الذاكرة"
       conversation: "المحادثة"
+      files: "الملفات"
     category_header: "الاستخدام التقديري حسب الفئة"
     no_data_yet: "  (لا بيانات بعد — أرسل رسالة أولًا)"
     free_space: "المساحة الحرة"

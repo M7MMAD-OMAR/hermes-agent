@@ -6,6 +6,7 @@ dispatch, the requirements probe, the detector fire/cooldown loop, and the
 process-wide singleton lifecycle.
 """
 
+import contextlib
 import multiprocessing
 import os
 import sys
@@ -266,6 +267,9 @@ def test_loaded_provider_requirements_preserve_choices_and_require_keys(tmp_path
 def test_requirements_openwakeword_available(monkeypatch):
     _voice_loop_ready(monkeypatch)
     monkeypatch.setattr(ww, "_audio_available", lambda: True)
+    # The report takes its audio answer from one shared PortAudio probe, not _audio_available.
+    monkeypatch.setattr(ww, "_probe_audio", lambda: contextlib.nullcontext(object()))
+    monkeypatch.setattr(ww, "_local_input_device_ready", lambda sd=None: True)
     monkeypatch.setattr(pm, "available", lambda f: True)
     r = ww.check_wake_word_requirements(
         {"provider": "openwakeword", "phrase": "hey hermes"}

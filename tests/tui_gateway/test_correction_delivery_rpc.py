@@ -31,6 +31,9 @@ def _redirecting_agent(delivery, *, accepted=True):
 def _call(agent, method="session.redirect", text="use Postgres"):
     session = server._sessions["sid"] = _session(agent=agent)
     session["inflight_turn"] = {"assistant": "partial", "user": "original"}
+    # An idle session rejects steer (#64578: the next turn would splice it after an old tool row), so the
+    # delivery report is only meaningful while a turn is live.
+    session["running"] = True
     try:
         return server.handle_request(
             {"id": "1", "method": method, "params": {"session_id": "sid", "text": text}}

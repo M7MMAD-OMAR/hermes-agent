@@ -69,7 +69,7 @@ def run_flow(flow: str, *, session_id: str = "", timeout: int = DEFAULT_TIMEOUT,
     for key, value in (env or {}).items():
         argv += ["-e", f"{key}={value}"]
     try:
-        result = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8",
+        result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                                 errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
         return {"error": f"the flow did not finish within {timeout}s", "flow": str(path)}
@@ -119,7 +119,7 @@ def _release_ui_automation(adb: List[str]) -> bool:
     try:
         from hermes_cli.tools_config_android import LAYOUT_INSTRUMENTATION_PACKAGE
         return subprocess.run([*adb, "shell", "am", "force-stop", LAYOUT_INSTRUMENTATION_PACKAGE],
-                              capture_output=True, timeout=30).returncode == 0
+                              stdin=subprocess.DEVNULL, capture_output=True, timeout=30).returncode == 0
     except (OSError, subprocess.SubprocessError, ImportError) as e:
         logger.debug("could not release the screen reader before the flow: %s", e)
         return False
@@ -241,7 +241,13 @@ def _mobile_test_check() -> bool:
 registry.register(
     name="mobile_test",
     toolset="device",
-    schema=MOBILE_TEST_SCHEMA,
+    schema={
+        "name": "mobile_test",
+        "description": (
+            'Run or scaffold a Maestro UI test flow against the attached Android device. A flow is a portable YAML file that runs again later, in CI, with no Hermes involved. `scaffold` writes a starter flow naming the ids really on screen; `status` reports whether Maestro and a JDK are installed.'
+        ),
+        "parameters": MOBILE_TEST_SCHEMA,
+    },
     handler=lambda args, **kw: mobile_test(
         action=str(args.get("action") or "run"),
         session_id=str(kw.get("session_id") or ""),

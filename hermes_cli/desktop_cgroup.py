@@ -45,7 +45,8 @@ def _scope_cgroup(unit: str) -> Optional[Path]:
     try:
         result = subprocess.run(
             ["systemctl", "--user", "show", "--value", "-p", "ControlGroup", f"{unit}.scope"],
-            capture_output=True, text=True, timeout=3, check=False, env=systemd_user_bus_env(),
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3, check=False,
+            env=systemd_user_bus_env(),
         )
     except (OSError, subprocess.SubprocessError):
         return None

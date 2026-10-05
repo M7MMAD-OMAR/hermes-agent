@@ -246,6 +246,8 @@ SCHEMA_HISTORY: dict[str, _TableHistory] = {
             ('+', 'tool_call_uids', 'absorbed_message_uids'),
             ('+', 'tool_call_uid', 'tool_call_uids'),
         )),
+        # Fork-only column (which model minted a turn's signed thinking), declared mid-table.
+        ('17 2026-10-05T00:00Z fork', (('+', 'thinking_model', 'display_metadata'),)),
         ),
     ),
     "session_model_usage": _TableHistory(

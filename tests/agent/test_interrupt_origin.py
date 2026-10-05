@@ -44,6 +44,9 @@ class _Agent(InterruptControlMixin):
         self._model_request_active = threading.Event()
         self._executing_tools = False
 
+    def _drop_trailing_empty_response_scaffolding(self, messages):
+        """Called by ``abort_turn_on_interrupt``; these histories carry no such scaffolding."""
+
 
 # ── the registry ─────────────────────────────────────────────────────────────
 

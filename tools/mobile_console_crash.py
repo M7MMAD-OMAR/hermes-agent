@@ -87,7 +87,7 @@ def exit_info(adb: Sequence[str], package: str, *, limit: int = 5) -> Dict[str, 
         return {"error": "no device"}
     try:
         result = subprocess.run([*adb, "shell", "dumpsys", "activity", "exit-info", package],
-                                capture_output=True, text=True, encoding="utf-8",
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                                 errors="replace", timeout=_EXIT_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as e:
         return {"error": f"could not read exit info: {e}"}
@@ -148,7 +148,7 @@ def resolve_package(adb: Sequence[str], package: str = "") -> Optional[str]:
         return None
     try:
         out = subprocess.run([*adb, "shell", "dumpsys", "activity", "activities"],
-                             capture_output=True, text=True, encoding="utf-8",
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                              errors="replace", timeout=_EXIT_TIMEOUT).stdout
     except (OSError, subprocess.SubprocessError):
         return None

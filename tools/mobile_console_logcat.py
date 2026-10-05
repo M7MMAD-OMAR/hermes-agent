@@ -45,7 +45,7 @@ def logcat_argv(adb: Sequence[str], tags: Sequence[str]) -> List[str]:
 def clear_buffer(adb: Sequence[str]) -> bool:
     """Drop what the device has buffered, so the next read starts from now."""
     try:
-        return subprocess.run([*adb, "logcat", "-c"], capture_output=True,
+        return subprocess.run([*adb, "logcat", "-c"], stdin=subprocess.DEVNULL, capture_output=True,
                               timeout=_POLL_TIMEOUT).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
@@ -82,7 +82,7 @@ def poll_forever(adb: Sequence[str], tags: Sequence[str], *, on_record: Callable
     seen_set = set()
     while not should_stop():
         try:
-            output = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8",
+            output = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                                     errors="replace", timeout=_POLL_TIMEOUT).stdout
         except (OSError, subprocess.SubprocessError) as e:
             logger.debug("logcat poll failed: %s", e)

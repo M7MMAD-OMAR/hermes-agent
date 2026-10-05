@@ -30,7 +30,7 @@ const EXACT: readonly string[] = [
   '[System: Continue now. Execute the required tool calls and only send your final answer after completing the task.]',
   'Your previous turn indicated a tool call but none was included. Do not narrate a plan or restate intent — issue the actual tool call now to continue the task.',
   'You just executed tool calls but returned an empty response. Please process the tool results above and continue with the task.',
-  '[System: The previous response was cut off by a network error mid-stream. Continue exactly where you left off. Do not restart or repeat prior text. Finish the answer directly.]',
+  '[System: The previous response was cut off by a network error mid-stream — a transport interruption, NOT a change in your capabilities. Your tools are still fully available; call them as normal and ignore any earlier claim that you lack tool access. Continue the task from where you left off. Do not restart or repeat prior text.]',
   '[System: Your previous response was truncated by the output length limit. Continue exactly where you left off. Do not restart or repeat prior text. Finish the answer directly.]'
 ]
 

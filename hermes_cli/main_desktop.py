@@ -82,7 +82,7 @@ def _notify_desktop_build(phase: str) -> None:
     if argv is None:
         return
     try:
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=5, check=False)
+        result = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5, check=False)
     except Exception:
         return
     if phase == "start" and result.returncode == 0 and result.stdout.strip().isdigit():
@@ -2131,17 +2131,21 @@ def cmd_gui(args: argparse.Namespace):
         sys.exit(0)
     with desktop_console_output(source_mode=source_mode) as streams:
         try:
-            # Popen rather than run(): the scope watcher needs the child's pid while
-            # it runs. Same lifecycle as run(): an interrupt kills the child.
-            with subprocess.Popen(launch_command, cwd=desktop_dir, env=env, pass_fds=pass_fds, **streams) as launch:
-                if launch_command[:1] == ["systemd-run"]:
+            if launch_command[:1] == ["systemd-run"]:
+                # Popen rather than run(): the scope watcher needs the child's pid while
+                # it runs. Same lifecycle as run(): an interrupt kills the child.
+                with subprocess.Popen(launch_command, cwd=desktop_dir, env=env, pass_fds=pass_fds, **streams) as launch:
                     from hermes_cli.desktop_cgroup import watch_desktop_scope
                     watch_desktop_scope(launch.pid, desktop_scope_unit(), log=desktop_launch_notice)
-                try:
-                    returncode = launch.wait()
-                except BaseException:
-                    launch.kill()
-                    raise
+                    try:
+                        returncode = launch.wait()
+                    except BaseException:
+                        launch.kill()
+                        raise
+            else:
+                returncode = subprocess.run(
+                    launch_command, cwd=desktop_dir, env=env, check=False, pass_fds=pass_fds, **streams
+                ).returncode
         except KeyboardInterrupt:
             # Ctrl-C in the terminal the launcher is attached to is the user
             # closing the Desktop, not a launcher crash. Exit cleanly instead

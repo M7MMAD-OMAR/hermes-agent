@@ -475,7 +475,13 @@ def _mobile_console_check() -> bool:
 registry.register(
     name="mobile_console",
     toolset="device",
-    schema=MOBILE_CONSOLE_SCHEMA,
+    schema={
+        "name": "mobile_console",
+        "description": (
+            'Read what the app on the attached Android device logged and what it asked the network for, since your last read. Reports which channel is live (development-build console or logcat), and can list recent process exits.'
+        ),
+        "parameters": MOBILE_CONSOLE_SCHEMA,
+    },
     handler=lambda args, **kw: mobile_console(
         action=str(args.get("action") or "read"),
         session_id=str(kw.get("session_id") or ""),

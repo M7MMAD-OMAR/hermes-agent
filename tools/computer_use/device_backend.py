@@ -265,7 +265,7 @@ class AndroidDeviceBackend(ComputerUseBackend):
     # --- internals -------------------------------------------------------------------
 
     def _adb_lines(self, args: List[str], *, timeout: int = 60) -> List[str]:
-        proc = subprocess.run([*self._adb, *args], capture_output=True, text=True,
+        proc = subprocess.run([*self._adb, *args], stdin=subprocess.DEVNULL, capture_output=True, text=True,
                               encoding="utf-8", errors="replace", timeout=timeout)
         return (proc.stdout or "").splitlines() if proc.returncode == 0 else []
 

@@ -38,9 +38,12 @@ import subprocess
 import sys
 
 # Measured: 731 modules after importing web_server plus the lifespan's
-# _warm_gateway_module set. Headroom for ordinary feature work; a jump past
-# this means something sizeable joined the boot graph and wants a look.
-MAX_BOOT_MODULES = 800
+# _warm_gateway_module set, when this budget was first set at 800. The fork's
+# own features had already taken it to 1059 before the 2026-10-05 upstream
+# merge; the merge brought it down to 982. Budget is now 1000: headroom for
+# ordinary feature work; a jump past this means something sizeable joined the
+# boot graph and wants a look.
+MAX_BOOT_MODULES = 1000
 
 # Never on the backend boot graph. Each is heavy, and none is needed to bind
 # a socket — if one appears, a module-scope import crept in where a

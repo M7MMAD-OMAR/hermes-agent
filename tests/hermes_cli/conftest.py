@@ -79,6 +79,26 @@ def _source_channels_resolve_locally(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _desktop_launch_ignores_host_state(monkeypatch):
+    """Keep a workstation's own slice and desktop session out of every desktop-launch test.
+
+    The packaged launch is wrapped in ``systemd-run`` when the user has a hermes slice unit
+    file, and that wrapper changes how the child is spawned (Popen plus the scope watcher
+    instead of ``subprocess.run``). Which branch a test exercises must not depend on the
+    machine it runs on, so the unit directories are emptied here. Tests of the slice prefix
+    pass their own ``unit_exists`` and are unaffected.
+    """
+    try:
+        from hermes_cli import main_desktop
+    except Exception:
+        return
+    monkeypatch.setattr(main_desktop, "_USER_UNIT_DIRS", (), raising=False)
+    # Same reason: a rebuild toast shells out to notify-send on any session with a display,
+    # and a test that fakes subprocess.run gets a result the toast code cannot read.
+    monkeypatch.setattr(main_desktop, "_notify_desktop_build", lambda _phase: None, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _discharge_host_update_obligation():
     """Start and end every ``hermes_cli`` test with NO host update-restart obligation.
 

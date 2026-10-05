@@ -148,10 +148,11 @@ class TestValidateRequestedModelUsesCache:
 
     def test_anthropic_branch_calls_the_cached_wrapper(self):
         import hermes_cli.models as mod
+        from hermes_cli.models_validate import validate_requested_model
 
         with patch.object(mod, "cached_fetch_anthropic_models", return_value=["claude-opus-5"]) as cached, \
              patch.object(mod, "_fetch_anthropic_models") as raw:
-            result = mod.validate_requested_model("claude-opus-5", "anthropic")
+            result = validate_requested_model("claude-opus-5", "anthropic")
 
         cached.assert_called_once()
         raw.assert_not_called()
@@ -160,10 +161,11 @@ class TestValidateRequestedModelUsesCache:
 
     def test_generic_probe_branch_calls_the_cached_wrapper(self):
         import hermes_cli.models as mod
+        from hermes_cli.models_validate import validate_requested_model
 
         with patch.object(mod, "cached_fetch_api_models", return_value=["gpt-6"]) as cached, \
              patch.object(mod, "fetch_api_models") as raw:
-            result = mod.validate_requested_model("gpt-6", "openai", api_key="sk-x")
+            result = validate_requested_model("gpt-6", "openai", api_key="sk-x")
 
         cached.assert_called_once()
         raw.assert_not_called()

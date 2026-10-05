@@ -113,4 +113,5 @@ def test_response_between_restarts_resets_the_bound(flag):
         assert (verdict.action, verdict.restart_count) == ("fallthrough", 0)
         restart_count = verdict.restart_count
     assert actions == ["continue"] * (3 * MAX_RETRIES)
-    assert agent.steered == []
+    # The bound never tripped, so no correction was handed back as a next-turn steer.
+    assert agent._pending_steer is None

@@ -90,7 +90,7 @@ def test_missing_path_still_emits(tmp_path):
     result = json.loads(op.open_preview_tool(str(missing)))
 
     assert result["success"] is True
-    assert emitted == [("preview.open", {"url": str(missing), "label": ""})]
+    assert emitted == [("preview.open", {"url": str(missing), "label": "", "new_tab": False})]
 
 
 def test_new_tab_defaults_off_and_travels_when_asked():

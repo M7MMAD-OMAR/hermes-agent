@@ -1495,9 +1495,11 @@ def _lazy_context_breakdown(session: dict, usage: dict) -> dict:
     categories = []
     if conversation > 0:
         with contextlib.suppress(Exception):
-            from agent.context_breakdown import _CATEGORIES
-            label, color, _glyph = _CATEGORIES["conversation"]
-            categories.append({"color": color, "id": "conversation", "label": label, "tokens": conversation})
+            from agent.context_breakdown import _CATEGORIES, _category_label
+            color, _glyph = _CATEGORIES["conversation"]
+            categories.append({
+                "color": color, "id": "conversation", "label": _category_label("conversation"),
+                "tokens": conversation})
     return {
         "categories": categories, "context_max": context_max,
         "context_percent": max(0, min(100, round(context_used / context_max * 100))) if context_max else 0,

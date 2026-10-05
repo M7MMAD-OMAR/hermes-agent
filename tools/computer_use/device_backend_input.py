@@ -44,7 +44,7 @@ _META_FLAGS: Dict[str, str] = {
 
 
 def run_input(adb: Sequence[str], args: List[str], *, timeout: int = _INPUT_TIMEOUT) -> str:
-    proc = subprocess.run([*adb, "shell", "input", *args], capture_output=True, text=True,
+    proc = subprocess.run([*adb, "shell", "input", *args], stdin=subprocess.DEVNULL, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout)
     if proc.returncode != 0:
         raise DeviceError(f"input {' '.join(args)} exited {proc.returncode}: "

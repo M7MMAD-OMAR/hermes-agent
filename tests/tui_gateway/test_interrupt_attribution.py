@@ -6,6 +6,8 @@ as the same unexplained ``Operation interrupted.``, which is what made "I sent a
 turn died" impossible to triage: the reaper's signature and a mis-hit Stop were the same string.
 """
 
+import contextlib
+import logging
 import types
 
 from agent import interrupt_origin as io
@@ -42,6 +44,13 @@ def _patch_collaborators(monkeypatch):
     monkeypatch.setattr(session_lifecycle, "_session_uses_compute_host", lambda s: False, raising=False)
     monkeypatch.setattr(session_lifecycle, "_clear_pending", lambda sid: None, raising=False)
     monkeypatch.setattr(session_lifecycle, "_clear_inflight_turn", lambda s: None, raising=False)
+    # The off-turn observer hook binds the session profile and logs failures; both live on server.py's
+    # globals at install time, so a direct call on the split module needs stand-ins.
+    monkeypatch.setattr(
+        session_lifecycle, "_session_profile_runtime_scope",
+        lambda session, **kw: contextlib.nullcontext(), raising=False,
+    )
+    monkeypatch.setattr(session_lifecycle, "logger", logging.getLogger("test"), raising=False)
 
 
 def test_a_user_stop_is_attributed_to_the_user(monkeypatch):

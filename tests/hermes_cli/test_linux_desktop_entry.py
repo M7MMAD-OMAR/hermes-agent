@@ -490,7 +490,7 @@ def test_exec_never_persists_a_checkout_internal_path_hit(tmp_path, xdg_home, mo
 
     entry = lde.install_desktop_entry(root)
     assert entry is not None
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     assert exec_line == f"{known_wrapper} desktop"
     assert str(venv_script) not in exec_line
@@ -543,7 +543,7 @@ def test_exec_skips_managed_environment_cli_without_desktop(
 
     entry = lde.install_desktop_entry(root)
     assert entry is not None
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     assert exec_line == f"{known_wrapper} desktop"
     assert str(managed) not in exec_line
@@ -585,7 +585,7 @@ def test_exec_finds_known_wrapper_when_resolver_has_no_candidate(
 
     entry = lde.install_desktop_entry(root)
     assert entry is not None
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     assert exec_line == f"{known_wrapper} desktop"
 
@@ -723,7 +723,7 @@ def test_installed_entry_carries_the_window_app_id(tmp_path, xdg_home, monkeypat
     assert entry.name == f"{lde.APP_ID}.desktop"
     values = _parse(entry.read_text(encoding="utf-8"))
     assert values["StartupWMClass"] == lde.APP_ID
-    assert values["Name"] == "Hermes"  # the menu label is not part of the identity
+    assert values["Name"] == "Sbar Rafiq"  # the menu label is not part of the identity
 
 
 def test_install_keeps_the_legacy_entry_as_a_hidden_alias(tmp_path, xdg_home, monkeypatch):
@@ -1510,7 +1510,7 @@ def test_install_through_wrapper_when_primary_is_incapable(tmp_path, xdg_home, m
 
     entry = lde.install_desktop_entry(root)
     assert entry == lde.desktop_entry_path()
-    assert _parse(entry.read_text(encoding="utf-8"))["Exec"] == f"{wrapper} desktop"
+    assert _exec_command(entry.read_text(encoding="utf-8")) == f"{wrapper} desktop"
 
 
 # #126009: the persisted launcher is a menu/taskbar click — a launch, not a
@@ -1527,7 +1527,7 @@ def test_exec_appends_skip_build_when_packaged_app_exists(tmp_path, xdg_home, mo
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     assert exec_line.endswith("desktop --skip-build")
 
@@ -1540,7 +1540,7 @@ def test_exec_keeps_build_then_launch_when_no_packaged_app(tmp_path, xdg_home, m
     monkeypatch.setattr(lde, "refresh_desktop_databases", lambda _dir: [])
 
     entry = lde.install_desktop_entry(root)
-    exec_line = _parse(entry.read_text(encoding="utf-8"))["Exec"]
+    exec_line = _exec_command(entry.read_text(encoding="utf-8"))
 
     assert exec_line.endswith("desktop")
     assert "--skip-build" not in exec_line

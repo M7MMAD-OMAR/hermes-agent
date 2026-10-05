@@ -54,7 +54,7 @@ def _restart_instrumentation(adb: List[str]) -> bool:
     try:
         from hermes_cli.tools_config_android import LAYOUT_INSTRUMENTATION_PACKAGE
         subprocess.run([*adb, "shell", "am", "force-stop", LAYOUT_INSTRUMENTATION_PACKAGE],
-                       capture_output=True, timeout=30)
+                       stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
     except (OSError, subprocess.SubprocessError, ImportError) as e:
         logger.debug("could not restart the instrumentation server: %s", e)
         return False
@@ -67,7 +67,7 @@ class DeviceError(RuntimeError):
 
 
 def _run(argv: List[str], *, timeout: int = _LAYOUT_TIMEOUT) -> str:
-    proc = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8",
+    proc = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                           errors="replace", timeout=timeout)
     if proc.returncode != 0:
         raise DeviceError(f"{' '.join(argv)} exited {proc.returncode}: "
@@ -272,7 +272,7 @@ def screen_size(adb: List[str]) -> Tuple[int, int]:
 
 def capture_png(adb: List[str], *, timeout: int = 60) -> bytes:
     """A single frame. `exec-out screencap -p` keeps the bytes off the device's storage."""
-    proc = subprocess.run([*adb, "exec-out", "screencap", "-p"], capture_output=True, timeout=timeout)
+    proc = subprocess.run([*adb, "exec-out", "screencap", "-p"], stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
     if proc.returncode != 0 or not proc.stdout:
         raise DeviceError("screencap produced no image: "
                           + (proc.stderr or b"").decode("utf-8", "replace").strip()[:200])

@@ -335,6 +335,10 @@ def _hermetic_environment(tmp_path, tmp_path_factory, monkeypatch):
     # And never let a developer-shell (or leaked child) bypass disarm the
     # guard for in-process code under test.
     monkeypatch.delenv("HERMES_STATE_DB_GUARD_BYPASS", raising=False)
+    # Tests never start a real systemd scope: on a host with a user bus, tools/cgroup_placement would
+    # wrap every spawned child in a `/bin/sh -c ... exec "$@"` hop and break assertions on the argv.
+    # test_cgroup_placement drives the module directly and sets what it needs itself.
+    monkeypatch.setenv("HERMES_CGROUP_PLACEMENT", "0")
 
     # 3b. hermes_state computes ``DEFAULT_DB_PATH = get_hermes_home() / "state.db"``
     #     at import time. When the module is first imported at collection (any

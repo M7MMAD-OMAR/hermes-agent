@@ -67,7 +67,7 @@ def record(adb: Sequence[str], out_path: str, *, seconds: int = DEFAULT_SECONDS,
     started = time.time()
     try:
         # The timeout is the recording plus room for the encoder to flush the trailer.
-        result = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8",
+        result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                                 errors="replace", timeout=seconds + 60)
     except (OSError, subprocess.SubprocessError) as e:
         return {"error": f"screenrecord failed: {e}"}
@@ -89,7 +89,7 @@ def _pull(adb: Sequence[str], remote: str, out_path: str) -> Dict[str, Any]:
     destination = Path(out_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
-        result = subprocess.run([*adb, "pull", remote, str(destination)], capture_output=True,
+        result = subprocess.run([*adb, "pull", remote, str(destination)], stdin=subprocess.DEVNULL, capture_output=True,
                                 text=True, encoding="utf-8", errors="replace",
                                 timeout=_PULL_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as e:
@@ -103,7 +103,7 @@ def _pull(adb: Sequence[str], remote: str, out_path: str) -> Dict[str, Any]:
 def _remove(adb: Sequence[str], remote: str) -> None:
     """Leave nothing behind on the user's device; the file is ours and it is large."""
     try:
-        subprocess.run([*adb, "shell", "rm", "-f", remote], capture_output=True, timeout=30)
+        subprocess.run([*adb, "shell", "rm", "-f", remote], stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
         logger.debug("could not remove %s from the device: %s", remote, e)
 
@@ -159,7 +159,13 @@ def _mobile_record_check() -> bool:
 registry.register(
     name="mobile_record",
     toolset="device",
-    schema=MOBILE_RECORD_SCHEMA,
+    schema={
+        "name": "mobile_record",
+        "description": (
+            "Record the attached Android device's screen to an .mp4 file, for showing motion (animation, flashes, gestures) rather than describing it. Encoded on the device; no audio, and DRM surfaces may come out black."
+        ),
+        "parameters": MOBILE_RECORD_SCHEMA,
+    },
     handler=lambda args, **kw: mobile_record(
         session_id=str(kw.get("session_id") or ""),
         seconds=int(args.get("seconds") or DEFAULT_SECONDS),

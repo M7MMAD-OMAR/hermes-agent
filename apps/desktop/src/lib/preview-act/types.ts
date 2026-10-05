@@ -91,6 +91,9 @@ export interface PreviewActAction {
   selector?: string
   /** type: press Enter (and submit the owning form) after entering text. */
   submit?: boolean
+  /** press: send a printable key even when the located target is body/html.
+   *  Off by default — that key would otherwise be a page shortcut. */
+  allowShortcut?: boolean
   text?: string
   to?: 'bottom' | 'top'
   /** navigate: the address to go to. Like the history verbs, `navigate` is
@@ -123,6 +126,9 @@ export interface PreviewActResult {
   /** Viewport centre of a located target, for aiming real pointer input at it. */
   point?: { x: number; y: number }
   success: boolean
+  /** locate: the target's tag, so a press can refuse body/html without another
+   *  round trip. */
+  tag?: string
   title?: string
   /** locate: whether the target actually takes typed text. */
   typable?: boolean

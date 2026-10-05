@@ -30,6 +30,7 @@ const tileView = (overrides: Partial<SessionView> = {}): SessionView => ({
   kind: 'tile',
   $awaitingResponse: atom(false),
   $busy: atom(false),
+  $reasoningEffortPending: atom(false),
   $reasoningEffortWire: atom(''),
   $cwd: atom(''),
   $fast: atom(false),

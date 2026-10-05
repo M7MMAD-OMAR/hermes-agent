@@ -410,7 +410,15 @@ async function revalidateTree(
 ): Promise<void> {
   const state = $projectTree.get()
 
-  if (!cwd || state.cwd !== cwd || !state.loaded || desktopFsCacheKey() !== connectionKey) {
+  // The workspace effect runs before the connection-change root effect. Do
+  // not start a new backend's read using the previous backend's loaded tree.
+  if (
+    !cwd ||
+    state.cwd !== cwd ||
+    !state.loaded ||
+    lastConnectionKey !== connectionKey ||
+    desktopFsCacheKey() !== connectionKey
+  ) {
     return
   }
 
@@ -435,6 +443,7 @@ async function revalidateTree(
     setProjectTree(latest => {
       if (
         latest.cwd !== cwd ||
+        latest.requestId !== state.requestId ||
         !latest.loaded ||
         desktopFsCacheKey() !== connectionKey ||
         showsIgnoredFiles(rootPath) !== filterAtRead
@@ -491,6 +500,7 @@ async function revalidateTree(
 
   setProjectTree(latest =>
     latest.cwd === cwd &&
+    latest.requestId === state.requestId &&
     latest.loaded &&
     desktopFsCacheKey() === connectionKey &&
     showsIgnoredFiles(rootPath) === filterAtRead
@@ -572,7 +582,10 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
 
   const loadChildren = useCallback(
     async (id: string) => {
-      const inflightKey = `${connectionKey}:${id}`
+      const requestId = $projectTree.get().requestId
+      // A root refresh can start a new read of this same folder. Its pending
+      // entry and result must not be released or replaced by the old read.
+      const inflightKey = `${connectionKey}:${requestId}:${id}`
 
       if (!cwd || inflight.has(inflightKey)) {
         return
@@ -609,6 +622,7 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
         // show-ignored toggle must not land after it.
         if (
           current.cwd !== cwd ||
+          current.requestId !== requestId ||
           desktopFsCacheKey() !== connectionKey ||
           showsIgnoredFiles(rootPath) !== filterAtRead
         ) {

@@ -10,8 +10,9 @@
  */
 
 import { isElementInHiddenPane } from '@/components/pane-shell/pane-visibility'
-import { $rightRailActiveTabId } from '@/store/layout'
-import { $previewTabs, agentPreviewTabId } from '@/store/preview'
+import type { PreviewOwner } from '@/store/preview-ownership'
+
+import { activePreviewTabFor, agentPreviewTabFor } from './preview-active-tab'
 
 /** Marks a live browser pane so a gesture can find the one holding focus. */
 export const PREVIEW_BROWSER_ATTR = 'data-preview-browser'
@@ -39,19 +40,21 @@ export function registerPreviewNav(tabId: string, handle: PreviewNavHandle): () 
   }
 }
 
-/** The ACTIVE preview tab's commands, for callers with no focus to key off. */
-export function activePreviewNav(): PreviewNavHandle | null {
-  const tabs = $previewTabs.get()
-  const tab = tabs.find(t => t.id === $rightRailActiveTabId.get()) ?? tabs[0]
+/** The ACTIVE preview tab's commands among those `owner` (the requesting
+ *  session's stored id; omitted = the focused session) may see, for callers
+ *  with no focus to key off — the agent's drive_preview, which runs while
+ *  focus is in the composer. */
+export function activePreviewNav(owner?: PreviewOwner): PreviewNavHandle | null {
+  const tab = activePreviewTabFor(owner)
 
   return (tab && handles.get(tab.id)) || null
 }
 
 /** The commands for the tab the AGENT drives — its own, so `drive_preview`
- *  cannot send the page you are reading back through history, and `sessionId`
+ *  cannot send the page you are reading back through history, and `owner`
  *  so it cannot send another conversation's page there either. */
-export function agentPreviewNav(sessionId: null | string): PreviewNavHandle | null {
-  const id = agentPreviewTabId(sessionId)
+export function agentPreviewNav(owner?: PreviewOwner): PreviewNavHandle | null {
+  const id = agentPreviewTabFor(owner)
 
   return (id && handles.get(id)) || null
 }

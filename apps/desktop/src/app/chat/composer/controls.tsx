@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { AudioLines, Ear, EarOff, iconSize, Layers3, Loader2, Square } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { recordAction } from '@/store/desktop-metrics'
 import { $hudMode, closeHud, resetHudLayout } from '@/store/hud'
 import {
   $browserSessionId,
@@ -144,7 +145,7 @@ export function ComposerControls({
     />
   )
 
-  const showQueueButton = busyAction !== 'stop' && hasComposerPayload
+  const showQueueButton = busy && busyAction !== 'stop' && hasComposerPayload
 
   return (
     <div className="flex w-full min-w-0 items-center justify-between gap-(--composer-control-gap)" data-slot="composer-toolbar">
@@ -259,7 +260,13 @@ export function ComposerSendControl({
         )
       }
     >
-      <Button aria-label={showStop ? c.stop : c.send} className={PRIMARY_ICON_BTN} disabled={disabled || !canSubmit} type="submit">
+      <Button
+        aria-label={showStop ? c.stop : c.send}
+        className={PRIMARY_ICON_BTN}
+        disabled={disabled || !canSubmit}
+        onClick={() => recordAction(showStop ? 'composer.cancel' : 'composer.send', 'click')}
+        type="submit"
+      >
         {showStop ? (
           <span className="block size-2.5 rounded-[0.1875rem] bg-current" />
         ) : (

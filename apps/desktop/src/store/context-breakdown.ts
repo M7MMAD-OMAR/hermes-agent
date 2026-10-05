@@ -23,7 +23,7 @@ const EMPTY: ContextBreakdownEntry = { breakdown: null, loading: false }
  */
 export const $contextBreakdownBySession = atom<Record<string, ContextBreakdownEntry>>({})
 
-const inFlight = new Map<string, Promise<void>>()
+const inFlight = new Map<string, { promise: Promise<boolean>; token: symbol }>()
 
 function patch(sessionId: string, entry: Partial<ContextBreakdownEntry>): void {
   const current = $contextBreakdownBySession.get()
@@ -47,38 +47,86 @@ export function contextBreakdownFor(
   return (sessionId && bySession[sessionId]) || EMPTY
 }
 
-export async function refreshContextBreakdown(sessionId: string, request: GatewayRequest): Promise<void> {
+/** A breakdown the backend computed from a live agent carries a real
+ *  context_max (the compressor's context_length). Zero means the
+ *  `agent is None` branch answered from empty metadata: not data. */
+export function isZeroedBreakdown(breakdown: ContextBreakdown): boolean {
+  return !(breakdown.context_max > 0)
+}
+
+/** Drop a session's cached numbers, e.g. when a turn starts (the idle snapshot
+ *  is stale from then on) or when retries are exhausted (a dark gauge is
+ *  honest; stale numbers are not). */
+export function evictContextBreakdown(sessionId: string): void {
+  const current = $contextBreakdownBySession.get()
+
+  if (current[sessionId]?.breakdown) {
+    $contextBreakdownBySession.set({ ...current, [sessionId]: { ...current[sessionId], breakdown: null } })
+  }
+}
+
+/** Fetch and cache a session's breakdown. Resolves true when the backend
+ *  answered with trustworthy numbers (cached), false on a failure or a zeroed
+ *  answer (not cached; the previous numbers are left for the caller to evict).
+ *
+ *  Concurrent callers share one request per session. `force` starts a new one
+ *  even if a request is in flight, for callers that know the transcript just
+ *  changed (compression), so a pre-change answer cannot satisfy them. */
+export async function refreshContextBreakdown(
+  sessionId: string,
+  request: GatewayRequest,
+  { force = false }: { force?: boolean } = {}
+): Promise<boolean> {
   const pending = inFlight.get(sessionId)
 
-  if (pending) {
-    return pending
+  if (pending && !force) {
+    return pending.promise
   }
 
   patch(sessionId, { loading: true })
 
-  const run = (async () => {
+  // Identifies this request; a later forced request replaces it, and then this
+  // one's answer is stale and must not touch the entry.
+  const token = Symbol(sessionId)
+  const slot = { promise: Promise.resolve(false), token }
+  const owns = () => inFlight.get(sessionId)?.token === token
+
+  // Registered before the request starts so every branch below can ask `owns()`.
+  inFlight.set(sessionId, slot)
+
+  slot.promise = (async () => {
     try {
       const breakdown = await request<ContextBreakdown>('session.context_breakdown', { session_id: sessionId })
 
-      if (breakdown) {
+      if (!owns()) {
+        return false
+      }
+
+      if (breakdown && !isZeroedBreakdown(breakdown)) {
         patch(sessionId, { breakdown, loading: false })
 
-        return
+        return true
       }
 
       patch(sessionId, { loading: false })
+
+      return false
     } catch {
-      // Transient socket loss — the next turn end or session switch retries.
-      // Keep the previous numbers rather than blanking the gauge.
-      patch(sessionId, { loading: false })
+      // Transient socket loss: keep the previous numbers rather than blanking
+      // the gauge; the caller decides whether to retry or evict.
+      if (owns()) {
+        patch(sessionId, { loading: false })
+      }
+
+      return false
     } finally {
-      inFlight.delete(sessionId)
+      if (owns()) {
+        inFlight.delete(sessionId)
+      }
     }
   })()
 
-  inFlight.set(sessionId, run)
-
-  return run
+  return slot.promise
 }
 
 /** Test seam — module state outlives any single component. */

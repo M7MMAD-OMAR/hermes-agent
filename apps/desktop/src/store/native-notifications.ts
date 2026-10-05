@@ -5,6 +5,7 @@ import { type HermesOpenTarget, resolveHermesOpenPath } from '@/lib/hermes-open-
 import { playNotificationSound } from '@/lib/notification-sound'
 import { persistString, storedString } from '@/lib/storage'
 
+import { recordFeatureToggle } from './desktop-metrics'
 import { $gateway } from './gateway'
 import { durableChatId, recordInboxEntry } from './notification-inbox'
 import { withinNativeNotifyBaseline } from './notify-baseline'
@@ -95,11 +96,13 @@ function writePrefs(next: NativeNotificationPrefs) {
 }
 
 export function setNativeNotifyEnabled(enabled: boolean) {
+  recordFeatureToggle('native_notifications', $nativeNotifyPrefs.get().enabled, enabled)
   writePrefs({ ...$nativeNotifyPrefs.get(), enabled })
 }
 
 export function setNativeNotifyKind(kind: NativeNotificationKind, on: boolean) {
   const prev = $nativeNotifyPrefs.get()
+  recordFeatureToggle('notification_kind', prev.kinds[kind], on)
   writePrefs({ ...prev, kinds: { ...prev.kinds, [kind]: on } })
 }
 

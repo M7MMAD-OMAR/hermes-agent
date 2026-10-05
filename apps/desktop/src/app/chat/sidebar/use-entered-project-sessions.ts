@@ -1,3 +1,4 @@
+import { replaceEqualDeep } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { fetchProjectSessions } from '@/store/projects'
@@ -32,6 +33,12 @@ export function useEnteredProjectSessions(
 
   const retry = useCallback(() => setRetryToken(token => token + 1), [])
   useEnteredProjectRefresh(projectId ?? null, ready, retry)
+
+  // Refetch when the entered project's own overview node changes, not on every
+  // tree refresh: each `projects.project_sessions` call hydrates the whole tree
+  // on the backend, which takes seconds over a remote gateway (#77591). The
+  // tree keeps unchanged nodes by reference, so this is stable across no-ops.
+  const enteredNode = projectId ? treeRevision.find(node => node.id === projectId) : undefined
 
   // Automatic attempts spent on the current (project, scope, manual retry).
   // NOT effect-local: the effect also re-runs on every project-tree refresh,
@@ -90,7 +97,8 @@ export function useEnteredProjectSessions(
           }
 
           if (next.status === 'ok') {
-            setProject(next.project)
+            // An unchanged answer keeps its reference, so the lanes don't rebuild.
+            setProject(current => replaceEqualDeep(current, next.project))
             spendAttempt(0)
 
             return
@@ -135,7 +143,9 @@ export function useEnteredProjectSessions(
         window.clearTimeout(timer)
       }
     }
-  }, [projectId, ready, treeRevision, scope, retryToken])
+  }, [projectId, ready, enteredNode, scope, retryToken])
 
-  return { project, failed, loading, retry }
+  // A background refetch keeps painting the rows it has; only a drill-in with
+  // nothing loaded yet reports loading (the sidebar shows skeletons for it).
+  return { project, failed, loading: loading && !project, retry }
 }

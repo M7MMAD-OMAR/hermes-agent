@@ -1,10 +1,16 @@
-export { DEFAULT_TRANSLATIONS, loadTranslations, translationsFor } from './catalog'
+export {
+  BUNDLED_LOCALES,
+  DEFAULT_TRANSLATIONS,
+  isBundledLocale,
+  loadTranslations,
+  TRANSLATIONS,
+  translationsFor
+} from './catalog'
 export {
   getConfigDisplayLanguage,
   type I18nConfigClient,
   type I18nContextValue,
   I18nProvider,
-  LOCALE_META,
   useDirection,
   useI18n,
   withConfigDisplayLanguage
@@ -13,10 +19,14 @@ export {
   DEFAULT_LOCALE,
   type Direction,
   isLocale,
+  isRtlLocale,
   isSupportedLocaleValue,
+  type LanguageOption,
+  languageOptions,
   LOCALE_OPTIONS,
   localeConfigValue,
   localeDirection,
+  localeMeta,
   normalizeLocale
 } from './languages'
 export { LocalizedTabTitle } from './localized-tab-title'
@@ -31,5 +41,14 @@ export {
   translatePlugin,
   usePluginI18n
 } from './plugin-i18n'
-export { setRuntimeI18nLocale, translateNow } from './runtime'
-export type { Locale, ToolTitleKey, Translations } from './types'
+export {
+  $appLocaleVersion,
+  type AppLocaleRegistration,
+  type AppLocaleSource,
+  isRegisteredLocale,
+  registerAppLocale,
+  resolveTranslations,
+  unregisterAppLocaleSource
+} from './registry'
+export { runtimeTranslations, setRuntimeI18nLocale, translateNow } from './runtime'
+export type { BundledLocale, Locale, ToolTitleKey, Translations } from './types'

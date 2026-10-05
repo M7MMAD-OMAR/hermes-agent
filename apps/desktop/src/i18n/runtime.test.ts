@@ -73,19 +73,19 @@ describe('desktop i18n runtime translator', () => {
 
 // Own module registry: the suite above warms every locale in `beforeAll`, and
 // the whole point here is the window BEFORE a locale's chunk has landed.
-describe('desktop i18n runtime translator, before a locale chunk loads', () => {
+describe('desktop i18n runtime translator, with statically bundled catalogs', () => {
   beforeEach(() => {
     vi.resetModules()
   })
 
-  it('renders English rather than raw keys while the chunk is in flight', async () => {
+  it('translates at once, since every bundled catalog is statically imported', async () => {
     const runtime = await import('./runtime')
 
     runtime.setRuntimeI18nLocale('ja')
 
-    // Japanese has not been fetched in this module registry, so the active
-    // arm of translateFrom misses and the DEFAULT arm answers.
-    expect(runtime.translateNow('boot.ready')).toBe(en.boot.ready)
+    // No chunk to wait for: the catalog is compiled in, so the active arm hits.
+    expect(runtime.translateNow('boot.ready')).not.toBe(en.boot.ready)
+    expect(runtime.translateNow('common.save')).toBe('保存')
   })
 
   it('serves the real translation once the chunk lands', async () => {

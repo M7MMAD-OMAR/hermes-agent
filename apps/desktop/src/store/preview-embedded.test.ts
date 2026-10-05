@@ -25,6 +25,7 @@ import {
   setEmbeddedBrowserSession,
   toggleEmbeddedBrowser
 } from './preview'
+import { $activeSessionId } from './session'
 
 function fileTarget(source: string): PreviewTarget {
   return { kind: 'file', label: source, path: source, previewKind: 'html', source, url: `file://${source}` }
@@ -338,6 +339,9 @@ describe('embedded browser store', () => {
   })
 
   it('closing a tab inside the embedded panel fronts a sibling, not a dead id', () => {
+    // The drawer shows a runtime's pending tabs only while that runtime is on
+    // screen (#73890), so the neighbour is looked up among those.
+    $activeSessionId.set('sess-1')
     toggleEmbeddedBrowser('sess-1')
     const first = browserTabs($previewTabs.get())[0].id
     newBrowserTab('sess-1')

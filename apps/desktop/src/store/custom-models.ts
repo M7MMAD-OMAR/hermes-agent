@@ -6,8 +6,10 @@ import { normalize } from '@/lib/text'
 
 import {
   $visibleModelsByScope,
+  defaultVisibleKeys,
   emptyProviderSentinelKey,
   modelVisibilityKey,
+  resetModelVisibility,
   resolveVisibleKeys,
   setVisibleModels,
   visibleModelsForScope
@@ -147,6 +149,26 @@ export function addCustomModel(provider: string, model: string, row?: ModelOptio
   next.delete(emptyProviderSentinelKey(provider))
   next.add(modelVisibilityKey(provider, slug))
   setVisibleModels(scope, next, merged)
+}
+
+/** Edit Models' "Reset to defaults". A custom id sits after the catalog, so on
+ *  a featured-shortlist row or past the top-N the bare default rule would bring
+ *  it back hidden. Only a provider holding such an id is curated again, the way
+ *  adding the id curated it; every other provider returns to the live defaults.
+ *  `scope` is the shortlist being reset (all of them when omitted, in which
+ *  case the customs are only remembered, not re-added to a shortlist). */
+export function resetModelVisibilityKeepingCustoms(providers: readonly ModelOptionProvider[], scope?: string): void {
+  resetModelVisibility(scope)
+
+  const defaults = defaultVisibleKeys(providers)
+
+  for (const { model, provider } of $customModels.get()) {
+    const row = providers.find(candidate => candidate.slug === provider)
+
+    if (row && !defaults.has(modelVisibilityKey(provider, model))) {
+      addCustomModel(provider, model, row, scope)
+    }
+  }
 }
 
 export function removeCustomModel(provider: string, model: string): void {

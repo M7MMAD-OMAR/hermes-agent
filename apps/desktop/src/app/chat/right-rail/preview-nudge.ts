@@ -15,14 +15,15 @@
  */
 
 import type { WatchStage } from '@/lib/preview-act/watch-in-page'
+import type { PreviewOwner } from '@/store/preview-ownership'
 
 import { agentPreviewScriptRunner } from './preview-script-runner'
 
 /** Run one stage against the AGENT's pane overlay, if it has one. The overlay
  *  narrates the agent, so it belongs to the tab the agent acts on — not to
  *  whichever tab you happen to be looking at. */
-export function nudgeOverlay(stage: WatchStage, sessionId: null | string): void {
-  const run = agentPreviewScriptRunner(sessionId)
+export function nudgeOverlay(stage: WatchStage, owner?: PreviewOwner): void {
+  const run = agentPreviewScriptRunner(owner)
 
   if (!run) {
     return

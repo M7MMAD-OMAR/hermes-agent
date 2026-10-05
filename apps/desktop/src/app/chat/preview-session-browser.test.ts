@@ -21,6 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { $hiddenTreePanes } from '@/components/pane-shell/tree/store'
 import { $browserSessionId, $dockedPreviewTabs, $previewTabs, closeRightRail, openPreview } from '@/store/preview'
+import { $selectedStoredSessionId } from '@/store/session'
 
 const A = 'runtime-a'
 const B = 'runtime-b'
@@ -29,10 +30,8 @@ const B = 'runtime-b'
  *  turns on exactly this. */
 const onScreen = vi.hoisted(() => ({ ids: new Set<string>() }))
 
-const storedFocus = vi.hoisted(() => ({ id: null as null | string }))
-
-vi.mock('@/store/session-states', () => ({
-  $focusedStoredSessionId: { get: () => storedFocus.id },
+vi.mock('@/store/session-states', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   runtimeHasOpenSurface: (id: null | string) => Boolean(id && onScreen.ids.has(id))
 }))
 
@@ -64,7 +63,7 @@ beforeEach(() => {
   $hiddenTreePanes.set(new Set())
   $browserSessionId.set(null)
   onScreen.ids = new Set([A, B])
-  storedFocus.id = null
+  $selectedStoredSessionId.set(null)
 })
 
 describe('per-conversation browser', () => {
@@ -161,11 +160,11 @@ describe('per-conversation browser', () => {
     $previewTabs.set($previewTabs.get().map(tab => ({ ...tab, agent: true, owner: undefined, ownerKey: 'stored-a' })))
 
     $browserSessionId.set(B)
-    storedFocus.id = 'stored-b'
+    $selectedStoredSessionId.set('stored-b')
     expect(shown()).toEqual([])
 
     $browserSessionId.set(A)
-    storedFocus.id = 'stored-a'
+    $selectedStoredSessionId.set('stored-a')
     expect(shown()).toEqual(['https://a-side.com'])
   })
 })

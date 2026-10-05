@@ -4,17 +4,18 @@
  * registry.
  *
  * A live browser pane registers its webview's `executeJavaScript` here, keyed
- * by tab id; `activePreviewScriptRunner` resolves the ACTIVE tab from the
- * store. Both guest-page features ride it — the tour tool (preview-tour.ts)
+ * by tab id; `activePreviewScriptRunner` resolves the ACTIVE tab among the
+ * requesting session's tabs. Both guest-page features ride it — the tour tool (preview-tour.ts)
  * and the interaction tool (preview-act.ts) — so their heavy payloads stay out
  * of the pane component's static import graph and only load when used.
  */
 
-import { $rightRailActiveTabId } from '@/store/layout'
-import { $previewTabs, agentPreviewTabId } from '@/store/preview'
+import type { PreviewOwner } from '@/store/preview-ownership'
 
 import type { CaptureFormat } from '../../../../electron/preview-capture'
 import type { PreviewUploadResult } from '../../../../electron/preview-upload'
+
+import { activePreviewTabFor, agentPreviewTabFor } from './preview-active-tab'
 
 /** Runs JS source in the pane's guest page, resolving its completion value. */
 export type PreviewScriptRunner = (code: string) => Promise<unknown>
@@ -33,15 +34,17 @@ export function registerPreviewScriptRunner(tabId: string, runner: PreviewScript
 }
 
 /** The AGENT's tab's script runner — where its engine and handle book live. */
-export function agentPreviewScriptRunner(sessionId: null | string): PreviewScriptRunner | null {
-  const id = agentPreviewTabId(sessionId)
+export function agentPreviewScriptRunner(owner?: PreviewOwner): PreviewScriptRunner | null {
+  const id = agentPreviewTabFor(owner)
 
   return (id && runners.get(id)) || null
 }
 
-/** The ACTIVE preview tab's script runner. Null = no live page behind it. */
-export function activePreviewScriptRunner(): PreviewScriptRunner | null {
-  return activeFor(runners)
+/** The script runner of the ACTIVE tab among those `owner` (the requesting
+ *  session's stored id; omitted = the focused session) may see. Null = no live
+ *  page behind it. */
+export function activePreviewScriptRunner(owner?: PreviewOwner): PreviewScriptRunner | null {
+  return activeFor(runners, owner)
 }
 
 /**
@@ -62,9 +65,8 @@ export type PreviewCapture = (
 
 const captures = new Map<string, PreviewCapture>()
 
-function activeFor<T>(book: Map<string, T>): null | T {
-  const tabs = $previewTabs.get()
-  const tab = tabs.find(t => t.id === $rightRailActiveTabId.get()) ?? tabs[0]
+function activeFor<T>(book: Map<string, T>, owner?: PreviewOwner): null | T {
+  const tab = activePreviewTabFor(owner)
 
   return (tab && book.get(tab.id)) || null
 }
@@ -81,14 +83,14 @@ export function registerPreviewCapture(tabId: string, capture: PreviewCapture): 
 }
 
 /** The ACTIVE preview tab's capture. Null = nothing to photograph. */
-export function activePreviewCapture(): null | PreviewCapture {
-  return activeFor(captures)
+export function activePreviewCapture(owner?: PreviewOwner): null | PreviewCapture {
+  return activeFor(captures, owner)
 }
 
 /** The AGENT's tab's capture, so `look` photographs the page the agent is
  *  driving rather than whichever tab the reader happens to be looking at. */
-export function agentPreviewCapture(sessionId: null | string): null | PreviewCapture {
-  const id = agentPreviewTabId(sessionId)
+export function agentPreviewCapture(owner?: PreviewOwner): null | PreviewCapture {
+  const id = agentPreviewTabFor(owner)
 
   return (id && captures.get(id)) || null
 }
@@ -115,8 +117,8 @@ export function registerPreviewUpload(tabId: string, upload: PreviewUpload): () 
 }
 
 /** The AGENT's tab's upload door. Null = no live page behind it. */
-export function agentPreviewUpload(sessionId: null | string): null | PreviewUpload {
-  const id = agentPreviewTabId(sessionId)
+export function agentPreviewUpload(owner?: PreviewOwner): null | PreviewUpload {
+  const id = agentPreviewTabFor(owner)
 
   return (id && uploads.get(id)) || null
 }

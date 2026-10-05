@@ -1,22 +1,23 @@
 import { applyDocumentLocale, isRecord } from '@hermes/shared/i18n'
+import { useStore } from '@nanostores/react'
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getHermesConfigRecord, type HermesConfigRecord, retainConfigReadOrigin, saveHermesConfig } from '@/hermes'
 
-import { DEFAULT_TRANSLATIONS, loadTranslations, translationsFor } from './catalog'
+import { TRANSLATIONS } from './catalog'
 import {
   DEFAULT_LOCALE,
   type Direction,
+  isRtlLocale,
   isSupportedLocaleValue,
   localeConfigValue,
   localeDirection,
   normalizeLocale,
   resolveInitialLocale
 } from './languages'
-import { setRuntimeI18nLocale } from './runtime'
+import { $appLocaleVersion, normalizeLocaleId, resolveTranslations } from './registry'
+import { $requestedLocale, setRuntimeI18nLocale } from './runtime'
 import type { Locale, Translations } from './types'
-
-export { LOCALE_META } from './languages'
 
 export interface I18nConfigClient {
   getConfig: () => Promise<HermesConfigRecord>
@@ -85,7 +86,7 @@ const I18nContext = createContext<I18nContextValue>({
   locale: DEFAULT_LOCALE,
   saveError: null,
   setLocale: async () => {},
-  t: DEFAULT_TRANSLATIONS
+  t: TRANSLATIONS[DEFAULT_LOCALE]
 })
 
 export interface I18nProviderProps {
@@ -111,75 +112,44 @@ export function I18nProvider({
   // An explicit pick beats a late read in its own scope, not in other profiles.
   const userLocaleRef = useRef(false)
   const scopeGenerationRef = useRef(0)
+  // Registered languages (plugin packs, backend `.desktop.yaml`) change the
+  // catalog without a locale change; the version keys re-resolution.
+  const registryVersion = useStore($appLocaleVersion)
+  // The language THIS scope's config asked for (what $requestedLocale was last
+  // set to from here). A ref, not the atom: another provider's or an earlier
+  // scope's ask must never be promoted into this one.
+  const requestedRef = useRef<null | string>(null)
 
-  // Non-English message trees are separate chunks (see catalog.ts), so the
-  // tree for a locale can arrive an import after the locale itself is chosen.
-  // Locale and messages are therefore held TOGETHER: `dir`/`lang` and the copy
-  // on screen must never disagree.
-  //
-  // Splitting them is a real bug in RTL, not a cosmetic one. `ar` sets
-  // `dir="rtl"`; if direction followed `locale` while the copy waited on the
-  // chunk, the whole layout would mirror around English text and then swap
-  // again — a visible flip, not the invisible late-text swap LTR locales get.
-  //
-  // `applied` therefore only advances once a tree is in hand. Until then the
-  // previous locale keeps rendering, so a switch reads as one transition
-  // rather than a bounce through English.
-  // An already-loaded tree resolves DURING render, not in an effect. English
-  // is always loaded, so falling back to it (a failed config read, an
-  // unsupported `display.language`) stays a single synchronous commit — going
-  // through state there would leave one frame of the previous language on
-  // screen after the app had already decided on English.
-  //
-  // State only carries trees that arrive asynchronously; once `loadTranslations`
-  // caches one, `translationsFor` sees it on the very next render and this
-  // fallback stops being consulted.
-  const [asyncLoaded, setAsyncLoaded] = useState<{ locale: Locale; messages: Translations }>(() => ({
-    locale: DEFAULT_LOCALE,
-    messages: DEFAULT_TRANSLATIONS
-  }))
-
-  const readyMessages = translationsFor(locale)
-  const applied = readyMessages ? { locale, messages: readyMessages } : asyncLoaded
-
-  useEffect(() => {
-    if (translationsFor(locale)) {
-      return
-    }
-
-    let cancelled = false
-
-    void loadTranslations(locale).then(loadedMessages => {
-      if (!cancelled && loadedMessages) {
-        setAsyncLoaded({ locale, messages: loadedMessages })
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [locale])
-
-  // Document direction follows `applied`, not `locale`, for the reason above.
-  // `runtimeLocale` too: translateNow resolves against the loaded catalog, so
-  // pointing it at a locale whose chunk has not landed would just return
-  // English while the surrounding UI already claimed that locale.
-  useEffect(() => {
-    setRuntimeI18nLocale(applied.locale)
-    applyDocumentLocale(applied.locale)
-  }, [applied.locale])
-
-  // The rollback target in `setLocale` is the user's SELECTION, so this ref
-  // tracks `locale` — not `applied.locale`, which may still be a tick behind.
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {
     localeRef.current = locale
-  }, [locale])
+    setRuntimeI18nLocale(locale)
+    applyDocumentLocale(locale, isRtlLocale(locale))
+  }, [locale, registryVersion])
+
+  // A saved `display.language` the app could not render at read time (`pl`
+  // before its pack arrived) is parked in $requestedLocale; the moment a
+  // registration makes it renderable, promote it — unless the user has since
+  // picked something else in this scope.
+  useEffect(() => {
+    const requested = requestedRef.current
+
+    if (!requested || userLocaleRef.current || !isSupportedLocaleValue(requested)) {
+      return
+    }
+
+    const next = normalizeLocale(requested)
+
+    if (next !== localeRef.current) {
+      setLocaleState(next)
+    }
+  }, [registryVersion])
 
   // eslint-disable-next-line no-restricted-syntax -- scope-local request generation and user intent, not an atom mirror
   useEffect(() => {
     scopeGenerationRef.current += 1
     userLocaleRef.current = false
+    requestedRef.current = null
     setSaveError(null)
     setIsSavingLocale(false)
 
@@ -212,6 +182,11 @@ export function I18nProvider({
           }
 
           const saved = getConfigDisplayLanguage(config)
+
+          // Publish the raw ask even when it names a language only a pack
+          // can render; the backend-pack sync fetches that pack by this id.
+          requestedRef.current = typeof saved === 'string' && saved.trim() ? normalizeLocaleId(saved) : null
+          $requestedLocale.set(requestedRef.current)
 
           // A saved choice needs no machine probe and always takes precedence.
           if (isSupportedLocaleValue(saved)) {
@@ -270,6 +245,8 @@ export function I18nProvider({
       userLocaleRef.current = true
       setSaveError(null)
       setLocaleState(next)
+      requestedRef.current = next
+      $requestedLocale.set(next)
 
       if (!configClient) {
         return
@@ -312,9 +289,12 @@ export function I18nProvider({
       locale,
       saveError,
       setLocale,
-      t: applied.messages
+      t: resolveTranslations(locale)
     }),
-    [applied.messages, configLoadError, isLoadingConfig, isSavingLocale, locale, saveError, setLocale]
+    // `registryVersion` is the registry's change token: a pack landing after
+    // first paint re-resolves `t` without a locale change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [configLoadError, isLoadingConfig, isSavingLocale, locale, registryVersion, saveError, setLocale]
   )
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
@@ -327,8 +307,7 @@ export function useI18n(): I18nContextValue {
 /** The direction the interface reads in.
  *
  *  Chrome only. A viewer showing a document has two directions to keep apart:
- *  this one, which belongs to the app's language, and the document's own,
- *  which belongs to whoever wrote the file. Asking this hook for a document's
+ *  the interface's and the document's. Reading this for the document's
  *  direction is the bug it exists to prevent. */
 export function useDirection(): Direction {
   return localeDirection(useContext(I18nContext).locale)

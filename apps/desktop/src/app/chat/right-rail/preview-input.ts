@@ -25,8 +25,9 @@
  * lib/preview-viewport.ts).
  */
 
-import { $rightRailActiveTabId } from '@/store/layout'
-import { $previewTabs, agentPreviewTabId } from '@/store/preview'
+import type { PreviewOwner } from '@/store/preview-ownership'
+
+import { activePreviewTabFor, agentPreviewTabFor } from './preview-active-tab'
 
 /** The subset of Electron's input events the agent needs to drive a page. */
 export type PreviewInputEvent =
@@ -67,16 +68,17 @@ export function registerPreviewInput(tabId: string, handle: PreviewInputHandle):
 /** The AGENT's tab's input channel — its own, so real Chromium input never
  *  lands on the page you are reading. Null = nothing real to drive, and the
  *  caller falls back to synthesizing events inside the page. */
-export function agentPreviewInput(sessionId: null | string): PreviewInputHandle | null {
-  const id = agentPreviewTabId(sessionId)
+export function agentPreviewInput(owner?: PreviewOwner): PreviewInputHandle | null {
+  const id = agentPreviewTabFor(owner)
 
   return (id && handles.get(id)) || null
 }
 
-/** The ACTIVE preview tab's input channel. */
-export function activePreviewInput(): PreviewInputHandle | null {
-  const tabs = $previewTabs.get()
-  const tab = tabs.find(t => t.id === $rightRailActiveTabId.get()) ?? tabs[0]
+/** The ACTIVE preview tab's input channel among those `owner` (omitted = the
+ *  focused session) may see. Null = nothing real to drive, and the caller
+ *  falls back to synthesizing events inside the page. */
+export function activePreviewInput(owner?: PreviewOwner): PreviewInputHandle | null {
+  const tab = activePreviewTabFor(owner)
 
   return (tab && handles.get(tab.id)) || null
 }

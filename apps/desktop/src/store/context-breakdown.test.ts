@@ -66,6 +66,26 @@ describe('refreshContextBreakdown', () => {
     expect(request).toHaveBeenCalledTimes(2)
   })
 
+  it('does not cache a zeroed breakdown and reports it as untrusted', async () => {
+    const zeroed = { ...breakdown, context_max: 0 }
+
+    await expect(refreshContextBreakdown('s1', vi.fn().mockResolvedValue(zeroed))).resolves.toBe(false)
+    expect(contextBreakdownFor('s1').breakdown).toBeNull()
+  })
+
+  it('lets a forced refresh supersede a request already in flight', async () => {
+    let resolveStale: (value: typeof breakdown) => void = () => undefined
+    const stale = vi.fn().mockReturnValue(new Promise<typeof breakdown>(resolve => (resolveStale = resolve)))
+    const fresh = vi.fn().mockResolvedValue({ ...breakdown, context_used: 7 })
+
+    const first = refreshContextBreakdown('s1', stale)
+    await refreshContextBreakdown('s1', fresh, { force: true })
+    resolveStale({ ...breakdown, context_used: 999 })
+    await first
+
+    expect(contextBreakdownFor('s1').breakdown?.context_used).toBe(7)
+  })
+
   it('reports nothing for a session it has never seen', () => {
     expect(contextBreakdownFor(null)).toEqual({ breakdown: null, loading: false })
     expect($contextBreakdownBySession.get()).toEqual({})

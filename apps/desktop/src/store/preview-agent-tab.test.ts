@@ -23,6 +23,7 @@ import {
   openBrowserTab,
   openPreview
 } from './preview'
+import { $activeSessionId } from './session'
 
 /** What the persisted tab list actually looks like on disk — the encoder is
  *  where ownership is dropped, so a plain JSON.stringify would not see it. */
@@ -52,6 +53,10 @@ const agentOpen = (
 beforeEach(() => {
   closeRightRail()
   $browserSessionId.set(null)
+  // Session A's runtime is the one on screen. Tabs are scoped to the runtime
+  // that opened them until a stored id binds (#73890), so the drawer only
+  // shows A's pending tabs while A is the active runtime.
+  $activeSessionId.set(A)
 })
 
 describe('agent browser tabs', () => {

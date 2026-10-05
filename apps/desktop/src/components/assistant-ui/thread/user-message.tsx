@@ -1,10 +1,14 @@
 import { ActionBarPrimitive, BranchPickerPrimitive, MessagePrimitive, useAuiState } from '@assistant-ui/react'
 import { type FC, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
+import { DirectiveContent } from '@/components/assistant-ui/directive-text'
+import { isAttachmentRef } from '@/components/assistant-ui/reference-kinds'
 import { messageAttachmentRefs, messageContentText } from '@/components/assistant-ui/thread/content'
 import { MessageAttachments } from '@/components/assistant-ui/thread/message-attachments'
+import { MessageHoverTime } from '@/components/assistant-ui/thread/message-hover-time'
 import { ReactionBadge, ReactionPicker } from '@/components/assistant-ui/thread/message-reactions'
 import { BackgroundResult } from '@/components/assistant-ui/thread/system-message'
+import { threadUserOrdinal } from '@/components/assistant-ui/thread/thread-message-index'
 import { MessageTimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
 import { type RestoreMessageTarget } from '@/components/assistant-ui/thread/types'
 import { useMessageReactions } from '@/components/assistant-ui/thread/use-message-reactions'
@@ -289,23 +293,7 @@ export const UserMessage: FC<{
     return null
   })
 
-  const runtimeUserOrdinal = useAuiState(s => {
-    let ordinal = 0
-
-    for (const message of s.thread.messages) {
-      if (message.role !== 'user') {
-        continue
-      }
-
-      if (message.id === s.message.id) {
-        return ordinal
-      }
-
-      ordinal += 1
-    }
-
-    return null
-  })
+  const runtimeUserOrdinal = useAuiState(s => threadUserOrdinal(s.thread.messages, s.message.id))
 
   const attachmentRefs = useAuiState(s => {
     const custom = (s.message.metadata?.custom ?? {}) as { attachmentRefs?: unknown }
@@ -419,6 +407,7 @@ export const UserMessage: FC<{
   }
 
   const hasBody = messageText.trim().length > 0
+  const chipOnlyTurn = !hasBody && attachmentRefs.length > 0 && attachmentRefs.every(isAttachmentRef)
   const isLatestUser = messageId === latestUserId
   const showStop = !readOnly && isLatestUser && threadRunning && Boolean(onCancel)
   // Restore (re-run this exact prompt) is available everywhere the Stop button
@@ -441,7 +430,7 @@ export const UserMessage: FC<{
     'hover:bg-(--ui-chat-bubble-opaque-background)'
   )
 
-  const bubbleContent = hasBody && (
+  const bubbleContent = hasBody ? (
     // Render the user's text through a minimal markdown pipeline:
     // backtick `code` and ``` fenced ``` blocks, with directive chips
     // (`@file:` etc.) still resolved inside the plain-text spans.
@@ -456,6 +445,15 @@ export const UserMessage: FC<{
         <UserMessageText className="wrap-anywhere" text={messageText} />
       </div>
     </div>
+  ) : (
+    // A file-only turn (a bare large paste, a dropped file) has no prose, so
+    // its chips ARE the prompt: they fill the bubble rather than leaving it
+    // empty above a detached row. Images keep their thumbnail row below.
+    chipOnlyTurn && (
+      <div className="flex min-h-[1.25rem] flex-wrap gap-1">
+        <DirectiveContent text={attachmentRefs.join(' ')} />
+      </div>
+    )
   )
 
   return (
@@ -466,9 +464,11 @@ export const UserMessage: FC<{
           // scroll away behind the pinned bubble instead of riding along with
           // it. Each one is a tile carrying its format: what the user attached
           // is a block of things, not a reference written mid-sentence, which
-          // is the only thing `DirectiveContent` renders well.
-          attachmentRefs.length > 0 ? (
-            <div className="-mt-3 mb-2">
+          // is the only thing `DirectiveContent` renders well. No negative
+          // margin: -mt-* pulls the row up into the sticky box, where the
+          // sticky-prompt clip hides its top even at rest.
+          attachmentRefs.length > 0 && !chipOnlyTurn ? (
+            <div className="mb-2">
               <MessageAttachments refs={attachmentRefs} />
             </div>
           ) : null
@@ -558,47 +558,48 @@ export const UserMessage: FC<{
                     </button>
                   </ActionBarPrimitive.Edit>
                 )}
-                {(showStop || showRestore) && (
-                  <div className="pointer-events-none absolute end-2 bottom-2 z-10 flex items-center justify-center opacity-0 transition-opacity group-hover/user-message:opacity-100 group-focus-within/user-message:opacity-100">
-                    {showStop ? (
+                {/* Hover cluster, bottom-right: when it was sent, then Stop or
+                    Restore. Its fill masks the last line's tail while shown. */}
+                <div className="pointer-events-none absolute end-2 bottom-2 z-10 flex items-center gap-1 rounded-md bg-(--dt-user-bubble) ps-1 opacity-0 transition-opacity group-hover/user-message:opacity-100 group-hover/user-message:transition-none group-focus-within/user-message:opacity-100">
+                  <MessageHoverTime className={cn(!showStop && !showRestore && 'pe-0.5')} />
+                  {showStop ? (
+                    <button
+                      aria-label={copy.stop}
+                      className={cn('pointer-events-auto size-5', USER_ACTION_ICON_BUTTON_CLASS)}
+                      onClick={event => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        void onCancel?.()
+                      }}
+                      type="button"
+                    >
+                      {StopGlyph}
+                    </button>
+                  ) : showRestore ? (
+                    <Tip label={copy.restoreFromHere}>
                       <button
-                        aria-label={copy.stop}
-                        className={cn('pointer-events-auto size-5', USER_ACTION_ICON_BUTTON_CLASS)}
+                        aria-label={copy.restoreCheckpoint}
+                        className={cn('pointer-events-auto size-6', USER_ACTION_ICON_BUTTON_CLASS)}
                         onClick={event => {
                           event.preventDefault()
                           event.stopPropagation()
-                          void onCancel?.()
+                          triggerHaptic('selection')
+                          onRequestRestoreConfirm?.(messageId, {
+                            text: messageText,
+                            userOrdinal: runtimeUserOrdinal
+                          })
+                        }}
+                        onPointerDown={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
                         }}
                         type="button"
                       >
-                        {StopGlyph}
+                        <Codicon name="discard" size="0.875rem" />
                       </button>
-                    ) : (
-                      <Tip label={copy.restoreFromHere}>
-                        <button
-                          aria-label={copy.restoreCheckpoint}
-                          className={cn('pointer-events-auto size-6', USER_ACTION_ICON_BUTTON_CLASS)}
-                          onClick={event => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            triggerHaptic('selection')
-                            onRequestRestoreConfirm?.(messageId, {
-                              text: messageText,
-                              userOrdinal: runtimeUserOrdinal
-                            })
-                          }}
-                          onPointerDown={event => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                          }}
-                          type="button"
-                        >
-                          <Codicon name="discard" size="0.875rem" />
-                        </button>
-                      </Tip>
-                    )}
-                  </div>
-                )}
+                    </Tip>
+                  ) : null}
+                </div>
               </div>
             </ReactionPicker>
             {/* Below the bubble, same register as the assistant action row:

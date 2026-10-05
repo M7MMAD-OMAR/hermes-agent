@@ -16,6 +16,7 @@ import { findGroup } from '@/components/pane-shell/tree/model'
 import {
   $activeTreeGroup,
   $layoutTree,
+  closeTabPane,
   revealTreePane,
   setTreePaneHidden,
   treePanesWithPrefix
@@ -30,18 +31,24 @@ import {
   $browserPages,
   $browserSessionId,
   $dockedPreviewTabs,
+  $dockedVisiblePreviewTabs,
   $embeddedBrowserSessions,
   $previewTabs,
+  $visiblePreviewTabs,
   adoptPersistedBrowserTab,
   type BrowserPage,
   closeRightRailTab,
   markBrowserTabPopped,
   newBrowserTab,
   popOutBrowserTab,
+  preferredVisibleTabId,
   previewTabBelongsToSession,
-  type PreviewTarget
+  type PreviewTarget,
+  setPreviewTabPinned
 } from '@/store/preview'
-import { $focusedStoredSessionId, runtimeHasOpenSurface } from '@/store/session-states'
+import { explicitOpenBlocksZone, PREVIEW_TILE_PREFIX } from '@/store/preview-explicit'
+import { $focusedStoredSessionId } from '@/store/session-focus'
+import { runtimeHasOpenSurface } from '@/store/session-states'
 import { canOpenBrowserWindow } from '@/store/windows'
 
 import { paneMirror } from './pane-mirror'
@@ -95,6 +102,35 @@ function browserTabMenuPrefix(tabId: string) {
       })}
     </>
   )
+}
+
+/** Pin/unpin for EVERY preview tab's zone menu: pinned tabs are the explicit
+ *  cross-session workspace, everything else belongs to the session that
+ *  opened it (#73890). URL tabs keep their browser rows below it. */
+function previewTabMenuPrefix(tabId: string) {
+  const browserRows = browserTabMenuPrefix(tabId)
+
+  // Pin state is read when the menu renders and again on select, never at
+  // registration: the mirror keeps a same-title registration (and so this
+  // closure) for the tab's whole life, so a captured flag goes stale after the
+  // first toggle and the row keeps offering — and re-applying — the same pin.
+  const isPinned = () => Boolean($previewTabs.get().find(tab => tab.id === tabId)?.pinned)
+
+  return (kit: MenuKit) => {
+    const pinned = isPinned()
+
+    return (
+      <>
+        {renderActionItem(kit, {
+          icon: pinned ? 'pinned' : 'pin',
+          key: 'pin',
+          label: translateNow(pinned ? 'preview.unpin' : 'preview.pin'),
+          onSelect: () => setPreviewTabPinned(tabId, !isPinned())
+        })}
+        {browserRows?.(kit) ?? null}
+      </>
+    )
+  }
 }
 
 /** Tab title. A URL tab is titled by the CONTRIBUTION as the surface — see
@@ -182,8 +218,6 @@ function PreviewTabLead({ tabId }: { tabId: string }) {
   return <FileTypeIcon className="opacity-70" path={target.path || target.url} size="0.6875rem" />
 }
 
-const PREVIEW_TILE_PREFIX = 'preview-tile'
-
 const previewPaneId = (tabId: string) => `${PREVIEW_TILE_PREFIX}:${tabId}`
 
 /** The pane a NEW preview tile should stack into: another preview tile already
@@ -198,7 +232,7 @@ function existingPreviewAnchor(tabId: string): string | undefined {
     return inTree
   }
 
-  const other = $dockedPreviewTabs.get().find(tab => tab.id !== tabId)
+  const other = $dockedVisiblePreviewTabs.get().find(tab => tab.id !== tabId)
 
   return other ? previewPaneId(other.id) : undefined
 }
@@ -272,7 +306,27 @@ export function watchPreviewTiles(): void {
   }
 
   $rightRailActiveTabId.listen(reveal)
-  $previewTabs.listen(reveal)
+  // One listener for the visible list: re-home the selection FIRST (a session
+  // switch or an unpin can leave the active tab outside the visible set, and
+  // a stale reveal of a just-hidden tab is a no-op — its pane left the tree),
+  // THEN reveal the tab the re-home left active. Registered after the mirror,
+  // so the pane set is already synced when this runs.
+  $visiblePreviewTabs.listen(() => {
+    rehome()
+    reveal()
+  })
+
+  // A session switch (or an unpin) can leave the active tab outside the
+  // visible set — re-home the selection onto the tab that session last had in
+  // front (else its first) so the strip and the pane never point at a hidden
+  // preview.
+  const rehome = () => {
+    const preferred = preferredVisibleTabId()
+
+    if (preferred !== $rightRailActiveTabId.get()) {
+      selectRightRailTab(preferred)
+    }
+  }
 
   // And the reverse: clicking a preview TAB activates its pane in the TREE
   // only, so the store's selection must follow or `$previewTarget` (⌘L quote
@@ -283,6 +337,18 @@ export function watchPreviewTiles(): void {
   const follow = () => {
     const tree = $layoutTree.get()
     const groupId = $activeTreeGroup.get()
+
+    // Do not copy this zone over an explicit open that lives in a different
+    // group. A focus change after that open lifts the guard.
+    if (
+      explicitOpenBlocksZone(
+        groupId,
+        $previewTabs.get().map(tab => tab.id)
+      )
+    ) {
+      return
+    }
+
     const active = groupId && tree ? findGroup(tree, groupId)?.active : undefined
 
     if (!active?.startsWith(`${PREVIEW_TILE_PREFIX}:`)) {
@@ -300,12 +366,40 @@ export function watchPreviewTiles(): void {
   $activeTreeGroup.listen(follow)
 }
 
+/** A page (live Browser guest or rendered HTML) whose body must survive
+ *  being out of view; a text peek is cheap to re-render. */
+function keepsLiveBody(tabId: string): boolean {
+  const target = targetFor(tabId)
+
+  return target?.kind === 'url' || target?.previewKind === 'html'
+}
+
+/** Hidden sessions' live pages kept mounted at once. WHY a cap: every kept
+ *  Browser is a whole renderer process (plus its page's memory) that keeps
+ *  running while its session is off screen. Eight covers flipping between
+ *  the handful of chats a user is actually working in; past that the
+ *  longest-hidden one is unmounted and reloads from its saved address when
+ *  its session returns (the tab itself is never closed). */
+const HIDDEN_LIVE_PREVIEW_LIMIT = 8
+
+/** A tab whose session left the screen keeps its live body when it is a page
+ *  still docked in this profile's rail. A popped-out Browser (its window owns
+ *  that guest) and one hosted by a chat column's own panel are not docked, and
+ *  keeping a second guest mounted for them would run the page twice. */
+const retainHiddenPreview = (tabId: string) =>
+  keepsLiveBody(tabId) && $dockedPreviewTabs.get().some(tab => tab.id === tabId)
+
 const watchPreviewTileMirror = paneMirror<{ id: string }>({
-  source: $dockedPreviewTabs,
-  // Unscoped on purpose. `$previewTabs` is one global Browser/file surface —
-  // clicking a link in a bot chat must open the same pane Sessions already
-  // shows. Scoping this to `sessions` filtered the pane out of Bot Mode, so
-  // `openPreview` ran and the click looked like a no-op.
+  // Only the FOCUSED session's tabs (plus pins) are in the tree: switching
+  // sessions swaps the drawer without closing any tab (#73890). A hidden
+  // session's live page leaves the tree but stays mounted (hidden, inert) so
+  // returning to that session shows the same guest, not a reload, which is
+  // what keeps another chat's agent from losing its page mid-task.
+  // `syncBrowserSessionPanes` additionally hides the panes of other
+  // conversations' browsers that are still in the tree.
+  source: $dockedVisiblePreviewTabs,
+  retain: retainHiddenPreview,
+  retainLimit: HIDDEN_LIVE_PREVIEW_LIMIT,
   key: tab => tab.id,
   prefix: PREVIEW_TILE_PREFIX,
   // The FIRST preview still opens its own zone docked beside main (identical
@@ -322,12 +416,13 @@ const watchPreviewTileMirror = paneMirror<{ id: string }>({
   // A Browser is a vessel, so there can be more of it — a file peek is one of
   // a kind and leaves the strip's "+" to whatever else the zone holds.
   newTab: tabId => (targetFor(tabId)?.kind === 'url' ? newBrowserTab : undefined),
-  tabMenuPrefix: browserTabMenuPrefix,
-  lifecycleKeepAlive: tabId => {
-    const target = targetFor(tabId)
-
-    return target?.kind === 'url' || target?.previewKind === 'html'
-  },
-  render: tabId => <PreviewTilePane tabId={tabId} />,
+  // Pin/unpin rides the zone tab menu for every preview tab: pinned tabs are
+  // the explicit cross-session workspace, everything else belongs to the
+  // session that opened it (#73890).
+  tabMenuPrefix: previewTabMenuPrefix,
+  lifecycleKeepAlive: keepsLiveBody,
+  // The body's own Close (an error state's way out) is the tab's ✕, verbatim.
+  render: tabId => <PreviewTilePane onClose={() => closeTabPane(previewPaneId(tabId))} tabId={tabId} />,
+  // The store's `closeRightRailTab` forgets the page and the console.
   close: tabId => closeRightRailTab(tabId)
 })

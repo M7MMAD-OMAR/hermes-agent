@@ -41,6 +41,9 @@ import { deliverPrompt, deliverPromptLocally } from './prompt-delivery'
 const chip = { detail: '[]', id: 'pins:x', kind: 'pins' as const, label: '1 comment', refText: '1 preview comment' }
 
 beforeEach(() => {
+  // The queue builds each write on the persisted copy, so the atom alone is not
+  // a reset.
+  window.localStorage.removeItem('hermes.desktop.composerQueue.v1')
   $composerAttachments.set([])
   $queuedPromptsBySession.set({})
   setPinBook({})

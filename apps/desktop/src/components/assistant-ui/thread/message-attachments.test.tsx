@@ -118,12 +118,13 @@ describe('attachments on a sent message', () => {
 // So these start from `optimisticAttachmentRef` rather than from a literal:
 // the test now breaks if EITHER side of that contract moves again.
 describe('a picture the composer has just sent', () => {
+  // Pasted bytes have no path. A picture that DOES have one travels as
+  // `@image:<path>` (upstream's live-equals-reload design), so only the
+  // path-less form still rides as the bounded `data:` thumbnail.
   const pasted: ComposerAttachment = {
-    id: 'image:/home/me/shot.png',
+    id: 'image:pasted-1',
     kind: 'image',
     label: 'shot.png',
-    detail: '/home/me/shot.png',
-    path: '/home/me/shot.png',
     thumbnailUrl: 'data:image/png;base64,AAA'
   }
 

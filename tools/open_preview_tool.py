@@ -6,7 +6,10 @@ the normalizer + open action. Emits ``preview.open`` via ``desktop_ui``: the ren
 the pane for the window that asked and never steals focus for a background session.
 """
 
+import os
 import re
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from tools import desktop_ui
 from tools.registry import tool_error
@@ -28,6 +31,42 @@ def _normalize_target(raw: str) -> str:
     return v
 
 
+def _local_fs_path(target: str) -> Path | None:
+    """Return a filesystem path for local targets; None for http(s) URLs."""
+    raw = (target or "").strip()
+    if not raw:
+        return None
+    if "://" in raw:
+        parsed = urlparse(raw)
+        if parsed.scheme.lower() != "file":
+            return None
+        path = unquote(parsed.path or "")
+        if parsed.netloc and parsed.netloc not in {"", "localhost"}:
+            path = f"//{parsed.netloc}{path}"
+        elif (
+            os.name == "nt"
+            and len(path) >= 3
+            and path[0] == "/"
+            and path[2] == ":"
+        ):
+            path = path[1:]
+        return Path(path) if path else None
+    return Path(raw).expanduser()
+
+
+def _is_existing_directory(target: str) -> bool:
+    path = _local_fs_path(target)
+    if path is None:
+        return False
+    try:
+        return path.is_dir()
+    except OSError:
+        # Stat failed (permissions, broken reparse, etc.). Do not treat that
+        # as "this is a directory" — reject only when we positively observe
+        # an existing directory. The renderer still sees the original target.
+        return False
+
+
 def open_preview_tool(url: str, label: str = "", new_tab: bool = False) -> str:
     """Ask the desktop GUI to show ``url`` in the preview pane beside the chat."""
     target = _normalize_target(url or "")
@@ -35,6 +74,12 @@ def open_preview_tool(url: str, label: str = "", new_tab: bool = False) -> str:
         return tool_error(
             "url is required — a web URL (https://…), a localhost dev server, or a "
             "file path to show in the preview pane.")
+    if _is_existing_directory(target):
+        return tool_error(
+            "directories are not previewable — pass a file path or a URL. "
+            f"{target} is a directory."
+        )
+
     label = (label or "").strip()
     # `new_tab` is local: one conversation holding two pages side by side is
     # what the agent's own browser is for, so it rides through the payload and
@@ -45,86 +90,3 @@ def open_preview_tool(url: str, label: str = "", new_tab: bool = False) -> str:
         "Failed to open the preview pane: ",
         "The preview pane is only available in the Hermes desktop app.",
         {"success": True, "url": target, "label": label, "new_tab": bool(new_tab)})
-
-# ---- BEGIN PLUGIN-COMPAT (revert-scheduled; see COMPAT_MANIFEST.md) ----
-# Names external plugins imported from this module before the Sep 2026 decomposition.
-# Internal code MUST NOT use these (scripts/check_compat_pointers.py fails CI if it does).
-# The whole block is removed by reverting the commit that added it.
-import json  # noqa: F401,E402
-
-OPEN_PREVIEW_SCHEMA = {
-    "name": "open_preview",
-    "description": (
-        "Open a page in the in-app browser beside this chat — YOUR browser in "
-        "the Hermes desktop app, not just a viewer for the user. Reach for it "
-        "whenever a web page would answer the question or finish the job: "
-        "checking your own work on a dev server, reading documentation, "
-        "verifying a fix rendered, following a link the user pasted. You do "
-        "not need to be asked to open it; if you would benefit from looking at "
-        "a page, open one. Of course also use it when the user asks to see "
-        "something — \"open cnn.com\", \"preview localhost:3000\". "
-        "Accepts a web URL (a bare domain like www.cnn.com is fine), a "
-        "localhost dev-server URL, or a file path (HTML renders live; other "
-        "files show their contents). "
-        "You get your OWN browser tab: opening a page never replaces the tab "
-        "the user is reading, and you keep the same tab as you work, so open "
-        "once and then move around with drive_preview action='navigate'. "
-        "Then read_preview reads the page (including its console errors) and "
-        "drive_preview clicks, types and navigates in it. "
-        "Prefer this over the browser_* tools whenever the user could "
-        "reasonably want to watch, or the page is theirs (a local dev server, "
-        "an app they are building): this pane is visible to them and costs no "
-        "extra browser process. The browser_* tools are for bulk, headless or "
-        "background automation that nobody needs to see. "
-        "The pane opens for the current window only. To close the pane or a "
-        "tab, use close_preview."
-    ),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "url": {
-                "type": "string",
-                "description": (
-                    "What to preview: a web URL (https://… or a bare domain), a "
-                    "localhost URL (localhost:3000), or a file path."
-                ),
-            },
-            "label": {
-                "type": "string",
-                "description": "Optional tab label; defaults to the target's name.",
-            },
-            "new_tab": {
-                "type": "boolean",
-                "description": (
-                    "Open in an ADDITIONAL browser tab instead of the one you are "
-                    "already using. Only for when you need two pages side by side "
-                    "— comparing them, or keeping a reference open while you work. "
-                    "Leave it off otherwise: re-using your tab is what keeps the "
-                    "user's tab strip readable."
-                ),
-            },
-        },
-        "required": ["url"],
-    },
-}
-
-
-# Registration removed: consolidated into the `desktop_preview` tool (#95681);
-# this module keeps its functions for preview_tool. `new_tab` is local and
-# rides along there — a second tab is how one conversation holds two pages.
-
-
-_PLUGIN_COMPAT_LAZY = {
-    'registry': ('tools.registry', 'registry'),
-}
-
-
-def __getattr__(name):  # PEP 562 — lazy so no import cycles
-    target = _PLUGIN_COMPAT_LAZY.get(name)
-    if target is None:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    import importlib
-    from hermes_cli.plugin_compat import warn_once
-    warn_once(__name__, name, *target)
-    return getattr(importlib.import_module(target[0]), target[1])
-# ---- END PLUGIN-COMPAT ----

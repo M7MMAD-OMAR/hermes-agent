@@ -25,9 +25,17 @@ import { $sessionTiles } from '@/store/session-states'
  *  module mock on the engine's own specifier would not intercept. */
 const navigate = vi.fn()
 
-vi.mock('@/app/chat/right-rail/preview-nav', () => ({
-  agentPreviewNav: () => ({ back: vi.fn(), forward: vi.fn(), navigate, reload: vi.fn() })
-}))
+vi.mock('@/app/chat/right-rail/preview-nav', async importOriginal => {
+  const handle = () => ({ back: vi.fn(), forward: vi.fn(), navigate, reload: vi.fn() })
+
+  return {
+    ...(await importOriginal<Record<string, unknown>>()),
+    // A live surface in this window: with none, the handler forwards the action
+    // to a popped-out Browser window instead of running it here.
+    activePreviewNav: handle,
+    agentPreviewNav: handle
+  }
+})
 
 const request = vi.fn(async () => undefined)
 
@@ -43,6 +51,7 @@ const { createClientSessionState } = await import('@/lib/chat-runtime')
 const deps = {
   activeSessionIdRef: { current: null },
   sessionInterrupted: () => false,
+  sessionStateByRuntimeIdRef: { current: new Map() },
   updateSessionState: (_sessionId: string, update: (s: never) => never) =>
     update(createClientSessionState('stored-session') as never),
   upsertToolCall: () => undefined

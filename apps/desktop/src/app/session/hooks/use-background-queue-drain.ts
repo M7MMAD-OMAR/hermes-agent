@@ -13,14 +13,25 @@ import {
   hasExhaustedDrain,
   MAX_AUTO_DRAIN_ATTEMPTS,
   noteDrainFailure,
+  noteQueuedPromptDrainFailure,
   noteQueueStuck,
   type QueuedPromptEntry,
   queueStuckNoticeId,
   recoverQueuedPrompts,
-  shouldAutoDrain
+  resolveQueuedPromptTransport,
+  shouldAutoDrain,
+  withQueueDrainClaim
 } from '@/store/composer-queue'
 import { notify } from '@/store/notifications'
-import { $sessions, $sessionsLoading, idsShareLineage, sessionMatchesStoredId } from '@/store/session'
+import {
+  $sessionProfilesTruncated,
+  $sessions,
+  $sessionsLoadError,
+  $sessionsLoading,
+  getSessionOwnerHints,
+  idsShareLineage,
+  sessionMatchesStoredId
+} from '@/store/session'
 import { $sessionStates, $workingSessionIds } from '@/store/session-states'
 
 import type { SubmitTextOptions } from './use-prompt-actions/utils'
@@ -120,7 +131,13 @@ export function useBackgroundQueueDrain({
       drainingSessionIdsRef.current.add(sessionKey)
 
       const onFail = () => {
-        const failures = noteDrainFailure(entry.id)
+        // Two budgets, the larger wins. The module count (noteDrainFailure)
+        // survives a remount of this hook; the count on the entry itself is
+        // persisted with the queue, so a restart does not replay four more
+        // rejections against a session exactly as dead as when the process
+        // exited (#98015).
+        const failures = Math.max(noteDrainFailure(entry.id), (entry.drainFailures ?? 0) + 1)
+        noteQueuedPromptDrainFailure(sessionKey, entry.id)
 
         if (failures < MAX_AUTO_DRAIN_ATTEMPTS) {
           scheduleRetry(failures)
@@ -128,33 +145,39 @@ export function useBackgroundQueueDrain({
           return
         }
 
-        // Classify only now, after four real failures, rather than gating the
+        // Classify only now, after the budget is spent, rather than gating the
         // drain on it: the sessions list loads asynchronously, so an early
         // "this chat does not exist" read would condemn perfectly live queues.
         const sessions = $sessions.get()
 
         // A live runtime is proof the chat exists, whatever the sessions
         // list says. A brand-new chat's first message is not flushed to
-        // SessionDB yet, so listSessions(min_messages=1) omits it — and
+        // SessionDB yet, so listSessions(min_messages=1) omits it, and
         // resolveComposerSessionKey (session.ts) falls back to the raw
         // RUNTIME id when no row matches, which is then the queue's key.
-        // The orphan test below is that same failed lookup, so a queue
-        // parked in a fresh chat used to be condemned as gone-forever every
-        // time (the browser-comment Queue failure). $sessionStates is keyed
-        // by runtime id, so it answers the question the sessions list can't.
+        // $sessionStates is keyed by runtime id, so it answers the question
+        // the sessions list can't.
         const runtimeAlive = Boolean($sessionStates.get()[sessionKey])
 
-        const orphaned =
-          !runtimeAlive
-          && sessions.length > 0
-          && !sessions.some(session => sessionMatchesStoredId(session, sessionKey))
+        // "Maybe" must never mean gone. The plural owner-hint accessor keeps
+        // "no route" apart from "two or more routes" (a cloud gateway plus a
+        // local backend), and a session that fell off the loaded page
+        // ($sessionProfilesTruncated) or a failed list load is unknown, not
+        // absent. Owner hints count: a hidden bot chat never occupies the
+        // recents list, yet its queue is exactly the one worth preserving.
+        const sessionKnown =
+          runtimeAlive ||
+          sessions.some(session => sessionMatchesStoredId(session, sessionKey)) ||
+          getSessionOwnerHints(sessionKey).length > 0
 
+        const listIncomplete = $sessionsLoadError.get() || Object.values($sessionProfilesTruncated.get()).some(Boolean)
+        const orphaned = !sessionKnown && !listIncomplete && sessions.length > 0
         const pending = getQueuedPrompts(sessionKey)
 
         noteQueueStuck(sessionKey, entry.id)
 
         if (orphaned) {
-          // Nothing will ever deliver these — the chat they were queued in is
+          // Nothing will ever deliver these: the chat they were queued in is
           // gone, and no panel renders them either, so they are invisible as
           // well as undeliverable. Hand the words back instead of retrying.
           notify({
@@ -178,6 +201,10 @@ export function useBackgroundQueueDrain({
           return
         }
 
+        // The conversation still exists, the runtime just would not come back
+        // (backend restarting, resume refusing). The entry stays: it is real
+        // data the user can still send from the queue panel, and a manual send
+        // clears the retry budget.
         const title = sessions.find(session => sessionMatchesStoredId(session, sessionKey))
 
         notify({
@@ -196,38 +223,56 @@ export function useBackgroundQueueDrain({
         })
       }
 
-      void Promise.resolve()
-        .then(async () => {
-          const liveEntry = getQueuedPrompts(sessionKey).find(candidate => candidate.id === entry.id)
+      void withQueueDrainClaim(sessionKey, async queue => {
+        const liveEntry = queue.find(candidate => candidate.id === entry.id)
 
-          if (!liveEntry) {
-            return true
+        if (!liveEntry) {
+          return true
+        }
+
+        const resolved = resolveQueuedPromptTransport(liveEntry)
+
+        if (!resolved.ok) {
+          notify({
+            kind: 'warning',
+            title: t.composer.terminalSelectionMissingTitle,
+            message: t.composer.queuedTerminalSelectionExpiredBody
+          })
+
+          // Retrying cannot bring the selection back: spend the whole budget.
+          for (let attempt = 0; attempt < MAX_AUTO_DRAIN_ATTEMPTS; attempt += 1) {
+            noteDrainFailure(liveEntry.id)
           }
-
-          const runtimeSessionId = runtimeIdByStoredSessionIdRef.current.get(sessionKey) ?? null
-
-          const accepted = await Promise.resolve(
-            submitTextRef.current(liveEntry.text, {
-              attachments: liveEntry.attachments,
-              fromQueue: true,
-              sessionId: runtimeSessionId,
-              storedSessionId: sessionKey
-            })
-          )
-
-          if (accepted === false) {
-            return false
-          }
-
-          clearDrainFailure(liveEntry.id)
-          // Honours a send-this-one-only: the user picked this entry alone
-          // before switching away, so the rest of their queue must not follow
-          // it out just because the chat went offscreen.
-          completeQueuedDrain(sessionKey, liveEntry.id, false)
-          resetBrowseState(runtimeSessionId)
 
           return true
-        })
+        }
+
+        const runtimeSessionId = runtimeIdByStoredSessionIdRef.current.get(sessionKey) ?? null
+
+        const accepted = await Promise.resolve(
+          submitTextRef.current(resolved.transportText, {
+            attachments: liveEntry.attachments,
+            ...(resolved.displayText ? { displayText: resolved.displayText } : {}),
+            fromQueue: true,
+            sessionId: runtimeSessionId,
+            storedSessionId: sessionKey
+          })
+        )
+
+        if (accepted === false) {
+          return false
+        }
+
+        clearDrainFailure(liveEntry.id)
+        // Honours a send-this-one-only: the user picked this entry alone
+        // before switching away, so the rest of their queue must not follow
+        // it out just because the chat went offscreen. Submit owns blob:
+        // previews after a successful drain handoff.
+        completeQueuedDrain(sessionKey, liveEntry.id, false)
+        resetBrowseState(runtimeSessionId)
+
+        return true
+      })
         .then(accepted => {
           if (!accepted) {
             onFail()
@@ -275,7 +320,7 @@ export function useBackgroundQueueDrain({
 
       const entry = entries[0]
 
-      if (!entry || hasExhaustedDrain(entry.id)) {
+      if (!entry || hasExhaustedDrain(entry.id) || (entry.drainFailures ?? 0) >= MAX_AUTO_DRAIN_ATTEMPTS) {
         continue
       }
 

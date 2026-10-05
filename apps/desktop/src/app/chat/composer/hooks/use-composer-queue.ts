@@ -2,14 +2,16 @@ import { useStore } from '@nanostores/react'
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useI18n } from '@/i18n'
+import { isSlashCommandText } from '@/lib/chat-runtime'
 import { triggerHaptic } from '@/lib/haptics'
 import { useSessionSlice } from '@/lib/use-session-slice'
-import { type ComposerAttachment } from '@/store/composer'
+import { type ComposerAttachment, freezeComposerTransportPayload } from '@/store/composer'
 import { resetBrowseState } from '@/store/composer-input-history'
 import {
   $parkedQueueSessions,
   $queuedPromptsBySession,
   clearDrainFailure,
+  clearQueuedPromptDrainFailures,
   completeQueuedDrain,
   enqueueQueuedPrompt,
   getQueuedPrompts,
@@ -24,11 +26,13 @@ import {
   type QueuedPromptEntry,
   queueStuckNoticeId,
   removeQueuedPrompt,
+  resolveQueuedPromptTransport,
   resolveQueueStuck,
   setHoldAfterDrain,
   shouldAutoDrain,
   unparkQueuedPrompts,
-  updateQueuedPrompt
+  updateQueuedPrompt,
+  withQueueDrainClaim
 } from '@/store/composer-queue'
 import { notify } from '@/store/notifications'
 import { $sessionsLoading } from '@/store/session'
@@ -36,6 +40,43 @@ import { $sessionsLoading } from '@/store/session'
 import { cloneAttachments, type QueueEditState } from '../composer-utils'
 import { useComposerScope } from '../scope'
 import type { ChatBarProps } from '../types'
+
+/** Freeze terminal chips for queue persistence. Persists the chip/display
+ *  form; fenced selection CONTENTS stay in the runtime map. Returns null when
+ *  a chip has no selection payload (caller should abort without mutating the queue). */
+function freezeQueuedDraftText(
+  text: string,
+  copy: {
+    terminalSelectionMissingTitle: string
+    terminalSelectionMissingBody: string
+  }
+): null | { text: string; displayText?: string; frozenTransport?: string } {
+  const trimmed = text.trim()
+
+  if (!trimmed) {
+    return { text }
+  }
+
+  const frozen = freezeComposerTransportPayload(trimmed)
+
+  if (frozen.missingLabels.length > 0) {
+    notify({
+      kind: 'warning',
+      title: copy.terminalSelectionMissingTitle,
+      message: copy.terminalSelectionMissingBody
+    })
+
+    return null
+  }
+
+  const hasTerminalTransport = frozen.displayText !== frozen.transportText
+
+  return {
+    // Persist chips (or ordinary text). Never persist fenced selection contents.
+    text: frozen.displayText,
+    ...(hasTerminalTransport ? { displayText: frozen.displayText, frozenTransport: frozen.transportText } : {})
+  }
+}
 
 interface UseComposerQueueArgs {
   activeQueueSessionKey: string | null
@@ -142,9 +183,19 @@ export function useComposerQueue({
       return index >= 0 // at the oldest: swallow; missing entry: let it fall through
     }
 
+    const frozen = draftRef.current.trim()
+      ? freezeQueuedDraftText(draftRef.current, t.composer)
+      : { text: draftRef.current }
+
+    if (!frozen) {
+      return true
+    }
+
     const saved = updateQueuedPrompt(queueEdit.sessionKey, queueEdit.entryId, {
       attachments: cloneAttachments(attachments),
-      text: draftRef.current
+      text: frozen.text,
+      displayText: frozen.displayText ?? null,
+      frozenTransport: frozen.frozenTransport ?? null
     })
 
     const next = queuedPrompts[target]
@@ -176,7 +227,32 @@ export function useComposerQueue({
         return false
       }
 
-      const saved = updateQueuedPrompt(queueEdit.sessionKey, queueEdit.entryId, { attachments: next, text })
+      // Editing a queued entry into a slash-command + attachment combo would
+      // produce an undrainable entry (submitText rejects it on every attempt).
+      // Refuse the save so the queue can never hold an entry that livelocks.
+      if (isSlashCommandText(text) && next.length) {
+        notify({
+          kind: 'warning',
+          title: t.desktop.slashCommandIgnoredTitle,
+          message: t.desktop.slashCommandIgnoredBody
+        })
+
+        return false
+      }
+
+      const frozen = text.trim() ? freezeQueuedDraftText(text, t.composer) : { text }
+
+      if (!frozen) {
+        return false
+      }
+
+      const saved = updateQueuedPrompt(queueEdit.sessionKey, queueEdit.entryId, {
+        attachments: next,
+        text: frozen.text,
+        displayText: frozen.displayText ?? null,
+        frozenTransport: frozen.frozenTransport ?? null
+      })
+
       triggerHaptic(saved ? 'success' : 'selection')
     } else {
       triggerHaptic('cancel')
@@ -196,19 +272,52 @@ export function useComposerQueue({
       return false
     }
 
-    if (!enqueueQueuedPrompt(activeQueueSessionKey, { text, attachments })) {
+    // Slash commands cannot ride alongside attachments — the drain path would
+    // reject the entry on every attempt (submitText warns + returns false) and
+    // the queue would livelock. Refuse to enqueue it in the first place.
+    if (isSlashCommandText(text) && attachments.length) {
+      notify({
+        kind: 'warning',
+        title: t.desktop.slashCommandIgnoredTitle,
+        message: t.desktop.slashCommandIgnoredBody
+      })
+
+      return false
+    }
+
+    // Freeze `@terminal:` chips at enqueue. Persist the chip form; keep the
+    // fenced selection in the runtime map so drain never re-resolves the live
+    // label map and localStorage never stores terminal CONTENTS (#77078).
+    const frozen = text.trim() ? freezeQueuedDraftText(text, t.composer) : { text }
+
+    if (!frozen) {
+      return false
+    }
+
+    if (
+      !enqueueQueuedPrompt(activeQueueSessionKey, {
+        text: frozen.text,
+        attachments,
+        ...(frozen.displayText ? { displayText: frozen.displayText } : {}),
+        ...(frozen.frozenTransport ? { frozenTransport: frozen.frozenTransport } : {})
+      })
+    ) {
       return false
     }
 
     clearDraft()
-    scope.attachments.clear()
+    // Queue entry retains blob: previews; revoke when the entry is discarded
+    // or drained into a submit that takes ownership (see composer-queue).
+    scope.attachments.clear({ retainPreviewUrls: true })
     triggerHaptic('selection')
 
     return true
-  }, [activeQueueSessionKey, attachments, clearDraft, draftRef, scope.attachments])
+  }, [activeQueueSessionKey, attachments, clearDraft, draftRef, scope.attachments, t.composer])
 
   // All queue drain paths share one lock + send-then-remove sequence.
-  // `pickEntry` lets each caller choose head, by-id, or skip-edited.
+  // `pickEntry` lets each caller choose head, by-id, or skip-edited, from the
+  // queue as it stands inside the cross-window claim. Resolves null when there
+  // is nothing to send: another window already sent the picked entry.
   // `intent` says what the send MEANS for the entries left behind: 'resume'
   // lets the queue keep flowing, 'hold' parks what remains because the user
   // picked exactly one entry.
@@ -216,61 +325,96 @@ export function useComposerQueue({
     async (
       pickEntry: (entries: QueuedPromptEntry[]) => QueuedPromptEntry | undefined,
       intent: 'hold' | 'resume' = 'resume'
-    ): Promise<boolean> => {
+    ): Promise<boolean | null> => {
       if (drainingQueueRef.current || !activeQueueSessionKey) {
         return false
       }
 
       const drainQueueSessionKey = activeQueueSessionKey
       const drainRuntimeSessionId = sessionId ?? null
-      const entry = pickEntry(getQueuedPrompts(drainQueueSessionKey))
-
-      if (!entry) {
-        return false
-      }
 
       drainingQueueRef.current = true
 
+      let sent: boolean | null = null
+
       try {
-        const accepted = await Promise.resolve(
-          onSubmit(entry.text, {
-            attachments: entry.attachments,
-            ...(entry.displayText ? { displayText: entry.displayText } : {}),
-            ...(entry.displayKind ? { displayKind: entry.displayKind } : {}),
-            fromQueue: true,
-            sessionId: drainRuntimeSessionId,
-            storedSessionId: drainQueueSessionKey
-          })
-        )
+        sent = await withQueueDrainClaim(drainQueueSessionKey, async queue => {
+          const entry = pickEntry(queue)
 
-        if (accepted === false) {
-          return false
-        }
+          if (!entry) {
+            return null
+          }
 
-        clearDrainFailure(entry.id)
-        resetBrowseState(drainRuntimeSessionId)
+          const resolved = resolveQueuedPromptTransport(entry)
 
-        // A send-this-one-only set before an interrupt lands here, on the drain
-        // the settle triggers, which is why the flag lives in the store.
-        if (intent === 'hold' || isHeldAfterDrain(drainQueueSessionKey, entry.id)) {
-          completeQueuedDrain(drainQueueSessionKey, entry.id, true)
+          if (!resolved.ok) {
+            notify({
+              kind: 'warning',
+              title: t.composer.terminalSelectionMissingTitle,
+              message: t.composer.queuedTerminalSelectionExpiredBody
+            })
+
+            // Unsendable until the user edits or re-sends it: spend the whole
+            // auto-drain budget so the background retry gives up at once.
+            while (!hasExhaustedDrain(entry.id)) {
+              noteDrainFailure(entry.id)
+            }
+
+            return false
+          }
+
+          const accepted = await Promise.resolve(
+            onSubmit(resolved.transportText, {
+              attachments: entry.attachments,
+              ...(resolved.displayText ? { displayText: resolved.displayText } : {}),
+              ...(entry.displayKind ? { displayKind: entry.displayKind } : {}),
+              fromQueue: true,
+              sessionId: drainRuntimeSessionId,
+              storedSessionId: drainQueueSessionKey
+            })
+          )
+
+          if (accepted === false) {
+            return false
+          }
+
+          clearDrainFailure(entry.id)
+          // Submit now owns the blob: previews (optimistic bubble); do not revoke.
+          removeQueuedPrompt(drainQueueSessionKey, entry.id, { retainPreviewUrls: true })
+          resetBrowseState(drainRuntimeSessionId)
+
+          // A send-this-one-only set before an interrupt lands here, on the drain
+          // the settle triggers, which is why the flag lives in the store.
+          if (intent === 'hold' || isHeldAfterDrain(drainQueueSessionKey, entry.id)) {
+            completeQueuedDrain(drainQueueSessionKey, entry.id, true)
+
+            return true
+          }
+
+          completeQueuedDrain(drainQueueSessionKey, entry.id, false)
+          // A successful drain means the queue is flowing again: lift any park so
+          // the remaining entries follow. A manual resume (Enter on an empty
+          // composer) is exactly the gesture a parked queue waits for; the auto
+          // path only reaches here unparked.
+          unparkQueuedPrompts(drainQueueSessionKey)
 
           return true
-        }
+        })
 
-        completeQueuedDrain(drainQueueSessionKey, entry.id, false)
-        // A successful drain means the queue is flowing again: lift any park so
-        // the remaining entries follow. A manual resume (Enter on an empty
-        // composer) is exactly the gesture a parked queue waits for; the auto
-        // path only reaches here unparked.
-        unparkQueuedPrompts(drainQueueSessionKey)
-
-        return true
+        return sent
       } finally {
         drainingQueueRef.current = false
+
+        // The queue changed while the drain flag was still up, so the idle
+        // auto-drain effect may have seen it and stood down. Nothing else
+        // re-runs it until the next edge, which would strand the tail of a
+        // resumed queue. Failures keep their own backed-off retry timer.
+        if (sent === true) {
+          setDrainRetryTick(tick => tick + 1)
+        }
       }
     },
-    [activeQueueSessionKey, onSubmit, sessionId]
+    [activeQueueSessionKey, onSubmit, sessionId, t.composer]
   )
 
   const pickDrainHead = useCallback(
@@ -282,7 +426,7 @@ export function useComposerQueue({
     [queueEditRef] // reads the edit id off a ref so the lock-holder always sees the latest
   )
 
-  const drainNextQueued = useCallback(() => runDrain(pickDrainHead), [pickDrainHead, runDrain])
+  const drainNextQueued = useCallback(async () => (await runDrain(pickDrainHead)) === true, [pickDrainHead, runDrain])
 
   // Picking one entry out of several always means "this one, not the rest":
   // the chosen entry goes and whatever is still queued is parked. Resuming the
@@ -317,6 +461,9 @@ export function useComposerQueue({
       // leaving it on screen would describe a state that no longer holds.
       clearDrainFailure(id)
       resolveQueueStuck(activeQueueSessionKey)
+      // Same for the persisted budget the background drain keeps on the
+      // entry (#98015): a user gesture is fresh intent, not a replay.
+      clearQueuedPromptDrainFailures(activeQueueSessionKey, id)
 
       return runDrain(entries => entries.find(e => e.id === id), 'hold')
     },
@@ -341,9 +488,21 @@ export function useComposerQueue({
         return false
       }
 
+      const resolved = resolveQueuedPromptTransport(entry)
+
+      if (!resolved.ok) {
+        notify({
+          kind: 'warning',
+          title: t.composer.terminalSelectionMissingTitle,
+          message: t.composer.queuedTerminalSelectionExpiredBody
+        })
+
+        return false
+      }
+
       triggerHaptic('submit')
 
-      const accepted = await Promise.resolve(onSteer(entry.text))
+      const accepted = await Promise.resolve(onSteer(resolved.transportText))
 
       // Rejected (turn already settling, gateway said no): leave the entry
       // queued exactly where it was — the settle drain picks it up, so the
@@ -360,7 +519,41 @@ export function useComposerQueue({
 
       return true
     },
-    [activeQueueSessionKey, busy, onSteer, queueEditRef]
+    [activeQueueSessionKey, busy, onSteer, queueEditRef, t.composer]
+  )
+
+  // Double-Enter while busy. The entry usually sits in the queue because the
+  // first Enter's steer didn't land, so retry that: the words join the live
+  // turn as a bubble, with no interrupt and no settle wait. A payload a steer
+  // can't carry (attachments, hidden notes, expanded skills) or a refused
+  // steer falls back to send-now's interrupt.
+  const busyRef = useRef(busy)
+  busyRef.current = busy
+  const steeringIdsRef = useRef(new Set<string>())
+
+  const deliverQueuedNow = useCallback(
+    async (id: string) => {
+      const entry = activeQueueSessionKey ? getQueuedPrompts(activeQueueSessionKey).find(e => e.id === id) : undefined
+
+      if (!busy || !entry || entry.displayKind || entry.displayText || !isSteerableEntry(entry)) {
+        return sendQueuedNow(id)
+      }
+
+      // A repeat Enter mid-steer must not interrupt the turn about to take it.
+      if (steeringIdsRef.current.has(id)) {
+        return true
+      }
+
+      steeringIdsRef.current.add(id)
+      const steered = await steerQueuedNow(id).finally(() => steeringIdsRef.current.delete(id))
+
+      // Settled while we asked: the idle auto-drain already owns the entry.
+      return (
+        steered ||
+        (busyRef.current && getQueuedPrompts(activeQueueSessionKey!).some(e => e.id === id) && sendQueuedNow(id))
+      )
+    },
+    [activeQueueSessionKey, busy, sendQueuedNow, steerQueuedNow]
   )
 
   // Edge-independent auto-drain: send the head whenever the session is idle and
@@ -382,9 +575,11 @@ export function useComposerQueue({
     let retryTimer: ReturnType<typeof setTimeout> | undefined
 
     const attempt = () => {
-      void runDrain(() => entry)
+      // By id: inside the claim the head may already be gone (sent by another
+      // window), which is not a failed send.
+      void runDrain(entries => entries.find(e => e.id === entry.id))
         .then(sent => {
-          if (!sent) {
+          if (sent === false) {
             onFail()
           }
         })
@@ -484,6 +679,7 @@ export function useComposerQueue({
 
   return {
     beginQueuedEdit,
+    deliverQueuedNow,
     drainNextQueued,
     editingQueuedPrompt,
     exitQueuedEdit,

@@ -38,7 +38,8 @@ describe('resolveTargetSessionId', () => {
     expect(requestGateway).toHaveBeenCalledWith('session.resume', {
       session_id: STORED,
       source: 'desktop',
-      profile: 'work'
+      profile: 'work',
+      omit_messages: true
     })
   })
 
@@ -170,6 +171,7 @@ describe('a caller-named background conversation', () => {
     expect(resolved).not.toBe(FOREGROUND_RUNTIME)
     expect(createSession).not.toHaveBeenCalled()
     expect(requestGateway).toHaveBeenCalledWith('session.resume', {
+      omit_messages: true,
       session_id: BACKGROUND,
       source: 'desktop',
       profile: 'work'

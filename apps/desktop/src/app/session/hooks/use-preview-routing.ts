@@ -7,7 +7,7 @@ import { reachablePreviewUrl } from '@/lib/preview-reach'
 import {
   $previewTabs,
   beginPreviewServerRestart,
-  closeAgentPreviewTabMatching,
+  closeAgentPreview,
   closeAgentPreviewTabs,
   completePreviewServerRestart,
   openPreview,
@@ -15,8 +15,15 @@ import {
   renderedHtmlTarget,
   requestPreviewReload
 } from '@/store/preview'
+import type { PreviewOwner } from '@/store/preview-ownership'
 import { $currentCwd } from '@/store/session'
-import { $focusedRuntimeId, runtimeHasOpenSurface, storedSessionIdForRuntimeId } from '@/store/session-states'
+import { $focusedStoredSessionId } from '@/store/session-focus'
+import {
+  $focusedRuntimeId,
+  previewScopeForRuntime,
+  runtimeHasOpenSurface,
+  storedSessionIdForRuntimeId
+} from '@/store/session-states'
 
 type EventHandler = (event: GatewayEvent) => void
 
@@ -28,6 +35,21 @@ interface PreviewRoutingOptions {
 
 function asRecord(payload: unknown): Record<string, unknown> {
   return payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+}
+
+/** The stored id whose drawer an agent's preview event belongs to: the session
+ *  that ran the tool, not whichever one holds focus (#73890). A runtime with no
+ *  stored id yet is a fresh draft, whose tabs are ownerless until adopted. */
+function previewOwnerForEvent(sessionId: string | undefined): null | string {
+  return sessionId ? storedSessionIdForRuntimeId(sessionId) : $focusedStoredSessionId.get()
+}
+
+/** The full identity an agent's close acts for: its stored id, the runtime
+ *  (its pending tabs) and its profile (the only pins it may close). */
+function previewCloserForEvent(sessionId: string | undefined): PreviewOwner {
+  return sessionId
+    ? { profile: previewScopeForRuntime(sessionId), runtimeId: sessionId, sessionId: previewOwnerForEvent(sessionId) }
+    : previewOwnerForEvent(sessionId)
 }
 
 export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestGateway }: PreviewRoutingOptions) {
@@ -140,9 +162,7 @@ export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestG
           return
         }
 
-        if (closeAgentPreviewTabMatching(event.session_id || null, target)) {
-          return
-        }
+        const owner = previewCloserForEvent(event.session_id)
 
         void normalizeOrLocalPreviewTarget(target, $currentCwd.get() || currentCwd || undefined).then(
           async resolved => {
@@ -156,7 +176,7 @@ export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestG
               }
             }
 
-            closeAgentPreviewTabMatching(event.session_id || null, ...candidates)
+            closeAgentPreview(owner, candidates)
           }
         )
 

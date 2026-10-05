@@ -208,6 +208,14 @@ describe('ComposerControls queue tooltips', () => {
 
     await expectShortcutTooltip('Queue message', 'Ctrl+↵')
   })
+
+  it('hides Queue while idle even if the composer has a payload', () => {
+    renderControls({ busy: false, busyAction: 'queue', hasComposerPayload: true })
+
+    expect(screen.queryByLabelText('Queue message')).toBeNull()
+    // Send lives in the field in this fork, not in the toolbar.
+    expect(screen.queryByLabelText('Send')).toBeNull()
+  })
 })
 
 describe('wake-word ear visibility', () => {

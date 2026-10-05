@@ -2,13 +2,29 @@ import { OFFICE_PREVIEW_KIND_BY_FAMILY, officeFamilyForPath } from '@hermes/shar
 import { atom, computed, type WritableAtom } from 'nanostores'
 
 import { forgetPreviewConsole } from '@/app/chat/right-rail/preview-console-store'
+import { dismissTreePane, isPaneVisible } from '@/components/pane-shell/tree/store'
 import { previewKindForPath } from '@/lib/preview-kind'
-import { readJson, readKey, writeKey } from '@/lib/storage'
+import { readJson, writeKey } from '@/lib/storage'
 import { normalize } from '@/lib/text'
 
+import { recordFeatureUse } from './desktop-metrics'
 import { $rightRailActiveTabId, type RightRailTabId, selectRightRailTab } from './layout'
+import { clearExplicitPreviewOpen, noteExplicitPreviewOpen, PREVIEW_TILE_PREFIX } from './preview-explicit'
+import {
+  $pendingRuntimeByTab,
+  $rotatedSessionIds,
+  $selectionIsListed,
+  bucketTabsFor,
+  currentSessionId,
+  drawerShowsTab,
+  ownerIdentity,
+  type PreviewOwner,
+  setPendingRuntime
+} from './preview-ownership'
 import { normalizeProfileKey } from './profile'
-import { canOpenBrowserWindow, openBrowserInNewWindow } from './windows'
+import { $activeSessionId } from './session'
+import { $focusedSessionIsTile, $focusedStoredSessionId } from './session-focus'
+import { canOpenBrowserWindow, isBrowserWindow, openBrowserInNewWindow, windowBrowserTabId } from './windows'
 
 /**
  * PREVIEW RAIL — one list of tabs, one way in.
@@ -19,8 +35,9 @@ import { canOpenBrowserWindow, openBrowserInNewWindow } from './windows'
  * a tool result, a file-browser click, and an artifact card all travel the
  * same road and behave identically once open.
  *
- * Tabs are global and outlive the session that created them, like tabs
- * anywhere else — they close when you close them.
+ * Every tab belongs to the session that opened it (#73890): the drawer shows
+ * the focused session's tabs plus the pinned ones, and a hidden session's
+ * tabs stay alive until it comes back. Tabs close when you close them.
  */
 
 /** How an HTML file target shows: the live page, or its source. */
@@ -43,8 +60,15 @@ export interface PreviewTarget {
   language?: string
   mimeType?: string
   path?: string
-  previewKind?: 'binary' | 'html' | 'image' | 'pdf' | 'sheet' | 'slides' | 'text' | 'word'
+  /** `directory`/`missing` are typed non-previewable results from main-process
+   * normalization (#101683): they never reach `openPreview` — callers branch on
+   * them for the native folder action / not-found reporting instead. */
+  previewKind?: 'binary' | 'directory' | 'html' | 'image' | 'missing' | 'pdf' | 'sheet' | 'slides' | 'text' | 'word'
   renderMode?: PreviewRenderMode
+  /** Tombstone set when a read/watch confirmed the file is gone. The tab stays
+   *  open for the session showing an explicit "file no longer exists" state,
+   *  but is dropped at the next restore so day-2 boots stop re-probing it. */
+  missing?: boolean
   source: string
   /** Runtime-only target that cannot be restored from persisted state. */
   transient?: boolean
@@ -98,6 +122,15 @@ export interface PreviewTab {
    *  longer. */
   ownerKey?: string
   target: PreviewTarget
+  /** Stored id of the session that owns the tab. Absent on a tab opened in a
+   *  fresh draft (adopted when the draft becomes a session) and on legacy rows
+   *  written before session scoping (decodePreviewTabs migrates those to
+   *  pinned). */
+  sessionId?: string
+  /** Pinned tabs render in EVERY session — the explicit cross-session
+   *  workspace. Everything else is visible only in the session that owns it.
+   *  Always written by this build, so a missing flag marks a legacy row. */
+  pinned?: boolean
 }
 
 const TABS_STORAGE_KEY = 'hermes.desktop.previewTabs.v2'
@@ -212,16 +245,20 @@ export function decodePreviewTabs(raw: string): PreviewTab[] {
 }
 
 function parseTabList(parsed: unknown): PreviewTab[] {
-  const restored = (Array.isArray(parsed) ? parsed.filter(isPreviewTab) : []).map(tab => {
-    const repaired = withCurrentOfficeKind(withoutStrayMarkup(tab.target))
+  const restored = (Array.isArray(parsed) ? parsed.filter(isPreviewTab) : [])
+    // Drop tombstoned file tabs (a previous session confirmed the file is
+    // gone). Keeping them would re-probe a known-dead path on every boot.
+    .filter(tab => !tab.target.missing)
+    .map(tab => {
+      const repaired = withCurrentOfficeKind(withoutStrayMarkup(tab.target))
 
-    const target =
-      isPdfFileTarget(repaired) && repaired.previewKind === 'binary'
-        ? { ...repaired, previewKind: 'pdf' as const }
-        : repaired
+      const target =
+        isPdfFileTarget(repaired) && repaired.previewKind === 'binary'
+          ? { ...repaired, previewKind: 'pdf' as const }
+          : repaired
 
-    return target === tab.target ? tab : { ...tab, id: previewTabId(target), target }
-  })
+      return target === tab.target ? tab : { ...tab, id: previewTabId(target, tab.sessionId), target }
+    })
 
   // Repairing a path can land a tab on an id another tab already holds: the
   // broken `prd.docx**` and the working `prd.docx` were both open at once. A
@@ -229,7 +266,7 @@ function parseTabList(parsed: unknown): PreviewTab[] {
   // the first one wins and the duplicate is dropped.
   const seen = new Set<string>()
 
-  return restored.filter(tab => {
+  const unique = restored.filter(tab => {
     if (seen.has(tab.id)) {
       return false
     }
@@ -238,6 +275,22 @@ function parseTabList(parsed: unknown): PreviewTab[] {
 
     return true
   })
+
+  // Legacy rows (written before session scoping) have no owner and no way to
+  // recover one — keep them as workspace-pinned rather than dropping them or
+  // dumping every stale tab into one chat. Ids are kept verbatim: a Browser's
+  // minted id is how the pop-out window finds its tab (#119850).
+  //
+  // A browser tab this fork wrote carries `ownerKey` (the stored id of the
+  // conversation whose browser it is) and nothing else: that IS an owner, so it
+  // goes back to its conversation instead of being pinned into all of them.
+  return unique.map(tab =>
+    tab.sessionId !== undefined || tab.pinned !== undefined
+      ? tab
+      : tab.ownerKey
+        ? { ...tab, pinned: false, sessionId: tab.ownerKey }
+        : { ...tab, pinned: true }
+  )
 }
 
 /** The tabs a profile's rail is showing, keyed by profile. */
@@ -331,11 +384,33 @@ let viewKey = 'default'
 
 export const $previewTabs = atom<PreviewTab[]>([])
 
+// Adoption phase: emissions that carry storage THIS MODULE JUST READ, not a
+// change. nanostores' subscribe fires immediately, and writing what was just
+// read back is a data-loss clobber: every renderer boots against storage it
+// has not adopted yet, and echoing the empty view back overwrites the real
+// record before adoption can read it. A legacy single-array store is wiped
+// this way before `pendingLegacyTabs` is ever adopted; a bucket store loses
+// its `default` bucket the same way.
+let adoptingStoredTabs = true
+
 $previewTabs.subscribe(tabs => {
+  if (adoptingStoredTabs) {
+    return
+  }
+
   // `subscribe` hands a readonly view; the bucket is a mutable store of its own.
   tabsByProfile[viewKey] = [...tabs]
   persistTabs()
+  forgetGonePendingTabs()
 })
+
+// Seed the view with this renderer's own bucket. Without it the primary
+// profile's rail never restores: `viewKey` already IS 'default', so
+// `setPreviewScope` early-returns and nothing else moves the bucket into the
+// atom. Suppressed like the creation emission above — a persist here would
+// echo the just-read record back out (wiping a legacy store before adoption).
+$previewTabs.set(tabsByProfile[viewKey] ?? [])
+adoptingStoredTabs = false
 
 /** Re-home the rail onto the profile that owns the chat on screen. Called by
  *  `session-states.ts` whenever the focused session (or its resolved owner)
@@ -347,6 +422,15 @@ export function setPreviewScope(scope: string) {
     return
   }
 
+  applyPreviewScope(next)
+}
+
+/** Swap the view onto `next`'s bucket (legacy tabs ride along into it). Split
+ *  from `setPreviewScope` so `adoptPersistedBrowserTab` can force a re-home
+ *  onto the bucket a persisted tab lives in — the same-key early return above
+ *  would skip exactly that case (a fresh pop-out renderer starts on 'default'
+ *  while the popped tab belongs to another profile). */
+function applyPreviewScope(next: string) {
   if (pendingLegacyTabs) {
     tabsByProfile[next] = [...(tabsByProfile[next] ?? []), ...pendingLegacyTabs]
     pendingLegacyTabs = null
@@ -367,6 +451,8 @@ export function dropPreviewTabsForProfile(profile: string) {
 
   if (key === viewKey) {
     $previewTabs.set([])
+  } else {
+    forgetGonePendingTabs()
   }
 }
 
@@ -412,15 +498,241 @@ if (typeof window !== 'undefined') {
   }
 }
 
+/** The tabs an agent tool acting for `owner` (default: the focused session)
+ *  may read or drive: never another session's hidden tab, and never another
+ *  profile's pin. A popped-out Browser renderer answers only for the one tab
+ *  it shows (the chat window decided the requester may see it —
+ *  `previewTabIdsVisibleTo`). */
+export function previewTabsFor(owner: PreviewOwner = $focusedStoredSessionId.get()): PreviewTab[] {
+  if (isBrowserWindow()) {
+    const own = windowBrowserTabId()
+
+    return $previewTabs.get().filter(tab => tab.id === own)
+  }
+
+  return bucketTabsFor($previewTabs.get(), ownerIdentity(owner), viewKey, viewKey)
+}
+
+/** Ids of the tabs `owner` may see in ANY profile's rail, for scoping a
+ *  request to a popped-out Browser window: a background session's Browser
+ *  can be popped out while another profile is in view. Its own tabs count in
+ *  every bucket; pins only in its own profile's. */
+export function previewTabIdsVisibleTo(owner: PreviewOwner): string[] {
+  const who = ownerIdentity(owner)
+
+  const buckets: [string, readonly PreviewTab[]][] = [
+    [viewKey, $previewTabs.get()],
+    ...Object.entries(tabsByProfile).filter(([key]) => key !== viewKey)
+  ]
+
+  return buckets.flatMap(([key, tabs]) => bucketTabsFor(tabs, who, key, viewKey)).map(tab => tab.id)
+}
+
+/** Tabs the FOCUSED session sees. The layout-tree mirror renders only these,
+ *  so a session switch swaps the drawer; hidden tabs stay in `$previewTabs`.
+ *  The primary also shows the tabs its runtime opened before its stored id
+ *  arrived: the selection can name that id a beat before the runtime binds it,
+ *  and a Browser hidden in that gap would lose its page. Never under a listed
+ *  session: a resume selects it a beat before it unbinds the runtime. */
+export const $visiblePreviewTabs = computed(
+  [
+    $previewTabs,
+    $focusedStoredSessionId,
+    $rotatedSessionIds,
+    $pendingRuntimeByTab,
+    $activeSessionId,
+    $focusedSessionIsTile,
+    $selectionIsListed
+  ],
+  (tabs, sessionId, rotated, pending, activeRuntime, focusedIsTile, selectionIsListed) =>
+    tabs.filter(tab =>
+      drawerShowsTab(tab, { activeRuntime, focusedIsTile, pending, rotated, selectionIsListed, sessionId })
+    )
+)
+
+// The tab each session last had in front, so switching back to a session
+// fronts what it was showing instead of its first tab. Memory-only.
+const activeTabBySession = new Map<string, RightRailTabId>()
+
+function rememberActiveTab(sessionId: null | string, tabId: RightRailTabId | null): void {
+  const key = currentSessionId(sessionId)
+
+  if (key && tabId) {
+    activeTabBySession.set(key, tabId)
+  }
+}
+
+/** Rekey a rotated conversation's tabs onto its new stored id. Every profile
+ *  bucket, not just the view: a background tile's conversation rotates too. */
+export function rekeyPreviewTabsSession(previousId: string, nextId: string): void {
+  // Both ends resolve to their current tips first: a late or replayed event
+  // can name an id that already rotated, or point back at an older tip, and
+  // linking anything but two distinct tips would close an alias cycle.
+  const from = currentSessionId(previousId)
+  const to = currentSessionId(nextId)
+
+  if (!from || !to || from === to) {
+    return
+  }
+
+  const owned = (tab: PreviewTab) =>
+    currentSessionId(tab.sessionId) === from || (tab.ownerKey != null && currentSessionId(tab.ownerKey) === from)
+
+  // `ownerKey` is the same claim as `sessionId` in this fork's agent browser
+  // tabs, so it follows the conversation onto its new tip too.
+  const rekey = (tabs: PreviewTab[]) =>
+    tabs.some(owned)
+      ? tabs.map(tab =>
+          owned(tab) ? { ...tab, ...(tab.ownerKey == null ? {} : { ownerKey: to }), sessionId: to } : tab
+        )
+      : null
+
+  let backgroundChanged = false
+
+  for (const [key, tabs] of Object.entries(tabsByProfile)) {
+    const next = key === viewKey ? null : rekey(tabs)
+
+    if (next) {
+      tabsByProfile[key] = next
+      backgroundChanged = true
+    }
+  }
+
+  if (backgroundChanged) {
+    persistTabs()
+  }
+
+  const view = rekey($previewTabs.get())
+
+  // Only after the rekey: `owned` resolves through the map as it was.
+  $rotatedSessionIds.set(new Map([...$rotatedSessionIds.get(), [from, to]]))
+
+  if (view) {
+    $previewTabs.set(view)
+  }
+
+  const remembered = activeTabBySession.get(from)
+
+  if (remembered) {
+    activeTabBySession.set(to, remembered)
+  }
+}
+
+$rightRailActiveTabId.listen(tabId => {
+  const sessionId = $focusedStoredSessionId.get()
+
+  if (tabId && $visiblePreviewTabs.get().some(tab => tab.id === tabId)) {
+    rememberActiveTab(sessionId, tabId)
+  }
+})
+
+/** The tab the focused session's drawer should front: the current selection
+ *  when it is visible, else the one this session last had in front, else its
+ *  first tab. */
+export function preferredVisibleTabId(): RightRailTabId | null {
+  const visible = $visiblePreviewTabs.get()
+  const isVisible = (id: null | RightRailTabId | undefined) => Boolean(id && visible.some(tab => tab.id === id))
+  const active = $rightRailActiveTabId.get()
+
+  if (isVisible(active)) {
+    return active
+  }
+
+  const key = currentSessionId($focusedStoredSessionId.get())
+  const remembered = key ? activeTabBySession.get(key) : undefined
+
+  return isVisible(remembered) ? remembered! : (visible[0]?.id ?? null)
+}
+
+/** A fresh draft has no session yet, so tabs opened there are ownerless (the
+ *  drawer of every draft shows them). Called where the draft's first send
+ *  assigns its stored id — beside the composer draft's own hand-over — so the
+ *  tabs follow it into the conversation. Never on a focus change: clicking an
+ *  existing session or a side tile must leave the draft's tabs in the draft. */
+export function adoptDraftPreviewTabs(storedSessionId: string): void {
+  const pending = $pendingRuntimeByTab.get()
+  // A tab a live runtime opened before its stored id is that runtime's, not
+  // the draft's.
+  const draftOwned = (tab: PreviewTab) => tab.sessionId == null && !tab.pinned && !pending.has(tab.id)
+  const tabs = $previewTabs.get()
+
+  if (tabs.some(draftOwned)) {
+    $previewTabs.set(tabs.map(tab => (draftOwned(tab) ? { ...tab, sessionId: storedSessionId } : tab)))
+  }
+}
+
+/** Drop the runtime notes of tabs no profile bucket holds any more (closed,
+ *  pruned, or their profile dropped). */
+function forgetGonePendingTabs(): void {
+  const pending = $pendingRuntimeByTab.get()
+
+  if (pending.size === 0) {
+    return
+  }
+
+  const alive = new Set<string>(Object.values(tabsByProfile).flatMap(tabs => tabs.map(tab => tab.id)))
+
+  if ([...pending.keys()].some(id => !alive.has(id))) {
+    $pendingRuntimeByTab.set(new Map([...pending].filter(([id]) => alive.has(id))))
+  }
+}
+
+/** `runtimeId`'s stored id was just bound (its session state went from no
+ *  stored id to `storedSessionId`): the tabs it opened before then are that
+ *  session's. Called by the session-state layer at that transition — never on
+ *  a selection change, which is also what resuming another session looks
+ *  like. Every profile bucket: the runtime may not be the one in view. */
+export function adoptPendingRuntimeTabs(runtimeId: string, storedSessionId: string): void {
+  const ids = new Set([...$pendingRuntimeByTab.get()].filter(([, runtime]) => runtime === runtimeId).map(([id]) => id))
+
+  if (ids.size === 0) {
+    return
+  }
+
+  const adopt = (tabs: PreviewTab[]) =>
+    tabs.some(tab => ids.has(tab.id) && tab.sessionId == null)
+      ? tabs.map(tab =>
+          ids.has(tab.id) && tab.sessionId == null
+            ? {
+                ...tab,
+                ...(tab.agent && !tab.ownerKey ? { ownerKey: storedSessionId } : {}),
+                sessionId: storedSessionId
+              }
+            : tab
+        )
+      : null
+
+  let backgroundChanged = false
+
+  for (const [key, tabs] of Object.entries(tabsByProfile)) {
+    const next = key === viewKey ? null : adopt(tabs)
+
+    if (next) {
+      tabsByProfile[key] = next
+      backgroundChanged = true
+    }
+  }
+
+  if (backgroundChanged) {
+    persistTabs()
+  }
+
+  const view = adopt($previewTabs.get())
+
+  // Owner first, then the note: the other order leaves a beat where the tab
+  // is neither owned nor pending and drops out of the drawer.
+  if (view) {
+    $previewTabs.set(view)
+  }
+
+  $pendingRuntimeByTab.set(new Map([...$pendingRuntimeByTab.get()].filter(([id]) => !ids.has(id))))
+}
+
 /** The tab the rail actually shows. A stale or missing selection falls back to
  *  the first tab, so the strip, `⌘W`, and the pane never disagree about which
  *  tab is on screen. */
 function resolveActiveTab(tabs: PreviewTab[], activeTabId: RightRailTabId | null): PreviewTab | null {
   return tabs.find(tab => tab.id === activeTabId) ?? tabs[0] ?? null
-}
-
-function activePreviewTab(): PreviewTab | null {
-  return resolveActiveTab($previewTabs.get(), $rightRailActiveTabId.get())
 }
 
 /** Which of its own tabs each RUNTIME session's agent is working in. Module
@@ -482,26 +794,27 @@ export function agentPreviewTabId(sessionId: null | string): RightRailTabId | nu
  *  `new_tab` one-way — once the agent opened a second tab, every later action
  *  went there and the first was unreachable for the rest of the session, since
  *  no tool selects a browser tab. */
-function agentTab(tabs: PreviewTab[], sessionId: null | string): PreviewTab | undefined {
+function agentTab(tabs: readonly PreviewTab[], sessionId: null | string): PreviewTab | undefined {
   const owned = (tab: PreviewTab) => agentOwns(tab, sessionId)
   const current = tabs.find(tab => tab.id === agentTabBySession.get(sessionId ?? UNSCOPED) && owned(tab))
 
   return current ?? tabs.findLast(owned)
 }
-
 // A restored active id whose tab didn't survive validation would leave the rail
-// pointing at nothing.
-selectRightRailTab(activePreviewTab()?.id ?? null)
+// pointing at nothing. Checked against every tab, not the visible ones: at
+// boot no session is focused yet, and re-homing onto the focused session's
+// tabs is the preview tiles' job once one is.
+selectRightRailTab(resolveActiveTab($previewTabs.get(), $rightRailActiveTabId.get())?.id ?? null)
 
 /** The target the rail is currently showing, or null when it has no tabs. */
 export const $previewTarget = computed(
-  [$previewTabs, $rightRailActiveTabId],
+  [$visiblePreviewTabs, $rightRailActiveTabId],
   (tabs, activeTabId) => resolveActiveTab(tabs, activeTabId)?.target ?? null
 )
 
-/** Raw `source` strings of every open tab, for the composer rows that toggle a
- *  preview open and closed by the target they were handed. */
-export const $previewTabSources = computed($previewTabs, tabs => tabs.map(tab => tab.target.source))
+/** Raw `source` strings of every tab the active session sees, for the composer
+ *  rows that toggle a preview open and closed by the target they were handed. */
+export const $previewTabSources = computed($visiblePreviewTabs, tabs => tabs.map(tab => tab.target.source))
 
 export interface BrowserPage {
   title: string
@@ -575,27 +888,56 @@ export function commitBrowserTabLocation(tabId: string, url: string, title?: str
   )
 }
 
-/** Pull one tab from storage into this renderer's atom. A sibling window
- *  (the pop-out) may have committed a newer URL that we never saw. */
+/** Pull one tab out of shared storage into this renderer's view. Two callers,
+ *  two shapes (#119850):
+ *
+ *  - The docked mirror when a pop-out closes (`onBrowserPopoutClosed`): the
+ *    tab is already in this view, so adopt the newer URL/label the sibling
+ *    window committed — every bucket is fair game, because the sibling writes
+ *    through its own scoped view, which is not necessarily this one.
+ *  - A fresh pop-out renderer (`PreviewTilePane` in `?win=browser`): no
+ *    session ever pushes a scope there, so the scoped view starts empty. Find
+ *    the bucket that owns the tab and re-home the view onto it. Re-homing
+ *    rather than splicing the tab into the current bucket keeps this window's
+ *    later writes (address-bar navigation) in the OWNER's bucket — a splice
+ *    would duplicate the tab into the primary profile's rail.
+ *
+ *  Reads every profile bucket plus the pre-scoping single-array shape. */
 export function adoptPersistedBrowserTab(tabId: string) {
   if (!tabId) {
     return
   }
 
   try {
-    const raw = readKey(TABS_STORAGE_KEY)
+    const stored = readJson<unknown>(TABS_STORAGE_KEY)
 
-    if (!raw) {
+    if (!stored) {
       return
     }
 
-    const persisted = decodePreviewTabs(raw).find(tab => tab.id === tabId)
+    const buckets: Array<[string, PreviewTab[]]> = Array.isArray(stored)
+      ? [['default', parseTabList(stored)]]
+      : Object.entries(stored as Record<string, unknown>).map(
+          ([key, value]) => [normalizeProfileKey(key), parseTabList(value)] as [string, PreviewTab[]]
+        )
 
-    if (!persisted || persisted.target.kind !== 'url') {
+    if ($previewTabs.get().some(tab => tab.id === tabId)) {
+      const persisted = buckets.flatMap(([, tabs]) => tabs).find(tab => tab.id === tabId)
+
+      if (persisted?.target.kind === 'url') {
+        commitBrowserTabLocation(tabId, persisted.target.url, persisted.target.label)
+      }
+
       return
     }
 
-    commitBrowserTabLocation(tabId, persisted.target.url, persisted.target.label)
+    for (const [key, tabs] of buckets) {
+      if (tabs.some(tab => tab.id === tabId)) {
+        applyPreviewScope(key || 'default')
+
+        return
+      }
+    }
   } catch {
     // Storage can throw; the in-memory tab stays as it was.
   }
@@ -759,17 +1101,31 @@ export function previewTabBelongsToSession(
   sessionId: null | string,
   storedSessionId?: null | string
 ): boolean {
-  // A RESTORED tab has only `ownerKey` — its runtime died with the last run.
-  // Matching the conversation's stored id is what keeps a browser with its own
-  // chat across a restart instead of spilling into all of them.
-  if (!tab.owner && tab.ownerKey) {
-    return !sessionId || (Boolean(storedSessionId) && tab.ownerKey === storedSessionId)
+  // Pins are the explicit cross-session workspace.
+  if (tab.pinned) {
+    return true
+  }
+
+  // A live agent tab answers to the exact conversation that opened it.
+  if (tab.owner) {
+    return !sessionId || tab.owner === sessionId
+  }
+
+  // A RESTORED tab has only its durable claim: its runtime died with the last
+  // run. Matching the conversation's stored id is what keeps a browser with its
+  // own chat across a restart instead of spilling into all of them.
+  const durable = tab.ownerKey ?? tab.sessionId
+
+  if (durable) {
+    const stored = storedSessionId ?? (sessionId ? ownerKeyFor(sessionId) : undefined)
+
+    return !sessionId || (Boolean(stored) && currentSessionId(durable) === currentSessionId(stored))
   }
 
   // No conversation established yet (first paint, a window with no chat
-  // focused): show everything. An empty rail is a worse answer than an
-  // unscoped one, and this is the state the Bot Mode regression lived in.
-  return !sessionId || !tab.owner || tab.owner === sessionId
+  // focused), or a tab nobody owns: show it. An empty rail is a worse answer
+  // than an unscoped one, and this is the state the Bot Mode regression lived in.
+  return true
 }
 
 // ── The embedded browser — the conversation's browser docked INSIDE its chat
@@ -1056,8 +1412,27 @@ export function adoptBrowserSessionKey(
     $previewTabs.set(
       // Never DOWN to undefined: a tab that already carries a claim keeps it if
       // the resolver cannot answer yet. Adoption is a handover, not a reset.
-      tabs.map(tab => (tab.owner === from ? { ...tab, owner: runtimeId, ownerKey: tab.ownerKey ?? ownerKey } : tab))
+      // `sessionId` is the same claim in the drawer's own terms (what
+      // `$visiblePreviewTabs` filters on), stamped alongside it.
+      tabs.map(tab =>
+        tab.owner === from
+          ? {
+              ...tab,
+              owner: runtimeId,
+              ownerKey: tab.ownerKey ?? ownerKey,
+              sessionId: tab.sessionId ?? tab.ownerKey ?? ownerKey
+            }
+          : tab
+      )
     )
+
+    // Still no stored id: the drawer shows the tab to the runtime that opened
+    // it until `adoptPendingRuntimeTabs` hands it over.
+    for (const tab of tabs) {
+      if (tab.owner === from && !tab.pinned && !tab.sessionId && !tab.ownerKey && !ownerKey) {
+        setPendingRuntime(tab.id, runtimeId)
+      }
+    }
   }
 
   if (wasEmbedded) {
@@ -1111,6 +1486,62 @@ export function closeBrowserTabsForSession(sessionId: null | string, storedSessi
   }
 }
 
+function dockable(
+  tabs: PreviewTab[],
+  popped: ReadonlySet<string>,
+  embeddedSessions: ReadonlySet<string>,
+  hosts: ReadonlySet<string>
+): PreviewTab[] {
+  const notPopped = popped.size === 0 ? tabs : tabs.filter(tab => !popped.has(tab.id))
+
+  // A DRAFT conversation's tabs never belong to the strip, whatever else is
+  // true. The draft key exists only for the primary chat column, so its panel
+  // is the only surface that can host these, and making that structural is
+  // what makes the handover safe in ANY order. Adoption and the focus sync
+  // are separate writes; whichever lands first, a draft-owned tab that were
+  // merely unfiltered here would re-enter the strip for that beat, register
+  // a pane, and lose it again to `removeTreePane` on the next write, taking
+  // the live guest with it. Excluded by ownership, there is no such beat to
+  // get right.
+  //
+  // The `.some()` first is the identity short-circuit `notPopped` uses one
+  // line up: this computed feeds `paneMirror.sync()`, and nanostores skips
+  // notifying when the value is reference-equal, so a fresh array on every
+  // unrelated recompute would re-run that whole sync for no change.
+  const notDraft = notPopped.some(tab => tab.owner === DRAFT_BROWSER_SESSION_ID)
+    ? notPopped.filter(tab => tab.owner !== DRAFT_BROWSER_SESSION_ID)
+    : notPopped
+
+  if (embeddedSessions.size === 0) {
+    return notDraft
+  }
+
+  // A conversation whose browser is embedded AND has a panel mounted to
+  // render it hosts its own browser tabs in its chat column, so they leave
+  // the strip. Keyed on HOSTED, not on the focused conversation: every chat
+  // surface carries its own panel now, and a tile behind another tab keeps
+  // its panel mounted, so its page has a home whether or not it is the one
+  // on screen. Keying on focus was right when only the primary column could
+  // host, and it is what put every other chat's browser in the strip beside
+  // the conversation instead of inside it.
+  //
+  // When the LAST panel for a conversation unmounts (its tile closed, the
+  // primary navigated away) the tab returns here, so the strip keeps the
+  // page alive for the agent still driving it rather than leaving a tab that
+  // exists, is in no strip, and has no panel.
+  //
+  // Exactly one panel renders a hosted key, see `$embeddedBrowserLeadHosts`;
+  // otherwise a conversation on screen twice would run its page in two
+  // guests.
+  return notDraft.filter(tab => {
+    if (tab.target.kind !== 'url' || !tab.owner) {
+      return true
+    }
+
+    return !(embeddedSessions.has(tab.owner) && hosts.has(tab.owner))
+  })
+}
+
 /** Preview tabs that still belong in the layout tree (not popped out, and not
  *  hosted by the focused conversation's embedded panel).
  *
@@ -1125,56 +1556,17 @@ export function closeBrowserTabsForSession(sessionId: null | string, storedSessi
  *  (`syncBrowserSessionPanes`), which keeps them mounted. */
 export const $dockedPreviewTabs = computed(
   [$previewTabs, $poppedBrowserTabIds, $embeddedBrowserSessions, $embeddedBrowserHosts],
-  (tabs, popped, embeddedSessions, hosts) => {
-    const notPopped = popped.size === 0 ? tabs : tabs.filter(tab => !popped.has(tab.id))
+  dockable
+)
 
-    // A DRAFT conversation's tabs never belong to the strip, whatever else is
-    // true. The draft key exists only for the primary chat column, so its panel
-    // is the only surface that can host these, and making that structural is
-    // what makes the handover safe in ANY order. Adoption and the focus sync
-    // are separate writes; whichever lands first, a draft-owned tab that were
-    // merely unfiltered here would re-enter the strip for that beat, register
-    // a pane, and lose it again to `removeTreePane` on the next write, taking
-    // the live guest with it. Excluded by ownership, there is no such beat to
-    // get right.
-    //
-    // The `.some()` first is the identity short-circuit `notPopped` uses one
-    // line up: this computed feeds `paneMirror.sync()`, and nanostores skips
-    // notifying when the value is reference-equal, so a fresh array on every
-    // unrelated recompute would re-run that whole sync for no change.
-    const notDraft = notPopped.some(tab => tab.owner === DRAFT_BROWSER_SESSION_ID)
-      ? notPopped.filter(tab => tab.owner !== DRAFT_BROWSER_SESSION_ID)
-      : notPopped
-
-    if (embeddedSessions.size === 0) {
-      return notDraft
-    }
-
-    // A conversation whose browser is embedded AND has a panel mounted to
-    // render it hosts its own browser tabs in its chat column, so they leave
-    // the strip. Keyed on HOSTED, not on the focused conversation: every chat
-    // surface carries its own panel now, and a tile behind another tab keeps
-    // its panel mounted, so its page has a home whether or not it is the one
-    // on screen. Keying on focus was right when only the primary column could
-    // host, and it is what put every other chat's browser in the strip beside
-    // the conversation instead of inside it.
-    //
-    // When the LAST panel for a conversation unmounts (its tile closed, the
-    // primary navigated away) the tab returns here, so the strip keeps the
-    // page alive for the agent still driving it rather than leaving a tab that
-    // exists, is in no strip, and has no panel.
-    //
-    // Exactly one panel renders a hosted key, see `$embeddedBrowserLeadHosts`;
-    // otherwise a conversation on screen twice would run its page in two
-    // guests.
-    return notDraft.filter(tab => {
-      if (tab.target.kind !== 'url' || !tab.owner) {
-        return true
-      }
-
-      return !(embeddedSessions.has(tab.owner) && hosts.has(tab.owner))
-    })
-  }
+/** The FOCUSED session's tabs that still belong in the docked layout tree —
+ *  the layout-tree mirror renders only these (#73890): switching sessions
+ *  swaps the drawer, and a popped-out Browser pane stays out. A conversation's
+ *  hosted embedded browser keeps its tabs out of here too (see `dockable`), so
+ *  a page is never live in two places at once. */
+export const $dockedVisiblePreviewTabs = computed(
+  [$visiblePreviewTabs, $poppedBrowserTabIds, $embeddedBrowserSessions, $embeddedBrowserHosts],
+  dockable
 )
 
 export const $previewReloadRequest = atom(0)
@@ -1184,9 +1576,44 @@ export const $previewServerRestartStatus = computed($previewServerRestart, resta
 /** The tab that owns `target`. Files and artifacts are keyed by IDENTITY —
  *  the same file is always the same tab, reopening it re-fronts the one it
  *  already has. A URL has no identity here: a Browser tab is a vessel you
- *  navigate, so it is picked (`browserTabId`) rather than derived. */
-export function previewTabId(target: PreviewTarget): RightRailTabId {
+ *  navigate, so it is picked (`browserTabId`) rather than derived.
+ *
+ *  A FILE tab is additionally owned by a session — the same file opened in
+ *  two conversations is two tabs (#73890) — so a session-owned file tab's id
+ *  carries the owner it was opened by. The id is identity only: lookups match
+ *  a file by its canonical path and owner (`fileTabFor`), so an id never needs
+ *  rekeying when the owner changes (draft adoption, compression rotation). */
+export function previewTabId(target: PreviewTarget, sessionId?: null | string): RightRailTabId {
+  if (target.kind === 'file' && sessionId) {
+    return `file:${sessionId}:${target.url}`
+  }
+
   return `${target.kind}:${target.url}`
+}
+
+/** A file's identity independent of entry point: a `file://` URL and a plain
+ *  path name the same file. */
+function canonicalFileKey(target: Pick<PreviewTarget, 'path' | 'url'>): string {
+  return (target.path || target.url).replace(/^file:\/\//, '')
+}
+
+/** The tab already showing `target`'s file in `tabs` (a session's visible set). */
+function fileTabFor(tabs: readonly PreviewTab[], target: PreviewTarget): PreviewTab | undefined {
+  const key = canonicalFileKey(target)
+
+  return tabs.find(tab => tab.target.kind === 'file' && canonicalFileKey(tab.target) === key)
+}
+
+/** `base`, suffixed until no tab holds it: a file's owner-derived id can be
+ *  taken by a same-path tab whose owner later changed. */
+function unusedTabId(base: RightRailTabId, tabs: readonly PreviewTab[]): RightRailTabId {
+  let id = base
+
+  for (let n = 2; tabs.some(tab => tab.id === id); n++) {
+    id = `${base}#${n}` as RightRailTabId
+  }
+
+  return id
 }
 
 const isBrowserTab = (tab: PreviewTab): boolean => tab.target.kind === 'url'
@@ -1205,46 +1632,44 @@ function mintBrowserTabId(): RightRailTabId {
 /** The Browser a URL should open in: the one you're looking at, else the one
  *  you used last. A link from chat navigates the browser you already have
  *  rather than stacking another identical tab — new tabs are something you
- *  ask for (the strip's "+"), the way they are in a real browser.
+ *  ask for (the strip's "+"), the way they are in a real browser. `tabs` is
+ *  the opening session's visible set: another session's Browser is never
+ *  taken over.
  *
  *  THE AGENT IS NOT YOU. Re-using "the tab you're looking at" is right for a
  *  link you clicked and wrong for a tool call: it silently replaced the page
  *  the person was reading with wherever the agent went next (#93190). So an
- *  agent open resolves against the agent's OWN tab and mints one when it has
- *  none — it browses beside you rather than over you. It still re-uses that
- *  one tab across a task, because a tab per navigation would bury the strip.
+ *  agent open resolves against the agent's OWN tab (`agentBrowserTabFor`) and
+ *  mints one when it has none; it browses beside you rather than over you. */
+function browserTabFor(tabs: readonly PreviewTab[]): PreviewTab | undefined {
+  const active = tabs.find(tab => tab.id === $rightRailActiveTabId.get())
+
+  return active && isBrowserTab(active) ? active : tabs.findLast(isBrowserTab)
+}
+
+/** The tab an agent's tool call opens a page in: its OWN tab, per SESSION.
  *
- *  AND ANOTHER AGENT IS NOT THIS AGENT. "Its own tab" is per SESSION. Both
- *  lookups below used to match any agent tab, so the second conversation to
- *  open a page inherited the first one's tab — and because a browser tab id
- *  once derived from the url, two chats opening the SAME address collided by
- *  construction. Scoped to `sessionId`, a session with no tab of its own mints
- *  one, which is what makes two conversations two browsers. */
-function browserTabId(
-  tabs: PreviewTab[],
-  source: PreviewRecordSource,
-  url?: string,
-  sessionId?: null | string
-): RightRailTabId {
-  if (source === 'tool-result') {
-    // Opening a page one of its own tabs already shows means "go back to that
-    // one" — the only way the agent can re-target a tab, and the reason
-    // `new_tab` is no longer a one-way door.
-    const holding = url ? tabs.find(tab => agentOwns(tab, sessionId ?? null) && tab.target.url === url) : undefined
+ *  Both lookups used to match any agent tab, so the second conversation to open
+ *  a page inherited the first one's tab, and because a browser tab id once
+ *  derived from the url, two chats opening the SAME address collided by
+ *  construction. Scoped to `agentSession`, a session with no tab of its own
+ *  mints one, which is what makes two conversations two browsers.
+ *
+ *  Opening a page one of its own tabs already shows means "go back to that
+ *  one": the only way the agent can re-target a tab, and the reason `new_tab`
+ *  is no longer a one-way door. */
+function agentBrowserTabFor(
+  tabs: readonly PreviewTab[],
+  url: string | undefined,
+  agentSession: null | string
+): PreviewTab | undefined {
+  const holding = url ? tabs.find(tab => agentOwns(tab, agentSession) && tab.target.url === url) : undefined
 
-    return (holding ?? agentTab(tabs, sessionId ?? null))?.id ?? mintBrowserTabId()
-  }
+  return holding ?? agentTab(tabs, agentSession)
+}
 
-  // Only tabs this conversation can actually see. Navigating a browser that is
-  // filtered out of the strip is navigating a page nobody is looking at.
-  const visible = tabs.filter(tab => previewTabBelongsToSession(tab, sessionId ?? null))
-  const active = visible.find(tab => tab.id === $rightRailActiveTabId.get())
-
-  if (active && isBrowserTab(active)) {
-    return active.id
-  }
-
-  return visible.findLast(isBrowserTab)?.id ?? mintBrowserTabId()
+function browserTabId(tabs: readonly PreviewTab[]): RightRailTabId {
+  return browserTabFor(tabs)?.id ?? mintBrowserTabId()
 }
 
 /** HTML files open rendered unless the caller asks for a mode. A re-open keeps
@@ -1280,67 +1705,204 @@ export function setPreviewRenderMode(tabId: string, renderMode: PreviewRenderMod
 
 /** Open (or re-front) the tab for `target`. Re-opening an existing tab refreshes
  *  its target so a stale label/path can't outlive the thing it points at. The
- *  only way anything reaches a preview. */
+ *  only way anything reaches a preview.
+ *
+ *  The tab belongs to a session, the stored id of the one that asked for it:
+ *  `options.owner` when the caller knows better (an agent turn in a side tile),
+ *  else the conversation behind `options.sessionId`, else the focused one.
+ *  Reuse is decided among the tabs that owner can see (its own plus the pinned
+ *  ones), so one session's open never takes over another session's tab; a
+ *  reused tab keeps its owner and pin. Opening for a session that is not
+ *  focused does not touch the focused drawer's selection: the tab is fronted
+ *  when that session's drawer shows.
+ *
+ *  `options.sessionId` is the RUNTIME session (or provisional browser key) of
+ *  the agent making a tool call. It decides which agent tab is "its own" and
+ *  who the browser belongs to; `ownerKey` is the durable half of that claim. */
+export interface OpenPreviewOptions {
+  /** Open in a fresh Browser instead of re-using one. Only a browser. */
+  newTab?: boolean
+  ownerKey?: null | string
+  /** Stored id of the session the tab belongs to; a stored id of `null` means
+   *  a draft. Omitted = the conversation behind `sessionId`, else the focused one. */
+  owner?: null | string
+  /** The asking agent's profile, when it is not the chat on screen: only that
+   *  profile's pins may be reused. Omitted = the viewed profile. */
+  profile?: null | string
+  /** Front the tab. A background conversation opening a page must not yank you
+   *  off the page you are reading, so its caller says false. */
+  reveal?: boolean
+  /** The runtime asking: an ownerless tab is handed to it once its stored id
+   *  binds. Omitted = the agent's own session, else the primary's runtime. */
+  runtimeId?: null | string
+  /** Runtime session id (or provisional browser key) of the asking agent. */
+  sessionId?: null | string
+}
+
+const PREVIEW_RECORD_SOURCES: ReadonlySet<string> = new Set<PreviewRecordSource>([
+  'explicit-link',
+  'file-browser',
+  'manual',
+  'tool-result'
+])
+
+/** Two call shapes reach this one door, and both are kept so no caller has to
+ *  change: `(target, source, options)` names HOW the open happened, and
+ *  `(target, ownerStoredId, runtimeId, profile)` names WHO it is for. A stored
+ *  session id is never one of the four source words, which is what tells them
+ *  apart; `null` can only be the second shape (a draft's tabs). */
+export function openPreview(target: PreviewTarget, source?: PreviewRecordSource, options?: OpenPreviewOptions): void
 export function openPreview(
   target: PreviewTarget,
-  source: PreviewRecordSource = 'manual',
-  options: { newTab?: boolean; ownerKey?: null | string; reveal?: boolean; sessionId?: null | string } = {}
-) {
+  owner: null | string,
+  runtimeId?: null | string,
+  profile?: null | string
+): void
+export function openPreview(
+  target: PreviewTarget,
+  second?: null | string,
+  third?: null | OpenPreviewOptions | string,
+  fourth?: null | string
+): void {
+  const positional = second === null || (typeof second === 'string' && !PREVIEW_RECORD_SOURCES.has(second))
+
+  if (positional) {
+    openPreviewWith(target, 'manual', { owner: second, profile: fourth, runtimeId: third as null | string | undefined })
+
+    return
+  }
+
+  openPreviewWith(target, (second ?? 'manual') as PreviewRecordSource, (third as OpenPreviewOptions | undefined) ?? {})
+}
+
+function openPreviewWith(target: PreviewTarget, source: PreviewRecordSource, options: OpenPreviewOptions) {
   // A tool or an explicit link handing over an HTML file means "show the page",
   // even when its tab sits in Source; a re-open from the Files pane keeps the
   // tab's mode (see `withRenderMode`).
   const resolved = source === 'tool-result' || source === 'explicit-link' ? renderedHtmlTarget(target) : target
+  const askingKey = options.sessionId ?? null
+  const storedFromKey = askingKey ? (ownerKeyFor(askingKey) ?? null) : null
+
+  const requestedOwner =
+    options.owner !== undefined ? options.owner : askingKey ? storedFromKey : $focusedStoredSessionId.get()
+
+  // Only a real runtime id can be handed an ownerless tab later; a provisional
+  // key (the draft, a `stored:` stand-in) names no runtime.
+  const runtimeId =
+    options.runtimeId !== undefined
+      ? options.runtimeId
+      : askingKey
+        ? isProvisionalBrowserKey(askingKey)
+          ? null
+          : askingKey
+        : $activeSessionId.get()
+
+  // Stamp the tip, not an alias: the alias map is memory-only, so a tab
+  // stamped with a rotated-away id would be orphaned by the next relaunch.
+  const owner = currentSessionId(requestedOwner)
   const current = $previewTabs.get()
   // `newTab` only means anything for a browser: file and artifact tabs are
   // addressed by their content, so a second tab on the same file would be the
   // same tab twice.
-  const fresh = options.newTab && resolved.kind === 'url'
-  const sessionId = options.sessionId ?? null
+  const fresh = Boolean(options.newTab) && resolved.kind === 'url'
 
-  const id = fresh
-    ? mintBrowserTabId()
+  // Reuse never crosses runtimes: with no stored id yet, the runtime decides
+  // which ownerless tabs are this opener's (its own pending ones, or the
+  // draft's when it is the draft on screen).
+  const visible = bucketTabsFor(
+    current,
+    ownerIdentity({ profile: options.profile, runtimeId: owner === null ? runtimeId : null, sessionId: owner }),
+    viewKey,
+    viewKey
+  )
+
+  const existing = fresh
+    ? undefined
     : resolved.kind === 'url'
-      ? browserTabId(current, source, resolved.url, sessionId)
-      : previewTabId(resolved)
+      ? source === 'tool-result'
+        ? agentBrowserTabFor(current, resolved.url, askingKey)
+        : browserTabFor(visible)
+      : resolved.kind === 'file'
+        ? fileTabFor(visible, resolved)
+        : current.find(tab => tab.id === previewTabId(resolved))
 
-  const index = current.findIndex(tab => tab.id === id)
+  const id =
+    existing?.id ?? (resolved.kind === 'url' ? mintBrowserTabId() : unusedTabId(previewTabId(resolved, owner), current))
+
   // Ownership is the tab's, not the target's: it decides who may navigate this
   // tab later, so it has to outlive the open that created it. Sticky, because a
   // person opening a link in the agent's tab is visiting, not taking it over.
-  const owned = current[index]?.agent || (resolved.kind === 'url' && source === 'tool-result')
+  const agentOwned = Boolean(existing?.agent || (resolved.kind === 'url' && source === 'tool-result'))
   // Which agent, not just "an agent". Sticky the same way: a person visiting
   // the tab does not re-assign it, and an existing owner is not displaced by a
-  // later session — `browserTabId` only returns a tab this session already
-  // owns, so reaching here with a different owner means the user opened it.
-  const owner = owned ? (current[index]?.owner ?? sessionId ?? undefined) : undefined
+  // later session.
+  const agentSession = agentOwned ? (existing?.owner ?? askingKey ?? undefined) : undefined
 
   // Resolved here rather than only from `options`, which one caller passed and
   // every other left empty. A claim that exists only in memory is not a claim:
   // `owner` never reaches storage, so a tab whose `ownerKey` was skipped comes
-  // back belonging to nobody and shows in every conversation. See `ownerKeyFor`.
-  const ownerKey = owned
-    ? (current[index]?.ownerKey ?? options.ownerKey ?? ownerKeyFor(owner ?? sessionId) ?? undefined)
+  // back belonging to nobody. See `ownerKeyFor`.
+  const ownerKey = agentOwned
+    ? (existing?.ownerKey ?? options.ownerKey ?? ownerKeyFor(agentSession ?? askingKey) ?? undefined)
     : undefined
 
-  const shown = withRenderMode(resolved, current[index]?.target)
-  const tab: PreviewTab = owned ? { agent: true, id, owner, ownerKey, target: shown } : { id, target: shown }
+  const shown = withRenderMode(resolved, existing?.target)
+  // An artifact is one tab per artifact; opening it from another session
+  // re-owns it, or the session that just asked for it would not see it.
+  const sessionId = (existing?.pinned ? existing.sessionId : (owner ?? ownerKey)) ?? undefined
 
-  if (owned) {
-    agentTabBySession.set(owner ?? UNSCOPED, id)
+  const tab: PreviewTab = {
+    id,
+    pinned: Boolean(existing?.pinned),
+    sessionId,
+    target: shown,
+    ...(agentOwned ? { agent: true, owner: agentSession, ownerKey } : {})
   }
 
-  $previewTabs.set(index === -1 ? [...current, tab] : current.map((item, i) => (i === index ? tab : item)))
+  if (agentOwned) {
+    agentTabBySession.set(agentSession ?? UNSCOPED, id)
+  }
+
+  $previewTabs.set(existing ? current.map(item => (item === existing ? tab : item)) : [...current, tab])
+
+  setPendingRuntime(id, tab.sessionId == null && !tab.pinned ? runtimeId : null)
 
   // Selecting is a claim on the rail, and the rail is one surface. A background
-  // conversation opening a page must not yank you off the page you are reading
-  // — the caller knows whether its session is on screen, so it says. Anything
-  // the person did themselves (default) still fronts, as it always has.
-  if (options.reveal !== false) {
-    selectRightRailTab(id)
+  // conversation opening a page must not yank you off the page you are reading;
+  // a tab the focused drawer does not show is not fronted either, only
+  // remembered for when that session's drawer shows.
+  if (options.reveal === false || !$visiblePreviewTabs.get().some(item => item.id === id)) {
+    rememberActiveTab(owner, id)
+
+    return
   }
+
+  noteExplicitPreviewOpen(id)
+  selectRightRailTab(id)
 }
 
 const blankPage = (): PreviewTarget => ({ kind: 'url', label: 'Browser', source: 'about:blank', url: 'about:blank' })
+
+/** Tombstone the tabs for a confirmed-missing file: keep them open this
+ *  session (the pane shows "file no longer exists"), but flag the target so
+ *  the next restore drops them instead of re-probing the dead path on every
+ *  boot. Takes a tab id or the file's url/path; a file that is gone is gone
+ *  for every session showing it. */
+export function markPreviewTabMissing(tabIdOrUrl: string) {
+  const current = $previewTabs.get()
+  const key = canonicalFileKey({ url: tabIdOrUrl.replace(/^file:(?!\/\/)/, '') })
+
+  const hit = (tab: PreviewTab) =>
+    tab.target.kind === 'file' &&
+    !tab.target.missing &&
+    (tab.id === tabIdOrUrl || tab.target.url === tabIdOrUrl || canonicalFileKey(tab.target) === key)
+
+  if (!current.some(hit)) {
+    return
+  }
+
+  $previewTabs.set(current.map(tab => (hit(tab) ? { ...tab, target: { ...tab.target, missing: true } } : tab)))
+}
 
 /** Show the Browser — the surface, not a page. Keeps whatever it was last
  *  showing so the hotkey re-fronts your page instead of wiping it; with no
@@ -1355,6 +1917,8 @@ export function openBrowserTab(
   if (sessionId) {
     $browserSessionId.set(sessionId)
   }
+
+  recordFeatureUse('browser_pane')
 
   const tabs = $previewTabs.get()
 
@@ -1375,6 +1939,7 @@ export function openBrowserTab(
   const current = agentTab(tabs, sessionId) ?? shared
 
   if (current) {
+    noteExplicitPreviewOpen(current.id)
     selectRightRailTab(current.id)
 
     return
@@ -1383,19 +1948,53 @@ export function openBrowserTab(
   newBrowserTab(sessionId)
 }
 
+/** ⌘⇧L is a TOGGLE: show the Browser when it's away, fold it away when it's
+ *  the thing on screen. "Away" includes dismissed (Close/⌘W), hidden, or
+ *  parked behind a sibling tab — each re-opens through openBrowserTab's reveal
+ *  path with the page it was last showing. "On screen" means the mirrored
+ *  preview-tile pane the layout tree keeps is actually visible, i.e. not
+ *  dismissed/hidden/minimized AND holding its zone's active slot. */
+export function toggleBrowserTab() {
+  const id = browserTabId($visiblePreviewTabs.get())
+
+  if (isPaneVisible(`${PREVIEW_TILE_PREFIX}:${id}`)) {
+    dismissTreePane(`${PREVIEW_TILE_PREFIX}:${id}`)
+
+    return
+  }
+
+  openBrowserTab()
+}
+
 /** Another Browser, always — the strip's "+". It joins the browser you are
  *  looking at, which is a conversation's, so it belongs to that conversation
  *  rather than becoming a stray shared tab. */
 export function newBrowserTab(sessionId: null | string = $browserSessionId.get()) {
   const id = mintBrowserTabId()
+  const ownerKey = ownerKeyFor(sessionId)
+  const owner = currentSessionId(ownerKey ?? (sessionId ? null : $focusedStoredSessionId.get())) ?? undefined
 
+  recordFeatureUse('browser_pane')
   $previewTabs.set([
     ...$previewTabs.get(),
     // BOTH halves of the claim, as everywhere else. This path is the one a
     // person takes (the strip's "+", the panel's "+", the globe's first press),
     // and it was the one writing a runtime owner and nothing durable.
-    { agent: true, id, owner: sessionId ?? undefined, ownerKey: ownerKeyFor(sessionId), target: blankPage() }
+    {
+      agent: true,
+      id,
+      owner: sessionId ?? undefined,
+      ownerKey,
+      pinned: false,
+      sessionId: owner,
+      target: blankPage()
+    }
   ])
+  // A conversation whose stored id has not arrived is visible to its runtime
+  // until `adoptPendingRuntimeTabs` hands the tab over. A draft names no
+  // runtime: ownerless and unpended is exactly the draft's.
+  setPendingRuntime(id, owner === undefined && sessionId && !isProvisionalBrowserKey(sessionId) ? sessionId : null)
+  noteExplicitPreviewOpen(id)
   selectRightRailTab(id)
 }
 
@@ -1416,6 +2015,47 @@ function forgetPreviewTab(tabId: string): void {
   forgetBrowserPage(tabId)
 }
 
+/** Pin or unpin a preview tab. Pinned tabs render in EVERY session — the
+ *  explicit cross-session workspace; unpinning returns it to its session
+ *  (adopting the current one when the tab never had an owner). */
+export function setPreviewTabPinned(tabId: string, pinned: boolean): void {
+  const currentSession = currentSessionId($focusedStoredSessionId.get()) ?? undefined
+
+  $previewTabs.set(
+    $previewTabs
+      .get()
+      .map(tab =>
+        tab.id === tabId ? { ...tab, pinned, sessionId: tab.sessionId ?? (pinned ? undefined : currentSession) } : tab
+      )
+  )
+}
+
+/** Drop the tabs a deleted session opened. Pinned tabs survive — they belong
+ *  to the workspace, not the session that opened them. Every profile bucket,
+ *  not just the view: a session can be deleted while another profile's chat
+ *  is on screen, and its tabs live in its own profile's bucket. */
+export function prunePreviewTabsForSession(sessionId: string): void {
+  const doomed = currentSessionId(sessionId)
+  const keep = (tab: PreviewTab) =>
+    tab.pinned ||
+    (currentSessionId(tab.sessionId) !== doomed && (tab.ownerKey == null || currentSessionId(tab.ownerKey) !== doomed))
+  let backgroundChanged = false
+
+  for (const [key, tabs] of Object.entries(tabsByProfile)) {
+    if (key !== viewKey && !tabs.every(keep)) {
+      tabsByProfile[key] = tabs.filter(keep)
+      backgroundChanged = true
+    }
+  }
+
+  if (backgroundChanged) {
+    persistTabs()
+    forgetGonePendingTabs()
+  }
+
+  $previewTabs.set($previewTabs.get().filter(keep))
+}
+
 export function closeRightRailTab(tabId: string) {
   // BEFORE the membership check, not after: both stores are keyed deletes, so
   // forgetting a tab that has already left the list is free — and callers that
@@ -1423,20 +2063,41 @@ export function closeRightRailTab(tabId: string) {
   // which fires on teardown) are exactly the ones whose state would otherwise
   // be stranded with nobody left to release it.
   forgetPreviewTab(tabId)
+  closeRightRailTabs(new Set([tabId]))
+}
 
+/** Close `tabIds` in one write, then re-home the selection once. */
+function closeRightRailTabs(tabIds: ReadonlySet<string>) {
   const current = $previewTabs.get()
-  const index = current.findIndex(tab => tab.id === tabId)
 
-  if (index === -1) {
+  if (!current.some(tab => tabIds.has(tab.id))) {
     return
   }
 
-  const next = current.filter(tab => tab.id !== tabId)
+  const next = current.filter(tab => !tabIds.has(tab.id))
+  // The neighbour comes from the focused drawer: a hidden session's tab
+  // must not become the selection.
+  const activeId = $rightRailActiveTabId.get()
+  const visible = $visiblePreviewTabs.get()
+  const visibleIndex = visible.findIndex(tab => tab.id === activeId)
+  const remaining = visible.filter(tab => !tabIds.has(tab.id))
+
+  for (const tabId of tabIds) {
+    forgetPreviewTab(tabId)
+  }
 
   $previewTabs.set(next)
 
-  if ($rightRailActiveTabId.get() === tabId) {
-    selectRightRailTab(next[Math.min(index, next.length - 1)]?.id ?? null)
+  if (activeId && tabIds.has(activeId)) {
+    const nextId = remaining[Math.min(Math.max(visibleIndex, 0), remaining.length - 1)]?.id ?? null
+
+    if (nextId) {
+      noteExplicitPreviewOpen(nextId)
+    } else {
+      clearExplicitPreviewOpen()
+    }
+
+    selectRightRailTab(nextId)
   }
 
   if (next.length === 0) {
@@ -1444,22 +2105,78 @@ export function closeRightRailTab(tabId: string) {
   }
 }
 
-/** Close the tab showing `source`, if one is open. Returns whether it closed. */
+/** Close the tab showing `source` in the CURRENT session, if one is open.
+ *  Returns whether it closed. */
 export function closePreviewForSource(source: string): boolean {
   return closePreviewMatching(source)
 }
 
-/** Close the first tab whose source, url, or label matches any candidate.
- *  Empty candidates are a no-op so a missed match cannot wipe the rail —
- *  closing the whole pane is `closeRightRail`. */
-export function closePreviewMatching(...candidates: string[]): boolean {
+/** Close the first docked Browser tab whose current page URL matches.
+ *  Browsers keep navigation state outside their persisted target so matching
+ *  only target.url misses redirects and in-page navigation. */
+export function closeBrowserPreviewMatchingLiveUrl(...candidates: string[]): boolean {
+  return closeBrowserMatchingLiveUrlIn($visiblePreviewTabs.get(), candidates)
+}
+
+function closeBrowserMatchingLiveUrlIn(tabs: readonly PreviewTab[], candidates: string[]): boolean {
+  const queries = new Set(
+    candidates
+      .map(value => {
+        try {
+          const url = new URL(value.trim())
+
+          return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : ''
+        } catch {
+          return ''
+        }
+      })
+      .filter(Boolean)
+  )
+
+  if (queries.size === 0) {
+    return false
+  }
+
+  const pages = $browserPages.get()
+  const popped = $poppedBrowserTabIds.get()
+  const activeId = $rightRailActiveTabId.get()
+  const ordered = [...tabs.filter(tab => tab.id === activeId), ...tabs.filter(tab => tab.id !== activeId)]
+
+  const tab = ordered.find(item => {
+    if (item.target.kind !== 'url' || popped.has(item.id)) {
+      return false
+    }
+
+    const liveUrl = pages[item.id]?.url
+
+    if (!liveUrl) {
+      return false
+    }
+
+    try {
+      return queries.has(new URL(liveUrl).href)
+    } catch {
+      return false
+    }
+  })
+
+  if (!tab) {
+    return false
+  }
+
+  closeRightRailTab(tab.id)
+
+  return true
+}
+
+function closePreviewMatchingTabs(tabs: readonly PreviewTab[], candidates: string[]): boolean {
   const queries = [...new Set(candidates.map(value => value.trim()).filter(Boolean))]
 
   if (queries.length === 0) {
     return false
   }
 
-  const tab = $previewTabs.get().find(item => {
+  const tab = tabs.find(item => {
     const fields = [item.target.source, item.target.url, item.target.label]
 
     return queries.some(query => fields.includes(query))
@@ -1481,25 +2198,47 @@ export function closePreviewMatching(...candidates: string[]): boolean {
  *  close is `closeAgentPreviewTabs`, agent-owned tabs only. */
 export function closeAgentPreviewTabMatching(sessionId: null | string, ...candidates: string[]): boolean {
   void sessionId
-  const queries = [...new Set(candidates.map(value => value.trim()).filter(Boolean))]
 
-  if (queries.length === 0) {
-    return false
+  return closePreviewMatchingTabs($previewTabs.get(), candidates)
+}
+
+/** Close the first tab whose source, url, or label matches any candidate.
+ *  Empty candidates are a no-op so a missed match cannot wipe the rail —
+ *  closing the whole pane is `closeRightRail`. */
+export function closePreviewMatching(...candidates: string[]): boolean {
+  return closePreviewMatchingTabs($visiblePreviewTabs.get(), candidates)
+}
+
+/** Agent-driven close is scoped to the docked rail; an independent Browser
+ *  window owns popped tabs and must not lose its backing state here. */
+export function closeDockedPreviewMatching(...candidates: string[]): boolean {
+  return closePreviewMatchingTabs(dockedTabs($visiblePreviewTabs.get()), candidates)
+}
+
+function dockedTabs(tabs: readonly PreviewTab[]): PreviewTab[] {
+  const popped = $poppedBrowserTabIds.get()
+
+  return tabs.filter(tab => !popped.has(tab.id))
+}
+
+/** An agent's `close_preview` for the session that ran it (`owner`). With
+ *  candidates it closes the first matching tab that session can see (live
+ *  Browser page first, then source/url/label); without, it closes every tab
+ *  that session owns. Never another session's tabs (another runtime's pending
+ *  ones included), never another profile's pin, never a pin the agent did not
+ *  name. */
+export function closeAgentPreview(owner: PreviewOwner, candidates: string[]): void {
+  const visible = bucketTabsFor($previewTabs.get(), ownerIdentity(owner), viewKey, viewKey)
+
+  if (candidates.length > 0) {
+    if (!closeBrowserMatchingLiveUrlIn(visible, candidates)) {
+      closePreviewMatchingTabs(dockedTabs(visible), candidates)
+    }
+
+    return
   }
 
-  const tab = $previewTabs.get().find(item => {
-    const fields = [item.target.source, item.target.url, item.target.label]
-
-    return queries.some(query => fields.includes(query))
-  })
-
-  if (!tab) {
-    return false
-  }
-
-  closeRightRailTab(tab.id)
-
-  return true
+  closeRightRailTabs(new Set(visible.filter(tab => !tab.pinned).map(tab => tab.id)))
 }
 
 /** Artifact tabs can't outlive the registry they read from, so clearing it
@@ -1514,10 +2253,10 @@ export function closeArtifactPreviewTabs() {
 
 /** Close every tab so the rail's panes leave the tree. */
 export function closeRightRail() {
+  clearExplicitPreviewOpen()
   for (const tab of $previewTabs.get()) {
     forgetPreviewTab(tab.id)
   }
-
   $previewTabs.set([])
   selectRightRailTab(null)
 }

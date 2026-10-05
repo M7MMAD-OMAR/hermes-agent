@@ -83,7 +83,7 @@ export function collapseModelFamilies(models: readonly string[]): ModelFamily[] 
   return families
 }
 
-const LEGACY_VISIBLE = legacyStringList(LEGACY_STORAGE_KEY)
+let LEGACY_VISIBLE = legacyStringList(LEGACY_STORAGE_KEY)
 
 /** Curation per (connection, profile) scope. Read through
  *  `visibleModelsForScope` rather than directly: a scope with no entry of its
@@ -160,22 +160,94 @@ export function setVisibleModels(
   persistKnownModels(new Set([...($knownModels.get() ?? []), ...allFamilyKeys(providers)]))
 }
 
-/** True once any curation exists, scoped or the pre-scoping global list. */
-function hasAnyCuration(): boolean {
-  return LEGACY_VISIBLE !== null || Object.keys($visibleModelsByScope.get()).length > 0
+/** Every stored visible list: each scope's own, plus the pre-scoping global
+ *  one while it still exists. Empty when nothing has ever been curated. */
+function curatedSets(): Set<string>[] {
+  const sets = Object.values($visibleModelsByScope.get()).map(keys => new Set(keys))
+
+  if (LEGACY_VISIBLE !== null) {
+    sets.push(new Set(LEGACY_VISIBLE))
+  }
+
+  return sets
 }
 
 /** One-time adoption for a visible set persisted before the known snapshot
- *  existed: everything in the catalog at that moment counts as judged (the
- *  user's hide choices are honoured verbatim); only models that appear later are
- *  new. Never a running union, since that would mark a newcomer judged on the
- *  very render that first shows it. Call when the catalog has loaded. */
+ *  existed. The old store predates the snapshot machinery, so "absent from the
+ *  allowlist" is ambiguous: a deliberate hide and a model that arrived after
+ *  the user last curated look identical. Recording everything in the catalog
+ *  as judged therefore strands catalog-present defaults behind a stale
+ *  allowlist forever (https://github.com/NousResearch/hermes-agent/issues/122053)
+ *  — so the curated defaults the old allowlist does NOT contain stay unknown,
+ *  and the default rule re-admits them on the next resolve. The one-time cost
+ *  is that a deliberately hidden default comes back once; the user's next save
+ *  records the re-hide properly and it locks. Non-default models keep the
+ *  verbatim-hide semantics — the default rule never showed them anyway — and
+ *  a provider hidden outright (sentinel) is skipped entirely. Never a running
+ *  union — that would mark a newcomer judged on the very render that first
+ *  shows it. Call when the catalog has loaded. */
 export function seedKnownModels(providers: readonly ModelOptionProvider[]): void {
-  if ($knownModels.get() !== null || !hasAnyCuration() || providers.length === 0) {
+  const curated = curatedSets()
+
+  if ($knownModels.get() !== null || curated.length === 0 || providers.length === 0) {
     return
   }
 
-  persistKnownModels(allFamilyKeys(providers))
+  const known = allFamilyKeys(providers)
+
+  // One snapshot serves every scope, so a default stays unknown when ANY
+  // curated list that has not hidden the provider outright omits it.
+  for (const provider of providers) {
+    const defaults = new Set<string>()
+    expandProviderDefaults(provider, defaults)
+
+    for (const stored of curated) {
+      if (stored.has(emptyProviderSentinelKey(provider.slug))) {
+        continue
+      }
+
+      for (const key of defaults) {
+        if (!stored.has(key)) {
+          known.delete(key)
+        }
+      }
+    }
+  }
+
+  persistKnownModels(known)
+}
+
+/** Back to "never customized": the curated defaults apply again and the known
+ *  snapshot starts over. The snapshot records what was LISTED at each persist,
+ *  not what the user chose, so a model hidden when it was recorded (e.g. by the
+ *  one-time adoption above) stays hidden through every later catalog change.
+ *  This is the user's way out of that without a global storage-key bump; Edit
+ *  Models reaches it through `resetModelVisibilityKeepingCustoms`.
+ *
+ *  `scope` names the (connection, profile) shortlist to reset; omitted, every
+ *  scope is. The pre-scoping global list is dropped either way, since a scope
+ *  without its own entry would otherwise inherit it straight back. The known
+ *  snapshot is shared, so it is only forgotten once no other scope keeps a
+ *  curation that depends on it. */
+export function resetModelVisibility(scope?: string): void {
+  const remaining = { ...$visibleModelsByScope.get() }
+
+  if (scope === undefined) {
+    for (const key of Object.keys(remaining)) {
+      delete remaining[key]
+    }
+  } else {
+    delete remaining[scope]
+  }
+
+  $visibleModelsByScope.set(remaining)
+  LEGACY_VISIBLE = null
+  persistString(LEGACY_STORAGE_KEY, null)
+
+  if (Object.keys(remaining).length === 0) {
+    $knownModels.set(null)
+    persistString(KNOWN_STORAGE_KEY, null)
+  }
 }
 
 /** Toggle one model in a scope, reading the live set so two clicks landing

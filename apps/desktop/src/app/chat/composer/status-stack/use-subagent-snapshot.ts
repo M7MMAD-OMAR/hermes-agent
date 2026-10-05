@@ -47,12 +47,10 @@ export function useSubagentSnapshot(sessionId: string | null, poll = true) {
       const owner = JSON.stringify(knownOwnerForSession(sessionId))
 
       try {
-        const snapshot = await requestForOwnedSession<{ subagents: SubagentPayload[] }>(
-          sessionId,
-          rejectUnownedSubagentRequest,
-          'subagent.list',
-          { session_id: sessionId }
-        )
+        const snapshot = await requestForOwnedSession<{
+          delegations?: SubagentPayload[]
+          subagents: SubagentPayload[]
+        }>(sessionId, rejectUnownedSubagentRequest, 'subagent.list', { session_id: sessionId })
 
         if (
           !cancelled &&
@@ -60,7 +58,7 @@ export function useSubagentSnapshot(sessionId: string | null, poll = true) {
           before === $subagentsBySession.get()[sessionId] &&
           Array.isArray(snapshot.subagents)
         ) {
-          reconcileSubagentSnapshot(sessionId, snapshot.subagents)
+          reconcileSubagentSnapshot(sessionId, snapshot.subagents, snapshot.delegations ?? [])
         }
 
         failures = 0

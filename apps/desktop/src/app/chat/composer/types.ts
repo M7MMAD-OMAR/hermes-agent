@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 import type { SubmitTextOptions } from '@/app/session/hooks/use-prompt-actions/utils'
-import type { HermesGateway } from '@/hermes'
+import type { HermesGateway, ResolvedOwner } from '@/hermes'
 import type { CurrentModelCaps } from '@/lib/model-options'
 
 import type { DroppedFile } from '../hooks/use-composer-actions'
@@ -44,11 +44,15 @@ export interface ChatBarProps {
   busy: boolean
   disabled: boolean
   focusKey?: string | null
+  /** Durable scope for the current sessionless new-chat lifecycle. */
+  freshDraftKey?: string
   maxRecordingSeconds?: number
   state: ChatBarState
   gateway?: HermesGateway | null
   queueSessionKey?: string | null
   sessionId?: string | null
+  /** The tile's routed profile: scopes the slash palette while a draft has no session yet. */
+  profile?: string | null
   cwd?: string | null
   /** Owner-routed RPC for the composer's own reads/writes (context usage,
    *  reasoning/fast). Same dispatcher the model menu is built with upstream —
@@ -73,7 +77,7 @@ export interface ChatBarProps {
   /** Delivers a hidden note to the model mid-turn with no user turn (gateway session.steer). */
   onSteerHidden?: (text: string) => Promise<boolean> | boolean
   onSubmit: (value: string, options?: SubmitTextOptions) => Promise<boolean> | boolean
-  onTranscribeAudio?: (audio: Blob) => Promise<string>
+  onTranscribeAudio?: (audio: Blob, owner?: ResolvedOwner) => Promise<string>
 }
 
 export type VoiceStatus = 'idle' | 'recording' | 'transcribing'

@@ -18,6 +18,7 @@ from hermes_cli.foreign_sessions import (
     parse_codex_session,
     parse_kimi_session,
 )
+import itertools
 
 
 # ── fixture builders ─────────────────────────────────────────────────────
@@ -221,7 +222,7 @@ def _assert_alternating(messages):
     roles = [m["role"] for m in messages]
     assert roles, "no messages"
     assert roles[0] == "user"
-    for a, b in zip(roles, roles[1:]):
+    for a, b in itertools.pairwise(roles):
         assert a != b, f"two consecutive {a} messages"
 
 

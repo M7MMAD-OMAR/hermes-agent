@@ -1,4 +1,5 @@
 import { arPlural as plural } from './ar_plural'
+import { arUpdateChannel } from './ar_update_channel'
 import type { TranslationOverrides } from './define-locale'
 
 export const arSettings = {
@@ -70,6 +71,14 @@ export const arSettings = {
     resetConfirm: 'هل تريد إعادة كل الإعدادات إلى افتراضيات Sbar Rafiq؟',
     exportFailed: 'فشل التصدير',
     resetFailed: 'فشلت إعادة الضبط',
+    pluginPages: {
+      blurb: 'خيارات تضيفها الإضافات المثبّتة. لكل إضافة صفحتها الخاصة، وبعضها يضيف صفحات فرعية.',
+      empty: 'لا توجد إضافة لها إعدادات بعد.',
+      manage: 'إدارة الإضافات',
+      agentSettings: 'إعدادات الوكيل',
+      pageCount: (n: number) => `${n} صفحات`,
+      missing: 'هذه الإضافة ليس لها صفحة إعدادات. ربما عُطّلت أو أُزيلت.'
+    },
     nav: {
       providers: 'المزودون',
       providerAccounts: 'الحسابات',
@@ -84,10 +93,8 @@ export const arSettings = {
       about: 'حول',
       notifications: 'الإشعارات',
       keybinds: 'اختصارات لوحة المفاتيح',
-      billing: 'الفوترة',
-      providerCustomEndpoints: 'نقاط النهاية المخصصة',
-      providerLocalModels: 'النماذج المحلية',
-      vault: 'كلمات المرور وتسجيلات الدخول'
+      vault: 'كلمات المرور وتسجيلات الدخول',
+      plugins: 'الإضافات'
     },
     vault: {
       title: 'كلمات المرور وتسجيلات الدخول',
@@ -165,16 +172,10 @@ export const arSettings = {
     },
     plugins: {
       title: 'إضافات سطح المكتب',
-      blurb:
-        'امتدادات واجهة تُحمّل داخل هذا التطبيق، إما مضمّنة مع البناء، أو موضوعة في مجلد desktop-plugins (بما فيها التي يكتبها Sbar Rafiq). تعطيل الإضافة يفرغها مباشرة ويبقى بعد إعادة التشغيل.',
-      count: n => `${n} مثبتة`,
       openFolder: 'فتح مجلد إضافات سطح المكتب',
       rescan: 'إعادة الفحص',
       reveal: 'إظهار في مدير الملفات',
-      enable: 'تفعيل',
-      disable: 'تعطيل',
       failed: 'فشل',
-      empty: 'لا توجد إضافات سطح مكتب مثبتة بعد.',
       kinds: { bundled: 'مضمّنة', disk: 'على القرص', runtime: 'وقت التشغيل' },
       installModal: {
         installUncertain:
@@ -194,7 +195,6 @@ export const arSettings = {
         desktopUnavailable: 'تثبيت إضافات سطح المكتب غير متاح في هذه البيئة.',
         enableAgent: 'تفعيل إضافة الوكيل بعد التثبيت',
         forceReinstall: 'فرض إعادة التثبيت (استبدالها إن كانت مثبتة)',
-        gitCloneLabel: 'رابط استنساخ Git',
         includesHeading: 'تتضمن هذه الحزمة',
         insecureWarning: 'يستخدم هذا الرابط مخططا غير آمن أو محليا. يُفضّل https:// أو git@ لعمليات التثبيت الإنتاجية.',
         install: 'تثبيت',
@@ -204,15 +204,12 @@ export const arSettings = {
         probing: 'جار فحص المستودع…',
         repoLabel: 'المستودع',
         reviewRepository: 'مراجعة المستودع',
-        securityHeading: 'قبل التثبيت',
         securityIntro: 'ثبّت فقط من مصادر تثق بها، وراجع المستودع أدناه إن أردت معرفة ما سيُضاف.',
         selectComponent: 'اختر مكوّنا واحدا على الأقل لتثبيته.',
         sourceHeading: 'الشيفرة المصدرية',
         title: 'تثبيت إضافة',
         viewPluginFiles: 'عرض ملفات الإضافة',
         viewRepository: 'عرض المستودع',
-        reviewedHeading: 'مدخل مُراجَع في الفهرس',
-        reviewedIntro: 'رُوجع هذا المدخل عند التزامه المثبّت. لا يزال بإمكانك فحص الشيفرة نفسها أدناه.',
         missingEnvAction: 'اضبطه',
         desktopTargetFromPackage: 'يُحمَّل في هذا التطبيق من الحزمة أعلاه، ونفسه لكل ملف شخصي',
         pinToCommit: 'التثبيت على التزام (اختياري)',
@@ -220,18 +217,22 @@ export const arSettings = {
         pinToCommitHint:
           'كل من يثبّت هذه البصمة يحصل على الشيفرة نفسها، ثم ترفض الإضافة التحديثات حتى تُثبَّت من جديد. اتركه فارغًا لأحدث التزام.',
         pinToCommitInvalid: 'يجب أن تكون بصمة التزام كاملة من 40 محرفًا (الفروع والوسوم غير مقبولة).',
-        catalogPinned: (name, sha) =>
-          `مدخل فهرس Sbar Rafiq «${name}»: يُثبَّت مكوّن الوكيل عند التثبيت المُراجَع${sha ? ` ${sha}` : ''}، لا عند رأس الفرع.`,
         alreadyInstalled: (name: string) => `${name} مثبت بالفعل.`,
         toolsConnected: n => `تم توصيل ${n} من الأدوات`,
         skillsReady: names => (names.length === 1 ? `المهارة ${names[0]} جاهزة` : `${names.length} من المهارات جاهزة`),
         nextChat: 'أدوات أخرى متاحة في دردشتك التالية',
         serverNotConnected: (server, reason) => `خادم MCP ${server} غير متصل${reason ? `: ${reason}` : '.'}`,
-        profileLabel: 'التثبيت للملف الشخصي'
-      },
-      agentHalfMissing: 'نصف الوكيل غير مثبت هنا',
-      agentHalfMissingTip:
-        'هذا هو نصف سطح المكتب من إضافة مضمّنة، لكن نصف الوكيل منها غير مثبت على الخلفية أو الملف الشخصي المتصل حاليًا. ثبّته من الإمكانات ثم الإضافات.'
+        verified: 'موثّق',
+        unverified: 'غير موثّق',
+        reviewedByNous: 'راجعته Nous.',
+        installsAndEnables: profile => `يُثبَّت لملف ${profile} ويعمل فورًا.`,
+        installsOnly: profile => `يُثبَّت لملف ${profile}.`,
+        advanced: 'متقدم',
+        versionLabel: 'الإصدار',
+        reviewedPin: sha => (sha ? `الإصدار المثبّت المراجَع ${sha}` : 'الإصدار المثبّت المراجَع'),
+        latestCommit: 'أحدث إيداع',
+        nothingToInstall: 'لا تحتوي هذه الحزمة على ما يُثبَّت هنا.'
+      }
     },
     notifications: {
       title: 'الإشعارات',
@@ -631,40 +632,8 @@ export const arSettings = {
         'جمل إضافية لشخصية الصوت المباشر (النبرة، الإيقاع، اللغة). يحتفظ Sbar Rafiq بموجّهه النظامي الخاص.'
     },
     about: {
-      heading: 'حول Sbar Rafiq',
-      version: value => `الإصدار ${value}`,
-      versionUnavailable: 'الإصدار غير متاح',
-      bundleOutOfSync: 'إصدار التطبيق قديم',
-      bundleOutOfSyncDesc:
-        'تم تحديث وقت تشغيل Sbar Rafiq، لكن تطبيق سطح المكتب نفسه لا يزال إصدارًا قديمًا، لن تظهر ميزات الواجهة الجديدة (مثل Bot Mode) حتى يتم تحديث التطبيق. شغّل التحديث أدناه لإعادة بناء التطبيق. إذا لم يختفِ هذا التحذير، فأعد التثبيت من أحدث مثبّت لسطح المكتب.',
-      bundleOutOfSyncAction: 'الحصول على المثبّت',
-      bundleSwapPending: 'أعد التشغيل لإكمال التحديث',
-      bundleSwapPendingDesc:
-        'تم تثبيت التطبيق المحدَّث بالفعل، يكفي إعادة تشغيل Sbar Rafiq لتحميله. لن تتأثر المحادثات أو الإعدادات.',
-      bundleSwapPendingAction: 'إعادة تشغيل Sbar Rafiq',
       updates: 'التحديثات',
-      checkNow: 'التحقق الآن',
-      checking: 'جار التحقق...',
-      seeWhatsNew: 'عرض الجديد',
-      updateNow: 'تحديث الآن',
-      releaseNotes: 'ملاحظات الإصدار',
-      onLatest: 'أنت على أحدث إصدار',
-      installing: 'جار التثبيت...',
-      cantUpdate: 'تعذر التحديث',
-      cantReach: 'تعذر الوصول لخدمة التحديث',
-      tapCheck: 'اضغط للتحقق من التحديثات.',
-      updateReady: count => `${count} تحديث متاح`,
-      updateReadyUnknown: 'تحديث جديد جاهز.',
-      lastChecked: age => `آخر تحقق ${age}`,
-      justNowSuffix: 'الآن',
-      automaticUpdates: 'التحديثات التلقائية',
-      automaticUpdatesDesc: 'اسمح لـ Sbar Rafiq بالتحقق من التحديثات وتثبيتها.',
-      branchCommit: (branch, commit) => `${branch} عند ${commit}`,
-      never: 'أبدا',
-      justNow: 'الآن',
-      minAgo: count => `قبل ${count} دقيقة`,
-      hoursAgo: count => `قبل ${count} ساعة`,
-      daysAgo: count => `قبل ${count} يوم`
+      channel: arUpdateChannel
     },
 
     config: {
@@ -1014,6 +983,8 @@ export const arSettings = {
       change: 'تغيير',
       autoUseMain: 'تلقائي · استخدام النموذج الرئيسي',
       inheritMainEffort: 'وراثة · جهد النموذج الرئيسي',
+      inheritsFrom: task => `يرث من ${task}`,
+      followTask: task => `اتباع ${task}`,
       providerDefault: '(افتراضي المزوّد)',
       tasks: {
         vision: {
@@ -1044,6 +1015,7 @@ export const arSettings = {
           label: 'المراجعة',
           hint: 'وكيل المراجعة الفرعي /review'
         },
+        voice_chat: { label: 'دردشة صوتية', hint: 'ردود الوضع الصوتي' },
         triage_specifier: {
           label: 'محدد الفرز',
           hint: 'توضيح مواصفات كانبان'
@@ -1470,12 +1442,6 @@ export const arSettings = {
         }
       },
       confirmBody: what => `سيؤدي هذا إلى إزالة ${what}. لا يمكن التراجع عن ذلك.`
-    },
-    poolLimits: {
-      warmBotBackendsAria: 'خلفيات البوتات الدافئة',
-      warmBotBackendsTitle: 'خلفيات البوتات الدافئة',
-      backendIdleTimeoutAria: 'مهلة خمول الخلفية بالمللي ثانية',
-      backendIdleTimeoutTitle: 'مهلة خمول الخلفية'
     },
     customEndpoints: {
       title: 'نقاط النهاية المخصصة',

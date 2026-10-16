@@ -57,6 +57,7 @@ function renderSendControl(overrides: Partial<React.ComponentProps<typeof Compos
     <I18nProvider configClient={null} initialLocale="en">
       <ComposerSendControl
         busy={false}
+        busyAction="stop"
         canSubmit={true}
         conversation={conversation()}
         disabled={false}
@@ -182,10 +183,10 @@ describe('in-field send control', () => {
     await expectShortcutTooltip('Send', '↵')
   })
 
-  it('keeps Send (not Steer) while a turn is running if there is a payload', async () => {
-    renderSendControl({ busy: true })
+  it('labels busy Send with the effective configured action', async () => {
+    renderSendControl({ busy: true, busyAction: 'steer' })
 
-    await expectShortcutTooltip('Send', '↵')
+    await expectShortcutTooltip('Steer the current run', '↵')
   })
 
   it('shows Stop only when the composer is empty mid-turn', async () => {
@@ -194,7 +195,20 @@ describe('in-field send control', () => {
     await expectShortcutTooltip('Stop', '↵')
   })
 
-  it('renders nothing mid-conversation — the pill owns the row', () => {
+  it('answers a waiting card with Send when the draft has text', () => {
+    renderSendControl({ busy: true, busyAction: 'queue', cardWaiting: true, hasComposerPayload: true })
+
+    expect(screen.getByLabelText('Send')).toBeTruthy()
+    expect(screen.queryByLabelText('Stop')).toBeNull()
+  })
+
+  it('keeps Stop enabled while a card waits and the draft is empty', () => {
+    renderSendControl({ busy: true, busyAction: 'stop', canSubmit: true, cardWaiting: true, hasComposerPayload: false })
+
+    expect(screen.getByLabelText('Stop').hasAttribute('disabled')).toBe(false)
+  })
+
+  it('renders nothing mid-conversation, the pill owns the row', () => {
     renderSendControl({ conversation: conversation({ active: true, status: 'listening' }) })
 
     expect(screen.queryByLabelText('Send')).toBeNull()
@@ -203,8 +217,14 @@ describe('in-field send control', () => {
 })
 
 describe('ComposerControls queue tooltips', () => {
+  it('offers no Queue while a card waits', () => {
+    renderControls({ busy: true, busyAction: 'queue', cardWaiting: true, hasComposerPayload: true })
+
+    expect(screen.queryByLabelText('Queue message')).toBeNull()
+  })
+
   it('shows Ctrl+Enter for Queue as the secondary mid-turn action', async () => {
-    renderControls({ busy: true, busyAction: 'queue' })
+    renderControls({ busy: true, busyAction: 'interrupt' })
 
     await expectShortcutTooltip('Queue message', 'Ctrl+↵')
   })

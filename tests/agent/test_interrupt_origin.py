@@ -183,7 +183,10 @@ class TestTranscriptClose:
     def test_an_unattributed_close_is_unchanged(self):
         messages = self._tool_tail()
         close_interrupted_tool_sequence(messages, None)
-        assert messages[-1]["content"] == "Operation interrupted."
+        # Upstream closes an unattributed empty turn silently: a hidden row, the text only in api_content.
+        assert messages[-1]["content"] == ""
+        assert messages[-1]["display_kind"] == "hidden"
+        assert messages[-1]["api_content"]
 
     def test_real_assistant_text_always_wins_over_the_placeholder(self):
         """Attribution is a fallback for an empty turn, never a replacement for work the
@@ -252,7 +255,8 @@ class TestSettlement:
         )
 
         assert result["interrupt_origin"] == io.UNKNOWN
-        assert messages[-1]["content"] == "Operation interrupted."
+        assert messages[-1]["content"] == ""  # unattributed: hidden row, text only in api_content
+        assert messages[-1]["display_kind"] == "hidden"
 
     def test_the_attribution_is_read_before_the_clear_wipes_it(self):
         """Ordering regression guard: settle reads, THEN clears."""

@@ -943,7 +943,7 @@ def main() -> int:
         return 0
 
     if args.cmd == "add":
-        para, runs = find_anchor_runs(doc, args.target)
+        _para, runs = find_anchor_runs(doc, args.target)
         if not runs:
             return _fail(f"target not found: {args.target}")
         native = hasattr(doc, "add_comment") and not args.xml

@@ -1,4 +1,5 @@
 import type { TranslationOverrides } from './define-locale'
+import { zhHantSessionCommands } from './zh-hant_session_commands'
 
 export const zhHantBoot = {
   boot: {
@@ -75,6 +76,21 @@ export const zhHantBoot = {
   remoteDisplayBanner: {
     message: reason => `軟體繪圖已啟用 — 偵測到遠端顯示（${reason}）。為防止畫面閃爍，已停用 GPU 加速。`
   },
+  butterbar: {
+    goTo: (index, total) => `顯示第 ${index} 則通知，共 ${total} 則`,
+    legal: {
+      before: '使用 Hermes Agent 即表示受我們的',
+      terms: '服務條款',
+      between: '和',
+      privacy: '隱私權政策',
+      after: '約束。'
+    }
+  },
+  promptNotices: {
+    legacySendUnconfirmed: '此伺服器無法確認這則訊息先前的傳送，它可能已經執行過。再次傳送前請先查看對話。',
+    sessionCommands: zhHantSessionCommands
+  },
+
   updates: {
     discontinuedTitle: '此版本的 Sbar Rafiq 已停止支援',
     discontinuedBody: '此版本的 Sbar Rafiq 已停止支援，可能無法正常運作——請解除安裝。您的資料仍保留在磁碟上。',
@@ -197,10 +213,7 @@ export const zhHantBoot = {
     bundleOutOfSyncAction: '取得安裝程式',
     checkingShort: '檢查中…'
   },
-  guidedGreeting: {
-    line: '來了，進來吧。我是 Sbar Rafiq。給我兩分鐘，把這裡按你的習慣整理一下，然後我們找件你真正想做的事來做。\n\n先說，我該怎麼稱呼你？',
-    nameSuggestion: (name: string) => `（如果你願意，我也可以直接叫你 ${name}。）`
-  },
+
   install: {
     stageStates: {
       pending: '等待中',
@@ -327,8 +340,6 @@ export const zhHantBoot = {
     copyAuthCode: '複製授權碼並貼到下方。',
     pasteAuthCode: '貼上授權碼',
     reopenAuthPage: '重新開啟授權頁面',
-    autoBrowser: provider => `已在瀏覽器中開啟 ${provider}。請在那裡授權 Sbar Rafiq，連線會自動完成，無需複製或貼上。`,
-    reopenSignInPage: '重新開啟登入頁面',
     waitingAuthorize: '等待您授權...',
     externalPending: provider => `${provider} 透過自己的 CLI 登入。請在終端機執行此指令，然後回來選擇「我已登入」：`,
     signedIn: '我已登入',
@@ -343,14 +354,11 @@ export const zhHantBoot = {
     change: '變更',
     startChatting: '開始',
     docs: provider => `${provider} 文件`,
-    localApiKeyPlaceholder: 'API 金鑰（選填，僅在端點需要時填寫）',
-    tryAgain: '再試一次',
-    useApiKeyInstead: '使用 API 金鑰',
-    errorDetails: '詳細資料',
-    signInDidNotFinish: provider =>
-      `使用 ${provider} 登入未完成。請檢查網際網路連線後再試一次，或選擇其他供應商。`
+    setupSlowTitle: '設定花費的時間比平常久。',
+    setupSlowBody: 'Hermes 仍在背景中啟動。',
+    continueWithoutSetup: '略過設定並繼續'
   }
 } satisfies Pick<
   TranslationOverrides,
-  'boot' | 'remoteDisplayBanner' | 'updates' | 'guidedGreeting' | 'install' | 'onboarding'
+  'boot' | 'remoteDisplayBanner' | 'butterbar' | 'promptNotices' | 'updates' | 'install' | 'onboarding'
 >

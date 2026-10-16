@@ -1,4 +1,7 @@
-import { defineLocale } from './define-locale'
+import { mergeTranslations } from '@hermes/shared/i18n'
+
+import { defineLocale, type TranslationOverrides } from './define-locale'
+import { zhHantLocal } from './zh-hant_local'
 import { introZhHant } from './intro-zh-hant'
 import { zhHantArtifacts } from './zh-hant_artifacts'
 import { zhHantAssistant } from './zh-hant_assistant'
@@ -10,9 +13,21 @@ import { zhHantCommandCenter } from './zh-hant_command_center'
 import { zhHantCommon } from './zh-hant_common'
 import { zhHantConnectors } from './zh-hant_connectors'
 import { zhHantDiagnostics } from './zh-hant_diagnostics'
+import { zhHantFirstRun } from './zh-hant_first_run'
 import { zhHantSettings } from './zh-hant_settings'
 
-export const zhHant = defineLocale({
+const zhHantOverridesBase = {
+  connectors: {
+    directory: {
+      suggested: '推薦',
+      allApps: '全部應用程式',
+      receiptConnected: apps => `已連接：${apps}`,
+      receiptNone: '未連接新的應用程式',
+      receiptTimedOut: '5 分鐘後已關閉',
+      finishInBrowser: '請在瀏覽器中完成',
+      signInFailed: '連接失敗，點擊重試'
+    }
+  },
   skillDeepLink: {
     installTitle: (name: string) => `安裝「${name}」？`,
     installDescription: '此技能將於新的工作階段中可用。請僅安裝可信來源的內容。',
@@ -31,39 +46,37 @@ export const zhHant = defineLocale({
     close: '關閉'
   },
   sharedMetrics: {
-    consentTitle: '協助改進 Sbar Rafiq？',
+    consentTitle: '分享使用統計？',
+    dialogTitle: '使用統計',
     consentBody:
-      '共享指標只包含有上限的計數，絕不包含提示詞、檔案、路徑或錯誤文字。收集僅在本機進行；傳送給 Nous 需要另行同意。',
-    whatIsCollected: '收集哪些內容',
-    collectedIntro: '僅限有上限的計數：',
-    collectedActivity: '活動、工作階段長度、結果和錯誤類別',
-    collectedModels: '模型路由和 token 總量',
-    collectedNames: '內建工具、指令和目錄項名稱',
-    collectedMilestones: '分組的設定計數',
-    collectedReliability: '更新結果與耗時、當機、啟動與回覆速度、訊息平台狀態',
-    collectedUsage:
-      'Sbar Rafiq 的使用方式：代理的準確度與效率（編輯是否成功、迴圈、錯誤後的恢復、每個任務的 token 與工具呼叫數、快取中斷），各介面與 Desktop 模式的活躍時間，哪些應用程式區域、操作與設定被使用、很快關閉或被關閉，以及供應商設定的結果',
-    collectedMachine:
-      '概略的機器資訊：記憶體範圍、GPU 類型、Sbar Rafiq 版本新舊與發行通道、落後的更新數、是否使用本機模型伺服器',
-    installId:
-      '傳送會把每日資料包上傳到 Nous 遙測服務。資料包帶有此設定檔的安裝 ID：一個不含個人資訊的固定隨機 UUID，刪除共享指標目錄即可重設。',
-    consentWindow:
-      '只有整個收集期間都落在已記錄同意時段內的資料包才會被傳送——你同意之前的資料，或傳送關閉期間的資料，都會留在本機。你可以隨時再次關閉傳送。',
+      'Sbar Rafiq 可以統計你的使用方式：工作階段長度、執行了哪些模型和工具，以及何時發生失敗。它絕不記錄你的訊息、檔案、路徑或錯誤文字。',
+    whatIsCollected: '統計哪些內容',
+    collectedActivity: '工作階段：長度、結果、錯誤類型、每日活躍時間',
+    collectedModels: '模型：使用哪些模型、token 總量',
+    collectedNames: '功能：使用或關閉的內建工具、指令、應用程式區域和設定',
+    collectedMilestones: '設定：完成了哪些步驟、提供方連線、技能、外掛和排程工作的數量',
+    collectedReliability: '應用程式健康狀態：當機、啟動與回覆速度、更新、訊息平台連線',
+    collectedUsage: '代理品質：未成功的編輯、損壞的工具呼叫、卡住的迴圈、每個任務的成本',
+    collectedMachine: '機器：作業系統、記憶體範圍、GPU 類型、Sbar Rafiq 版本、本機模型使用情況',
+    sending:
+      '除非你選擇分享，否則統計資料只會保留在這台電腦上。分享的統計資料每天傳送給 Nous 一次，並附帶此設定檔的隨機 ID。除了一則 Sbar Rafiq 已安裝的一次性記錄（僅在你同意後計入）之外，你同意之前的統計資料永遠不會被傳送。你可以隨時在設定中變更。',
     readDocs: '查看完整說明',
-    share: '收集並傳送給 Nous',
-    local: '僅在本機收集',
+    share: '與 Nous 分享',
+    local: '保留在這部電腦上',
     off: '不用了',
-    changeLater: '你可以隨時在 設定 → 安全性 中變更。',
     saveFailed: '無法儲存你的選擇',
     collectLabel: '收集使用統計',
-    collectDesc: '在此裝置上保存有上限的計數。絕不包含提示詞、檔案、路徑或錯誤文字。',
-    sendLabel: '向 Nous 傳送使用統計',
-    sendDesc: '將每日資料包上傳到 Nous 遙測服務。只傳送同意時段內的資料。需要先開啟收集。',
+    collectDesc: '僅限計數，保留在這部電腦上。絕不包含你的訊息、檔案、路徑或錯誤文字。',
+    sendLabel: '與 Nous 分享使用統計',
+    sendDesc:
+      '每天一次將統計資料連同此設定檔的隨機 ID 傳送給 Nous。除一次性的安裝記錄外，你同意之前的統計資料絕不會被傳送。需要先開啟收集。',
     unavailable: '請更新 Sbar Rafiq 後端以變更此設定。',
-    stripBody: '僅限有界計數器，絕不包含提示詞或檔案。',
-    stripChoices: { share: '傳送給 Nous', local: '僅限本機', off: '不用了' },
+    stripBody: '僅限計數，絕不包含你的訊息或檔案。',
+    stripReaskBody: '再次詢問：舊版本可能在你看到此問題之前就已儲存了「不用了」。',
+    stripChoices: { share: '與 Nous 分享', local: '保留在這部電腦上', off: '不用了' },
     stripDetails: '詳細資訊'
   },
+  firstRun: zhHantFirstRun,
   intro: introZhHant,
   sessionImport: zhHantConnectors.sessionImport,
   common: zhHantCommon.common,
@@ -71,6 +84,8 @@ export const zhHant = defineLocale({
   boot: zhHantBoot.boot,
   notifications: zhHantDiagnostics.notifications,
   remoteDisplayBanner: zhHantBoot.remoteDisplayBanner,
+  butterbar: zhHantBoot.butterbar,
+  promptNotices: zhHantBoot.promptNotices,
   billingBlock: zhHantCommon.billingBlock,
   sendDiagnostics: zhHantDiagnostics.sendDiagnostics,
   titlebar: zhHantChrome.titlebar,
@@ -94,10 +109,17 @@ export const zhHant = defineLocale({
   artifactCard: zhHantArtifacts.artifactCard,
   artifactPreview: zhHantArtifacts.artifactPreview,
   sidebar: zhHantChrome.sidebar,
-  composer: zhHantChat.composer,
+  composer: {
+    ...zhHantChat.composer,
+    redirect: '重新導向目前的執行',
+    queueLostNote: '重新啟動期間該回合已遺失',
+    restoreImageDraft: '還原圖片草稿',
+    queueCancelFailed: '無法移除排隊的回合',
+    queueLostDiscard: '捨棄',
+    queueLostDiscardTip: '閘道在該回合進行中重新啟動，無法完成。捨棄後其後的排隊回合將繼續執行。'
+  },
   statusStack: zhHantChat.statusStack,
   updates: zhHantBoot.updates,
-  guidedGreeting: zhHantBoot.guidedGreeting,
   install: zhHantBoot.install,
   onboarding: zhHantBoot.onboarding,
   modelPicker: zhHantSettings.modelPicker,
@@ -126,472 +148,16 @@ export const zhHant = defineLocale({
   errors: zhHantDiagnostics.errors,
   tips: zhHantChat.tips,
   ui: zhHantCommon.ui,
-  keybinds: {
-    actions: {
-      'nav.threads': '開啟執行緒'
-    }
-  },
-  threads: {
-    close: '關閉執行緒',
-    title: '執行緒',
-    subtitle: '在這一輪結束後仍在繼續的工作。',
-    emptyTitle: '尚無執行緒',
-    emptyDesc: '當這個對話在背景委派工作時，每條執行緒都會帶著自己的紀錄出現在這裡。',
-    working: '進行中',
-    workingDesc: '正在執行。',
-    resolved: '已完成',
-    resolvedDesc: '已完成的執行緒存放在這裡。',
-    failed: '已失敗',
-    failedDesc: '在完成前停止了。',
-    waiting: '等你處理',
-    waitingDesc: '只有你能給出的決定、審閱與授權。',
-    live: '即時',
-    subagents: '子代理',
-    messages: '訊息',
-    tools: '工具呼叫',
-    model: '模型',
-    started: '開始',
-    openThread: '開啟執行緒',
-    backToThreads: '返回執行緒列表',
-    transcript: '紀錄',
-    transcriptTail: '顯示最新的訊息。',
-    transcriptEmpty: '這條執行緒還沒有寫下任何內容。',
-    transcriptFailed: '無法讀取這條執行緒。',
-    steerPlaceholder: '引導這條執行緒...',
-    steerSend: '傳送至執行緒',
-    steerSent: '已傳送至執行緒。',
-    steerFailed: '無法聯繫這條執行緒。',
-    steerUnavailable: '這條執行緒已結束，沒有可引導的內容。',
-    routedTo: '已傳送至執行緒',
-    routeUndo: '復原',
-    refresh: '重新整理執行緒',
-    loading: '正在讀取執行緒...'
-  },
-  projectWorkflows: {
-    title: '專案工作範本',
-    hint: '準備新任務草稿，在輸入框中檢查後傳送。',
-    workflow: '工作類型',
-    approach: '執行方式',
-    approachHint: '調整範圍與檢查，不變更模型設定或強制定時停止。',
-    task: '描述需要的結果',
-    preparing: '正在準備草稿…',
-    openDraft: '開啟任務草稿',
-    names: {
-      'quick-ui': '快速介面修復',
-      'client-delivery': '客戶交付',
-      research: '專案研究',
-      'weekly-review': '每週回顧'
-    },
-    descriptions: {
-      'quick-ui': '修復目標介面並在瀏覽器中驗證。',
-      'client-delivery': '分享前準備並驗證交付檔案。',
-      research: '根據來源研究並明確列出未知事項。',
-      'weekly-review': '回顧此專案並建議下週優先事項。'
-    },
-    approaches: {
-      quick: '快速',
-      standard: '標準',
-      thorough: '深入'
-    }
-  },
-  projectActions: {
-    title: '文件行動項目',
-    hint: '儲存任務前請審核附有引用的建議。已接受的任務將在共用看板等待手動安排。',
-    source: '選擇已建立索引的文件',
-    extract: '準備擷取任務',
-    refresh: '重新整理建議',
-    empty: '尚無建議',
-    owner: '負責人（如已知）',
-    due: '來源中寫明的期限（如已知）',
-    save: '儲存修改',
-    accept: '儲存為任務',
-    dismiss: '忽略',
-    pending: '等待審核',
-    accepting: '重試儲存任務',
-    accepted: '已儲存任務',
-    dismissed: '已忽略',
-    task: '任務',
-    board: '共用看板',
-    edited: '你修改過的欄位',
-    quote: '來源引文'
-  },
-  projectBrief: {
-    retry: '重試',
-    openSource: '開啟目前來源檔案',
-    title: '專案概覽與參考資料',
-    hint: '搜尋帶有已儲存來源引用的專案文件。變更檔案後請重新整理。',
-    summary: '專案概覽',
-    save: '儲存概覽',
-    sources: '來源資料夾',
-    unavailable: '無法使用',
-    refresh: '重新整理參考資料',
-    scanLimit: '掃描已達到檔案數量上限。請縮小來源資料夾範圍。',
-    approved: '已核准的成果',
-    search: '搜尋阿拉伯語或英語參考資料',
-    history: '包含歷史版本',
-    noMatches: '沒有符合的已索引資料。請使用具體關鍵字或重新整理來源。',
-    page: '頁',
-    paragraph: '段落',
-    comment: '註解',
-    line: '行',
-    current: '目前索引版本',
-    previous: '歷史版本或無法使用的來源',
-    copy: '複製引用',
-    indexed: (ready, total) => `已索引 ${ready}/${total} 個檔案`,
-    pending: count => `${count} 個檔案等待索引`,
-    issues: count => `${count} 個檔案需要處理`
-  },
-  connectorsPage: {
-    title: '連接器',
-    filterCategory: '類別',
-    categoryAll: '所有類別',
-    uncategorised: '未分類',
-    residencyLocal: '在此裝置上',
-    segment: {
-      all: '全部',
-      available: '可用',
-      connected: '已連線',
-      off: '已關閉'
-    },
-    group: {
-      connected: '已連線',
-      connectedNote: '中斷的連線排在最前面。',
-      available: '可用',
-      off: '已關閉',
-      offNote: '登入資訊會保留。'
-    },
-    card: {
-      kindManaged: '代管',
-      kindCatalog: 'MCP · 目錄',
-      kindCustom: 'MCP · 自訂',
-      inCatalog: '在 Sbar Rafiq 目錄中',
-      hostedTwin: '有代管版本可用',
-      alsoLocal: '也在此裝置上執行',
-      state: {
-        accessExpired: '存取權已過期',
-        available: '可用',
-        connected: '已連線',
-        connecting: '正在連線',
-        connectionUnknown: '狀態不明',
-        couldNotConnect: '無法連線',
-        offByYourOrganisation: '已由你的組織關閉',
-        offForYou: '已為你關閉',
-        serverConnecting: '正在連線…',
-        serverError: '錯誤',
-        serverNeedsAuth: '需要驗證',
-        serverOff: '關閉',
-        serverOn: '開啟',
-        serverOnUnused: '已開啟，未使用'
-      },
-      verb: {
-        authenticate: '驗證',
-        connect: '連線',
-        install: '安裝',
-        openLogs: '開啟記錄',
-        reconnect: '重新連線',
-        stopWaiting: '停止等待',
-        tryAgain: '再試一次',
-        turnBackOn: '重新開啟'
-      },
-      reason: {
-        finishSignIn: '請在瀏覽器中完成登入。',
-        reconnect: '重新連線，讓此應用程式繼續運作。',
-        serverError: '伺服器拒絕了連線。',
-        serverNeedsAuth: '登入後此伺服器才能回應。'
-      },
-      kindPlugin: (plugin: string) => `MCP · 外掛 ${plugin}`,
-      open: (name: string) => `開啟 ${name}`,
-      turnServerOn: (name: string) => `開啟 ${name}`,
-      turnServerOff: (name: string) => `關閉 ${name}`,
-      fact: {
-        tools: (count: number) => `${count} 個工具`,
-        toolsOff: (count: number) => `${count} 個工具已關閉`,
-        toolsOn: (count: number) => `${count} 個工具已開啟`,
-        toolsSomeOn: (total: number, on: number) => `${total} 個工具，${on} 個已開啟`
-      }
-    },
-    page: {
-      loading: '正在讀取目錄和這部電腦上的伺服器',
-      emptyTitle: '這裡還沒有應用程式。在這部電腦上新增伺服器即可開始。',
-      noMatchTitle: '沒有相符的應用程式',
-      noMatchBody: '這裡沒有相符的項目。將 Sbar Rafiq 指向你自己的 MCP 伺服器即可新增。',
-      clearSearch: '清除搜尋',
-      hostedFailedTitle: '無法連上代管的應用程式。',
-      hostedFailedBody: '這部電腦上的伺服器不受影響，仍在執行中。沒有任何項目被關閉。',
-      retry: '重試',
-      showAllMatches: '顯示所有相符項目',
-      freeTierNote: '在你登入之前，連線都保留在這部電腦上。',
-      signInLine: '登入 Nous 即可使用代管的應用程式。',
-      signIn: '登入',
-      managedUnavailable: '此帳號尚無法使用代管的應用程式。',
-      writeFailed: '該變更未儲存。',
-      refreshFailed: '工具列表未重新整理。',
-      disconnectNoAccount: 'Sbar Rafiq 在這裡沒有可中斷連線的帳號。請重新整理頁面後再試一次。',
-      disconnectRefused: 'Nous 目前無法移除此登入資訊。請改用開關關閉此應用程式，或稍後再試。',
-      matchesElsewhere: (count: number) => `其他群組中還有 ${count} 個相符項目。`,
-      segmentNoMatch: (segment: string) => `「${segment}」中沒有相符項目，因此顯示所有相符項目。`
-    },
-    add: {
-      action: '新增自訂項目',
-      title: '連線到自訂 MCP',
-      hint: '在此裝置的 mcp.json 中新增一筆項目',
-      pasteLabel: '貼上指令或程式碼片段',
-      pastePlaceholder: 'npx -y @modelcontextprotocol/server-filesystem /path/to/dir',
-      pasteNoMatch: '這段內容看起來不像伺服器。請改為填寫下方欄位。',
-      name: '名稱',
-      nameTaken: '此名稱已被使用。',
-      type: '類型',
-      typeStdio: 'STDIO',
-      typeHttp: 'Streamable HTTP',
-      command: '啟動指令',
-      args: '引數',
-      addArg: '+ 新增引數',
-      envVars: '環境變數',
-      addEnvVar: '+ 新增環境變數',
-      passthrough: '環境變數傳遞',
-      addPassthrough: '+ 新增變數',
-      cwd: '工作目錄',
-      url: 'URL',
-      headers: '標頭',
-      addHeader: '+ 新增標頭',
-      auth: '驗證',
-      authNone: '無',
-      authOauth: 'OAuth',
-      authBearer: 'Bearer 權杖',
-      keyPlaceholder: 'KEY',
-      valuePlaceholder: '值',
-      removeRow: '移除此列',
-      editJson: '編輯 mcp.json',
-      saveFailed: '該伺服器未儲存。'
-    },
-    dialog: {
-      disconnect: '中斷連線',
-      disconnectBody: 'Sbar Rafiq 將不再以此帳號執行動作。你隨時可以再次連線。',
-      menuRefreshTools: '重新整理工具',
-      moreActions: '更多動作',
-      removeServerBody: '此項目會從這部電腦的 mcp.json 中移除。不會刪除其他任何內容。',
-      wayHosted: '代管',
-      turnOffLocal: '關閉本機伺服器',
-      openPlugins: '開啟「外掛」分頁',
-      nousLine: 'Nous 應用程式跟隨你的帳號，而非設定檔。',
-      rulesReadOnly: '目前無法變更規則。',
-      rulesSignIn: '登入後即可變更 Sbar Rafiq 在這裡可以做的事。',
-      orgLink: '開啟連接器管理頁面',
-      connectEnded: '登入未完成。',
-      connectOpenAgain: '再次開啟連結',
-      tokensPerCall: '每次呼叫的 token 數',
-      usesPerMonth: '30 天內使用次數',
-      advanced: '進階',
-      advancedHint: 'mcp.json 項目和記錄',
-      disconnectTitle: (name: string) => `要中斷與 ${name} 的連線嗎？`,
-      removeServerTitle: (name: string) => `要移除 ${name} 嗎？`,
-      appSwitch: (name: string) => `Sbar Rafiq 可以使用 ${name}`,
-      waysTitle: (name: string) => `${name} 的執行位置`,
-      wayNotConnected: (name: string) => `尚未連線。請在瀏覽器中登入 ${name}。`,
-      bothOn: (name: string) => `兩者都已開啟，因此 Sbar Rafiq 會看到每個 ${name} 工具兩次。`,
-      providedByPlugin: (plugin: string) => `由外掛 ${plugin} 提供`,
-      rulesAppOff: (name: string) => `開啟 ${name} 後才能變更其工具。`,
-      orgNote: (count: number) => `你的組織已關閉 ${count} 個工具。`
-    },
-    tools: {
-      title: '工具',
-      notInstalledBody: '在此裝置上安裝後，即可查看它提供的工具。',
-      summaryAllTools: '所有工具',
-      summaryOther: '其他',
-      allToolsSwitch: '開啟或關閉所有工具',
-      summaryAllOn: '全部開啟',
-      summaryOff: '關閉',
-      showSummary: '顯示摘要',
-      staleSignIn: '登入以讀取最新的工具列表。',
-      quickReadOnly: '唯讀',
-      quickNoDestructive: '關閉破壞性工具',
-      quickEverythingOn: '全部開啟',
-      lockedHint: '已由你的組織關閉',
-      noMatch: '沒有符合這些篩選條件的工具。',
-      loading: '正在讀取工具列表',
-      unavailableLine: '無法取得工具列表。',
-      needsAuthBody: '登入資訊會保留在這部電腦上，不會外傳。',
-      retry: '重試',
-      goneBody: 'Sbar Rafiq 已無法再呼叫它。這一列會保留到你移除為止，因此不會有任何項目突然消失。',
-      remove: '移除',
-      offBody: '用上方的開關開啟後，即可讀取它提供的工具。',
-      signedOutTitle: '登入 Nous 以讀取工具列表。',
-      signedOutBody: '這部電腦上的伺服器不受影響。',
-      conflictTitle: '在你編輯時，有人變更了此規則。',
-      conflictReload: '重新載入對方的版本',
-      conflictSave: '以你的版本覆寫',
-      saveFailed: '這些工具規則未儲存。',
-      discard: '捨棄',
-      save: '儲存變更',
-      saving: '正在儲存...',
-      summaryTitle: (name: string) => `Sbar Rafiq 可以對 ${name} 做的事`,
-      summaryPreviewTitle: (name: string) => `連線後 Sbar Rafiq 可以對 ${name} 做的事`,
-      summaryCount: (count: number) => `${count} 個工具`,
-      summarySomeOn: (on: number, total: number) => `${total} 個中有 ${on} 個已開啟`,
-      showAllTools: (count: number) => `顯示全部 ${count} 個工具`,
-      facetSwitch: (facet: string) => `開啟或關閉「${facet}」工具`,
-      moreHints: (count: number) => `+${count}`,
-      searchCountPlaceholder: (count: number) => `搜尋 ${count} 個工具`,
-      toolList: (name: string) => `${name} 工具`,
-      categorySelect: (count: number) => `${count} 個類別`,
-      showDeprecated: (count: number) => `顯示 ${count} 個已淘汰項目`,
-      hideDeprecated: (count: number) => `隱藏 ${count} 個已淘汰項目`,
-      turnToolOn: (tool: string) => `開啟 ${tool}`,
-      turnToolOff: (tool: string) => `關閉 ${tool}`,
-      showDetails: (tool: string) => `顯示 ${tool} 的作用`,
-      hideDetails: (tool: string) => `隱藏 ${tool} 的作用`,
-      needsAuthTitle: (name: string) => `登入 ${name} 以讀取其工具。`,
-      goneTitle: (name: string) => `${name} 已從目錄中移除。`,
-      offTitle: (name: string) => `${name} 已關閉。`,
-      conflictBody: (theyOff: number, theyOn: number) => {
-        const they = [
-          theyOff > 0 ? `關閉了 ${theyOff} 個你已開啟的工具` : '',
-          theyOn > 0 ? `讓 ${theyOn} 個你已關閉的工具保持開啟` : ''
-        ].filter(Boolean)
-
-        return `${they.length > 0 ? `對方${they.join('，並且')}。` : ''}你的編輯仍保留在畫面上，尚未寫入任何內容。`
-      },
-      footerDirty: (off: number, backOn: number) =>
-        `${off} 個工具已關閉，${backOn === 0 ? '沒有' : `${backOn} 個`}重新開啟`
-    },
-    vocabulary: {
-      facetRead: {
-        label: '讀取',
-        long: '從此應用程式讀取資料，不會變更任何內容。'
-      },
-      facetWrite: {
-        label: '寫入',
-        long: '在此應用程式中建立或變更內容。'
-      },
-      facetDestructive: {
-        label: '破壞性',
-        long: '可能會永久移除此應用程式中的內容。'
-      },
-      facetUnclassified: {
-        label: '效果不明',
-        long: '此應用程式從未說明這個工具的作用。'
-      },
-      hintReadOnly: {
-        label: '唯讀',
-        long: '此工具宣告它只會讀取。'
-      },
-      hintCreate: {
-        label: '建立',
-        long: '建立新的內容。'
-      },
-      hintUpdate: {
-        label: '更新',
-        long: '變更已存在的內容。'
-      },
-      hintDelete: {
-        label: '刪除',
-        long: '移除內容。'
-      },
-      hintDestructive: {
-        label: '破壞性',
-        long: '它所做的變更無法在這裡復原。'
-      },
-      hintIdempotent: {
-        label: '可重複',
-        long: '執行兩次的結果與執行一次相同。'
-      },
-      hintOpenWorld: {
-        label: '外部',
-        long: '會存取此應用程式以外的內容。'
-      }
-    },
-    searchPlaceholder: (count: number) => `搜尋 ${count} 個應用程式`
-  },
   freeTier: {
-    providerRowTitle: 'Nous · 免費服務',
-    providerRowPitch: '使用 Nous 帳戶登入，以解鎖更多模型和工具。',
-    readyTitle: 'Sbar Rafiq 已準備就緒。',
-    readyCaption: '免費 · 包含連接器',
-    begin: '開始',
-    signInInstead: '改用 Nous 帳戶登入',
-    otherProviders: '其他供應商',
-    stripTitle: '現已提供免費的 Nous 推論和連接器。',
-    stripBody: '開啟模型選擇器試用，或使用 Nous 帳戶登入。',
-    openModelPicker: '開啟模型選擇器',
-    dismiss: '關閉',
-    providerName: 'Nous',
-    signIn: '登入',
-    signInHeading: '使用 Nous 帳戶登入，以解鎖更多模型和工具。',
-    settingUp: '正在設定免費推論…',
-    codeBody: '在瀏覽器中輸入此代碼以完成登入。',
-    copyLink: '複製連結',
-    doNotShare: '請勿分享此代碼。',
-    waiting: '正在等待登入…',
-    finishingHeading: '正在完成登入…',
-    finishingBody: '已在瀏覽器中核准。正在取得你的帳戶權杖。',
-    signedIn: '已登入。',
-    completedBody: '推論和工具現在由你的帳戶提供。',
-    defaultModel: '預設模型',
-    change: '變更',
-    done: '完成',
-    notNow: '暫時不要',
-    tryAgain: '再試一次',
-    startAgain: '重新開始',
-    didNotComplete: '登入未完成',
-    rejectedBody: '沒關係，你仍在使用 Nous 免費服務。準備好時隨時可以登入。',
-    supersededBody: '較新的登入代碼已取代此代碼。請使用最新的代碼，或重新開始。',
-    timedOutHeading: '該登入連結已過期',
-    timedOutBody: '準備好時隨時可以重新開始。你仍在使用 Nous 免費服務。',
-    retiredBody: '登入完成前你的工作階段已結束。Sbar Rafiq 會開始新的工作階段，之後你準備好時再登入即可。',
-    errorBody: '登入未完成。準備好時隨時可以再試一次。',
-    busyHeading: '就快完成了',
-    unreachableBody: 'Sbar Rafiq 無法連上 Nous 服務來完成登入。請檢查網際網路連線後再試一次。你的工作階段仍保留在這裡。',
-    alreadySignedInHeading: '已登入。',
-    alreadySignedInBody: '此 Sbar Rafiq 已登入 Nous 帳戶。',
-    setupFailed: {
-      gateClosed: '此版本的 Sbar Rafiq 必須有 Nous 帳戶才能啟動。請登入或建立帳戶，完全免費，只需一分鐘。',
-      paused: '免登入使用 Sbar Rafiq 暫時停止。Sbar Rafiq 會持續檢查。登入是免費的，而且可以讓你立即開始使用。',
-      unreachable: 'Sbar Rafiq 無法連上 Nous 服務。請檢查網際網路連線，然後點選「再試一次」。或者先連接其他供應商。',
-      serverError: 'Nous 服務出了點狀況。請稍後點選「再試一次」，或先連接其他供應商。',
-      powRequired: 'Nous 伺服器要求工作量證明，但你的 Agent 尚未實作此功能。請登入或建立免費的 Nous 帳戶以繼續。',
-      locked: '此工作階段必須登入才能繼續。請登入或建立免費的 Nous 帳戶以繼續使用。',
-      generic: 'Sbar Rafiq 無法在未登入的情況下設定免費存取。登入是免費的，或者也可以連接其他供應商。',
-      signInBelow: '登入是免費的。請在下方選擇 Nous。',
-      tryAgain: '再試一次',
-      retrying: '正在重試…',
-      rateLimited: wait =>
-        `目前有許多人正在開始使用，因此 Sbar Rafiq 會在 ${wait}後再試一次。登入是免費的，而且可以免去等待。`
-    },
-    statusLabel: model => `Nous · ${model}`,
-    signedInAs: email => `已登入為 ${email}`,
-    busyBody: wait =>
-      `Nous 服務忙碌中，Sbar Rafiq 無法完成登入。請在 ${wait}後再試一次。在此期間你的工作階段仍會保留在這裡。`
-  },
-  connectors: {
-    title: '連接你的應用程式',
-    connect: '連線',
-    skip: '暫時不要',
-    cancel: '停止等待',
-    retry: '再試一次',
-    grant: '重新連線',
-    connected: '已連線',
-    checking: '正在檢查你的應用程式…',
-    notConnected: '未連線',
-    skipped: '已略過',
-    disabled: '無法使用',
-    failed: '無法連線',
-    needsAuth: '存取權已過期',
-    opening: '正在開啟登入頁面…',
-    waiting: '正在等待你的瀏覽器…',
-    timeout: '仍在等待授權。',
-    refresh: '重新整理狀態',
-    connectError: '無法開始授權。請再試一次。',
-    unavailable: '此工作階段無法使用連接器。',
-    ownerMissing: '請重新開啟此對話以管理其連線。',
-    search: '尋找應用程式',
-    empty: '沒有相符的應用程式',
-    disclaimer: '連線是選擇性的。只授權你希望 Sbar Rafiq 使用的應用程式。',
-    execution: '連接器工具',
-    openInBrowser: '在瀏覽器中開啟',
-    setupCancel: '取消',
-    authorizedToolsUnavailable: '已授權。工具無法使用。',
-    required: '必填',
-    connectErrorFor: (app: string) => `無法開始 ${app} 的授權。`,
-    setup: server => `設定 ${server}`
+    offer: {
+      heading: '繼續使用 Sbar Rafiq',
+      body: '你正在使用免費額度。繼續使用 Sbar Rafiq 的話，你會開始遇到限制。登入免費的 Nous 帳戶，即可獲得更多額度。',
+      signIn: '登入',
+      notNow: '暫不'
+    }
   }
-})
+} satisfies TranslationOverrides
+
+export const zhHantOverrides = mergeTranslations<TranslationOverrides>(zhHantOverridesBase, zhHantLocal)
+
+export const zhHant = defineLocale(zhHantOverrides)

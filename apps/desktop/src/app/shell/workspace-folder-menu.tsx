@@ -17,12 +17,17 @@ import { revealFileInTree } from '@/store/layout'
 import { notify, notifyError } from '@/store/notifications'
 import { $projectTree, moveSessionToCwd, projectNameForCwd } from '@/store/projects'
 
+import type { StatusbarMenuItem } from './statusbar-controls'
 import { workspaceFolderTargets } from './workspace-folder-targets'
 
 interface WorkspaceFolderMenuProps {
   /** False for a remote workspace, or when this machine cannot open the path in
    *  its own file manager: the reveal item is hidden rather than failing. */
   canRevealLocally?: boolean
+  /** "Change working directory": re-homes the focused runtime (`session.cwd.set`)
+   *  rather than moving it to another project. Hidden for a cold tile or
+   *  another gateway's tile, as the hook decides. */
+  changeItem?: StatusbarMenuItem
   /** The focused chat's working directory. Never empty: the chip is hidden without one. */
   cwd: string
   onClose: () => void
@@ -50,6 +55,7 @@ interface WorkspaceFolderMenuProps {
  */
 export function WorkspaceFolderMenu({
   canRevealLocally = true,
+  changeItem,
   cwd,
   onClose,
   profile,
@@ -130,6 +136,17 @@ export function WorkspaceFolderMenu({
         <FolderOpen className="size-3.5 shrink-0" />
         <span className="truncate">{t.rightSidebar.openFolder}</span>
       </DropdownMenuItem>
+
+      {changeItem && !changeItem.hidden && (
+        <DropdownMenuItem
+          className="gap-2 text-xs text-foreground focus:bg-accent"
+          disabled={changeItem.disabled}
+          onSelect={() => changeItem.onSelect?.()}
+          title={changeItem.title}
+        >
+          <span className="truncate">{changeItem.label}</span>
+        </DropdownMenuItem>
+      )}
 
       <DropdownMenuSeparator />
 

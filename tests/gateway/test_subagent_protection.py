@@ -52,7 +52,7 @@ from gateway.platforms.base import (
     build_session_key,
 )
 from gateway.platforms.event import MessageEvent, MessageType
-from gateway.run import GatewayRunner  # noqa: E402
+from gateway.run import GatewayRunner
 
 
 # ──────────────────────────────────────────────────────────────────────

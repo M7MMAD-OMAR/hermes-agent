@@ -47,7 +47,6 @@ export const zhHantCapabilities = {
       deepLinkCatalogUnavailable: '無法載入 Hermes 外掛目錄。請檢查連線後再次開啟連結。',
       settingsForm: {
         save: '儲存設定',
-        optional: '（選填）',
         secretSet: '••••••••（已設定）',
         saved: (name: string) => `已儲存 ${name} 設定。`,
         saveFailed: (name: string) => `無法儲存 ${name} 設定`,

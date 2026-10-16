@@ -14,7 +14,7 @@ def available_backends() -> list[str]:
     """Names of usable rasterizer backends, in preference order."""
     backends = []
     try:
-        import pypdfium2  # noqa: F401
+        import pypdfium2
         backends.append("pypdfium2")
     except ImportError:
         pass
@@ -70,7 +70,7 @@ def _via_pdftoppm(pdf_path: str, page: int, dpi: int, password: str | None):
         # there is nothing above this call that would ever give up on it.
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True,
-                                  encoding="utf-8", timeout=300)
+                                  encoding="utf-8", timeout=300, check=False)
         except subprocess.TimeoutExpired:
             raise ValueError(
                 f"pdftoppm did not finish within 300s on page {page}") from None

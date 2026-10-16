@@ -1314,7 +1314,8 @@ function PreviewPaneImpl({
     }
 
     const webview = document.createElement('webview') as PreviewWebview
-    webview.className = 'flex h-full w-full flex-1 bg-transparent'
+    // A page with no background of its own shows white, as in a browser and the remote HTML frame below.
+    webview.className = 'flex h-full w-full flex-1 bg-white'
     // Agent tabs ride their own partition (see isAgentTab). Set here, at
     // creation, and never changed for a tab's lifetime: a partition swap
     // rebuilds the webview and every login it held.
@@ -1409,12 +1410,15 @@ function PreviewPaneImpl({
       const detail = event as Event & {
         errorCode?: number
         errorDescription?: string
+        isMainFrame?: boolean
         validatedURL?: string
       }
 
       const errorCode = detail.errorCode
 
-      if (errorCode === -3) {
+      // Electron emits did-fail-load for subframes too. A blocked ad or
+      // tracking iframe must not replace an otherwise healthy top-level page.
+      if (detail.isMainFrame === false || errorCode === -3) {
         return
       }
 

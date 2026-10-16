@@ -40,6 +40,7 @@ class PromptSubmitParams(SessionParams):
     # desktop submit answers 4000 "client and backend are out of sync".
     client_turn_id: str | None = None
     voice_context: str | None = None  # recent spoken transcript, model input only (voice-live)
+    voice_turn: bool | None = None  # a spoken voice-conversation turn: runs on auxiliary.voice_chat
     # Desktop-generated large-paste preview (first ~1000 chars); TITLE input only, never the model turn.
     title_preview: str | None = None
     truncate_before_user_ordinal: int | None = None
@@ -47,6 +48,7 @@ class PromptSubmitParams(SessionParams):
     truncate_before_message_id: str | None = None
     confirm_truncate: bool | None = None
     confirm_empty_truncate: bool | None = None
+    confirm_deep_truncate: bool | None = None  # send when the cut archives >1 user turn (enforced next release)
     rebind_survivor_row_ids: list[int] | None = None
     # In-process only: injected by the hosted-room / bot-relay handlers, never accepted from a
     # client (a client dict for ``_turn_author`` answers 4124). Excluded from the rendered wire.

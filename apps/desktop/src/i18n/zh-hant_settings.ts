@@ -1,6 +1,7 @@
 import { defineFieldCopy } from '@/app/settings/field-copy'
 
 import type { TranslationOverrides } from './define-locale'
+import { zhHantUpdateChannel } from './zh-hant_update_channel'
 
 export const zhHantSettings = {
   language: {
@@ -75,7 +76,17 @@ export const zhHantSettings = {
         toolsConnected: n => `已連線 ${n} 個工具`,
         skillsReady: names => (names.length === 1 ? `技能 ${names[0]} 已就緒` : `${names.length} 個技能已就緒`),
         nextChat: '更多工具將在下一次聊天中可用',
-        serverNotConnected: (server, reason) => `MCP 伺服器 ${server} 未連線${reason ? `：${reason}` : '。'}`
+        serverNotConnected: (server, reason) => `MCP 伺服器 ${server} 未連線${reason ? `：${reason}` : '。'}`,
+        verified: '已驗證',
+        unverified: '未驗證',
+        reviewedByNous: '已由 Nous 審核。',
+        installsAndEnables: profile => `安裝到 ${profile}，並立即啟用。`,
+        installsOnly: profile => `安裝到 ${profile}。`,
+        advanced: '進階',
+        versionLabel: '版本',
+        reviewedPin: sha => (sha ? `已審核的固定提交 ${sha}` : '已審核的固定提交'),
+        latestCommit: '最新提交',
+        nothingToInstall: '此套件在這裡沒有可安裝的內容。'
       }
     },
     closeSettings: '關閉設定',
@@ -85,6 +96,14 @@ export const zhHantSettings = {
     resetConfirm: '要將所有設定恢復為 Sbar Rafiq 預設值嗎？',
     exportFailed: '匯出失敗',
     resetFailed: '重設失敗',
+    pluginPages: {
+      blurb: '已安裝外掛程式加入的選項。每個外掛程式都有自己的頁面，有些還有子頁面。',
+      empty: '還沒有外掛程式提供設定。',
+      manage: '管理外掛程式',
+      agentSettings: '代理程式設定',
+      pageCount: (n: number) => `${n} 個頁面`,
+      missing: '這個外掛程式沒有設定頁面，可能已停用或解除安裝。'
+    },
     nav: {
       providers: '提供方',
       providerAccounts: '帳號',
@@ -102,7 +121,8 @@ export const zhHantSettings = {
       about: '關於',
       billing: '帳單',
       notifications: '通知',
-      vault: '密碼與登入'
+      vault: '密碼與登入',
+      plugins: '外掛程式'
     },
     vault: {
       title: '密碼與登入',
@@ -701,12 +721,6 @@ export const zhHantSettings = {
         }
       }
     },
-    poolLimits: {
-      warmBotBackendsAria: '預熱機器人後端',
-      warmBotBackendsTitle: '預熱機器人後端',
-      backendIdleTimeoutAria: '後端閒置逾時（毫秒）',
-      backendIdleTimeoutTitle: '後端閒置逾時（毫秒）'
-    },
     customEndpoints: {
       active: '已啟用',
       apiKeySet: '已設定 API 金鑰',
@@ -754,40 +768,8 @@ export const zhHantSettings = {
       driverHealth: '驅動程式健康狀態'
     },
     about: {
-      heading: 'Sbar Rafiq Desktop',
-      version: value => `版本 ${value}`,
-      versionUnavailable: '版本不可用',
-      bundleOutOfSync: '應用程式建置版本過舊',
-      bundleOutOfSyncDesc:
-        'Sbar Rafiq 執行環境已更新,但桌面應用程式本身仍是舊建置——在應用程式更新之前,新的介面功能(如 Bot Mode)不會顯示。請執行下方的更新以重新建置應用程式。如果此警告仍未消除,請從最新的桌面安裝程式重新安裝。',
-      bundleOutOfSyncAction: '取得安裝程式',
-      bundleSwapPending: '重新啟動以完成更新',
-      bundleSwapPendingDesc:
-        '更新後的應用程式已安裝完成，只需重新啟動 Sbar Rafiq 即可載入新版本。聊天記錄和設定不會受到影響。',
-      bundleSwapPendingAction: '重新啟動 Sbar Rafiq',
       updates: '更新',
-      checkNow: '立即檢查',
-      checking: '檢查中…',
-      seeWhatsNew: '查看新增內容',
-      updateNow: '立即更新',
-      releaseNotes: '發行說明',
-      onLatest: '你已是最新版本。',
-      installing: '正在安裝更新。',
-      cantUpdate: '此版本無法從應用程式內自行更新。',
-      cantReach: '無法連線到更新伺服器。',
-      tapCheck: '點選「立即檢查」以尋找更新。',
-      updateReady: count => `新更新已就緒（包含 ${count} 項變更）。`,
-      updateReadyUnknown: '新更新已就緒。',
-      lastChecked: age => `上次檢查：${age}`,
-      justNowSuffix: ' · 剛剛',
-      automaticUpdates: '自動更新',
-      automaticUpdatesDesc: 'Sbar Rafiq 會在背景自動檢查更新，並在有可用更新時通知你。',
-      branchCommit: (branch, commit) => `分支 ${branch} · 提交 ${commit}`,
-      never: '從未',
-      justNow: '剛剛',
-      minAgo: count => `${count} 分鐘前`,
-      hoursAgo: count => `${count} 小時前`,
-      daysAgo: count => `${count} 天前`
+      channel: zhHantUpdateChannel
     },
     config: {
       minimizeToTrayTitle: '最小化至系統匣',
@@ -985,6 +967,8 @@ export const zhHantSettings = {
       sshErrPlatform: '不支援的遠端平台。Sbar Rafiq Desktop 的 SSH 模式支援 Linux、macOS 和 Windows 遠端主機。',
       sshErrTimeout: 'SSH 連線逾時。主機可能無法存取或處於睡眠狀態。',
       sshErrUpdateRequired: '使用 Desktop SSH 連線前，請更新遠端主機上的 Sbar Rafiq。',
+      sshErrInteractiveAuth:
+        'Tailscale SSH 需要互動式瀏覽器驗證。請在終端機執行 `ssh <host> true` 完成驗證後重試——Sbar Rafiq 以非互動方式執行 SSH。',
       sshErrUnknown: 'SSH 連線失敗。'
     },
     keys: {
@@ -1073,6 +1057,8 @@ export const zhHantSettings = {
       change: '變更',
       autoUseMain: '自動 · 使用主要模型',
       inheritMainEffort: '繼承 · 主要模型推理強度',
+      inheritsFrom: task => `繼承 ${task}`,
+      followTask: task => `跟隨 ${task}`,
       providerDefault: '(提供方預設)',
       moaTitle: '混合代理（Mixture of Agents）',
       moaPreset: '預設',
@@ -1089,6 +1075,7 @@ export const zhHantSettings = {
         mcp: { label: 'MCP', hint: 'MCP 工具路由' },
         title_generation: { label: '標題生成', hint: '工作階段標題' },
         review: { label: '評審', hint: '/review 評審子代理' },
+        voice_chat: { label: '語音聊天', hint: '語音模式回覆' },
         triage_specifier: { label: '分類指定', hint: '看板任務規格補全' },
         kanban_decomposer: { label: '看板分解', hint: '任務拆解' },
         profile_describer: { label: '設定檔描述', hint: '自動生成設定檔描述' },
@@ -1116,14 +1103,14 @@ export const zhHantSettings = {
       modelsTitle: '模型',
       recommended: '推薦',
       recommendedReason: {
+        'product-default': '這台機器的預設模型，由其製造商選定。',
         'best-quality-resident': '在完全駐留 GPU 且保持全速的模型中品質最高。推薦會在品質與該硬體的預計速度之間權衡。',
         'speed-gated-quality':
-          '有更高品質的模型可以裝入這台機器，但受記憶體頻寬限制回應會太慢——這是保持流暢的最佳模型。',
-        'fastest-resident': '沒有模型能在該硬體上達到全速；這是完全駐留 GPU 記憶體中最快的一個。'
+          '有更高品質的模型可以裝入這台機器，但受記憶體頻寬限制回應會太慢——這是保持流暢的最佳模型。'
       } as Record<string, string>,
       noRecommendationTitle: '此裝置暫無自動推薦模型',
       noRecommendationDetail:
-        '自動設定需要一個可完全放入 GPU 記憶體或統一記憶體的精選模型。你仍可在下方自行選擇，或瀏覽更多模型。',
+        '自動設定需要一個可完全駐留 GPU 記憶體或統一記憶體並保持全速的精選模型。你仍可在下方自行選擇，或瀏覽更多模型。',
       noRecommendationAction: '瀏覽模型',
       quickstartConfigure: '讓我選擇',
       downloaded: '已下載',

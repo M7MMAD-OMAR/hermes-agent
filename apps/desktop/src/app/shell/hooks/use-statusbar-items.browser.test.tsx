@@ -22,6 +22,7 @@ function items(chatOpen = true) {
   const { result } = renderHook(
     () =>
       useStatusbarItems({
+        changeSessionCwd: async () => {},
         agentsOpen: false,
         chatOpen,
         commandCenterOpen: false,

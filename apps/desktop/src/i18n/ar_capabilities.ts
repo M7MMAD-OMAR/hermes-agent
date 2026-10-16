@@ -188,7 +188,6 @@ export const arCapabilities = {
       deepLinkCatalogUnavailable: 'تعذّر تحميل كتالوج إضافات Sbar Rafiq. تحقق من اتصالك وافتح الرابط مجددًا.',
       settingsForm: {
         save: 'حفظ الإعدادات',
-        optional: '(اختياري)',
         secretSet: '•••••••• (مضبوط)',
         saved: name => `حُفظت إعدادات ${name}.`,
         saveFailed: name => `تعذّر حفظ إعدادات ${name}`,

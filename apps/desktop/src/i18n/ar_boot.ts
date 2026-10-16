@@ -1,3 +1,4 @@
+import { arSessionCommands } from './ar_session_commands'
 import type { TranslationOverrides } from './define-locale'
 
 export const arBoot = {
@@ -74,6 +75,21 @@ export const arBoot = {
   },
   remoteDisplayBanner: {
     message: reason => `العرض البرمجي نشط، تم اكتشاف شاشة بعيدة (${reason}). تم تعطيل تسريع GPU لمنع الوميض.`
+  },
+  butterbar: {
+    goTo: (index, total) => `عرض الإشعار ${index} من ${total}`,
+    legal: {
+      before: 'يخضع استخدام Hermes Agent لـ',
+      terms: 'شروط الخدمة',
+      between: ' و',
+      privacy: 'سياسة الخصوصية',
+      after: ' الخاصة بنا.'
+    }
+  },
+  promptNotices: {
+    legacySendUnconfirmed:
+      'تعذّر على هذا الخادم تأكيد الإرسال السابق لهذه الرسالة، لذا ربما تم تنفيذها بالفعل. راجع المحادثة قبل إرسالها مرة أخرى.',
+    sessionCommands: arSessionCommands
   },
   updates: {
     discontinuedTitle: 'لم يعد إصدار Sbar Rafiq هذا مدعومًا',
@@ -219,10 +235,6 @@ export const arBoot = {
     connectionSettings: 'إعدادات الاتصال',
     openDownloadPage: 'فتح صفحة التنزيل'
   },
-  guidedGreeting: {
-    line: 'أهلا، تفضل بالدخول. أنا Sbar Rafiq. امنحني دقيقتين لأرتب المكان حولك، ثم نبدأ بشيء تريد إنجازه فعلا.\n\nبداية، بماذا أناديك؟',
-    nameSuggestion: (name: string) => `(يمكنني أن أناديك ${name} إن كنت تفضل ذلك.)`
-  },
   install: {
     testSucceeded: (baseUrl, version) => `تم الاتصال بـ ${baseUrl}${version ? ` (${version})` : ''}.`,
     signInWith: provider => `تسجيل الدخول عبر ${provider}`,
@@ -300,6 +312,9 @@ export const arBoot = {
     headerDesc: 'اربط مزوّد نماذج لبدء المحادثة. معظم الخيارات تتطلب نقرة واحدة.',
     preparingInstall: 'يُكمل Sbar Rafiq التثبيت. عادة ما يستغرق ذلك أقل من دقيقة في أول تشغيل.',
     starting: 'جار بدء Sbar Rafiq...',
+    setupSlowTitle: 'يستغرق الإعداد وقتا أطول من المعتاد.',
+    setupSlowBody: 'لا يزال Sbar Rafiq قيد البدء في الخلفية.',
+    continueWithoutSetup: 'المتابعة دون إعداد',
     lookingUpProviders: 'جار البحث عن المزوّدين...',
     collapse: 'طي',
     otherProviders: 'مزودون آخرون',
@@ -365,8 +380,6 @@ export const arBoot = {
     copyAuthCode: 'انسخ رمز التفويض وألصقه أدناه.',
     pasteAuthCode: 'ألصق رمز التفويض',
     reopenAuthPage: 'إعادة فتح صفحة التفويض',
-    autoBrowser: provider => `فتحنا ${provider} في المتصفح. صرّح لـ Sbar Rafiq هناك وسيتم الاتصال تلقائياً دون نسخ أو لصق.`,
-    reopenSignInPage: 'إعادة فتح صفحة تسجيل الدخول',
     waitingAuthorize: 'بانتظار التفويض...',
     externalPending: provider =>
       `${provider} يسجل الدخول عبر أداة سطر الأوامر الخاصة به. شغّل هذا الأمر في الطرفية، ثم عد واختر "سجلت الدخول":`,
@@ -392,5 +405,5 @@ export const arBoot = {
   }
 } satisfies Pick<
   TranslationOverrides,
-  'boot' | 'remoteDisplayBanner' | 'updates' | 'guidedGreeting' | 'install' | 'onboarding'
+  'boot' | 'remoteDisplayBanner' | 'butterbar' | 'promptNotices' | 'updates' | 'install' | 'onboarding'
 >

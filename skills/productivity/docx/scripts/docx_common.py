@@ -32,8 +32,7 @@ def iter_all_paragraphs(doc, include_headers_footers: bool = True):
 
 
 def _iter_container(container):
-    for para in container.paragraphs:
-        yield para
+    yield from container.paragraphs
     for table in container.tables:
         yield from _iter_table(table)
 
@@ -41,8 +40,7 @@ def _iter_container(container):
 def _iter_table(table):
     for row in table.rows:
         for cell in row.cells:
-            for para in cell.paragraphs:
-                yield para
+            yield from cell.paragraphs
             for nested in cell.tables:
                 yield from _iter_table(nested)
 

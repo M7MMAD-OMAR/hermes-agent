@@ -85,7 +85,7 @@ export const zhHantDiagnostics = {
       inputTitleNamed: session => `需要輸入 — ${session}`,
       inputBody: 'Sbar Rafiq 正在等待你的回應。',
       turnDoneTitle: 'Sbar Rafiq 已完成',
-      turnDoneBody: '',
+      turnDoneBody: '訊息已完成。',
       turnErrorTitle: '本輪失敗',
       backgroundDoneTitle: '背景工作已完成',
       backgroundFailedTitle: '背景工作失敗',

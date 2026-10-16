@@ -45,6 +45,19 @@ def interrupt_issuer(agent) -> Optional[str]:
     return str(reason).strip().replace(" ", "_")
 
 
+def interrupt_skip_wording(agent) -> str:
+    """Reason a tool call was skipped/cancelled, in words safe for tool output.
+
+    Derived from the RECORDED reason rather than the call site, so a system-initiated
+    abort reads as one instead of asserting a user message that never existed (#130207)."""
+    reason = getattr(agent, "_tool_interrupt_reason", None)
+    if not reason:
+        return "Turn interrupted"
+    if reason in USER_INTERRUPT_REASONS:
+        return reason.capitalize()
+    return f"Turn aborted — {str(reason).replace('_', ' ')}"
+
+
 def interrupted_during_api_call_reason(agent) -> str:
     """Turn exit reason for an API call cut short by an interrupt (``turn_explainers`` matches the prefix)."""
     issuer = interrupt_issuer(agent)
@@ -148,10 +161,13 @@ class InterruptControlMixin:
                 self._turn_liveness_abort_claim = require_generation
 
         # Tool cancellation attribution stays separate from _interrupt_message, which may carry the user's
-        # full next message.
+        # full next message. An explicit ``tool_reason`` wins on BOTH paths: a system producer that has to
+        # stop the turn SOFTLY (batch guards, watchdogs) previously had no way to label itself — passing a
+        # message made it look like "the user sent a new message", so the abort was attributed to the user
+        # and rendered as a user-stop placeholder (#130207).
         tool_interrupt_reason = (
             (tool_reason or _REASON_HARD_STOP) if hard_cancel
-            else (_REASON_NEW_MESSAGE if message else _REASON_USER_INTERRUPT)
+            else (tool_reason or (_REASON_NEW_MESSAGE if message else _REASON_USER_INTERRUPT))
         )
         # Legacy callers pass no origin. Rather than label them all "user_stop" and bake a guess
         # into the transcript, infer only what the ABI already proves — a message-carrying soft
@@ -165,6 +181,7 @@ class InterruptControlMixin:
             # Published with the interrupt itself, so the settlement reads the origin of the
             # request that actually won rather than of a later declined one.
             self._interrupt_origin = _resolved_origin
+            self._turn_user_intervened = True
             # The turn record and the log must agree on WHO asked for the stop (#112647).
             logger.info("Interrupt requested (%s): %s", "hard" if hard_cancel else "soft", tool_interrupt_reason)
             _hard_event = getattr(self, "_hard_interrupt_requested", None) if hard_cancel else None
@@ -295,6 +312,8 @@ class InterruptControlMixin:
         with _ic_lock(self, "_pending_steer_lock"):
             existing = _ic_slot(self, "_pending_steer_lock", "_pending_steer")
             self._pending_steer = (existing + "\n" + cleaned) if existing else cleaned
+        # The turn no longer ran on its own (first-task-done detection reads this off the result).
+        self._turn_user_intervened = True
         # Through getattr: ``steer`` is also invoked unbound against stand-ins that are not mixin
         # instances at all, and attribution must never be the reason a correction fails — the same
         # contract ``record_correction_delivery`` keeps internally.
@@ -317,7 +336,9 @@ class InterruptControlMixin:
                 if self._interrupt_requested:
                     return False
             try:
-                if accepted := bool(_native_steer(cleaned)):
+                accepted = bool(_native_steer(cleaned))
+                if accepted:
+                    self._turn_user_intervened = True
                     self.record_correction_delivery(DELIVERY_MODEL_CANCELLED)
                 return accepted
             except Exception:
@@ -372,6 +393,7 @@ class InterruptControlMixin:
                 )
                 self._interrupt_requested = True
                 self._interrupt_message = None
+                self._turn_user_intervened = True
         if _steer_instead:
             # Between phases: nothing to cancel, so deliver at the next safe boundary instead of
             # demoting a correction the person aimed at THIS turn into a separate follow-up turn.
